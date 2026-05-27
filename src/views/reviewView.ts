@@ -4,6 +4,7 @@ import { CardFileLoader } from "../services/cardFileLoader";
 
 export const REVIEW_VIEW_TYPE = "mneme-review-view";
 
+type ReviewMode = "queue" | "flashcard";
 type ReviewRating = "Again" | "Hard" | "Good" | "Easy";
 
 interface CardScanSummary {
@@ -17,8 +18,10 @@ const REVIEW_RATINGS: ReviewRating[] = ["Again", "Hard", "Good", "Easy"];
 export class MnemeReviewView extends ItemView {
 	private readonly loader: CardFileLoader;
 	private cards: LoadedMnemeCard[] = [];
-	private currentIndex = 0;
 	private isAnswerShown = false;
+	private isReviewComplete = false;
+	private mode: ReviewMode = "queue";
+	private selectedCard: LoadedMnemeCard | null = null;
 	private statusMessage = "Ready to scan Card.md files.";
 
 	constructor(leaf: WorkspaceLeaf) {
@@ -48,9 +51,8 @@ export class MnemeReviewView extends ItemView {
 	}
 
 	private async refreshCards(): Promise<void> {
+		this.resetReviewState();
 		this.statusMessage = "Scanning Card.md files...";
-		this.currentIndex = 0;
-		this.isAnswerShown = false;
 		this.render();
 
 		try {
@@ -73,16 +75,50 @@ export class MnemeReviewView extends ItemView {
 		this.contentEl.empty();
 		this.contentEl.addClass("mneme-review-view");
 
-		this.contentEl.createEl("h2", { text: "Mneme Review" });
-		this.renderControls();
+		if (this.mode === "flashcard") {
+			this.renderFlashCardMode();
+			return;
+		}
+
+		this.renderQueueMode();
+	}
+
+	private renderQueueMode(): void {
+		this.renderHeader("Review Queue", true);
 		this.renderSummary();
-		this.renderReviewPanel();
+		this.renderQueue();
 		this.renderDiagnostics();
 	}
 
-	private renderControls(): void {
-		const controlsEl = this.contentEl.createDiv({ cls: "mneme-review-controls" });
-		controlsEl.createEl("button", { text: "Refresh Cards" }, (buttonEl) => {
+	private renderFlashCardMode(): void {
+		this.renderHeader("Flash Cards", false);
+		this.renderStatus();
+		this.renderFlashCard();
+	}
+
+	private renderHeader(subtitle: string, showRefresh: boolean): void {
+		const headerEl = this.contentEl.createDiv({ cls: "mneme-review-header" });
+		const titleGroupEl = headerEl.createDiv();
+
+		titleGroupEl.createEl("h2", {
+			cls: "mneme-review-title",
+			text: "Mneme Review",
+		});
+		titleGroupEl.createEl("p", {
+			cls: "mneme-review-subtitle",
+			text: subtitle,
+		});
+
+		const toolbarEl = headerEl.createDiv({ cls: "mneme-review-toolbar" });
+
+		if (!showRefresh) {
+			toolbarEl.createEl("button", { text: "Back to Queue" }, (buttonEl) => {
+				buttonEl.addEventListener("click", () => this.backToQueue());
+			});
+			return;
+		}
+
+		toolbarEl.createEl("button", { text: "Refresh Cards" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
 				void this.refreshCards();
 			});
@@ -93,65 +129,122 @@ export class MnemeReviewView extends ItemView {
 		const summary = summarizeCards(this.cards);
 		const summaryEl = this.contentEl.createDiv({ cls: "mneme-review-summary" });
 
-		summaryEl.createEl("p", { text: this.statusMessage });
-		summaryEl.createEl("p", {
-			text: `Scanned: ${summary.totalCount} | Valid: ${summary.validCount} | Invalid: ${summary.invalidCount}`,
+		summaryEl.createEl("span", { text: `${summary.totalCount} scanned` });
+		summaryEl.createEl("span", { text: `${summary.validCount} valid` });
+		summaryEl.createEl("span", { text: `${summary.invalidCount} invalid` });
+		this.renderStatus();
+	}
+
+	private renderStatus(): void {
+		this.contentEl.createEl("p", {
+			cls: "mneme-review-status",
+			text: this.statusMessage,
 		});
 	}
 
-	private renderReviewPanel(): void {
-		const panelEl = this.contentEl.createDiv({ cls: "mneme-review-panel" });
+	private renderQueue(): void {
+		const queueEl = this.contentEl.createDiv({ cls: "mneme-review-queue" });
 		const reviewableCards = this.getReviewableCards();
 
-		panelEl.createEl("h3", { text: "Review" });
-
 		if (reviewableCards.length === 0) {
-			panelEl.createEl("p", { text: "No valid cards available for review." });
+			queueEl.createEl("p", {
+				cls: "mneme-review-empty",
+				text: "No valid cards available for review.",
+			});
 			return;
 		}
 
-		if (this.currentIndex >= reviewableCards.length) {
-			panelEl.createEl("p", { text: "Review complete." });
+		for (const card of reviewableCards) {
+			this.renderQueueItem(queueEl, card);
+		}
+	}
+
+	private renderQueueItem(parentEl: HTMLElement, card: LoadedMnemeCard): void {
+		const itemEl = parentEl.createDiv({ cls: "mneme-review-queue-item" });
+		const textEl = itemEl.createDiv();
+
+		textEl.createEl("h3", {
+			cls: "mneme-review-queue-title",
+			text: getCardTitle(card),
+		});
+		textEl.createEl("p", {
+			cls: "mneme-review-queue-meta",
+			text: "1 card",
+		});
+
+		const actionsEl = itemEl.createDiv({ cls: "mneme-review-actions" });
+
+		actionsEl.createEl("button", { text: "Flash Cards" }, (buttonEl) => {
+			buttonEl.addEventListener("click", () => this.startFlashCards(card));
+		});
+		actionsEl.createEl("button", { text: "Source" }, (buttonEl) => {
+			buttonEl.addEventListener("click", () => this.showSourcePlaceholder(card));
+		});
+	}
+
+	private renderFlashCard(): void {
+		const card = this.selectedCard;
+		const cardEl = this.contentEl.createDiv({ cls: "mneme-review-card" });
+
+		if (!card) {
+			cardEl.createEl("p", {
+				cls: "mneme-review-empty",
+				text: "No valid cards available for review.",
+			});
 			return;
 		}
 
-		const currentCard = reviewableCards[this.currentIndex];
-		if (!currentCard) {
-			panelEl.createEl("p", { text: "No valid cards available for review." });
+		if (this.isReviewComplete) {
+			cardEl.createEl("p", {
+				cls: "mneme-review-card-meta",
+				text: "Card 1 of 1",
+			});
+			cardEl.createEl("h3", {
+				cls: "mneme-review-card-title",
+				text: getCardTitle(card),
+			});
+			cardEl.createEl("p", {
+				cls: "mneme-review-empty",
+				text: "Review complete.",
+			});
 			return;
 		}
 
-		panelEl.createEl("p", { text: `Card ${this.currentIndex + 1} of ${reviewableCards.length}` });
-		panelEl.createEl("p", { text: currentCard.path });
+		cardEl.createEl("p", {
+			cls: "mneme-review-card-meta",
+			text: "Card 1 of 1",
+		});
+		cardEl.createEl("h3", {
+			cls: "mneme-review-card-title",
+			text: getCardTitle(card),
+		});
 
-		panelEl.createEl("h4", { text: "Front" });
-		panelEl.createEl("pre", { text: currentCard.front || "(empty)" });
+		cardEl.createEl("div", {
+			cls: "mneme-review-front",
+			text: card.front || "(empty)",
+		});
 
 		if (!this.isAnswerShown) {
-			panelEl.createEl("button", { text: "Show Answer" }, (buttonEl) => {
+			const actionsEl = cardEl.createDiv({ cls: "mneme-review-actions" });
+			actionsEl.createEl("button", { text: "Show Answer" }, (buttonEl) => {
 				buttonEl.addEventListener("click", () => this.showAnswer());
 			});
-		} else {
-			this.renderAnswer(panelEl, currentCard);
-			this.renderRatingButtons(panelEl);
+			return;
 		}
 
-		this.renderNavigation(panelEl, reviewableCards.length);
-	}
-
-	private renderAnswer(parentEl: HTMLElement, card: LoadedMnemeCard): void {
-		parentEl.createEl("h4", { text: "Back" });
-		parentEl.createEl("pre", { text: card.back || "(empty)" });
+		cardEl.createEl("div", {
+			cls: "mneme-review-answer",
+			text: card.back || "(empty)",
+		});
 
 		if (card.rubric) {
-			parentEl.createEl("h4", { text: "Rubric" });
-			parentEl.createEl("pre", { text: card.rubric });
+			cardEl.createEl("div", {
+				cls: "mneme-review-rubric",
+				text: card.rubric,
+			});
 		}
-	}
 
-	private renderRatingButtons(parentEl: HTMLElement): void {
-		const ratingsEl = parentEl.createDiv({ cls: "mneme-review-ratings" });
-
+		const ratingsEl = cardEl.createDiv({ cls: "mneme-review-rating-row" });
 		for (const rating of REVIEW_RATINGS) {
 			ratingsEl.createEl("button", { text: rating }, (buttonEl) => {
 				buttonEl.addEventListener("click", () => this.rateCurrentCard(rating));
@@ -159,41 +252,32 @@ export class MnemeReviewView extends ItemView {
 		}
 	}
 
-	private renderNavigation(parentEl: HTMLElement, reviewableCount: number): void {
-		const navigationEl = parentEl.createDiv({ cls: "mneme-review-navigation" });
-
-		navigationEl.createEl("button", { text: "Previous" }, (buttonEl) => {
-			buttonEl.disabled = this.currentIndex === 0;
-			buttonEl.addEventListener("click", () => this.moveToPreviousCard());
-		});
-
-		navigationEl.createEl("button", { text: "Next" }, (buttonEl) => {
-			buttonEl.disabled = this.currentIndex >= reviewableCount;
-			buttonEl.addEventListener("click", () => this.advanceToNextCard());
-		});
-	}
-
 	private renderDiagnostics(): void {
-		const diagnosticsEl = this.contentEl.createDiv({ cls: "mneme-review-diagnostics" });
+		const diagnostics = this.getDiagnosticCards();
+		const diagnosticsEl = this.contentEl.createEl("details", {
+			cls: "mneme-review-diagnostics",
+		});
 
-		diagnosticsEl.createEl("h3", { text: "Loaded Card Files" });
+		diagnosticsEl.createEl("summary", { text: "Advanced Diagnostics" });
 
-		if (this.cards.length === 0) {
-			diagnosticsEl.createEl("p", { text: "No Card.md files found." });
+		if (diagnostics.length === 0) {
+			diagnosticsEl.createEl("p", {
+				cls: "mneme-review-empty",
+				text: "No invalid cards or parser warnings.",
+			});
 			return;
 		}
 
-		for (const card of this.cards) {
+		for (const card of diagnostics) {
 			this.renderDiagnosticCard(diagnosticsEl, card);
 		}
 	}
 
 	private renderDiagnosticCard(parentEl: HTMLElement, card: LoadedMnemeCard): void {
-		const cardEl = parentEl.createDiv({ cls: "mneme-review-card" });
+		const cardEl = parentEl.createDiv({ cls: "mneme-review-diagnostics-item" });
 
 		cardEl.createEl("h4", { text: card.path });
 		cardEl.createEl("p", { text: card.isValid ? "Status: valid" : "Status: invalid" });
-		cardEl.createEl("p", { text: `Front: ${card.front || "(empty)"}` });
 
 		if (card.errors.length > 0) {
 			this.renderIssueList(cardEl, "Errors", card.errors);
@@ -213,6 +297,24 @@ export class MnemeReviewView extends ItemView {
 		}
 	}
 
+	private startFlashCards(card: LoadedMnemeCard): void {
+		this.mode = "flashcard";
+		this.selectedCard = card;
+		this.isAnswerShown = false;
+		this.isReviewComplete = false;
+		this.statusMessage = "Flash card ready.";
+		this.render();
+	}
+
+	private backToQueue(): void {
+		this.mode = "queue";
+		this.selectedCard = null;
+		this.isAnswerShown = false;
+		this.isReviewComplete = false;
+		this.statusMessage = "Back to review queue.";
+		this.render();
+	}
+
 	private showAnswer(): void {
 		this.isAnswerShown = true;
 		this.statusMessage = "Answer shown.";
@@ -220,55 +322,50 @@ export class MnemeReviewView extends ItemView {
 	}
 
 	private rateCurrentCard(rating: ReviewRating): void {
-		const currentCard = this.getCurrentReviewableCard();
+		const card = this.selectedCard;
 
-		if (!currentCard) {
+		if (!card) {
 			this.statusMessage = "Review complete.";
+			this.isReviewComplete = true;
 			this.render();
 			return;
 		}
 
 		console.info("Mneme: review rating selected", {
-			path: currentCard.path,
+			path: card.path,
 			rating,
+			title: getCardTitle(card),
 		});
 
-		this.statusMessage = `Recorded ${rating} for ${currentCard.path}.`;
-		this.advanceToNextCard();
-	}
-
-	private advanceToNextCard(): void {
-		const reviewableCards = this.getReviewableCards();
-
-		if (this.currentIndex < reviewableCards.length) {
-			this.currentIndex += 1;
-		}
-
+		this.statusMessage = `Recorded ${rating}.`;
 		this.isAnswerShown = false;
-
-		if (this.currentIndex >= reviewableCards.length) {
-			this.statusMessage = "Review complete.";
-		}
-
+		this.isReviewComplete = true;
 		this.render();
 	}
 
-	private moveToPreviousCard(): void {
-		if (this.currentIndex > 0) {
-			this.currentIndex -= 1;
-		}
-
-		this.isAnswerShown = false;
-		this.statusMessage = "Moved to previous card.";
+	private showSourcePlaceholder(card: LoadedMnemeCard): void {
+		console.info("Mneme: source placeholder selected", {
+			action: "source",
+			path: card.path,
+		});
+		this.statusMessage = "Source navigation is not implemented yet.";
+		new Notice("Source navigation is not implemented yet.");
 		this.render();
 	}
 
-	private getCurrentReviewableCard(): LoadedMnemeCard | undefined {
-		return this.getReviewableCards()[this.currentIndex];
+	private resetReviewState(): void {
+		this.mode = "queue";
+		this.selectedCard = null;
+		this.isAnswerShown = false;
+		this.isReviewComplete = false;
 	}
 
 	private getReviewableCards(): LoadedMnemeCard[] {
 		return this.cards.filter((card) => card.isValid);
+	}
+
+	private getDiagnosticCards(): LoadedMnemeCard[] {
+		return this.cards.filter((card) => !card.isValid || card.warnings.length > 0);
 	}
 }
 
@@ -284,4 +381,20 @@ function summarizeCards(cards: LoadedMnemeCard[]): CardScanSummary {
 
 function formatSummary(summary: CardScanSummary): string {
 	return `Scanned ${summary.totalCount} card files, ${summary.validCount} valid, ${summary.invalidCount} invalid.`;
+}
+
+function getCardTitle(card: LoadedMnemeCard): string {
+	const parentName = getParentFolderName(card.path);
+
+	return parentName || card.basename || card.path;
+}
+
+function getParentFolderName(path: string): string {
+	const parts = path.split("/").filter((part) => part.length > 0);
+
+	if (parts.length < 2) {
+		return "";
+	}
+
+	return parts[parts.length - 2] ?? "";
 }

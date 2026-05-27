@@ -6,3 +6,181 @@ available in the app when your plugin is enabled.
 If your plugin does not need CSS, delete this file.
 
 */
+
+.mneme-review-view {
+	color: var(--text-normal);
+	font-family: var(--font-text);
+	padding: 28px;
+}
+
+.mneme-review-header {
+	align-items: flex-start;
+	display: flex;
+	gap: 16px;
+	justify-content: space-between;
+	margin-bottom: 24px;
+}
+
+.mneme-review-title {
+	font-size: 28px;
+	font-weight: 650;
+	letter-spacing: 0;
+	line-height: 1.15;
+	margin: 0;
+}
+
+.mneme-review-subtitle {
+	color: var(--text-muted);
+	font-family: var(--font-ui-medium);
+	margin: 6px 0 0;
+}
+
+.mneme-review-toolbar,
+.mneme-review-actions,
+.mneme-review-rating-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+
+.mneme-review-summary {
+	align-items: center;
+	color: var(--text-muted);
+	display: flex;
+	flex-wrap: wrap;
+	font-family: var(--font-ui-small);
+	gap: 10px;
+	margin-bottom: 8px;
+}
+
+.mneme-review-summary span {
+	background: var(--background-secondary);
+	border-radius: var(--radius-m);
+	padding: 4px 10px;
+}
+
+.mneme-review-status {
+	color: var(--text-muted);
+	font-family: var(--font-ui-small);
+	margin: 8px 0 20px;
+}
+
+.mneme-review-queue {
+	display: grid;
+	gap: 12px;
+	margin: 20px 0 28px;
+}
+
+.mneme-review-queue-item,
+.mneme-review-card {
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-l);
+}
+
+.mneme-review-queue-item {
+	align-items: center;
+	display: flex;
+	gap: 18px;
+	justify-content: space-between;
+	padding: 18px 20px;
+}
+
+.mneme-review-queue-title {
+	font-size: 18px;
+	font-weight: 600;
+	letter-spacing: 0;
+	margin: 0;
+}
+
+.mneme-review-queue-meta,
+.mneme-review-card-meta {
+	color: var(--text-muted);
+	font-family: var(--font-ui-small);
+	margin: 6px 0 0;
+}
+
+.mneme-review-card {
+	margin: 28px auto;
+	max-width: 760px;
+	padding: 30px;
+}
+
+.mneme-review-card-title {
+	font-size: 20px;
+	font-weight: 600;
+	letter-spacing: 0;
+	margin: 0 0 22px;
+}
+
+.mneme-review-front {
+	font-size: 24px;
+	line-height: 1.45;
+	margin: 22px 0;
+}
+
+.mneme-review-answer,
+.mneme-review-rubric {
+	background: var(--background-secondary);
+	border-radius: var(--radius-m);
+	line-height: 1.5;
+	margin: 16px 0;
+	padding: 16px;
+	white-space: pre-wrap;
+}
+
+.mneme-review-rubric {
+	color: var(--text-muted);
+	font-family: var(--font-ui-small);
+}
+
+.mneme-review-rating-row {
+	border-top: 1px solid var(--background-modifier-border);
+	margin-top: 22px;
+	padding-top: 18px;
+}
+
+.mneme-review-diagnostics {
+	border-top: 1px solid var(--background-modifier-border);
+	color: var(--text-muted);
+	margin-top: 32px;
+	padding-top: 18px;
+}
+
+.mneme-review-diagnostics summary {
+	cursor: pointer;
+	font-family: var(--font-ui-medium);
+}
+
+.mneme-review-diagnostics-item {
+	background: var(--background-secondary);
+	border-radius: var(--radius-m);
+	margin-top: 12px;
+	padding: 12px 14px;
+}
+
+.mneme-review-diagnostics-item h4,
+.mneme-review-diagnostics-item h5 {
+	color: var(--text-normal);
+	margin: 8px 0;
+}
+
+.mneme-review-empty {
+	color: var(--text-faint);
+	margin: 18px 0;
+}
+
+.mneme-review-error {
+	color: var(--text-error);
+}
+
+.mneme-review-view button {
+	background: var(--interactive-normal);
+	border-radius: var(--radius-m);
+	color: var(--text-normal);
+	font-family: var(--font-ui-medium);
+}
+
+.mneme-review-view button:hover {
+	background: var(--interactive-hover);
+}
