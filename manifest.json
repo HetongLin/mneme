@@ -1,0 +1,11 @@
+{
+  "id": "mneme",
+  "name": "Mneme",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "A concept-centered learning layer for Obsidian.",
+  "author": "Linus",
+  "authorUrl": "",
+  "fundingUrl": "",
+  "isDesktopOnly": false
+}

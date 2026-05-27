@@ -1,0 +1,209 @@
+# UI Spec
+
+## Global UI Rule
+
+All user-facing UI labels must be in English.
+
+The product should feel low-pressure. Avoid debt-like language.
+
+Prefer:
+
+- Today’s Focus
+- Later
+- Needs Attention
+- Weak Concepts
+
+Avoid:
+
+- Debt
+- Failed
+- Missed
+- Overdue overload
+
+## Main Views
+
+v0.1 includes:
+
+- Review View
+- Inbox View
+- Card Edit Modal
+- Settings View or Settings Tab
+
+## Review View
+
+### Purpose
+
+Review due Cards grouped by Concept.
+
+FSRS schedules Cards. Mneme groups due Cards by Concept.
+
+### Front State
+
+Display:
+
+- Mneme Review
+- Concept title
+- Card progress
+- Source note
+- Front content
+- Actions
+
+Labels:
+
+- Show Answer
+- Edit
+- View Source
+- Skip
+
+Example:
+
+Mneme Review
+
+Concept: Information Gain  
+Card 1 / 3  
+Source: Decision Tree.md
+
+Front:
+
+Why does information gain tend to favor attributes with many values?
+
+Actions:
+
+- Show Answer
+- Edit
+- View Source
+- Skip
+
+### Back State
+
+After clicking Show Answer, display:
+
+- Front
+- Back
+- Rubric
+- Rating buttons
+
+Labels:
+
+- Again
+- Hard
+- Good
+- Easy
+- Edit
+- View Source
+
+### Rating Behavior
+
+- Again updates FSRS state.
+- Hard updates FSRS state.
+- Good updates FSRS state.
+- Easy updates FSRS state.
+- Skip does not update FSRS state.
+- Edit opens Card Edit Modal.
+- View Source opens the Source Note.
+
+## Today’s Focus
+
+The review home should emphasize Concepts, not raw Card debt.
+
+Preferred display:
+
+Today’s Focus  
+5 Concepts · 16 Cards
+
+Do not display a scary overdue queue by default.
+
+## Inbox View
+
+### Purpose
+
+Show AI-generated Concept Suggestions before committing them.
+
+### Suggestion Types
+
+- New Concept
+- Update Existing Concept
+- Possible Duplicate
+- Ignore
+
+### Actions
+
+- Accept
+- Edit
+- Reject
+- Merge
+- Create Concept
+- Update Concept
+
+### Suggested Layout
+
+For each suggestion, show:
+
+- Suggestion type
+- Concept title
+- Importance
+- Learning mode
+- Source note
+- Source excerpt
+- Core understanding
+- Common mistakes
+- Suggested cards
+- Actions
+
+## Card Edit Modal
+
+### Purpose
+
+Allow users to edit Card.md marker content safely.
+
+Editable fields:
+
+- Front
+- Back
+- Rubric
+- Targets
+- Status
+
+Actions:
+
+- Save
+- Cancel
+
+Rules:
+
+- Saving updates Card.md markers.
+- Editing content does not update FSRS state.
+- FSRS state only changes after a review rating.
+- If marker format is broken, show validation error.
+
+## Settings
+
+v0.1 settings:
+
+- Concepts folder
+- Cards folder
+- Daily Concept Limit
+- Daily Card Limit
+- Cards per Concept
+- Desired Retention default
+- Desired Retention by importance
+- LLM provider settings
+
+Default retention mapping:
+
+- low: 0.80
+- normal: 0.85
+- high: 0.90
+- critical: 0.92
+
+## Exploratory Concepts
+
+Exploratory concepts:
+
+- Generate Concept.md
+- Do not generate Cards
+- Do not enter FSRS
+- Do not enter Today’s Focus
+- May enter future Random Concept Draw
+
+v0.1 does not need to implement Random Concept Draw.
