@@ -93,11 +93,19 @@ If your plugin does not need CSS, delete this file.
 	margin: 0;
 }
 
+.mneme-review-concept-title {
+	color: var(--text-normal);
+}
+
 .mneme-review-queue-meta,
 .mneme-review-card-meta {
 	color: var(--text-muted);
 	font-family: var(--font-ui-small);
 	margin: 6px 0 0;
+}
+
+.mneme-review-concept-meta {
+	color: var(--text-muted);
 }
 
 .mneme-review-card {
