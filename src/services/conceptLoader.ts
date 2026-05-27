@@ -41,10 +41,6 @@ export class ConceptLoader {
 			? await this.loadConceptMetadata(conceptFile)
 			: { warnings: [] };
 		const fallbackTitle = getFolderTitle(folderPath) || cards[0]?.path || "Card";
-		const warnings = [
-			...metadata.warnings,
-			...cards.flatMap((card) => card.warnings),
-		];
 		const validCards = cards.filter((card) => card.isValid);
 
 		return {
@@ -57,7 +53,7 @@ export class ConceptLoader {
 			isReviewable: validCards.length > 0,
 			sourcePath: metadata.sourcePath,
 			title: metadata.title || fallbackTitle,
-			warnings,
+			warnings: metadata.warnings,
 		};
 	}
 

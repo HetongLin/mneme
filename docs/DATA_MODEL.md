@@ -133,6 +133,10 @@ Recommended marker sections:
 
 - MNEME:RUBRIC
 
+Optional multi-card wrapper markers:
+
+- MNEME:CARD
+
 Example structure:
 
 ---
@@ -163,10 +167,34 @@ Because attributes with many values can split samples into smaller and purer sub
 - Mentions entropy reduction
 <!-- MNEME:RUBRIC:end -->
 
+Multi-card Card.md files may wrap repeated card sections:
+
+<!-- MNEME:CARD:start -->
+<!-- MNEME:FRONT:start -->
+Question 1
+<!-- MNEME:FRONT:end -->
+
+<!-- MNEME:BACK:start -->
+Answer 1
+<!-- MNEME:BACK:end -->
+<!-- MNEME:CARD:end -->
+
+<!-- MNEME:CARD:start -->
+<!-- MNEME:FRONT:start -->
+Question 2
+<!-- MNEME:FRONT:end -->
+
+<!-- MNEME:BACK:start -->
+Answer 2
+<!-- MNEME:BACK:end -->
+<!-- MNEME:CARD:end -->
+
 ## Card Parsing Rules
 
 - FRONT and BACK are required.
 - RUBRIC is recommended and missing RUBRIC should produce a warning, not a fatal error.
+- Existing single-card files without CARD wrappers remain valid.
+- If CARD wrappers are present, each complete CARD block is parsed as one card.
 - Extra Markdown outside markers is allowed.
 - Missing FRONT or BACK makes the card invalid.
 - Invalid cards must not crash Review View.

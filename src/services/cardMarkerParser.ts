@@ -7,7 +7,8 @@ export type CardMarkerIssueCode =
 	| "missing_recommended_section"
 	| "duplicate_section"
 	| "unclosed_section"
-	| "orphan_end_marker";
+	| "orphan_end_marker"
+	| "malformed_card_block";
 
 export interface CardMarkerIssue {
 	code: CardMarkerIssueCode;
@@ -29,6 +30,11 @@ interface SectionMarkers {
 	section: CardMarkerSection;
 	start: string;
 }
+
+const CARD_BLOCK_MARKERS = {
+	end: "<!-- MNEME:CARD:end -->",
+	start: "<!-- MNEME:CARD:start -->",
+};
 
 const SECTION_MARKERS: Record<CardMarkerSection, SectionMarkers> = {
 	FRONT: createSectionMarkers("FRONT"),
@@ -52,6 +58,29 @@ export function parseCardMarkers(markdown: string): ParsedCardMarkers {
 		rubric,
 		warnings,
 	};
+}
+
+export function parseMnemeCards(markdown: string): ParsedCardMarkers[] {
+	const cardBlocks = getCardBlockMatches(markdown);
+	const startCount = countOccurrences(markdown, CARD_BLOCK_MARKERS.start);
+	const endCount = countOccurrences(markdown, CARD_BLOCK_MARKERS.end);
+	const hasCardMarkers = startCount > 0 || endCount > 0;
+
+	if (!hasCardMarkers) {
+		return [parseCardMarkers(markdown)];
+	}
+
+	const parsedCards = cardBlocks.map((block) => parseCardMarkers(block));
+	const malformedErrors = createCardBlockErrors(startCount, endCount, cardBlocks.length);
+
+	if (malformedErrors.length === 0) {
+		return parsedCards;
+	}
+
+	return [
+		...parsedCards,
+		createInvalidCardBlockResult(malformedErrors),
+	];
 }
 
 function parseSection(
@@ -120,6 +149,49 @@ function getCompleteSectionMatches(markdown: string, markers: SectionMarkers): s
 	const pattern = new RegExp(`${escapeRegExp(markers.start)}([\\s\\S]*?)${escapeRegExp(markers.end)}`, "g");
 
 	return Array.from(markdown.matchAll(pattern), (match) => match[1] ?? "");
+}
+
+function getCardBlockMatches(markdown: string): string[] {
+	const pattern = new RegExp(`${escapeRegExp(CARD_BLOCK_MARKERS.start)}([\\s\\S]*?)${escapeRegExp(CARD_BLOCK_MARKERS.end)}`, "g");
+
+	return Array.from(markdown.matchAll(pattern), (match) => match[1] ?? "");
+}
+
+function createCardBlockErrors(
+	startCount: number,
+	endCount: number,
+	completeBlockCount: number,
+): CardMarkerIssue[] {
+	const errors: CardMarkerIssue[] = [];
+
+	if (startCount > completeBlockCount) {
+		errors.push(createIssue(
+			"malformed_card_block",
+			"FRONT",
+			"CARD start marker has no matching CARD end marker.",
+		));
+	}
+
+	if (endCount > completeBlockCount) {
+		errors.push(createIssue(
+			"malformed_card_block",
+			"FRONT",
+			"CARD end marker has no matching CARD start marker.",
+		));
+	}
+
+	return errors;
+}
+
+function createInvalidCardBlockResult(errors: CardMarkerIssue[]): ParsedCardMarkers {
+	return {
+		back: "",
+		errors,
+		front: "",
+		isValid: false,
+		rubric: "",
+		warnings: [],
+	};
 }
 
 function countOccurrences(markdown: string, needle: string): number {
