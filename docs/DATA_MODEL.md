@@ -167,9 +167,9 @@ Because attributes with many values can split samples into smaller and purer sub
 - Mentions entropy reduction
 <!-- MNEME:RUBRIC:end -->
 
-Multi-card Card.md files may wrap repeated card sections:
+Multi-card Card.md files may wrap repeated card sections. Explicit CARD ids are preferred because future review state needs stable card identity:
 
-<!-- MNEME:CARD:start -->
+<!-- MNEME:CARD:start id="card_information_gain_definition" -->
 <!-- MNEME:FRONT:start -->
 Question 1
 <!-- MNEME:FRONT:end -->
@@ -179,7 +179,7 @@ Answer 1
 <!-- MNEME:BACK:end -->
 <!-- MNEME:CARD:end -->
 
-<!-- MNEME:CARD:start -->
+<!-- MNEME:CARD:start id="card_information_gain_bias" -->
 <!-- MNEME:FRONT:start -->
 Question 2
 <!-- MNEME:FRONT:end -->
@@ -195,6 +195,9 @@ Answer 2
 - RUBRIC is recommended and missing RUBRIC should produce a warning, not a fatal error.
 - Existing single-card files without CARD wrappers remain valid.
 - If CARD wrappers are present, each complete CARD block is parsed as one card.
+- CARD wrappers should include a stable id, for example `<!-- MNEME:CARD:start id="card_id" -->`.
+- Missing CARD ids use fallback identity and should produce a warning.
+- Duplicate CARD ids make affected cards invalid.
 - Extra Markdown outside markers is allowed.
 - Missing FRONT or BACK makes the card invalid.
 - Invalid cards must not crash Review View.

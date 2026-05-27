@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { LoadedMnemeCard } from "../src/models/card";
+import { markDuplicateCardIds } from "../src/services/cardFileLoader";
 import { parseCardMarkers, parseMnemeCards } from "../src/services/cardMarkerParser";
 
 const validCard = [
@@ -90,6 +92,8 @@ const validCard = [
 	assert.equal(parsedCards.length, 1);
 	assert.equal(parsedCards[0]?.isValid, true);
 	assert.equal(parsedCards[0]?.front, "Why does information gain tend to favor attributes with many values?");
+	assert.equal(parsedCards[0]?.hasExplicitCardId, false);
+	assert.equal(parsedCards[0]?.warnings.some((issue) => issue.code === "missing_explicit_card_id"), true);
 }
 
 const multiCard = [
@@ -174,4 +178,114 @@ const multiCard = [
 	assert.equal(parsedCards.length, 1);
 	assert.equal(parsedCards[0]?.isValid, false);
 	assert.equal(parsedCards[0]?.errors.some((issue) => issue.code === "malformed_card_block"), true);
+}
+
+{
+	const parsedCards = parseMnemeCards([
+		"<!-- MNEME:CARD:start id=\"encapsulation-basic\" -->",
+		"<!-- MNEME:FRONT:start -->",
+		"What is encapsulation?",
+		"<!-- MNEME:FRONT:end -->",
+		"<!-- MNEME:BACK:start -->",
+		"Bundling data and operations.",
+		"<!-- MNEME:BACK:end -->",
+		"<!-- MNEME:CARD:end -->",
+	].join("\n"));
+
+	assert.equal(parsedCards.length, 1);
+	assert.equal(parsedCards[0]?.explicitCardId, "encapsulation-basic");
+	assert.equal(parsedCards[0]?.hasExplicitCardId, true);
+	assert.equal(parsedCards[0]?.warnings.some((issue) => issue.code === "missing_explicit_card_id"), false);
+}
+
+{
+	const parsedCards = parseMnemeCards([
+		"<!-- MNEME:CARD:start id=encapsulation-basic -->",
+		"<!-- MNEME:FRONT:start -->",
+		"What is encapsulation?",
+		"<!-- MNEME:FRONT:end -->",
+		"<!-- MNEME:BACK:start -->",
+		"Bundling data and operations.",
+		"<!-- MNEME:BACK:end -->",
+		"<!-- MNEME:CARD:end -->",
+	].join("\n"));
+
+	assert.equal(parsedCards.length, 1);
+	assert.equal(parsedCards[0]?.explicitCardId, "encapsulation-basic");
+	assert.equal(parsedCards[0]?.hasExplicitCardId, true);
+}
+
+{
+	const parsedCards = parseMnemeCards([
+		"<!-- MNEME:CARD:start -->",
+		"<!-- MNEME:FRONT:start -->",
+		"What is encapsulation?",
+		"<!-- MNEME:FRONT:end -->",
+		"<!-- MNEME:BACK:start -->",
+		"Bundling data and operations.",
+		"<!-- MNEME:BACK:end -->",
+		"<!-- MNEME:CARD:end -->",
+	].join("\n"));
+
+	assert.equal(parsedCards.length, 1);
+	assert.equal(parsedCards[0]?.isValid, true);
+	assert.equal(parsedCards[0]?.hasExplicitCardId, false);
+	assert.equal(parsedCards[0]?.warnings.some((issue) => issue.code === "missing_explicit_card_id"), true);
+}
+
+{
+	const parsedCards = parseMnemeCards([
+		"<!-- MNEME:CARD:start id=\"encapsulation-basic\" -->",
+		"<!-- MNEME:FRONT:start -->",
+		"Question 1",
+		"<!-- MNEME:FRONT:end -->",
+		"<!-- MNEME:BACK:start -->",
+		"Answer 1",
+		"<!-- MNEME:BACK:end -->",
+		"<!-- MNEME:CARD:end -->",
+		"<!-- MNEME:CARD:start id=\"encapsulation-maintainability\" -->",
+		"<!-- MNEME:FRONT:start -->",
+		"Question 2",
+		"<!-- MNEME:FRONT:end -->",
+		"<!-- MNEME:BACK:start -->",
+		"Answer 2",
+		"<!-- MNEME:BACK:end -->",
+		"<!-- MNEME:CARD:end -->",
+	].join("\n"));
+
+	assert.equal(parsedCards.length, 2);
+	assert.equal(parsedCards[0]?.explicitCardId, "encapsulation-basic");
+	assert.equal(parsedCards[1]?.explicitCardId, "encapsulation-maintainability");
+	assert.equal(parsedCards.every((card) => card.isValid), true);
+}
+
+{
+	const dedupedCards = markDuplicateCardIds([
+		createLoadedCard("encapsulation-basic", "Card.md#0", 0),
+		createLoadedCard("encapsulation-basic", "Card.md#1", 1),
+		createLoadedCard("encapsulation-maintainability", "Card.md#2", 2),
+	]);
+
+	assert.equal(dedupedCards[0]?.isValid, false);
+	assert.equal(dedupedCards[1]?.isValid, false);
+	assert.equal(dedupedCards[2]?.isValid, true);
+	assert.equal(dedupedCards[0]?.errors.includes("Duplicate card id: encapsulation-basic"), true);
+	assert.equal(dedupedCards[1]?.errors.includes("Duplicate card id: encapsulation-basic"), true);
+}
+
+function createLoadedCard(cardId: string, id: string, cardIndex: number): LoadedMnemeCard {
+	return {
+		back: "Back",
+		basename: "Card",
+		cardId,
+		cardIndex,
+		content: "",
+		errors: [],
+		front: "Front",
+		hasExplicitCardId: true,
+		id,
+		isValid: true,
+		path: "Card.md",
+		warnings: [],
+	};
 }

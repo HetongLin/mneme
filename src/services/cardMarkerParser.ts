@@ -8,7 +8,8 @@ export type CardMarkerIssueCode =
 	| "duplicate_section"
 	| "unclosed_section"
 	| "orphan_end_marker"
-	| "malformed_card_block";
+	| "malformed_card_block"
+	| "missing_explicit_card_id";
 
 export interface CardMarkerIssue {
 	code: CardMarkerIssueCode;
@@ -18,11 +19,19 @@ export interface CardMarkerIssue {
 
 export interface ParsedCardMarkers {
 	back: string;
+	cardBlockIndex: number;
 	errors: CardMarkerIssue[];
+	explicitCardId?: string;
 	front: string;
+	hasExplicitCardId: boolean;
 	isValid: boolean;
 	rubric: string;
 	warnings: CardMarkerIssue[];
+}
+
+interface CardBlockMatch {
+	content: string;
+	explicitCardId?: string;
 }
 
 interface SectionMarkers {
@@ -33,7 +42,6 @@ interface SectionMarkers {
 
 const CARD_BLOCK_MARKERS = {
 	end: "<!-- MNEME:CARD:end -->",
-	start: "<!-- MNEME:CARD:start -->",
 };
 
 const SECTION_MARKERS: Record<CardMarkerSection, SectionMarkers> = {
@@ -52,8 +60,10 @@ export function parseCardMarkers(markdown: string): ParsedCardMarkers {
 
 	return {
 		back,
+		cardBlockIndex: 0,
 		errors,
 		front,
+		hasExplicitCardId: false,
 		isValid: errors.length === 0,
 		rubric,
 		warnings,
@@ -62,15 +72,17 @@ export function parseCardMarkers(markdown: string): ParsedCardMarkers {
 
 export function parseMnemeCards(markdown: string): ParsedCardMarkers[] {
 	const cardBlocks = getCardBlockMatches(markdown);
-	const startCount = countOccurrences(markdown, CARD_BLOCK_MARKERS.start);
+	const startCount = countCardStartMarkers(markdown);
 	const endCount = countOccurrences(markdown, CARD_BLOCK_MARKERS.end);
 	const hasCardMarkers = startCount > 0 || endCount > 0;
 
 	if (!hasCardMarkers) {
-		return [parseCardMarkers(markdown)];
+		return [addCardIdentityMetadata(parseCardMarkers(markdown), 0)];
 	}
 
-	const parsedCards = cardBlocks.map((block) => parseCardMarkers(block));
+	const parsedCards = cardBlocks.map((block, index) => {
+		return addCardIdentityMetadata(parseCardMarkers(block.content), index, block.explicitCardId);
+	});
 	const malformedErrors = createCardBlockErrors(startCount, endCount, cardBlocks.length);
 
 	if (malformedErrors.length === 0) {
@@ -151,10 +163,56 @@ function getCompleteSectionMatches(markdown: string, markers: SectionMarkers): s
 	return Array.from(markdown.matchAll(pattern), (match) => match[1] ?? "");
 }
 
-function getCardBlockMatches(markdown: string): string[] {
-	const pattern = new RegExp(`${escapeRegExp(CARD_BLOCK_MARKERS.start)}([\\s\\S]*?)${escapeRegExp(CARD_BLOCK_MARKERS.end)}`, "g");
+function getCardBlockMatches(markdown: string): CardBlockMatch[] {
+	const pattern = /<!--\s*MNEME:CARD:start\b([^>]*)-->([\s\S]*?)<!--\s*MNEME:CARD:end\s*-->/g;
 
-	return Array.from(markdown.matchAll(pattern), (match) => match[1] ?? "");
+	return Array.from(markdown.matchAll(pattern), (match) => {
+		return {
+			content: match[2] ?? "",
+			explicitCardId: parseCardIdAttribute(match[1] ?? ""),
+		};
+	});
+}
+
+function addCardIdentityMetadata(
+	parsed: ParsedCardMarkers,
+	cardBlockIndex: number,
+	explicitCardId?: string,
+): ParsedCardMarkers {
+	const warnings = [...parsed.warnings];
+
+	if (!explicitCardId) {
+		warnings.push(createIssue(
+			"missing_explicit_card_id",
+			"FRONT",
+			"Card has no explicit id; using fallback identity.",
+		));
+	}
+
+	return {
+		...parsed,
+		cardBlockIndex,
+		explicitCardId,
+		hasExplicitCardId: explicitCardId !== undefined,
+		warnings,
+	};
+}
+
+function parseCardIdAttribute(attributes: string): string | undefined {
+	const quotedMatch = /\bid\s*=\s*"([^"]+)"/.exec(attributes)
+		?? /\bid\s*=\s*'([^']+)'/.exec(attributes);
+
+	if (quotedMatch?.[1]) {
+		return quotedMatch[1].trim() || undefined;
+	}
+
+	const unquotedMatch = /\bid\s*=\s*([^\s>]+)/.exec(attributes);
+
+	return unquotedMatch?.[1]?.trim() || undefined;
+}
+
+function countCardStartMarkers(markdown: string): number {
+	return Array.from(markdown.matchAll(/<!--\s*MNEME:CARD:start\b[^>]*-->/g)).length;
 }
 
 function createCardBlockErrors(
@@ -186,8 +244,10 @@ function createCardBlockErrors(
 function createInvalidCardBlockResult(errors: CardMarkerIssue[]): ParsedCardMarkers {
 	return {
 		back: "",
+		cardBlockIndex: 0,
 		errors,
 		front: "",
+		hasExplicitCardId: false,
 		isValid: false,
 		rubric: "",
 		warnings: [],

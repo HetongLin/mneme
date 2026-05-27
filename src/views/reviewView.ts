@@ -322,6 +322,7 @@ export class MnemeReviewView extends ItemView {
 		const cardEl = parentEl.createDiv({ cls: "mneme-review-diagnostics-item" });
 
 		cardEl.createEl("h5", { text: card.path });
+		cardEl.createEl("p", { text: `Card ID: ${card.cardId}` });
 		cardEl.createEl("p", { text: card.isValid ? "Status: valid" : "Status: invalid" });
 
 		if (card.errors.length > 0) {
@@ -376,6 +377,7 @@ export class MnemeReviewView extends ItemView {
 		}
 
 		console.info("Mneme: review rating selected", {
+			cardId: card.cardId,
 			cardIndex: this.selectedCardIndex + 1,
 			conceptTitle: concept.title,
 			path: card.path,
