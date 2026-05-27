@@ -1,12 +1,23 @@
 import { Notice, Plugin } from "obsidian";
 import { DEFAULT_SETTINGS, MnemeSettings } from "./settings";
 import { CardFileLoader } from "./services/cardFileLoader";
+import { MnemeReviewView, REVIEW_VIEW_TYPE } from "./views/reviewView";
 
 export default class MnemePlugin extends Plugin {
 	settings: MnemeSettings;
 
 	async onload() {
 		await this.loadSettings();
+
+		this.registerView(REVIEW_VIEW_TYPE, (leaf) => new MnemeReviewView(leaf));
+
+		this.addCommand({
+			id: "open-review-view",
+			name: "Mneme: Open Review View",
+			callback: () => {
+				void this.openReviewView();
+			},
+		});
 
 		this.addCommand({
 			id: "scan-card-files",
@@ -47,5 +58,26 @@ export default class MnemePlugin extends Plugin {
 			console.error("Mneme: card file scan failed", error);
 			new Notice("Mneme: card file scan failed. See console for details.");
 		}
+	}
+
+	private async openReviewView() {
+		const existingLeaf = this.app.workspace.getLeavesOfType(REVIEW_VIEW_TYPE)[0];
+
+		if (existingLeaf) {
+			await this.app.workspace.revealLeaf(existingLeaf);
+			return;
+		}
+
+		const leaf = this.app.workspace.getRightLeaf(false);
+		if (!leaf) {
+			new Notice("Mneme: could not open Review View.");
+			return;
+		}
+
+		await leaf.setViewState({
+			active: true,
+			type: REVIEW_VIEW_TYPE,
+		});
+		await this.app.workspace.revealLeaf(leaf);
 	}
 }
