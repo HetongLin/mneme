@@ -128,6 +128,9 @@ Required marker sections:
 
 - MNEME:FRONT
 - MNEME:BACK
+
+Recommended marker sections:
+
 - MNEME:RUBRIC
 
 Example structure:
@@ -163,7 +166,7 @@ Because attributes with many values can split samples into smaller and purer sub
 ## Card Parsing Rules
 
 - FRONT and BACK are required.
-- RUBRIC is recommended.
+- RUBRIC is recommended and missing RUBRIC should produce a warning, not a fatal error.
 - Extra Markdown outside markers is allowed.
 - Missing FRONT or BACK makes the card invalid.
 - Invalid cards must not crash Review View.
