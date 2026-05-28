@@ -7,6 +7,7 @@
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
     "test:parser": "node scripts/run-card-marker-parser-tests.mjs",
+    "test:review-queue": "node scripts/run-review-queue-tests.mjs",
     "test:review-state": "node scripts/run-review-state-tests.mjs",
     "version": "node version-bump.mjs && git add manifest.json versions.json"
   },

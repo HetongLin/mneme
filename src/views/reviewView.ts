@@ -1,8 +1,9 @@
 import { ItemView, Notice, TFile, WorkspaceLeaf } from "obsidian";
-import { LoadedMnemeCard } from "../models/card";
 import { ConceptLoadSummary, MnemeConcept } from "../models/concept";
+import { ReviewQueue, ReviewQueueCard, ReviewQueueConcept } from "../models/reviewQueue";
 import { CardReviewState, ReviewRating } from "../models/reviewState";
 import { ConceptLoader } from "../services/conceptLoader";
+import { buildReviewQueue } from "../services/reviewQueueBuilder";
 import { ReviewStateStore } from "../services/reviewStateStore";
 
 export const REVIEW_VIEW_TYPE = "mneme-review-view";
@@ -19,12 +20,13 @@ const REVIEW_RATINGS: Array<{ label: ReviewRatingLabel; value: ReviewRating }> =
 
 export class MnemeReviewView extends ItemView {
 	private readonly loader: ConceptLoader;
-	private concepts: MnemeConcept[] = [];
 	private isAnswerShown = false;
 	private isReviewComplete = false;
 	private mode: ReviewMode = "queue";
+	private reviewQueue: ReviewQueue = createEmptyReviewQueue();
 	private selectedCardIndex = 0;
-	private selectedConcept: MnemeConcept | null = null;
+	private selectedCards: ReviewQueueCard[] = [];
+	private selectedConcept: ReviewQueueConcept | null = null;
 	private statusMessage = "Ready to scan Card.md files.";
 
 	constructor(leaf: WorkspaceLeaf, private readonly reviewStateStore: ReviewStateStore) {
@@ -61,13 +63,13 @@ export class MnemeReviewView extends ItemView {
 		try {
 			const loadedConcepts = await this.loader.loadConcepts();
 
-			this.concepts = loadedConcepts.concepts;
-			this.statusMessage = formatSummary(loadedConcepts.summary);
+			this.reviewQueue = buildReviewQueue(loadedConcepts.concepts, this.reviewStateStore.getAllStates(), new Date());
+			this.statusMessage = formatSummary(loadedConcepts.summary, this.reviewQueue.summary);
 			this.render();
 			new Notice(`Mneme: scanned ${loadedConcepts.summary.scannedCards} card files, ${loadedConcepts.summary.validCards} valid, ${loadedConcepts.summary.invalidCards} invalid.`);
 		} catch (error) {
 			console.error("Mneme: failed to refresh review concepts", error);
-			this.concepts = [];
+			this.reviewQueue = createEmptyReviewQueue();
 			this.statusMessage = "Failed to scan concepts. See console for details.";
 			this.render();
 			new Notice("Mneme: failed to scan concepts. See console for details.");
@@ -129,11 +131,12 @@ export class MnemeReviewView extends ItemView {
 	}
 
 	private renderSummary(): void {
-		const summary = summarizeConcepts(this.concepts);
+		const summary = this.reviewQueue.summary;
 		const summaryEl = this.contentEl.createDiv({ cls: "mneme-review-summary" });
 
-		summaryEl.createEl("span", { text: `${summary.scannedCards} scanned` });
-		summaryEl.createEl("span", { text: `${summary.validCards} valid cards` });
+		summaryEl.createEl("span", { text: `${summary.dueCards} due` });
+		summaryEl.createEl("span", { text: `${summary.newCards} new` });
+		summaryEl.createEl("span", { text: `${summary.notDueCards} later` });
 		summaryEl.createEl("span", { text: `${summary.invalidCards} invalid cards` });
 		summaryEl.createEl("span", { text: `${summary.reviewableConcepts} concepts` });
 		this.renderStatus();
@@ -148,12 +151,16 @@ export class MnemeReviewView extends ItemView {
 
 	private renderQueue(): void {
 		const queueEl = this.contentEl.createDiv({ cls: "mneme-review-queue" });
-		const reviewableConcepts = this.getReviewableConcepts();
+		const reviewableConcepts = this.getReviewableQueueConcepts();
 
 		if (reviewableConcepts.length === 0) {
 			queueEl.createEl("p", {
 				cls: "mneme-review-empty",
-				text: "No valid cards available for review.",
+				text: "No cards due right now.",
+			});
+			queueEl.createEl("p", {
+				cls: "mneme-review-status",
+				text: "Use Advanced Diagnostics to inspect future cards.",
 			});
 			return;
 		}
@@ -163,12 +170,11 @@ export class MnemeReviewView extends ItemView {
 		}
 	}
 
-	private renderConceptQueueItem(parentEl: HTMLElement, concept: MnemeConcept): void {
+	private renderConceptQueueItem(parentEl: HTMLElement, concept: ReviewQueueConcept): void {
 		const itemEl = parentEl.createDiv({ cls: "mneme-review-queue-item mneme-review-concept" });
 		const textEl = itemEl.createDiv();
-		const validCards = getReviewableCards(concept);
-		const warningCount = getConceptIssueCount(concept);
-		const reviewedCount = this.getReviewedCardCount(concept);
+		const warningCount = getConceptIssueCount(concept.concept);
+		const reviewedCount = getReviewedCardCount(concept);
 
 		textEl.createEl("h3", {
 			cls: "mneme-review-queue-title mneme-review-concept-title",
@@ -176,7 +182,7 @@ export class MnemeReviewView extends ItemView {
 		});
 		textEl.createEl("p", {
 			cls: "mneme-review-queue-meta mneme-review-concept-meta",
-			text: formatConceptMeta(validCards.length, warningCount, reviewedCount),
+			text: formatConceptMeta(concept, warningCount, reviewedCount),
 		});
 
 		const actionsEl = itemEl.createDiv({ cls: "mneme-review-actions" });
@@ -186,7 +192,7 @@ export class MnemeReviewView extends ItemView {
 		});
 		actionsEl.createEl("button", { text: "Source" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
-				void this.openConceptSource(concept);
+				void this.openConceptSource(concept.concept);
 			});
 		});
 	}
@@ -203,7 +209,7 @@ export class MnemeReviewView extends ItemView {
 			return;
 		}
 
-		const reviewableCards = getReviewableCards(concept);
+		const reviewableCards = this.selectedCards;
 
 		if (reviewableCards.length === 0) {
 			cardEl.createEl("p", {
@@ -229,16 +235,17 @@ export class MnemeReviewView extends ItemView {
 			return;
 		}
 
-		const currentCard = reviewableCards[this.selectedCardIndex];
-		if (!currentCard) {
+		const currentQueueCard = reviewableCards[this.selectedCardIndex];
+		if (!currentQueueCard) {
 			this.isReviewComplete = true;
 			this.render();
 			return;
 		}
+		const currentCard = currentQueueCard.card;
 
 		cardEl.createEl("p", {
 			cls: "mneme-review-card-meta",
-			text: formatCardMeta(this.selectedCardIndex + 1, reviewableCards.length, this.reviewStateStore.getState(currentCard.cardId)?.reviewCount),
+			text: formatCardMeta(this.selectedCardIndex + 1, reviewableCards.length, currentQueueCard.reviewCount),
 		});
 		cardEl.createEl("h3", {
 			cls: "mneme-review-card-title",
@@ -291,7 +298,7 @@ export class MnemeReviewView extends ItemView {
 		if (diagnostics.length === 0) {
 			diagnosticsEl.createEl("p", {
 				cls: "mneme-review-empty",
-				text: "No invalid cards or parser warnings.",
+				text: "No card diagnostics.",
 			});
 			return;
 		}
@@ -301,40 +308,51 @@ export class MnemeReviewView extends ItemView {
 		}
 	}
 
-	private renderDiagnosticConcept(parentEl: HTMLElement, concept: MnemeConcept): void {
+	private renderDiagnosticConcept(parentEl: HTMLElement, concept: ReviewQueueConcept): void {
 		const conceptEl = parentEl.createDiv({ cls: "mneme-review-diagnostics-item" });
 
 		conceptEl.createEl("h4", { text: concept.title });
-		conceptEl.createEl("p", { text: `Folder: ${concept.folderPath || "(vault root)"}` });
+		conceptEl.createEl("p", { text: `Folder: ${concept.concept.folderPath || "(vault root)"}` });
 
-		if (concept.conceptPath) {
-			conceptEl.createEl("p", { text: `Concept: ${concept.conceptPath}` });
+		if (concept.concept.conceptPath) {
+			conceptEl.createEl("p", { text: `Concept: ${concept.concept.conceptPath}` });
 		}
 
-		if (concept.errors.length > 0) {
-			this.renderIssueList(conceptEl, "Concept errors", concept.errors);
+		if (concept.concept.errors.length > 0) {
+			this.renderIssueList(conceptEl, "Concept errors", concept.concept.errors);
 		}
 
-		if (concept.warnings.length > 0) {
-			this.renderIssueList(conceptEl, "Concept warnings", concept.warnings);
+		if (concept.concept.warnings.length > 0) {
+			this.renderIssueList(conceptEl, "Concept warnings", concept.concept.warnings);
 		}
 
-		for (const card of concept.cards) {
-			if (card.isValid && card.warnings.length === 0 && !this.reviewStateStore.getState(card.cardId)) {
-				continue;
-			}
+		this.renderDiagnosticQueueSection(conceptEl, "Due cards", concept.dueCards);
+		this.renderDiagnosticQueueSection(conceptEl, "New cards", concept.newCards);
+		this.renderDiagnosticQueueSection(conceptEl, "Later cards", concept.notDueCards);
+		this.renderDiagnosticQueueSection(conceptEl, "Invalid cards", concept.invalidCards);
+	}
 
-			this.renderDiagnosticCard(conceptEl, card);
+	private renderDiagnosticQueueSection(parentEl: HTMLElement, label: string, cards: ReviewQueueCard[]): void {
+		if (cards.length === 0) {
+			return;
+		}
+
+		parentEl.createEl("h5", { text: label });
+
+		for (const card of cards) {
+			this.renderDiagnosticCard(parentEl, card);
 		}
 	}
 
-	private renderDiagnosticCard(parentEl: HTMLElement, card: LoadedMnemeCard): void {
+	private renderDiagnosticCard(parentEl: HTMLElement, queueCard: ReviewQueueCard): void {
+		const card = queueCard.card;
 		const cardEl = parentEl.createDiv({ cls: "mneme-review-diagnostics-item" });
-		const reviewState = this.reviewStateStore.getState(card.cardId);
 
 		cardEl.createEl("h5", { text: card.path });
 		cardEl.createEl("p", { text: `Card ID: ${card.cardId}` });
-		cardEl.createEl("p", { text: card.isValid ? "Status: valid" : "Status: invalid" });
+		cardEl.createEl("p", { text: `Due status: ${queueCard.dueStatus}` });
+		cardEl.createEl("p", { text: `Review count: ${queueCard.reviewCount}` });
+		cardEl.createEl("p", { text: `Due: ${queueCard.dueAt ?? "(unset)"}` });
 
 		if (card.errors.length > 0) {
 			this.renderIssueList(cardEl, "Errors", card.errors);
@@ -342,14 +360,6 @@ export class MnemeReviewView extends ItemView {
 
 		if (card.warnings.length > 0) {
 			this.renderIssueList(cardEl, "Warnings", card.warnings);
-		}
-
-		if (reviewState) {
-			cardEl.createEl("h5", { text: "Review state" });
-			cardEl.createEl("p", { text: `Review count: ${reviewState.reviewCount}` });
-			cardEl.createEl("p", { text: `Last rating: ${reviewState.lastRating ?? "(none)"}` });
-			cardEl.createEl("p", { text: `Last reviewed: ${reviewState.lastReviewedAt ?? "(never)"}` });
-			cardEl.createEl("p", { text: `Due: ${reviewState.dueAt ?? "(unset)"}` });
 		}
 	}
 
@@ -362,9 +372,10 @@ export class MnemeReviewView extends ItemView {
 		}
 	}
 
-	private startFlashCards(concept: MnemeConcept): void {
+	private startFlashCards(concept: ReviewQueueConcept): void {
 		this.mode = "flashcard";
 		this.selectedConcept = concept;
+		this.selectedCards = getQueuedReviewCards(concept);
 		this.selectedCardIndex = 0;
 		this.isAnswerShown = false;
 		this.isReviewComplete = false;
@@ -415,7 +426,7 @@ export class MnemeReviewView extends ItemView {
 			cardId: card.cardId,
 			cardIndex: this.selectedCardIndex + 1,
 			conceptTitle: concept.title,
-			path: card.path,
+			path: card.card.path,
 			rating,
 			updatedReviewState,
 		});
@@ -425,12 +436,9 @@ export class MnemeReviewView extends ItemView {
 	}
 
 	private advanceToNextCard(completionStatusMessage?: string): void {
-		const concept = this.selectedConcept;
-		const reviewableCards = concept ? getReviewableCards(concept) : [];
-
 		this.isAnswerShown = false;
 
-		if (this.selectedCardIndex + 1 < reviewableCards.length) {
+		if (this.selectedCardIndex + 1 < this.selectedCards.length) {
 			this.selectedCardIndex += 1;
 		} else {
 			this.isReviewComplete = true;
@@ -473,67 +481,69 @@ export class MnemeReviewView extends ItemView {
 	private resetReviewState(): void {
 		this.mode = "queue";
 		this.selectedConcept = null;
+		this.selectedCards = [];
 		this.selectedCardIndex = 0;
 		this.isAnswerShown = false;
 		this.isReviewComplete = false;
 	}
 
-	private getCurrentReviewableCard(): LoadedMnemeCard | undefined {
-		const concept = this.selectedConcept;
-
-		if (!concept) {
-			return undefined;
-		}
-
-		return getReviewableCards(concept)[this.selectedCardIndex];
+	private getCurrentReviewableCard(): ReviewQueueCard | undefined {
+		return this.selectedCards[this.selectedCardIndex];
 	}
 
-	private getReviewableConcepts(): MnemeConcept[] {
-		return this.concepts.filter((concept) => concept.isReviewable);
+	private getReviewableQueueConcepts(): ReviewQueueConcept[] {
+		return this.reviewQueue.concepts.filter((concept) => concept.reviewableCount > 0);
 	}
 
-	private getDiagnosticConcepts(): MnemeConcept[] {
-		return this.concepts.filter((concept) => {
-			return concept.errors.length > 0
-				|| concept.warnings.length > 0
-				|| concept.cards.some((card) => !card.isValid || card.warnings.length > 0 || this.reviewStateStore.getState(card.cardId));
+	private getDiagnosticConcepts(): ReviewQueueConcept[] {
+		return this.reviewQueue.concepts.filter((concept) => {
+			return concept.concept.errors.length > 0
+				|| concept.concept.warnings.length > 0
+				|| concept.dueCards.length > 0
+				|| concept.newCards.length > 0
+				|| concept.notDueCards.length > 0
+				|| concept.invalidCards.length > 0;
 		});
-	}
-
-	private getReviewedCardCount(concept: MnemeConcept): number {
-		return getReviewableCards(concept).filter((card) => {
-			return (this.reviewStateStore.getState(card.cardId)?.reviewCount ?? 0) > 0;
-		}).length;
 	}
 }
 
-function summarizeConcepts(concepts: MnemeConcept[]): ConceptLoadSummary {
-	const cards = concepts.flatMap((concept) => concept.cards);
-	const validCards = cards.filter((card) => card.isValid);
-
+function createEmptyReviewQueue(): ReviewQueue {
 	return {
-		concepts: concepts.length,
-		invalidCards: cards.length - validCards.length,
-		reviewableConcepts: concepts.filter((concept) => concept.isReviewable).length,
-		scannedCards: cards.length,
-		validCards: validCards.length,
+		concepts: [],
+		summary: {
+			concepts: 0,
+			dueCards: 0,
+			invalidCards: 0,
+			newCards: 0,
+			notDueCards: 0,
+			reviewableConcepts: 0,
+		},
 	};
 }
 
-function formatSummary(summary: ConceptLoadSummary): string {
-	return `Scanned ${summary.scannedCards} card files across ${summary.concepts} concepts.`;
+function formatSummary(loadSummary: ConceptLoadSummary, queueSummary: ReviewQueue["summary"]): string {
+	return `Scanned ${loadSummary.scannedCards} cards across ${loadSummary.concepts} concepts. ${queueSummary.dueCards} due, ${queueSummary.newCards} new.`;
 }
 
-function getReviewableCards(concept: MnemeConcept): LoadedMnemeCard[] {
-	return concept.cards.filter((card) => card.isValid);
+function getQueuedReviewCards(concept: ReviewQueueConcept): ReviewQueueCard[] {
+	return [
+		...concept.dueCards,
+		...concept.newCards,
+	];
 }
 
-function formatConceptMeta(validCardCount: number, warningCount: number, reviewedCount: number): string {
-	const cardLabel = validCardCount === 1 ? "1 card" : `${validCardCount} cards`;
-	const metadata = [cardLabel];
+function formatConceptMeta(concept: ReviewQueueConcept, warningCount: number, reviewedCount: number): string {
+	const metadata = [
+		`${concept.dueCards.length} due`,
+		`${concept.newCards.length} new`,
+	];
 
 	if (reviewedCount > 0) {
 		metadata.push(`${reviewedCount} reviewed`);
+	}
+
+	if (concept.notDueCards.length > 0) {
+		metadata.push(`${concept.notDueCards.length} later`);
 	}
 
 	if (warningCount > 0) {
@@ -560,4 +570,12 @@ function getConceptIssueCount(concept: MnemeConcept): number {
 	return concept.errors.length
 		+ concept.warnings.length
 		+ concept.cards.reduce((count, card) => count + card.errors.length + card.warnings.length, 0);
+}
+
+function getReviewedCardCount(concept: ReviewQueueConcept): number {
+	return [
+		...concept.dueCards,
+		...concept.newCards,
+		...concept.notDueCards,
+	].filter((card) => card.reviewCount > 0).length;
 }
