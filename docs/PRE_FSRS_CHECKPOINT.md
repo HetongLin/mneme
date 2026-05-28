@@ -24,6 +24,10 @@ Scheduling is card-level.
 
 Concepts are user-facing learning units. Concept priority is computed by aggregating card-level review states. FSRS will replace the placeholder card scheduler, not the concept queue architecture.
 
+## Review View UX Principle
+
+Flashcard mode should stay focused on the current card: front, answer reveal, rubric, and rating actions. Diagnostic data should be progressively disclosed at concept and card level, with the completion state offering `Back to Concepts` and `Source` actions.
+
 ## What Must Be True Before FSRS
 
 - cardId is stable and explicit.
