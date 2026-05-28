@@ -28,6 +28,10 @@ Concepts are user-facing learning units. Concept priority is computed by aggrega
 
 Flashcard mode should stay focused on the current card: front, answer reveal, rubric, and rating actions. Diagnostic data should be progressively disclosed at concept and card level, with the completion state offering `Back to Concepts` and `Source` actions.
 
+## Review History Reset
+
+`Mneme: Clear Review History` clears persisted card review states from plugin data without modifying `Concept.md`, `Card.md`, or source notes. This is useful during debugging, after major card rewrites, and before FSRS migration testing.
+
 ## What Must Be True Before FSRS
 
 - cardId is stable and explicit.

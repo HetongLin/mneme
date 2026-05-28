@@ -62,7 +62,7 @@ export class MnemeReviewView extends ItemView {
 		this.contentEl.empty();
 	}
 
-	private async refreshCards(): Promise<void> {
+	async refreshCards(): Promise<void> {
 		this.resetReviewState();
 		this.statusMessage = "Scanning Card.md files...";
 		this.render();

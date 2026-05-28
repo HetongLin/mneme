@@ -10,6 +10,7 @@ export interface ReviewStateStorage {
 
 export class ReviewStateStore {
 	private data: MnemePluginData = createDefaultPluginData();
+	private isLoaded = false;
 
 	constructor(
 		private readonly storage: ReviewStateStorage,
@@ -19,6 +20,7 @@ export class ReviewStateStore {
 
 	async load(): Promise<void> {
 		this.data = normalizePluginData(await this.storage.loadData());
+		this.isLoaded = true;
 	}
 
 	getState(cardId: string): CardReviewState | undefined {
@@ -26,6 +28,7 @@ export class ReviewStateStore {
 	}
 
 	async recordReview(cardId: string, rating: ReviewRating): Promise<CardReviewState> {
+		await this.ensureLoaded();
 		const scheduleResult = this.scheduler.schedule({
 			cardId,
 			previousState: this.getState(cardId),
@@ -49,6 +52,30 @@ export class ReviewStateStore {
 	getAllStates(): Record<string, CardReviewState> {
 		return { ...this.data.reviewStates };
 	}
+
+	getReviewStateCount(): number {
+		return Object.keys(this.data.reviewStates).length;
+	}
+
+	async clearReviewStates(): Promise<void> {
+		await this.ensureLoaded();
+		const nextData = {
+			...this.data,
+			reviewStates: {},
+			schemaVersion: this.data.schemaVersion,
+		};
+
+		await this.storage.saveData(nextData);
+		this.data = nextData;
+	}
+
+	private async ensureLoaded(): Promise<void> {
+		if (this.isLoaded) {
+			return;
+		}
+
+		await this.load();
+	}
 }
 
 export function createDefaultPluginData(): MnemePluginData {
@@ -68,6 +95,7 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 		: {};
 
 	return {
+		...data,
 		reviewStates: normalizeReviewStates(reviewStates),
 		schemaVersion: CURRENT_SCHEMA_VERSION,
 	};

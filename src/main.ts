@@ -1,4 +1,5 @@
 import { Notice, Plugin } from "obsidian";
+import { ConfirmClearReviewHistoryModal } from "./modals/confirmClearReviewHistoryModal";
 import { DEFAULT_SETTINGS, MnemeSettings } from "./settings";
 import { CardFileLoader } from "./services/cardFileLoader";
 import { PlaceholderReviewScheduler } from "./services/placeholderReviewScheduler";
@@ -38,6 +39,12 @@ export default class MnemePlugin extends Plugin {
 			name: "Mneme: Log Review State",
 			callback: () => this.logReviewState(),
 		});
+
+		this.addCommand({
+			id: "mneme-clear-review-history",
+			name: "Mneme: Clear Review History",
+			callback: () => this.openClearReviewHistoryModal(),
+		});
 	}
 
 	onunload() {
@@ -74,10 +81,41 @@ export default class MnemePlugin extends Plugin {
 
 	private logReviewState(): void {
 		const reviewStates = this.reviewStateStore.getAllStates();
-		const stateCount = Object.keys(reviewStates).length;
+		const stateCount = this.reviewStateStore.getReviewStateCount();
 
 		console.info("Mneme: stored review state", reviewStates);
 		new Notice(`Mneme: ${stateCount} stored card states.`);
+	}
+
+	private openClearReviewHistoryModal(): void {
+		new ConfirmClearReviewHistoryModal(this.app, {
+			onConfirm: () => this.clearReviewHistory(),
+		}).open();
+	}
+
+	private async clearReviewHistory(): Promise<void> {
+		const previousCount = this.reviewStateStore.getReviewStateCount();
+
+		try {
+			await this.reviewStateStore.clearReviewStates();
+			console.info("Mneme: review history cleared", {
+				previousCount,
+			});
+			new Notice("Mneme review history cleared.");
+			await this.refreshOpenReviewViews();
+		} catch (error) {
+			console.error("Mneme: failed to clear review history", error);
+			new Notice("Mneme: failed to clear review history. See console for details.");
+		}
+	}
+
+	private async refreshOpenReviewViews(): Promise<void> {
+		const refreshes = this.app.workspace.getLeavesOfType(REVIEW_VIEW_TYPE)
+			.map((leaf) => leaf.view)
+			.filter((view): view is MnemeReviewView => view instanceof MnemeReviewView)
+			.map((view) => view.refreshCards());
+
+		await Promise.all(refreshes);
 	}
 
 	private async openReviewView() {

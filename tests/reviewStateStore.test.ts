@@ -60,6 +60,51 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(updatedState.lastRating, "again");
 		assert.deepEqual(storage.savedData?.reviewStates["encapsulation-basic"], updatedState);
 	}
+
+	{
+		const storage = new MemoryReviewStateStorage({
+			reviewStates: {
+				"encapsulation-basic": createReviewState("encapsulation-basic", 2),
+				"polymorphism-basic": createReviewState("polymorphism-basic", 1),
+			},
+			schemaVersion: 1,
+		});
+		const scheduler = new FakeReviewScheduler();
+		const store = new ReviewStateStore(storage, scheduler);
+
+		await store.load();
+
+		assert.equal(store.getReviewStateCount(), 2);
+
+		await store.clearReviewStates();
+
+		assert.equal(store.getReviewStateCount(), 0);
+		assert.deepEqual(store.getAllStates(), {});
+		assert.equal(storage.savedData?.schemaVersion, 1);
+		assert.deepEqual(storage.savedData?.reviewStates, {});
+	}
+
+	{
+		const storage = new MemoryReviewStateStorage({
+			reviewStates: {
+				"encapsulation-basic": createReviewState("encapsulation-basic", 2),
+			},
+			schemaVersion: 1,
+			settings: {
+				theme: "quiet",
+			},
+		});
+		const scheduler = new FakeReviewScheduler();
+		const store = new ReviewStateStore(storage, scheduler);
+
+		await store.load();
+		await store.clearReviewStates();
+
+		assert.deepEqual(storage.savedData?.reviewStates, {});
+		assert.deepEqual(storage.savedData?.settings, {
+			theme: "quiet",
+		});
+	}
 }
 
 class FakeReviewScheduler implements ReviewScheduler {

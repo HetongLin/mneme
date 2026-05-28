@@ -248,3 +248,26 @@ If your plugin does not need CSS, delete this file.
 .mneme-review-view button:hover {
 	background: var(--interactive-hover);
 }
+
+.mneme-clear-review-history-modal p {
+	color: var(--text-muted);
+	line-height: 1.5;
+}
+
+.mneme-clear-review-history-modal-instruction {
+	color: var(--text-normal);
+	font-family: var(--font-ui-medium);
+}
+
+.mneme-clear-review-history-modal-input {
+	margin-top: 8px;
+	width: 100%;
+}
+
+.mneme-clear-review-history-modal-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	justify-content: flex-end;
+	margin-top: 18px;
+}

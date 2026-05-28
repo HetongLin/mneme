@@ -15,6 +15,7 @@ export interface CardReviewState {
 }
 
 export interface MnemePluginData {
+	[key: string]: unknown;
 	reviewStates: Record<string, CardReviewState>;
 	schemaVersion: number;
 }
