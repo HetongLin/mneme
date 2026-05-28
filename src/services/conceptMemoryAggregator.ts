@@ -5,6 +5,7 @@ import {
 } from "../models/conceptMemory";
 import { ReviewQueueCard, ReviewQueueConcept } from "../models/reviewQueue";
 import { CardReviewState } from "../models/reviewState";
+import { estimateFsrsRisk } from "./fsrsRetrievability";
 
 const DEFAULT_IMPORTANCE_WEIGHT = 0.5;
 const LAPSE_RISK_BOOST = 0.1;
@@ -101,10 +102,11 @@ export function calculateCardMemoryRisk(
 ): CardMemoryRisk {
 	const lapseCount = reviewState?.lapseCount ?? 0;
 	const lastRating = reviewState?.lastRating;
-	const baseRisk = calculateBaseRisk(card, now);
+	const fsrsRisk = card.dueStatus === "invalid" ? undefined : estimateFsrsRisk(reviewState, now);
+	const baseRisk = fsrsRisk?.risk ?? calculateBaseRisk(card, now);
 	const risk = card.dueStatus === "invalid"
 		? 0
-		: clampRisk(baseRisk + (lastRating === "again" ? LAPSE_RISK_BOOST : 0));
+		: clampRisk(baseRisk + (fsrsRisk ? 0 : getPlaceholderLapseBoost(lastRating)));
 
 	return {
 		cardId: card.cardId,
@@ -113,7 +115,9 @@ export function calculateCardMemoryRisk(
 		lapseCount,
 		lastRating,
 		reviewCount: reviewState?.reviewCount ?? card.reviewCount,
+		retrievability: fsrsRisk?.retrievability,
 		risk,
+		riskSource: fsrsRisk ? "fsrs" : "placeholder",
 	};
 }
 
@@ -148,6 +152,10 @@ function calculateBaseRisk(card: ReviewQueueCard, now: Date): number {
 		case "not-due":
 			return calculateNotDueRisk(card.dueAt, now);
 	}
+}
+
+function getPlaceholderLapseBoost(lastRating: CardReviewState["lastRating"]): number {
+	return lastRating === "again" ? LAPSE_RISK_BOOST : 0;
 }
 
 function calculateNotDueRisk(dueAt: string | undefined, now: Date): number {

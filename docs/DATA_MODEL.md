@@ -265,7 +265,9 @@ The concept queue remains concept-level. FSRS does not schedule Concepts directl
 
 Existing placeholder review states are treated conservatively: they are not converted into FSRS memory states. Users can run `Mneme: Clear Review History` before FSRS testing if they want a clean reset.
 
-Concept risk still uses the placeholder aggregation model. A later task should replace placeholder card risk with FSRS retrievability: `risk = 1 - retrievability`.
+Concept risk uses FSRS retrievability when a valid FSRS card state is available: `risk = 1 - retrievability`.
+
+For new Cards, placeholder states, or malformed scheduler state, Mneme falls back to the placeholder risk model. Concept-level priority remains an aggregation over Cards.
 
 ## Concept Memory Aggregation
 
@@ -273,7 +275,7 @@ Card-level memory state remains the source of scheduling truth.
 
 Concept memory is an aggregation over a Concept's Cards. Mneme estimates concept priority from due and new Cards, weakest card risks, and lapse history.
 
-This is currently a placeholder risk model. Future FSRS integration should replace placeholder card risk with FSRS retrievability: risk = 1 - retrievability.
+Cards with valid FSRS state use `risk = 1 - retrievability`. Cards without valid FSRS state use the placeholder risk model.
 
 ## Concept Queue Ranking
 

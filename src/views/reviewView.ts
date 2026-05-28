@@ -420,6 +420,8 @@ export class MnemeReviewView extends ItemView {
 		cardEl.createEl("p", { text: `Review count: ${queueCard.reviewCount}` });
 		cardEl.createEl("p", { text: `Due: ${queueCard.dueAt ?? "(unset)"}` });
 		cardEl.createEl("p", { text: `Risk: ${cardRisk ? formatPercent(cardRisk.risk) : "(unset)"}` });
+		cardEl.createEl("p", { text: `Risk source: ${cardRisk?.riskSource ?? "(unset)"}` });
+		cardEl.createEl("p", { text: `Retrievability: ${cardRisk?.retrievability === undefined ? "(unset)" : formatPercent(cardRisk.retrievability)}` });
 		if (queueCard.reviewCount > 0) {
 			const reviewState = this.reviewStateStore.getState(card.cardId);
 			this.renderReviewStateDetails(cardEl, reviewState);
@@ -493,6 +495,7 @@ export class MnemeReviewView extends ItemView {
 	private renderCurrentCardDetails(parentEl: HTMLElement, queueCard: ReviewQueueCard): void {
 		const card = queueCard.card;
 		const reviewState = this.reviewStateStore.getState(card.cardId);
+		const cardRisk = this.memorySummaries[queueCard.conceptId]?.cardRisks.find((risk) => risk.cardId === queueCard.cardId);
 		const detailsEl = parentEl.createEl("details", { cls: "mneme-review-card-details" });
 
 		detailsEl.createEl("summary", { text: "Card details" });
@@ -502,6 +505,8 @@ export class MnemeReviewView extends ItemView {
 		detailsEl.createEl("p", { text: `Review count: ${reviewState?.reviewCount ?? queueCard.reviewCount}` });
 		detailsEl.createEl("p", { text: `Last rating: ${reviewState?.lastRating ?? "(none)"}` });
 		detailsEl.createEl("p", { text: `Due: ${reviewState?.dueAt ?? queueCard.dueAt ?? "(unset)"}` });
+		detailsEl.createEl("p", { text: `Risk source: ${cardRisk?.riskSource ?? "(unset)"}` });
+		detailsEl.createEl("p", { text: `Retrievability: ${cardRisk?.retrievability === undefined ? "(unset)" : formatPercent(cardRisk.retrievability)}` });
 		this.renderReviewStateDetails(detailsEl, reviewState);
 
 		if (card.errors.length > 0) {

@@ -2,6 +2,7 @@ import { CardDueStatus } from "./reviewQueue";
 import { ReviewRating } from "./reviewState";
 
 export type ConceptPriorityBand = "high" | "medium" | "low";
+export type CardMemoryRiskSource = "fsrs" | "placeholder";
 
 export interface CardMemoryRisk {
 	cardId: string;
@@ -10,7 +11,9 @@ export interface CardMemoryRisk {
 	lapseCount: number;
 	lastRating?: ReviewRating;
 	reviewCount: number;
+	retrievability?: number;
 	risk: number;
+	riskSource: CardMemoryRiskSource;
 }
 
 export interface ConceptMemorySummary {

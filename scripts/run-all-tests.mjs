@@ -8,6 +8,7 @@ const testCommands = [
 	["npm", ["run", "test:concept-memory"]],
 	["npm", ["run", "test:concept-queue"]],
 	["npm", ["run", "test:fsrs-scheduler"]],
+	["npm", ["run", "test:fsrs-retrievability"]],
 ];
 
 for (const [command, args] of testCommands) {
