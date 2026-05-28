@@ -1,8 +1,10 @@
 import { ItemView, Notice, TFile, WorkspaceLeaf } from "obsidian";
+import { ConceptMemorySummary } from "../models/conceptMemory";
 import { ConceptLoadSummary, MnemeConcept } from "../models/concept";
 import { ReviewQueue, ReviewQueueCard, ReviewQueueConcept } from "../models/reviewQueue";
 import { CardReviewState, ReviewRating } from "../models/reviewState";
 import { ConceptLoader } from "../services/conceptLoader";
+import { aggregateConceptMemoryById } from "../services/conceptMemoryAggregator";
 import { buildReviewQueue } from "../services/reviewQueueBuilder";
 import { ReviewStateStore } from "../services/reviewStateStore";
 
@@ -22,6 +24,7 @@ export class MnemeReviewView extends ItemView {
 	private readonly loader: ConceptLoader;
 	private isAnswerShown = false;
 	private isReviewComplete = false;
+	private memorySummaries: Record<string, ConceptMemorySummary> = {};
 	private mode: ReviewMode = "queue";
 	private reviewQueue: ReviewQueue = createEmptyReviewQueue();
 	private selectedCardIndex = 0;
@@ -62,14 +65,18 @@ export class MnemeReviewView extends ItemView {
 
 		try {
 			const loadedConcepts = await this.loader.loadConcepts();
+			const reviewStates = this.reviewStateStore.getAllStates();
+			const now = new Date();
 
-			this.reviewQueue = buildReviewQueue(loadedConcepts.concepts, this.reviewStateStore.getAllStates(), new Date());
+			this.reviewQueue = buildReviewQueue(loadedConcepts.concepts, reviewStates, now);
+			this.memorySummaries = aggregateConceptMemoryById(this.reviewQueue.concepts, reviewStates, now);
 			this.statusMessage = formatSummary(loadedConcepts.summary, this.reviewQueue.summary);
 			this.render();
 			new Notice(`Mneme: scanned ${loadedConcepts.summary.scannedCards} card files, ${loadedConcepts.summary.validCards} valid, ${loadedConcepts.summary.invalidCards} invalid.`);
 		} catch (error) {
 			console.error("Mneme: failed to refresh review concepts", error);
 			this.reviewQueue = createEmptyReviewQueue();
+			this.memorySummaries = {};
 			this.statusMessage = "Failed to scan concepts. See console for details.";
 			this.render();
 			new Notice("Mneme: failed to scan concepts. See console for details.");
@@ -174,6 +181,7 @@ export class MnemeReviewView extends ItemView {
 		const itemEl = parentEl.createDiv({ cls: "mneme-review-queue-item mneme-review-concept" });
 		const textEl = itemEl.createDiv();
 		const warningCount = getConceptIssueCount(concept.concept);
+		const memorySummary = this.memorySummaries[concept.conceptId];
 		const reviewedCount = getReviewedCardCount(concept);
 
 		textEl.createEl("h3", {
@@ -182,7 +190,7 @@ export class MnemeReviewView extends ItemView {
 		});
 		textEl.createEl("p", {
 			cls: "mneme-review-queue-meta mneme-review-concept-meta",
-			text: formatConceptMeta(concept, warningCount, reviewedCount),
+			text: formatConceptMeta(concept, memorySummary, warningCount, reviewedCount),
 		});
 
 		const actionsEl = itemEl.createDiv({ cls: "mneme-review-actions" });
@@ -326,13 +334,34 @@ export class MnemeReviewView extends ItemView {
 			this.renderIssueList(conceptEl, "Concept warnings", concept.concept.warnings);
 		}
 
-		this.renderDiagnosticQueueSection(conceptEl, "Due cards", concept.dueCards);
-		this.renderDiagnosticQueueSection(conceptEl, "New cards", concept.newCards);
-		this.renderDiagnosticQueueSection(conceptEl, "Later cards", concept.notDueCards);
-		this.renderDiagnosticQueueSection(conceptEl, "Invalid cards", concept.invalidCards);
+		const memorySummary = this.memorySummaries[concept.conceptId];
+		if (memorySummary) {
+			this.renderConceptMemorySummary(conceptEl, memorySummary);
+		}
+
+		this.renderDiagnosticQueueSection(conceptEl, "Due cards", concept.dueCards, memorySummary);
+		this.renderDiagnosticQueueSection(conceptEl, "New cards", concept.newCards, memorySummary);
+		this.renderDiagnosticQueueSection(conceptEl, "Later cards", concept.notDueCards, memorySummary);
+		this.renderDiagnosticQueueSection(conceptEl, "Invalid cards", concept.invalidCards, memorySummary);
 	}
 
-	private renderDiagnosticQueueSection(parentEl: HTMLElement, label: string, cards: ReviewQueueCard[]): void {
+	private renderConceptMemorySummary(parentEl: HTMLElement, memorySummary: ConceptMemorySummary): void {
+		parentEl.createEl("h5", { text: "Concept memory" });
+		parentEl.createEl("p", { text: `Priority: ${formatPriorityBand(memorySummary)} (${formatPercent(memorySummary.priorityScore)})` });
+		parentEl.createEl("p", { text: `Top-${memorySummary.topK} average risk: ${formatPercent(memorySummary.topKAvgRisk)}` });
+		parentEl.createEl("p", { text: `Weakest risk: ${formatPercent(memorySummary.weakestRisk)}` });
+		parentEl.createEl("p", { text: `Average risk: ${formatPercent(memorySummary.averageRisk)}` });
+		parentEl.createEl("p", { text: `Due ratio: ${formatPercent(memorySummary.dueRatio)}` });
+		parentEl.createEl("p", { text: `New ratio: ${formatPercent(memorySummary.newRatio)}` });
+		parentEl.createEl("p", { text: `Lapse ratio: ${formatPercent(memorySummary.lapseRatio)}` });
+	}
+
+	private renderDiagnosticQueueSection(
+		parentEl: HTMLElement,
+		label: string,
+		cards: ReviewQueueCard[],
+		memorySummary?: ConceptMemorySummary,
+	): void {
 		if (cards.length === 0) {
 			return;
 		}
@@ -340,19 +369,25 @@ export class MnemeReviewView extends ItemView {
 		parentEl.createEl("h5", { text: label });
 
 		for (const card of cards) {
-			this.renderDiagnosticCard(parentEl, card);
+			this.renderDiagnosticCard(parentEl, card, memorySummary);
 		}
 	}
 
-	private renderDiagnosticCard(parentEl: HTMLElement, queueCard: ReviewQueueCard): void {
+	private renderDiagnosticCard(
+		parentEl: HTMLElement,
+		queueCard: ReviewQueueCard,
+		memorySummary?: ConceptMemorySummary,
+	): void {
 		const card = queueCard.card;
 		const cardEl = parentEl.createDiv({ cls: "mneme-review-diagnostics-item" });
+		const cardRisk = memorySummary?.cardRisks.find((risk) => risk.cardId === queueCard.cardId);
 
 		cardEl.createEl("h5", { text: card.path });
 		cardEl.createEl("p", { text: `Card ID: ${card.cardId}` });
 		cardEl.createEl("p", { text: `Due status: ${queueCard.dueStatus}` });
 		cardEl.createEl("p", { text: `Review count: ${queueCard.reviewCount}` });
 		cardEl.createEl("p", { text: `Due: ${queueCard.dueAt ?? "(unset)"}` });
+		cardEl.createEl("p", { text: `Risk: ${cardRisk ? formatPercent(cardRisk.risk) : "(unset)"}` });
 
 		if (card.errors.length > 0) {
 			this.renderIssueList(cardEl, "Errors", card.errors);
@@ -532,11 +567,18 @@ function getQueuedReviewCards(concept: ReviewQueueConcept): ReviewQueueCard[] {
 	];
 }
 
-function formatConceptMeta(concept: ReviewQueueConcept, warningCount: number, reviewedCount: number): string {
-	const metadata = [
+function formatConceptMeta(
+	concept: ReviewQueueConcept,
+	memorySummary: ConceptMemorySummary | undefined,
+	warningCount: number,
+	reviewedCount: number,
+): string {
+	const metadata = memorySummary ? [formatPriorityLabel(memorySummary)] : [];
+
+	metadata.push(
 		`${concept.dueCards.length} due`,
 		`${concept.newCards.length} new`,
-	];
+	);
 
 	if (reviewedCount > 0) {
 		metadata.push(`${reviewedCount} reviewed`);
@@ -552,6 +594,18 @@ function formatConceptMeta(concept: ReviewQueueConcept, warningCount: number, re
 	}
 
 	return metadata.join(" · ");
+}
+
+function formatPriorityLabel(memorySummary: ConceptMemorySummary): string {
+	return `${formatPriorityBand(memorySummary)} priority`;
+}
+
+function formatPriorityBand(memorySummary: ConceptMemorySummary): string {
+	return memorySummary.priorityBand.charAt(0).toUpperCase() + memorySummary.priorityBand.slice(1);
+}
+
+function formatPercent(value: number): string {
+	return `${Math.round(value * 100)}%`;
 }
 
 function formatCardMeta(cardNumber: number, cardCount: number, reviewCount = 0): string {

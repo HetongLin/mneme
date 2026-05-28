@@ -256,3 +256,11 @@ Mneme uses card-level memory states for scheduling accuracy.
 FSRS, or any scheduler, operates on individual Cards. Concepts are user-facing review units. Concept priority will be computed later by aggregating card-level memory states.
 
 Task 012 introduces a scheduler abstraction; it does not implement FSRS yet.
+
+## Concept Memory Aggregation
+
+Card-level memory state remains the source of scheduling truth.
+
+Concept memory is an aggregation over a Concept's Cards. Mneme estimates concept priority from due and new Cards, weakest card risks, and lapse history.
+
+This is currently a placeholder risk model. Future FSRS integration should replace placeholder card risk with FSRS retrievability: risk = 1 - retrievability.
