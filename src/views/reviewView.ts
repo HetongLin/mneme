@@ -1,14 +1,21 @@
 import { ItemView, Notice, TFile, WorkspaceLeaf } from "obsidian";
 import { LoadedMnemeCard } from "../models/card";
 import { ConceptLoadSummary, MnemeConcept } from "../models/concept";
+import { CardReviewState, ReviewRating } from "../models/reviewState";
 import { ConceptLoader } from "../services/conceptLoader";
+import { ReviewStateStore } from "../services/reviewStateStore";
 
 export const REVIEW_VIEW_TYPE = "mneme-review-view";
 
 type ReviewMode = "queue" | "flashcard";
-type ReviewRating = "Again" | "Hard" | "Good" | "Easy";
+type ReviewRatingLabel = "Again" | "Hard" | "Good" | "Easy";
 
-const REVIEW_RATINGS: ReviewRating[] = ["Again", "Hard", "Good", "Easy"];
+const REVIEW_RATINGS: Array<{ label: ReviewRatingLabel; value: ReviewRating }> = [
+	{ label: "Again", value: "again" },
+	{ label: "Hard", value: "hard" },
+	{ label: "Good", value: "good" },
+	{ label: "Easy", value: "easy" },
+];
 
 export class MnemeReviewView extends ItemView {
 	private readonly loader: ConceptLoader;
@@ -20,7 +27,7 @@ export class MnemeReviewView extends ItemView {
 	private selectedConcept: MnemeConcept | null = null;
 	private statusMessage = "Ready to scan Card.md files.";
 
-	constructor(leaf: WorkspaceLeaf) {
+	constructor(leaf: WorkspaceLeaf, private readonly reviewStateStore: ReviewStateStore) {
 		super(leaf);
 		this.loader = new ConceptLoader(this.app);
 	}
@@ -161,6 +168,7 @@ export class MnemeReviewView extends ItemView {
 		const textEl = itemEl.createDiv();
 		const validCards = getReviewableCards(concept);
 		const warningCount = getConceptIssueCount(concept);
+		const reviewedCount = this.getReviewedCardCount(concept);
 
 		textEl.createEl("h3", {
 			cls: "mneme-review-queue-title mneme-review-concept-title",
@@ -168,7 +176,7 @@ export class MnemeReviewView extends ItemView {
 		});
 		textEl.createEl("p", {
 			cls: "mneme-review-queue-meta mneme-review-concept-meta",
-			text: formatConceptMeta(validCards.length, warningCount),
+			text: formatConceptMeta(validCards.length, warningCount, reviewedCount),
 		});
 
 		const actionsEl = itemEl.createDiv({ cls: "mneme-review-actions" });
@@ -230,7 +238,7 @@ export class MnemeReviewView extends ItemView {
 
 		cardEl.createEl("p", {
 			cls: "mneme-review-card-meta",
-			text: `Card ${this.selectedCardIndex + 1} of ${reviewableCards.length}`,
+			text: formatCardMeta(this.selectedCardIndex + 1, reviewableCards.length, this.reviewStateStore.getState(currentCard.cardId)?.reviewCount),
 		});
 		cardEl.createEl("h3", {
 			cls: "mneme-review-card-title",
@@ -264,8 +272,10 @@ export class MnemeReviewView extends ItemView {
 
 		const ratingsEl = cardEl.createDiv({ cls: "mneme-review-rating-row" });
 		for (const rating of REVIEW_RATINGS) {
-			ratingsEl.createEl("button", { text: rating }, (buttonEl) => {
-				buttonEl.addEventListener("click", () => this.rateCurrentCard(rating));
+			ratingsEl.createEl("button", { text: rating.label }, (buttonEl) => {
+				buttonEl.addEventListener("click", () => {
+					void this.rateCurrentCard(rating.value, rating.label);
+				});
 			});
 		}
 	}
@@ -310,7 +320,7 @@ export class MnemeReviewView extends ItemView {
 		}
 
 		for (const card of concept.cards) {
-			if (card.isValid && card.warnings.length === 0) {
+			if (card.isValid && card.warnings.length === 0 && !this.reviewStateStore.getState(card.cardId)) {
 				continue;
 			}
 
@@ -320,6 +330,7 @@ export class MnemeReviewView extends ItemView {
 
 	private renderDiagnosticCard(parentEl: HTMLElement, card: LoadedMnemeCard): void {
 		const cardEl = parentEl.createDiv({ cls: "mneme-review-diagnostics-item" });
+		const reviewState = this.reviewStateStore.getState(card.cardId);
 
 		cardEl.createEl("h5", { text: card.path });
 		cardEl.createEl("p", { text: `Card ID: ${card.cardId}` });
@@ -331,6 +342,14 @@ export class MnemeReviewView extends ItemView {
 
 		if (card.warnings.length > 0) {
 			this.renderIssueList(cardEl, "Warnings", card.warnings);
+		}
+
+		if (reviewState) {
+			cardEl.createEl("h5", { text: "Review state" });
+			cardEl.createEl("p", { text: `Review count: ${reviewState.reviewCount}` });
+			cardEl.createEl("p", { text: `Last rating: ${reviewState.lastRating ?? "(none)"}` });
+			cardEl.createEl("p", { text: `Last reviewed: ${reviewState.lastReviewedAt ?? "(never)"}` });
+			cardEl.createEl("p", { text: `Due: ${reviewState.dueAt ?? "(unset)"}` });
 		}
 	}
 
@@ -365,7 +384,7 @@ export class MnemeReviewView extends ItemView {
 		this.render();
 	}
 
-	private rateCurrentCard(rating: ReviewRating): void {
+	private async rateCurrentCard(rating: ReviewRating, label: ReviewRatingLabel): Promise<void> {
 		const concept = this.selectedConcept;
 		const card = this.getCurrentReviewableCard();
 
@@ -376,19 +395,36 @@ export class MnemeReviewView extends ItemView {
 			return;
 		}
 
+		let updatedReviewState: CardReviewState;
+		try {
+			updatedReviewState = await this.reviewStateStore.recordReview(card.cardId, rating);
+		} catch (error) {
+			console.error("Mneme: failed to record review rating", {
+				cardId: card.cardId,
+				conceptTitle: concept.title,
+				error,
+				rating,
+			});
+			this.statusMessage = "Could not record review. See console for details.";
+			new Notice("Mneme: could not record review. See console for details.");
+			this.render();
+			return;
+		}
+
 		console.info("Mneme: review rating selected", {
 			cardId: card.cardId,
 			cardIndex: this.selectedCardIndex + 1,
 			conceptTitle: concept.title,
 			path: card.path,
 			rating,
+			updatedReviewState,
 		});
 
-		this.statusMessage = `Recorded ${rating}.`;
-		this.advanceToNextCard();
+		this.statusMessage = `Recorded ${label} for ${card.cardId}. Reviewed ${updatedReviewState.reviewCount} times.`;
+		this.advanceToNextCard(this.statusMessage);
 	}
 
-	private advanceToNextCard(): void {
+	private advanceToNextCard(completionStatusMessage?: string): void {
 		const concept = this.selectedConcept;
 		const reviewableCards = concept ? getReviewableCards(concept) : [];
 
@@ -398,7 +434,7 @@ export class MnemeReviewView extends ItemView {
 			this.selectedCardIndex += 1;
 		} else {
 			this.isReviewComplete = true;
-			this.statusMessage = "Review complete.";
+			this.statusMessage = completionStatusMessage ?? "Review complete.";
 		}
 
 		this.render();
@@ -460,8 +496,14 @@ export class MnemeReviewView extends ItemView {
 		return this.concepts.filter((concept) => {
 			return concept.errors.length > 0
 				|| concept.warnings.length > 0
-				|| concept.cards.some((card) => !card.isValid || card.warnings.length > 0);
+				|| concept.cards.some((card) => !card.isValid || card.warnings.length > 0 || this.reviewStateStore.getState(card.cardId));
 		});
+	}
+
+	private getReviewedCardCount(concept: MnemeConcept): number {
+		return getReviewableCards(concept).filter((card) => {
+			return (this.reviewStateStore.getState(card.cardId)?.reviewCount ?? 0) > 0;
+		}).length;
 	}
 }
 
@@ -486,16 +528,32 @@ function getReviewableCards(concept: MnemeConcept): LoadedMnemeCard[] {
 	return concept.cards.filter((card) => card.isValid);
 }
 
-function formatConceptMeta(validCardCount: number, warningCount: number): string {
+function formatConceptMeta(validCardCount: number, warningCount: number, reviewedCount: number): string {
 	const cardLabel = validCardCount === 1 ? "1 card" : `${validCardCount} cards`;
+	const metadata = [cardLabel];
 
-	if (warningCount === 0) {
+	if (reviewedCount > 0) {
+		metadata.push(`${reviewedCount} reviewed`);
+	}
+
+	if (warningCount > 0) {
+		const warningLabel = warningCount === 1 ? "1 note" : `${warningCount} notes`;
+		metadata.push(warningLabel);
+	}
+
+	return metadata.join(" · ");
+}
+
+function formatCardMeta(cardNumber: number, cardCount: number, reviewCount = 0): string {
+	const cardLabel = `Card ${cardNumber} of ${cardCount}`;
+
+	if (reviewCount === 0) {
 		return cardLabel;
 	}
 
-	const warningLabel = warningCount === 1 ? "1 note" : `${warningCount} notes`;
+	const reviewLabel = reviewCount === 1 ? "Reviewed 1 time" : `Reviewed ${reviewCount} times`;
 
-	return `${cardLabel} · ${warningLabel}`;
+	return `${cardLabel} · ${reviewLabel}`;
 }
 
 function getConceptIssueCount(concept: MnemeConcept): number {

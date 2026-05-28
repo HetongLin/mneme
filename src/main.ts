@@ -1,15 +1,19 @@
 import { Notice, Plugin } from "obsidian";
 import { DEFAULT_SETTINGS, MnemeSettings } from "./settings";
 import { CardFileLoader } from "./services/cardFileLoader";
+import { ReviewStateStore } from "./services/reviewStateStore";
 import { MnemeReviewView, REVIEW_VIEW_TYPE } from "./views/reviewView";
 
 export default class MnemePlugin extends Plugin {
 	settings: MnemeSettings;
+	reviewStateStore: ReviewStateStore;
 
 	async onload() {
 		await this.loadSettings();
+		this.reviewStateStore = new ReviewStateStore(this);
+		await this.reviewStateStore.load();
 
-		this.registerView(REVIEW_VIEW_TYPE, (leaf) => new MnemeReviewView(leaf));
+		this.registerView(REVIEW_VIEW_TYPE, (leaf) => new MnemeReviewView(leaf, this.reviewStateStore));
 
 		this.addCommand({
 			id: "open-review-view",
@@ -25,6 +29,12 @@ export default class MnemePlugin extends Plugin {
 			callback: () => {
 				void this.scanCardFiles();
 			},
+		});
+
+		this.addCommand({
+			id: "mneme-log-review-state",
+			name: "Mneme: Log Review State",
+			callback: () => this.logReviewState(),
 		});
 	}
 
@@ -58,6 +68,14 @@ export default class MnemePlugin extends Plugin {
 			console.error("Mneme: card file scan failed", error);
 			new Notice("Mneme: card file scan failed. See console for details.");
 		}
+	}
+
+	private logReviewState(): void {
+		const reviewStates = this.reviewStateStore.getAllStates();
+		const stateCount = Object.keys(reviewStates).length;
+
+		console.info("Mneme: stored review state", reviewStates);
+		new Notice(`Mneme: ${stateCount} stored card states.`);
 	}
 
 	private async openReviewView() {
