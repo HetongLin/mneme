@@ -272,3 +272,5 @@ The main review queue is concept-centered.
 Concepts are ranked by aggregated card-level memory risk. The main queue shows only reviewable Concepts with due or new Cards.
 
 Not-due-only Concepts are hidden from the main queue but visible in diagnostics. FSRS remains card-level; concept ranking is an aggregation layer.
+
+See also: [Pre-FSRS Architecture Checkpoint](PRE_FSRS_CHECKPOINT.md).

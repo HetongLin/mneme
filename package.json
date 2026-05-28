@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "test:all": "node scripts/run-all-tests.mjs",
     "test:concept-memory": "node scripts/run-concept-memory-tests.mjs",
     "test:concept-queue": "node scripts/run-concept-queue-ranker-tests.mjs",
     "test:parser": "node scripts/run-card-marker-parser-tests.mjs",
