@@ -1,10 +1,12 @@
 import { ItemView, Notice, TFile, WorkspaceLeaf } from "obsidian";
 import { ConceptMemorySummary } from "../models/conceptMemory";
+import { RankedReviewQueueConcept } from "../models/conceptQueue";
 import { ConceptLoadSummary, MnemeConcept } from "../models/concept";
 import { ReviewQueue, ReviewQueueCard, ReviewQueueConcept } from "../models/reviewQueue";
 import { CardReviewState, ReviewRating } from "../models/reviewState";
 import { ConceptLoader } from "../services/conceptLoader";
 import { aggregateConceptMemoryById } from "../services/conceptMemoryAggregator";
+import { indexRankedConceptsById, rankReviewQueueConcepts } from "../services/conceptQueueRanker";
 import { buildReviewQueue } from "../services/reviewQueueBuilder";
 import { ReviewStateStore } from "../services/reviewStateStore";
 
@@ -26,6 +28,8 @@ export class MnemeReviewView extends ItemView {
 	private isReviewComplete = false;
 	private memorySummaries: Record<string, ConceptMemorySummary> = {};
 	private mode: ReviewMode = "queue";
+	private rankedConceptsById: Record<string, RankedReviewQueueConcept> = {};
+	private rankedReviewQueue: RankedReviewQueueConcept[] = [];
 	private reviewQueue: ReviewQueue = createEmptyReviewQueue();
 	private selectedCardIndex = 0;
 	private selectedCards: ReviewQueueCard[] = [];
@@ -70,6 +74,10 @@ export class MnemeReviewView extends ItemView {
 
 			this.reviewQueue = buildReviewQueue(loadedConcepts.concepts, reviewStates, now);
 			this.memorySummaries = aggregateConceptMemoryById(this.reviewQueue.concepts, reviewStates, now);
+			this.rankedReviewQueue = rankReviewQueueConcepts(this.reviewQueue.concepts, this.memorySummaries);
+			this.rankedConceptsById = indexRankedConceptsById(rankReviewQueueConcepts(this.reviewQueue.concepts, this.memorySummaries, {
+				includeNonReviewable: true,
+			}));
 			this.statusMessage = formatSummary(loadedConcepts.summary, this.reviewQueue.summary);
 			this.render();
 			new Notice(`Mneme: scanned ${loadedConcepts.summary.scannedCards} card files, ${loadedConcepts.summary.validCards} valid, ${loadedConcepts.summary.invalidCards} invalid.`);
@@ -77,6 +85,8 @@ export class MnemeReviewView extends ItemView {
 			console.error("Mneme: failed to refresh review concepts", error);
 			this.reviewQueue = createEmptyReviewQueue();
 			this.memorySummaries = {};
+			this.rankedConceptsById = {};
+			this.rankedReviewQueue = [];
 			this.statusMessage = "Failed to scan concepts. See console for details.";
 			this.render();
 			new Notice("Mneme: failed to scan concepts. See console for details.");
@@ -158,7 +168,7 @@ export class MnemeReviewView extends ItemView {
 
 	private renderQueue(): void {
 		const queueEl = this.contentEl.createDiv({ cls: "mneme-review-queue" });
-		const reviewableConcepts = this.getReviewableQueueConcepts();
+		const reviewableConcepts = this.rankedReviewQueue;
 
 		if (reviewableConcepts.length === 0) {
 			queueEl.createEl("p", {
@@ -177,11 +187,11 @@ export class MnemeReviewView extends ItemView {
 		}
 	}
 
-	private renderConceptQueueItem(parentEl: HTMLElement, concept: ReviewQueueConcept): void {
+	private renderConceptQueueItem(parentEl: HTMLElement, rankedConcept: RankedReviewQueueConcept): void {
+		const concept = rankedConcept.concept;
 		const itemEl = parentEl.createDiv({ cls: "mneme-review-queue-item mneme-review-concept" });
 		const textEl = itemEl.createDiv();
 		const warningCount = getConceptIssueCount(concept.concept);
-		const memorySummary = this.memorySummaries[concept.conceptId];
 		const reviewedCount = getReviewedCardCount(concept);
 
 		textEl.createEl("h3", {
@@ -190,7 +200,7 @@ export class MnemeReviewView extends ItemView {
 		});
 		textEl.createEl("p", {
 			cls: "mneme-review-queue-meta mneme-review-concept-meta",
-			text: formatConceptMeta(concept, memorySummary, warningCount, reviewedCount),
+			text: formatConceptMeta(concept, rankedConcept, warningCount, reviewedCount),
 		});
 
 		const actionsEl = itemEl.createDiv({ cls: "mneme-review-actions" });
@@ -318,6 +328,7 @@ export class MnemeReviewView extends ItemView {
 
 	private renderDiagnosticConcept(parentEl: HTMLElement, concept: ReviewQueueConcept): void {
 		const conceptEl = parentEl.createDiv({ cls: "mneme-review-diagnostics-item" });
+		const rankedConcept = this.rankedConceptsById[concept.conceptId];
 
 		conceptEl.createEl("h4", { text: concept.title });
 		conceptEl.createEl("p", { text: `Folder: ${concept.concept.folderPath || "(vault root)"}` });
@@ -336,7 +347,7 @@ export class MnemeReviewView extends ItemView {
 
 		const memorySummary = this.memorySummaries[concept.conceptId];
 		if (memorySummary) {
-			this.renderConceptMemorySummary(conceptEl, memorySummary);
+			this.renderConceptMemorySummary(conceptEl, memorySummary, rankedConcept);
 		}
 
 		this.renderDiagnosticQueueSection(conceptEl, "Due cards", concept.dueCards, memorySummary);
@@ -345,8 +356,13 @@ export class MnemeReviewView extends ItemView {
 		this.renderDiagnosticQueueSection(conceptEl, "Invalid cards", concept.invalidCards, memorySummary);
 	}
 
-	private renderConceptMemorySummary(parentEl: HTMLElement, memorySummary: ConceptMemorySummary): void {
+	private renderConceptMemorySummary(
+		parentEl: HTMLElement,
+		memorySummary: ConceptMemorySummary,
+		rankedConcept?: RankedReviewQueueConcept,
+	): void {
 		parentEl.createEl("h5", { text: "Concept memory" });
+		parentEl.createEl("p", { text: `Rank: ${rankedConcept ? `#${rankedConcept.rank}` : "(unranked)"}` });
 		parentEl.createEl("p", { text: `Priority: ${formatPriorityBand(memorySummary)} (${formatPercent(memorySummary.priorityScore)})` });
 		parentEl.createEl("p", { text: `Top-${memorySummary.topK} average risk: ${formatPercent(memorySummary.topKAvgRisk)}` });
 		parentEl.createEl("p", { text: `Weakest risk: ${formatPercent(memorySummary.weakestRisk)}` });
@@ -354,6 +370,7 @@ export class MnemeReviewView extends ItemView {
 		parentEl.createEl("p", { text: `Due ratio: ${formatPercent(memorySummary.dueRatio)}` });
 		parentEl.createEl("p", { text: `New ratio: ${formatPercent(memorySummary.newRatio)}` });
 		parentEl.createEl("p", { text: `Lapse ratio: ${formatPercent(memorySummary.lapseRatio)}` });
+		parentEl.createEl("p", { text: `Counts: ${memorySummary.dueCardCount} due · ${memorySummary.newCardCount} new · ${memorySummary.notDueCardCount} later · ${memorySummary.invalidCardCount} invalid` });
 	}
 
 	private renderDiagnosticQueueSection(
@@ -526,10 +543,6 @@ export class MnemeReviewView extends ItemView {
 		return this.selectedCards[this.selectedCardIndex];
 	}
 
-	private getReviewableQueueConcepts(): ReviewQueueConcept[] {
-		return this.reviewQueue.concepts.filter((concept) => concept.reviewableCount > 0);
-	}
-
 	private getDiagnosticConcepts(): ReviewQueueConcept[] {
 		return this.reviewQueue.concepts.filter((concept) => {
 			return concept.concept.errors.length > 0
@@ -569,11 +582,11 @@ function getQueuedReviewCards(concept: ReviewQueueConcept): ReviewQueueCard[] {
 
 function formatConceptMeta(
 	concept: ReviewQueueConcept,
-	memorySummary: ConceptMemorySummary | undefined,
+	rankedConcept: RankedReviewQueueConcept | undefined,
 	warningCount: number,
 	reviewedCount: number,
 ): string {
-	const metadata = memorySummary ? [formatPriorityLabel(memorySummary)] : [];
+	const metadata = rankedConcept ? [formatPriorityLabel(rankedConcept)] : [];
 
 	metadata.push(
 		`${concept.dueCards.length} due`,
@@ -596,12 +609,12 @@ function formatConceptMeta(
 	return metadata.join(" · ");
 }
 
-function formatPriorityLabel(memorySummary: ConceptMemorySummary): string {
-	return `${formatPriorityBand(memorySummary)} priority`;
+function formatPriorityLabel(rankedConcept: RankedReviewQueueConcept): string {
+	return `${formatPriorityBand(rankedConcept)} priority`;
 }
 
-function formatPriorityBand(memorySummary: ConceptMemorySummary): string {
-	return memorySummary.priorityBand.charAt(0).toUpperCase() + memorySummary.priorityBand.slice(1);
+function formatPriorityBand(summary: Pick<ConceptMemorySummary, "priorityBand"> | Pick<RankedReviewQueueConcept, "priorityBand">): string {
+	return summary.priorityBand.charAt(0).toUpperCase() + summary.priorityBand.slice(1);
 }
 
 function formatPercent(value: number): string {

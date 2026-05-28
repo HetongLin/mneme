@@ -264,3 +264,11 @@ Card-level memory state remains the source of scheduling truth.
 Concept memory is an aggregation over a Concept's Cards. Mneme estimates concept priority from due and new Cards, weakest card risks, and lapse history.
 
 This is currently a placeholder risk model. Future FSRS integration should replace placeholder card risk with FSRS retrievability: risk = 1 - retrievability.
+
+## Concept Queue Ranking
+
+The main review queue is concept-centered.
+
+Concepts are ranked by aggregated card-level memory risk. The main queue shows only reviewable Concepts with due or new Cards.
+
+Not-due-only Concepts are hidden from the main queue but visible in diagnostics. FSRS remains card-level; concept ranking is an aggregation layer.
