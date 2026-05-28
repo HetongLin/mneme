@@ -1,14 +1,12 @@
 import assert from "node:assert/strict";
-import { ReviewRating } from "../src/models/reviewState";
+import { ReviewScheduler, ReviewScheduleInput, ReviewScheduleResult } from "../src/models/reviewScheduler";
+import { CardReviewState, MnemePluginData } from "../src/models/reviewState";
 import {
-	applyReviewRating,
-	calculatePlaceholderDueAt,
 	createDefaultPluginData,
-	createInitialReviewState,
 	normalizePluginData,
+	ReviewStateStorage,
+	ReviewStateStore,
 } from "../src/services/reviewStateStore";
-
-const baseNow = new Date("2026-01-01T12:00:00.000Z");
 
 {
 	const data = createDefaultPluginData();
@@ -24,51 +22,99 @@ const baseNow = new Date("2026-01-01T12:00:00.000Z");
 	assert.deepEqual(data.reviewStates, {});
 }
 
-{
-	const initialState = createInitialReviewState("encapsulation-basic", baseNow);
-	const reviewedState = applyReviewRating(initialState, "good", baseNow);
+async function runAsyncTests(): Promise<void> {
+	{
+		const storage = new MemoryReviewStateStorage();
+		const scheduler = new FakeReviewScheduler();
+		const store = new ReviewStateStore(storage, scheduler);
 
-	assert.equal(reviewedState.cardId, "encapsulation-basic");
-	assert.equal(reviewedState.reviewCount, 1);
-	assert.equal(reviewedState.lapseCount, 0);
-	assert.equal(reviewedState.lastRating, "good");
-	assert.equal(reviewedState.lastReviewedAt, baseNow.toISOString());
-	assert.equal(reviewedState.dueAt, "2026-01-04T12:00:00.000Z");
+		await store.load();
+		const updatedState = await store.recordReview("encapsulation-basic", "good");
+
+		assert.equal(scheduler.lastInput?.cardId, "encapsulation-basic");
+		assert.equal(scheduler.lastInput?.rating, "good");
+		assert.equal(scheduler.lastInput?.previousState, undefined);
+		assert.equal(updatedState.cardId, "encapsulation-basic");
+		assert.equal(updatedState.reviewCount, 1);
+		assert.deepEqual(storage.savedData?.reviewStates["encapsulation-basic"], updatedState);
+		assert.deepEqual(store.getState("encapsulation-basic"), updatedState);
+	}
+
+	{
+		const previousState = createReviewState("encapsulation-basic", 2);
+		const storage = new MemoryReviewStateStorage({
+			reviewStates: {
+				"encapsulation-basic": previousState,
+			},
+			schemaVersion: 1,
+		});
+		const scheduler = new FakeReviewScheduler();
+		const store = new ReviewStateStore(storage, scheduler);
+
+		await store.load();
+		const updatedState = await store.recordReview("encapsulation-basic", "again");
+
+		assert.deepEqual(scheduler.lastInput?.previousState, previousState);
+		assert.equal(updatedState.reviewCount, 3);
+		assert.equal(updatedState.lapseCount, 1);
+		assert.equal(updatedState.lastRating, "again");
+		assert.deepEqual(storage.savedData?.reviewStates["encapsulation-basic"], updatedState);
+	}
 }
 
-{
-	const initialState = createInitialReviewState("encapsulation-basic", baseNow);
-	const reviewedState = applyReviewRating(initialState, "again", baseNow);
+class FakeReviewScheduler implements ReviewScheduler {
+	lastInput?: ReviewScheduleInput;
 
-	assert.equal(reviewedState.reviewCount, 1);
-	assert.equal(reviewedState.lapseCount, 1);
-	assert.equal(reviewedState.dueAt, baseNow.toISOString());
+	schedule(input: ReviewScheduleInput): ReviewScheduleResult {
+		this.lastInput = input;
+		const previousState = input.previousState;
+		const nextState: CardReviewState = {
+			cardId: input.cardId,
+			createdAt: previousState?.createdAt ?? input.reviewedAt,
+			dueAt: input.reviewedAt,
+			lapseCount: (previousState?.lapseCount ?? 0) + (input.rating === "again" ? 1 : 0),
+			lastRating: input.rating,
+			lastReviewedAt: input.reviewedAt,
+			reviewCount: (previousState?.reviewCount ?? 0) + 1,
+			scheduler: "fake",
+			updatedAt: input.reviewedAt,
+		};
+
+		return {
+			intervalDays: 0,
+			nextState,
+			scheduler: "fake",
+		};
+	}
 }
 
-{
-	const initialState = createInitialReviewState("encapsulation-basic", baseNow);
-	const secondNow = new Date("2026-01-02T12:00:00.000Z");
-	const firstReview = applyReviewRating(initialState, "hard", baseNow);
-	const secondReview = applyReviewRating(firstReview, "easy", secondNow);
+class MemoryReviewStateStorage implements ReviewStateStorage {
+	savedData?: MnemePluginData;
 
-	assert.equal(secondReview.createdAt, baseNow.toISOString());
-	assert.equal(secondReview.updatedAt, secondNow.toISOString());
-	assert.equal(secondReview.reviewCount, 2);
-	assert.equal(secondReview.lapseCount, 0);
-	assert.equal(secondReview.lastRating, "easy");
-	assert.equal(secondReview.dueAt, "2026-01-09T12:00:00.000Z");
+	constructor(private data: unknown = undefined) {
+	}
+
+	async loadData(): Promise<unknown> {
+		return this.data;
+	}
+
+	async saveData(data: MnemePluginData): Promise<void> {
+		this.savedData = data;
+		this.data = data;
+	}
 }
 
-{
-	const dueByRating: Record<ReviewRating, string> = {
-		again: calculatePlaceholderDueAt("again", baseNow),
-		easy: calculatePlaceholderDueAt("easy", baseNow),
-		good: calculatePlaceholderDueAt("good", baseNow),
-		hard: calculatePlaceholderDueAt("hard", baseNow),
+function createReviewState(cardId: string, reviewCount: number): CardReviewState {
+	return {
+		cardId,
+		createdAt: "2026-01-01T12:00:00.000Z",
+		dueAt: "2026-01-04T12:00:00.000Z",
+		lapseCount: 0,
+		lastRating: "good",
+		lastReviewedAt: "2026-01-01T12:00:00.000Z",
+		reviewCount,
+		updatedAt: "2026-01-01T12:00:00.000Z",
 	};
-
-	assert.equal(dueByRating.again, "2026-01-01T12:00:00.000Z");
-	assert.equal(dueByRating.hard, "2026-01-02T12:00:00.000Z");
-	assert.equal(dueByRating.good, "2026-01-04T12:00:00.000Z");
-	assert.equal(dueByRating.easy, "2026-01-08T12:00:00.000Z");
 }
+
+export const done = runAsyncTests();

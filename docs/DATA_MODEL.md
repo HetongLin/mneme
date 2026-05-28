@@ -248,3 +248,11 @@ v0.1 uses ConceptSuggestion[] as the AI output object.
 Mneme does not use an explicit KnowledgeUnit layer in v0.1.
 
 Duplicate or overlapping concepts are handled later through possible match, merge, or update flows.
+
+## Scheduling Principle
+
+Mneme uses card-level memory states for scheduling accuracy.
+
+FSRS, or any scheduler, operates on individual Cards. Concepts are user-facing review units. Concept priority will be computed later by aggregating card-level memory states.
+
+Task 012 introduces a scheduler abstraction; it does not implement FSRS yet.

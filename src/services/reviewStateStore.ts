@@ -1,3 +1,4 @@
+import { ReviewScheduler } from "../models/reviewScheduler";
 import { CardReviewState, MnemePluginData, ReviewRating } from "../models/reviewState";
 
 const CURRENT_SCHEMA_VERSION = 1;
@@ -10,7 +11,10 @@ export interface ReviewStateStorage {
 export class ReviewStateStore {
 	private data: MnemePluginData = createDefaultPluginData();
 
-	constructor(private readonly storage: ReviewStateStorage) {
+	constructor(
+		private readonly storage: ReviewStateStorage,
+		private readonly scheduler: ReviewScheduler,
+	) {
 	}
 
 	async load(): Promise<void> {
@@ -21,34 +25,25 @@ export class ReviewStateStore {
 		return this.data.reviewStates[cardId];
 	}
 
-	getOrCreateState(cardId: string): CardReviewState {
-		const existingState = this.getState(cardId);
-		if (existingState) {
-			return existingState;
-		}
-
-		const state = createInitialReviewState(cardId, new Date());
-		this.data.reviewStates[cardId] = state;
-
-		return state;
-	}
-
 	async recordReview(cardId: string, rating: ReviewRating): Promise<CardReviewState> {
-		const now = new Date();
-		const state = this.getState(cardId) ?? createInitialReviewState(cardId, now);
-		const updatedState = applyReviewRating(state, rating, now);
+		const scheduleResult = this.scheduler.schedule({
+			cardId,
+			previousState: this.getState(cardId),
+			rating,
+			reviewedAt: new Date().toISOString(),
+		});
 		const nextData = {
 			...this.data,
 			reviewStates: {
 				...this.data.reviewStates,
-				[cardId]: updatedState,
+				[cardId]: scheduleResult.nextState,
 			},
 		};
 
 		await this.storage.saveData(nextData);
 		this.data = nextData;
 
-		return updatedState;
+		return scheduleResult.nextState;
 	}
 
 	getAllStates(): Record<string, CardReviewState> {
@@ -76,50 +71,6 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 		reviewStates: normalizeReviewStates(reviewStates),
 		schemaVersion: CURRENT_SCHEMA_VERSION,
 	};
-}
-
-export function createInitialReviewState(cardId: string, now: Date): CardReviewState {
-	const nowIso = now.toISOString();
-
-	return {
-		cardId,
-		createdAt: nowIso,
-		lapseCount: 0,
-		reviewCount: 0,
-		updatedAt: nowIso,
-	};
-}
-
-export function applyReviewRating(
-	state: CardReviewState,
-	rating: ReviewRating,
-	now: Date,
-): CardReviewState {
-	const nowIso = now.toISOString();
-
-	return {
-		...state,
-		dueAt: calculatePlaceholderDueAt(rating, now),
-		lapseCount: state.lapseCount + (rating === "again" ? 1 : 0),
-		lastRating: rating,
-		lastReviewedAt: nowIso,
-		reviewCount: state.reviewCount + 1,
-		updatedAt: nowIso,
-	};
-}
-
-export function calculatePlaceholderDueAt(rating: ReviewRating, now: Date): string {
-	const intervalDaysByRating: Record<ReviewRating, number> = {
-		again: 0,
-		easy: 7,
-		good: 3,
-		hard: 1,
-	};
-	const dueAt = new Date(now);
-
-	dueAt.setUTCDate(dueAt.getUTCDate() + intervalDaysByRating[rating]);
-
-	return dueAt.toISOString();
 }
 
 function normalizeReviewStates(states: Record<string, unknown>): Record<string, CardReviewState> {

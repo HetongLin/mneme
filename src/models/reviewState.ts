@@ -9,6 +9,7 @@ export interface CardReviewState {
 	lastRating?: ReviewRating;
 	lastReviewedAt?: string;
 	reviewCount: number;
+	scheduler?: string;
 	stability?: number;
 	updatedAt: string;
 }

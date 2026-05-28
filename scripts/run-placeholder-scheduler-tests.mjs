@@ -4,11 +4,11 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import esbuild from "esbuild";
 
-const outfile = path.join(tmpdir(), `mneme-review-state-tests-${Date.now()}.mjs`);
+const outfile = path.join(tmpdir(), `mneme-placeholder-scheduler-tests-${Date.now()}.mjs`);
 
 await esbuild.build({
 	bundle: true,
-	entryPoints: ["tests/reviewStateStore.test.ts"],
+	entryPoints: ["tests/placeholderReviewScheduler.test.ts"],
 	format: "esm",
 	logLevel: "silent",
 	outfile,
@@ -16,9 +16,8 @@ await esbuild.build({
 });
 
 try {
-	const testModule = await import(pathToFileURL(outfile).href);
-	await testModule.done;
-	console.log("Review state store tests passed.");
+	await import(pathToFileURL(outfile).href);
+	console.log("Placeholder review scheduler tests passed.");
 } finally {
 	await unlink(outfile);
 }

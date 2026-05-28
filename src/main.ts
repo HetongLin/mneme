@@ -1,6 +1,7 @@
 import { Notice, Plugin } from "obsidian";
 import { DEFAULT_SETTINGS, MnemeSettings } from "./settings";
 import { CardFileLoader } from "./services/cardFileLoader";
+import { PlaceholderReviewScheduler } from "./services/placeholderReviewScheduler";
 import { ReviewStateStore } from "./services/reviewStateStore";
 import { MnemeReviewView, REVIEW_VIEW_TYPE } from "./views/reviewView";
 
@@ -10,7 +11,8 @@ export default class MnemePlugin extends Plugin {
 
 	async onload() {
 		await this.loadSettings();
-		this.reviewStateStore = new ReviewStateStore(this);
+		const reviewScheduler = new PlaceholderReviewScheduler();
+		this.reviewStateStore = new ReviewStateStore(this, reviewScheduler);
 		await this.reviewStateStore.load();
 
 		this.registerView(REVIEW_VIEW_TYPE, (leaf) => new MnemeReviewView(leaf, this.reviewStateStore));
