@@ -79,3 +79,7 @@ Flashcard mode should stay focused on the current card: front, answer reveal, ru
 3. FSRS diagnostics
 4. Concept risk uses `risk = 1 - retrievability`
 5. Optional retention settings
+
+## Task 015 FSRS Adapter Note
+
+Task 015 wires `ts-fsrs` behind the card-level `ReviewScheduler` abstraction. Placeholder review states are not inferred as FSRS memory; cards start fresh under FSRS unless their stored state was written by the FSRS scheduler.

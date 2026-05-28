@@ -1,15 +1,21 @@
 export type ReviewRating = "again" | "hard" | "good" | "easy";
+export type FsrsCardState = "New" | "Learning" | "Review" | "Relearning";
 
 export interface CardReviewState {
 	cardId: string;
 	createdAt: string;
 	difficulty?: number;
 	dueAt?: string;
+	elapsedDays?: number;
+	fsrsState?: FsrsCardState;
+	learningSteps?: number;
 	lapseCount: number;
 	lastRating?: ReviewRating;
 	lastReviewedAt?: string;
 	reviewCount: number;
+	scheduledDays?: number;
 	scheduler?: string;
+	schedulerVersion?: string;
 	stability?: number;
 	updatedAt: string;
 }

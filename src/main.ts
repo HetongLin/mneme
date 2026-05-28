@@ -2,7 +2,7 @@ import { Notice, Plugin } from "obsidian";
 import { ConfirmClearReviewHistoryModal } from "./modals/confirmClearReviewHistoryModal";
 import { DEFAULT_SETTINGS, MnemeSettings } from "./settings";
 import { CardFileLoader } from "./services/cardFileLoader";
-import { PlaceholderReviewScheduler } from "./services/placeholderReviewScheduler";
+import { FsrsReviewScheduler } from "./services/fsrsReviewScheduler";
 import { ReviewStateStore } from "./services/reviewStateStore";
 import { MnemeReviewView, REVIEW_VIEW_TYPE } from "./views/reviewView";
 
@@ -12,7 +12,7 @@ export default class MnemePlugin extends Plugin {
 
 	async onload() {
 		await this.loadSettings();
-		const reviewScheduler = new PlaceholderReviewScheduler();
+		const reviewScheduler = new FsrsReviewScheduler();
 		this.reviewStateStore = new ReviewStateStore(this, reviewScheduler);
 		await this.reviewStateStore.load();
 

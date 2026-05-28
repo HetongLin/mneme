@@ -9,6 +9,7 @@
     "test:all": "node scripts/run-all-tests.mjs",
     "test:concept-memory": "node scripts/run-concept-memory-tests.mjs",
     "test:concept-queue": "node scripts/run-concept-queue-ranker-tests.mjs",
+    "test:fsrs-scheduler": "node scripts/run-fsrs-scheduler-tests.mjs",
     "test:parser": "node scripts/run-card-marker-parser-tests.mjs",
     "test:review-queue": "node scripts/run-review-queue-tests.mjs",
     "test:scheduler": "node scripts/run-placeholder-scheduler-tests.mjs",

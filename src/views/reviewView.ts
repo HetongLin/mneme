@@ -420,6 +420,10 @@ export class MnemeReviewView extends ItemView {
 		cardEl.createEl("p", { text: `Review count: ${queueCard.reviewCount}` });
 		cardEl.createEl("p", { text: `Due: ${queueCard.dueAt ?? "(unset)"}` });
 		cardEl.createEl("p", { text: `Risk: ${cardRisk ? formatPercent(cardRisk.risk) : "(unset)"}` });
+		if (queueCard.reviewCount > 0) {
+			const reviewState = this.reviewStateStore.getState(card.cardId);
+			this.renderReviewStateDetails(cardEl, reviewState);
+		}
 
 		if (card.errors.length > 0) {
 			this.renderIssueList(cardEl, "Errors", card.errors);
@@ -498,6 +502,7 @@ export class MnemeReviewView extends ItemView {
 		detailsEl.createEl("p", { text: `Review count: ${reviewState?.reviewCount ?? queueCard.reviewCount}` });
 		detailsEl.createEl("p", { text: `Last rating: ${reviewState?.lastRating ?? "(none)"}` });
 		detailsEl.createEl("p", { text: `Due: ${reviewState?.dueAt ?? queueCard.dueAt ?? "(unset)"}` });
+		this.renderReviewStateDetails(detailsEl, reviewState);
 
 		if (card.errors.length > 0) {
 			this.renderIssueList(detailsEl, "Errors", card.errors);
@@ -506,6 +511,19 @@ export class MnemeReviewView extends ItemView {
 		if (card.warnings.length > 0) {
 			this.renderIssueList(detailsEl, "Warnings", card.warnings);
 		}
+	}
+
+	private renderReviewStateDetails(parentEl: HTMLElement, reviewState: CardReviewState | undefined): void {
+		if (!reviewState) {
+			return;
+		}
+
+		parentEl.createEl("p", { text: `Scheduler: ${reviewState.scheduler ?? "(unset)"}` });
+		parentEl.createEl("p", { text: `FSRS state: ${reviewState.fsrsState ?? "(unset)"}` });
+		parentEl.createEl("p", { text: `Stability: ${formatOptionalNumber(reviewState.stability)}` });
+		parentEl.createEl("p", { text: `Difficulty: ${formatOptionalNumber(reviewState.difficulty)}` });
+		parentEl.createEl("p", { text: `Scheduled days: ${formatOptionalNumber(reviewState.scheduledDays)}` });
+		parentEl.createEl("p", { text: `Learning step: ${formatOptionalNumber(reviewState.learningSteps)}` });
 	}
 
 	private startFlashCards(concept: ReviewQueueConcept): void {
@@ -729,6 +747,14 @@ function formatPriorityBand(summary: Pick<ConceptMemorySummary, "priorityBand"> 
 
 function formatPercent(value: number): string {
 	return `${Math.round(value * 100)}%`;
+}
+
+function formatOptionalNumber(value: number | undefined): string {
+	if (value === undefined) {
+		return "(unset)";
+	}
+
+	return Number.isInteger(value) ? String(value) : value.toFixed(4);
 }
 
 function formatDiagnosticConceptSummary(
