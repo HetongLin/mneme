@@ -254,9 +254,6 @@ export class MnemeReviewView extends ItemView {
 				text: "Review complete.",
 			});
 			const actionsEl = cardEl.createDiv({ cls: "mneme-review-actions" });
-			actionsEl.createEl("button", { text: "Back to Concepts" }, (buttonEl) => {
-				buttonEl.addEventListener("click", () => this.backToConcepts());
-			});
 			actionsEl.createEl("button", { cls: "mneme-review-source-action", text: "Source" }, (buttonEl) => {
 				buttonEl.addEventListener("click", () => {
 					void this.openConceptSource(concept.concept);
