@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { LoadedMnemeCard } from "../src/models/card";
 import { MnemeConcept } from "../src/models/concept";
 import { CardReviewState } from "../src/models/reviewState";
+import { FsrsReviewScheduler } from "../src/services/fsrsReviewScheduler";
 import { buildReviewQueue } from "../src/services/reviewQueueBuilder";
 
 const now = new Date("2026-01-10T12:00:00.000Z");
@@ -36,8 +37,9 @@ const now = new Date("2026-01-10T12:00:00.000Z");
 		now,
 	);
 
-	assert.equal(queue.concepts[0]?.dueCards.length, 1);
-	assert.equal(queue.concepts[0]?.reviewableCount, 1);
+	assert.equal(queue.concepts[0]?.notDueCards.length, 1);
+	assert.equal(queue.concepts[0]?.notDueCards[0]?.eligibilityReason, "missing-due-at");
+	assert.equal(queue.concepts[0]?.reviewableCount, 0);
 }
 
 {
@@ -62,6 +64,19 @@ const now = new Date("2026-01-10T12:00:00.000Z");
 	assert.equal(concept?.reviewableCount, 0);
 	assert.equal(queue.summary.notDueCards, 1);
 	assert.equal(queue.summary.reviewableConcepts, 0);
+}
+
+{
+	const queue = buildReviewQueue(
+		[createConcept([createCard("malformed-card")])],
+		{ "malformed-card": createReviewState("malformed-card", "not-a-date") },
+		now,
+	);
+	const concept = queue.concepts[0];
+
+	assert.equal(concept?.notDueCards.length, 1);
+	assert.equal(concept?.notDueCards[0]?.eligibilityReason, "missing-due-at");
+	assert.equal(concept?.reviewableCount, 0);
 }
 
 {
@@ -93,9 +108,47 @@ const now = new Date("2026-01-10T12:00:00.000Z");
 	const concept = queue.concepts[0];
 
 	assert.equal(concept?.newCards.length, 1);
+	assert.equal(concept?.newCards[0]?.includedInDailyReview, true);
 	assert.equal(concept?.notDueCards.length, 1);
+	assert.equal(concept?.notDueCards[0]?.includedInDailyReview, false);
 	assert.equal(concept?.reviewableCount, 1);
 	assert.equal(queue.summary.reviewableConcepts, 1);
+}
+
+{
+	const futureCards = Array.from({ length: 3 }, (_, index) => createCard(`future-${index}`));
+	const queue = buildReviewQueue(
+		[createConcept([createCard("due-card"), ...futureCards])],
+		{
+			"due-card": createReviewState("due-card", "2026-01-09T12:00:00.000Z"),
+			"future-0": createReviewState("future-0", "2026-01-12T12:00:00.000Z"),
+			"future-1": createReviewState("future-1", "2026-01-13T12:00:00.000Z"),
+			"future-2": createReviewState("future-2", "2026-01-14T12:00:00.000Z"),
+		},
+		now,
+	);
+	const concept = queue.concepts[0];
+
+	assert.equal(concept?.dueCards.length, 1);
+	assert.equal(concept?.notDueCards.length, 3);
+	assert.equal(concept?.reviewableCount, 1);
+}
+
+{
+	const scheduler = new FsrsReviewScheduler();
+	const reviewed = scheduler.schedule({
+		cardId: "reviewed-card",
+		rating: "good",
+		reviewedAt: now.toISOString(),
+	}).nextState;
+	const queue = buildReviewQueue(
+		[createConcept([createCard("reviewed-card")])],
+		{ "reviewed-card": reviewed },
+		now,
+	);
+
+	assert.equal(queue.concepts[0]?.reviewableCount, 0);
+	assert.equal(queue.concepts[0]?.notDueCards.length, 1);
 }
 
 function createConcept(cards: LoadedMnemeCard[]): MnemeConcept {

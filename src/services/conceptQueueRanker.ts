@@ -13,7 +13,7 @@ export function rankReviewQueueConcepts(
 ): RankedReviewQueueConcept[] {
 	const rankableConcepts = options.includeNonReviewable
 		? concepts
-		: concepts.filter((concept) => concept.reviewableCount > 0);
+		: concepts.filter((concept) => (memorySummaries[concept.conceptId]?.reviewCardCount ?? concept.reviewableCount) > 0);
 
 	return [...rankableConcepts]
 		.sort((left, right) => compareReviewQueueConcepts(left, right, memorySummaries))
@@ -23,8 +23,9 @@ export function rankReviewQueueConcepts(
 			return {
 				concept,
 				priorityBand: memorySummary?.priorityBand ?? "low",
-				priorityScore: memorySummary?.priorityScore ?? 0,
+				priorityScore: memorySummary?.reviewPriorityScore ?? memorySummary?.priorityScore ?? 0,
 				rank: index + 1,
+				reviewPriorityScore: memorySummary?.reviewPriorityScore ?? memorySummary?.priorityScore ?? 0,
 			};
 		});
 }
@@ -48,10 +49,15 @@ function compareReviewQueueConcepts(
 ): number {
 	const leftSummary = memorySummaries[left.conceptId];
 	const rightSummary = memorySummaries[right.conceptId];
-	const priorityDifference = (rightSummary?.priorityScore ?? 0) - (leftSummary?.priorityScore ?? 0);
+	const priorityDifference = (rightSummary?.reviewPriorityScore ?? 0) - (leftSummary?.reviewPriorityScore ?? 0);
 
 	if (priorityDifference !== 0) {
 		return priorityDifference;
+	}
+
+	const overdueDifference = (rightSummary?.overdueCardCount ?? 0) - (leftSummary?.overdueCardCount ?? 0);
+	if (overdueDifference !== 0) {
+		return overdueDifference;
 	}
 
 	const dueDifference = right.dueCards.length - left.dueCards.length;

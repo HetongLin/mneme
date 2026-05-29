@@ -8,6 +8,7 @@ import {
 	ReviewQueueSummary,
 } from "../models/reviewQueue";
 import { CardReviewState } from "../models/reviewState";
+import { getDailyReviewEligibility } from "./dailyReviewEligibility";
 
 export function buildReviewQueue(
 	concepts: MnemeConcept[],
@@ -55,39 +56,35 @@ export function buildReviewQueueCard(
 	reviewState: CardReviewState | undefined,
 	now: Date,
 ): ReviewQueueCard {
-	const dueStatus = getCardDueStatus(card, reviewState, now);
+	const eligibility = getDailyReviewEligibility(card, reviewState, now);
+	const dueStatus = getCardDueStatus(eligibility);
 
 	return {
 		card,
 		cardId: card.cardId,
 		conceptId: concept.id,
 		conceptTitle: concept.title,
-		dueAt: reviewState?.dueAt,
+		dueAt: eligibility.dueAt ?? reviewState?.dueAt,
 		dueStatus,
+		eligibilityReason: eligibility.reason,
+		includedInDailyReview: eligibility.includedInDailyReview,
+		isDue: eligibility.isDue,
+		isNew: eligibility.isNew,
+		isOverdue: eligibility.isOverdue,
 		reviewCount: reviewState?.reviewCount ?? 0,
 	};
 }
 
-export function getCardDueStatus(
-	card: LoadedMnemeCard,
-	reviewState: CardReviewState | undefined,
-	now: Date,
-): CardDueStatus {
-	if (!card.isValid) {
+export function getCardDueStatus(eligibility: ReturnType<typeof getDailyReviewEligibility>): CardDueStatus {
+	if (eligibility.reason === "invalid") {
 		return "invalid";
 	}
 
-	if (!reviewState) {
+	if (eligibility.isNew) {
 		return "new";
 	}
 
-	if (!reviewState.dueAt) {
-		return "due";
-	}
-
-	const dueAt = Date.parse(reviewState.dueAt);
-
-	if (Number.isNaN(dueAt) || dueAt <= now.getTime()) {
+	if (eligibility.isDue) {
 		return "due";
 	}
 

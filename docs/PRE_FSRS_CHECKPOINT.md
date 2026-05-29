@@ -77,7 +77,7 @@ Flashcard mode should stay focused on the current card: front, answer reveal, ru
 1. FSRS Scheduler Adapter
 2. Review State Migration
 3. FSRS diagnostics
-4. Concept risk uses `risk = 1 - retrievability`
+4. Diagnostics may show `risk = 1 - retrievability`
 5. Optional retention settings
 
 ## Task 015 FSRS Adapter Note
@@ -86,4 +86,4 @@ Task 015 wires `ts-fsrs` behind the card-level `ReviewScheduler` abstraction. Pl
 
 ## Task 016 Retrievability Risk Note
 
-Task 016 updates concept memory so FSRS-reviewed cards use `risk = 1 - retrievability`. New Cards and malformed or non-FSRS states still use placeholder risk.
+Task 016.6 corrects Daily Review so FSRS `dueAt` controls reviewed-card eligibility. Retrievability risk remains diagnostic and must not promote non-due Cards into Daily Review.

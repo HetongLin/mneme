@@ -1,6 +1,6 @@
 # Post-FSRS Integration Checkpoint
 
-This checkpoint records Mneme's review architecture after adding the FSRS scheduler adapter and FSRS retrievability-based concept risk.
+This checkpoint records Mneme's review architecture after adding the FSRS scheduler adapter and correcting Daily Review to be due-card driven.
 
 ## Current FSRS Flow
 
@@ -10,8 +10,7 @@ Card.md
 -> Flashcard rating
 -> FsrsReviewScheduler
 -> CardReviewState with scheduler: fsrs
--> retrievability calculation
--> card risk = 1 - retrievability
+-> dueAt-driven Daily Review eligibility
 -> ConceptMemoryAggregator
 -> ConceptQueueRanker
 -> Concept Review Queue
@@ -21,7 +20,9 @@ Card.md
 
 FSRS is card-level.
 
-Concepts are user-facing learning units. Review actions are recorded per stable `cardId`, and concept priority is computed by aggregating card-level memory states. FSRS does not schedule Concepts directly.
+Concepts are user-facing learning units. Review actions are recorded per stable `cardId`, and concept priority ranks groups of Daily Review-eligible Cards. FSRS does not schedule Concepts directly.
+
+FSRS `dueAt` is the authority for Daily Review eligibility. Retrievability is diagnostic and may later become a secondary signal among eligible Cards, but it must not promote non-due Cards into Daily Review.
 
 ## Manual Validation Protocol
 
@@ -43,6 +44,8 @@ Concepts are user-facing learning units. Review actions are recorded per stable 
    - `riskSource: fsrs`
    - `retrievability`
    - `risk`
+   - `includedInDailyReview: false` if FSRS scheduled it into the future
+   - `eligibilityReason: not-due`
 10. Confirm the unreviewed card still shows:
    - `riskSource: placeholder`
    - no FSRS retrievability
@@ -53,9 +56,9 @@ Concepts are user-facing learning units. Review actions are recorded per stable 
 
 ## Expected Behavior
 
-- New cards use placeholder risk.
-- Reviewed FSRS cards use FSRS retrievability risk.
-- Not-due cards should not dominate the main queue.
+- New cards enter Daily Review.
+- Reviewed FSRS cards enter Daily Review only when `dueAt <= now`.
+- Reviewed FSRS cards scheduled in the future remain out of the main queue even when retrievability risk is non-zero.
 - FSRS details live in diagnostics.
 - The main queue remains concept-centered.
 
@@ -66,7 +69,7 @@ Concepts are user-facing learning units. Review actions are recorded per stable 
 - No review log export/import.
 - No schema migration UI.
 - Existing placeholder states are not converted to FSRS.
-- Concept priority formula is still MVP weighting.
+- Concept group priority formula is still MVP weighting over eligible Daily Review Cards.
 - No source-note-level navigation yet.
 
 ## Next Recommended Tasks

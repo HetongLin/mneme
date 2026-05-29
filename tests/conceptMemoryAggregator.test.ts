@@ -18,7 +18,9 @@ const now = new Date("2026-01-10T12:00:00.000Z");
 
 	assert.equal(summary.newCardCount, 1);
 	assert.equal(summary.cardRisks[0]?.risk, 0.85);
-	assert.equal(summary.priorityScore > 0.5, true);
+	assert.equal(summary.reviewCardCount, 1);
+	assert.deepEqual(summary.includedReviewCardIds, ["new-card"]);
+	assert.equal(summary.priorityScore > 0, true);
 }
 
 {
@@ -28,7 +30,8 @@ const now = new Date("2026-01-10T12:00:00.000Z");
 
 	assert.equal(summary.dueCardCount, 1);
 	assert.equal(summary.cardRisks[0]?.risk, 0.75);
-	assert.equal(summary.priorityScore > 0.5, true);
+	assert.equal(summary.reviewCardCount, 1);
+	assert.equal(summary.priorityScore > 0, true);
 }
 
 {
@@ -58,8 +61,10 @@ const now = new Date("2026-01-10T12:00:00.000Z");
 	}), {}, now);
 
 	assert.equal(summary.validCardCount, 8);
+	assert.equal(summary.reviewCardCount, 1);
 	assert.equal(summary.topK, 2);
 	assert.equal(summary.topKAvgRisk > summary.averageRisk, true);
+	assert.equal(summary.priorityScore, summary.reviewPriorityScore);
 }
 
 {
@@ -68,6 +73,7 @@ const now = new Date("2026-01-10T12:00:00.000Z");
 	}), {}, now);
 
 	assert.equal(summary.validCardCount, 0);
+	assert.equal(summary.reviewCardCount, 0);
 	assert.equal(summary.priorityScore, 0);
 	assert.equal(summary.priorityBand, "low");
 }
@@ -141,6 +147,11 @@ function createQueueCard(cardId: string, dueStatus: ReviewQueueCard["dueStatus"]
 		conceptTitle: "Encapsulation",
 		dueAt,
 		dueStatus,
+		eligibilityReason: dueStatus,
+		includedInDailyReview: dueStatus === "due" || dueStatus === "new",
+		isDue: dueStatus === "due",
+		isNew: dueStatus === "new",
+		isOverdue: dueStatus === "due" && dueAt !== now.toISOString(),
 		reviewCount: dueStatus === "new" ? 0 : 1,
 	};
 }

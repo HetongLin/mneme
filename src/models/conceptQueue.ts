@@ -6,4 +6,5 @@ export interface RankedReviewQueueConcept {
 	priorityBand: ConceptPriorityBand;
 	priorityScore: number;
 	rank: number;
+	reviewPriorityScore: number;
 }

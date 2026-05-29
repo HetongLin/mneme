@@ -1,5 +1,6 @@
 import { LoadedMnemeCard } from "./card";
 import { MnemeConcept } from "./concept";
+import type { DailyReviewEligibilityReason } from "./dailyReview";
 
 export type CardDueStatus = "new" | "due" | "not-due" | "invalid";
 
@@ -10,6 +11,11 @@ export interface ReviewQueueCard {
 	conceptTitle: string;
 	dueAt?: string;
 	dueStatus: CardDueStatus;
+	eligibilityReason: DailyReviewEligibilityReason;
+	includedInDailyReview: boolean;
+	isDue: boolean;
+	isNew: boolean;
+	isOverdue: boolean;
 	reviewCount: number;
 }
 

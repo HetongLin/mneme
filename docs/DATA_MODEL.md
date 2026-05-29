@@ -265,25 +265,30 @@ The concept queue remains concept-level. FSRS does not schedule Concepts directl
 
 Existing placeholder review states are treated conservatively: they are not converted into FSRS memory states. Users can run `Mneme: Clear Review History` before FSRS testing if they want a clean reset.
 
-Concept risk uses FSRS retrievability when a valid FSRS card state is available: `risk = 1 - retrievability`.
+FSRS `dueAt` is the authority for Daily Review eligibility. New Cards enter Daily Review. Reviewed Cards enter Daily Review only when `dueAt <= now`.
 
-For new Cards, placeholder states, or malformed scheduler state, Mneme falls back to the placeholder risk model. Concept-level priority remains an aggregation over Cards.
+Retrievability remains diagnostic for reviewed FSRS Cards. It may be useful as a secondary signal among already-due Cards, but it must not promote non-due Cards into Daily Review.
 
 ## Concept Memory Aggregation
 
 Card-level memory state remains the source of scheduling truth.
 
-Concept memory is an aggregation over a Concept's Cards. Mneme estimates concept priority from due and new Cards, weakest card risks, and lapse history.
+Concept memory is an aggregation over a Concept's Cards. It distinguishes all-card diagnostics from the Daily Review subset:
 
-Cards with valid FSRS state use `risk = 1 - retrievability`. Cards without valid FSRS state use the placeholder risk model.
+- Daily Review Cards are new Cards and reviewed Cards whose `dueAt` is due.
+- Non-due Cards remain visible in diagnostics.
+- FSRS retrievability can be shown as diagnostic risk: `risk = 1 - retrievability`.
+- Placeholder risk remains available for new, malformed, or non-FSRS diagnostic states.
 
 ## Concept Queue Ranking
 
 The main review queue is concept-centered.
 
-Concepts are ranked by aggregated card-level memory risk. The main queue shows only reviewable Concepts with due or new Cards.
+Concepts are ranked as groups of Daily Review-eligible Cards. The main queue shows only Concepts that contain due or new Cards.
 
-Not-due-only Concepts are hidden from the main queue but visible in diagnostics. FSRS remains card-level; concept ranking is an aggregation layer.
+Not-due-only Concepts are hidden from the main queue but visible in diagnostics. FSRS remains card-level; concept ranking never overrides FSRS scheduling.
+
+Future modes may intentionally bypass `dueAt` for Cram, Exam Mode, Random Concept Draw, or Concept Activation. Daily Review must remain due-card driven.
 
 See also: [Pre-FSRS Architecture Checkpoint](PRE_FSRS_CHECKPOINT.md).
 

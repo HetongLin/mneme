@@ -106,7 +106,7 @@ export class MnemeReviewView extends ItemView {
 	}
 
 	private renderQueueMode(): void {
-		this.renderHeader("Review Queue", true);
+		this.renderHeader("Today’s Focus", true);
 		this.renderSummary();
 		this.renderQueue();
 		this.renderDiagnostics();
@@ -372,9 +372,14 @@ export class MnemeReviewView extends ItemView {
 		memorySummary: ConceptMemorySummary,
 		rankedConcept?: RankedReviewQueueConcept,
 	): void {
-		parentEl.createEl("h5", { text: "Concept memory" });
+		parentEl.createEl("h5", { text: "Daily Review" });
 		parentEl.createEl("p", { text: `Rank: ${rankedConcept ? `#${rankedConcept.rank}` : "(unranked)"}` });
-		parentEl.createEl("p", { text: `Priority: ${formatPriorityBand(memorySummary)} (${formatPercent(memorySummary.priorityScore)})` });
+		parentEl.createEl("p", { text: `Review priority: ${formatPriorityBand(memorySummary)} (${formatPercent(memorySummary.reviewPriorityScore)})` });
+		parentEl.createEl("p", { text: `Review cards: ${memorySummary.reviewCardCount}` });
+		parentEl.createEl("p", { text: `Earliest due: ${memorySummary.earliestDueAt ?? "(unset)"}` });
+		parentEl.createEl("p", { text: `Next due: ${memorySummary.nextDueAt ?? "(unset)"}` });
+		parentEl.createEl("p", { text: `Overdue cards: ${memorySummary.overdueCardCount}` });
+		parentEl.createEl("h5", { text: "Diagnostic risk" });
 		parentEl.createEl("p", { text: `Top-${memorySummary.topK} average risk: ${formatPercent(memorySummary.topKAvgRisk)}` });
 		parentEl.createEl("p", { text: `Weakest risk: ${formatPercent(memorySummary.weakestRisk)}` });
 		parentEl.createEl("p", { text: `Average risk: ${formatPercent(memorySummary.averageRisk)}` });
@@ -417,6 +422,8 @@ export class MnemeReviewView extends ItemView {
 		cardEl.createEl("p", { text: `Card ID: ${card.cardId}` });
 		cardEl.createEl("p", { text: `Card index: ${card.cardIndex}` });
 		cardEl.createEl("p", { text: `Due status: ${queueCard.dueStatus}` });
+		cardEl.createEl("p", { text: `Daily Review: ${queueCard.includedInDailyReview ? "included" : "not included"}` });
+		cardEl.createEl("p", { text: `Eligibility reason: ${queueCard.eligibilityReason}` });
 		cardEl.createEl("p", { text: `Review count: ${queueCard.reviewCount}` });
 		cardEl.createEl("p", { text: `Due: ${queueCard.dueAt ?? "(unset)"}` });
 		cardEl.createEl("p", { text: `Risk: ${cardRisk ? formatPercent(cardRisk.risk) : "(unset)"}` });
@@ -470,9 +477,10 @@ export class MnemeReviewView extends ItemView {
 		const detailsGridEl = parentEl.createDiv({ cls: "mneme-review-details-grid" });
 
 		detailsGridEl.createEl("span", { text: `Rank #${rankedConcept.rank}` });
-		detailsGridEl.createEl("span", { text: `Priority ${formatPercent(memorySummary.priorityScore)}` });
-		detailsGridEl.createEl("span", { text: `Top-${memorySummary.topK} risk ${formatPercent(memorySummary.topKAvgRisk)}` });
-		detailsGridEl.createEl("span", { text: `Weakest ${formatPercent(memorySummary.weakestRisk)}` });
+		detailsGridEl.createEl("span", { text: `Review priority ${formatPercent(memorySummary.reviewPriorityScore)}` });
+		detailsGridEl.createEl("span", { text: `${memorySummary.reviewCardCount} review cards` });
+		detailsGridEl.createEl("span", { text: `${memorySummary.overdueCardCount} overdue` });
+		detailsGridEl.createEl("span", { text: `Next due ${memorySummary.nextDueAt ?? "(unset)"}` });
 		detailsGridEl.createEl("span", { text: `Due ${formatPercent(memorySummary.dueRatio)}` });
 		detailsGridEl.createEl("span", { text: `New ${formatPercent(memorySummary.newRatio)}` });
 		detailsGridEl.createEl("span", { text: `Lapse ${formatPercent(memorySummary.lapseRatio)}` });
@@ -487,7 +495,7 @@ export class MnemeReviewView extends ItemView {
 		const listEl = parentEl.createEl("ul", { cls: "mneme-review-details-list" });
 		for (const card of cards) {
 			listEl.createEl("li", {
-				text: `${card.cardId} · ${card.dueStatus} · ${formatReviewCount(card.reviewCount)}`,
+				text: `${card.cardId} · ${card.dueStatus} · ${card.eligibilityReason} · ${card.includedInDailyReview ? "Daily Review" : "Later"} · ${formatReviewCount(card.reviewCount)}`,
 			});
 		}
 	}
@@ -502,6 +510,8 @@ export class MnemeReviewView extends ItemView {
 		detailsEl.createEl("p", { text: `Card ID: ${card.cardId}` });
 		detailsEl.createEl("p", { text: `Card index: ${card.cardIndex}` });
 		detailsEl.createEl("p", { text: `Due status: ${queueCard.dueStatus}` });
+		detailsEl.createEl("p", { text: `Daily Review: ${queueCard.includedInDailyReview ? "included" : "not included"}` });
+		detailsEl.createEl("p", { text: `Eligibility reason: ${queueCard.eligibilityReason}` });
 		detailsEl.createEl("p", { text: `Review count: ${reviewState?.reviewCount ?? queueCard.reviewCount}` });
 		detailsEl.createEl("p", { text: `Last rating: ${reviewState?.lastRating ?? "(none)"}` });
 		detailsEl.createEl("p", { text: `Due: ${reviewState?.dueAt ?? queueCard.dueAt ?? "(unset)"}` });

@@ -47,32 +47,37 @@ export function aggregateReviewQueueConcept(
 	];
 	const cardRisks = cards.map((card) => calculateCardMemoryRisk(card, reviewStates[card.cardId], now));
 	const validCardRisks = cardRisks.filter((cardRisk) => cardRisk.dueStatus !== "invalid");
+	const reviewCardRisks = validCardRisks.filter((cardRisk) => cardRisk.includedInDailyReview);
 	const validCardCount = validCardRisks.length;
+	const reviewCardCount = reviewCardRisks.length;
 	const newCardCount = concept.newCards.length;
 	const dueCardCount = concept.dueCards.length;
 	const notDueCardCount = concept.notDueCards.length;
 	const invalidCardCount = concept.invalidCards.length;
+	const overdueCardCount = reviewCardRisks.filter((cardRisk) => cardRisk.isOverdue).length;
 	const topK = calculateTopK(validCardCount);
 	const sortedRisks = validCardRisks.map((cardRisk) => cardRisk.risk).sort((a, b) => b - a);
 	const topKRisks = sortedRisks.slice(0, topK);
 	const averageRisk = average(sortedRisks);
 	const topKAvgRisk = average(topKRisks);
 	const weakestRisk = sortedRisks[0] ?? 0;
-	const dueRatio = calculateRatio(dueCardCount, validCardCount);
-	const newRatio = calculateRatio(newCardCount, validCardCount);
+	const dueRatio = calculateRatio(dueCardCount, reviewCardCount);
+	const newRatio = calculateRatio(newCardCount, reviewCardCount);
 	const lapseRatio = calculateRatio(
-		validCardRisks.filter((cardRisk) => cardRisk.lapseCount > 0 || cardRisk.lastRating === "again").length,
-		validCardCount,
+		reviewCardRisks.filter((cardRisk) => cardRisk.lapseCount > 0 || cardRisk.lastRating === "again").length,
+		reviewCardCount,
 	);
-	const priorityScore = validCardCount === 0
-		? 0
-		: clampRisk(
-			0.40 * topKAvgRisk
-			+ 0.25 * dueRatio
-			+ 0.15 * newRatio
-			+ 0.10 * lapseRatio
-			+ 0.10 * DEFAULT_IMPORTANCE_WEIGHT,
-		);
+	const includedReviewCardIds = reviewCardRisks.map((cardRisk) => cardRisk.cardId);
+	const earliestDueAt = getEarliestDueAt(reviewCardRisks);
+	const nextDueAt = getEarliestDueAt(validCardRisks.filter((cardRisk) => !cardRisk.includedInDailyReview));
+	const reviewPriorityScore = calculateReviewPriorityScore({
+		dueRatio,
+		lapseRatio,
+		newRatio,
+		overdueRatio: calculateRatio(overdueCardCount, reviewCardCount),
+		reviewCardCount,
+	});
+	const priorityScore = reviewPriorityScore;
 
 	return {
 		averageRisk,
@@ -80,16 +85,23 @@ export function aggregateReviewQueueConcept(
 		conceptId: concept.conceptId,
 		dueCardCount,
 		dueRatio,
+		earliestDueAt,
+		includedReviewCardIds,
 		invalidCardCount,
 		lapseRatio,
 		newCardCount,
 		newRatio,
+		nextDueAt,
 		notDueCardCount,
+		overdueCardCount,
 		priorityBand: getPriorityBand(priorityScore),
 		priorityScore,
+		reviewCardCount,
+		reviewPriorityScore,
 		title: concept.title,
 		topK,
 		topKAvgRisk,
+		totalCardCount: cardRisks.length,
 		validCardCount,
 		weakestRisk,
 	};
@@ -112,6 +124,11 @@ export function calculateCardMemoryRisk(
 		cardId: card.cardId,
 		dueAt: card.dueAt,
 		dueStatus: card.dueStatus,
+		eligibilityReason: card.eligibilityReason,
+		includedInDailyReview: card.includedInDailyReview,
+		isDue: card.isDue,
+		isNew: card.isNew,
+		isOverdue: card.isOverdue,
 		lapseCount,
 		lastRating,
 		reviewCount: reviewState?.reviewCount ?? card.reviewCount,
@@ -188,6 +205,36 @@ function calculateRatio(count: number, total: number): number {
 	}
 
 	return count / total;
+}
+
+function calculateReviewPriorityScore(input: {
+	dueRatio: number;
+	lapseRatio: number;
+	newRatio: number;
+	overdueRatio: number;
+	reviewCardCount: number;
+}): number {
+	if (input.reviewCardCount === 0) {
+		return 0;
+	}
+
+	return clampRisk(
+		0.45 * input.overdueRatio
+		+ 0.35 * input.dueRatio
+		+ 0.25 * input.newRatio
+		+ 0.10 * input.lapseRatio
+		+ 0.10 * DEFAULT_IMPORTANCE_WEIGHT,
+	);
+}
+
+function getEarliestDueAt(cardRisks: CardMemoryRisk[]): string | undefined {
+	const dueAts = cardRisks
+		.map((cardRisk) => cardRisk.dueAt)
+		.filter((dueAt): dueAt is string => dueAt !== undefined)
+		.filter((dueAt) => !Number.isNaN(Date.parse(dueAt)))
+		.sort((left, right) => Date.parse(left) - Date.parse(right));
+
+	return dueAts[0];
 }
 
 function average(values: number[]): number {

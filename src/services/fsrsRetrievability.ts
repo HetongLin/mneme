@@ -42,6 +42,7 @@ export function estimateFsrsRisk(
 	state: CardReviewState | undefined,
 	now: Date,
 ): { retrievability: number; risk: number } | undefined {
+	// Diagnostic only: Daily Review eligibility is decided by dueAt, not by risk.
 	if (!state) {
 		return undefined;
 	}

@@ -58,7 +58,7 @@ import { rankReviewQueueConcepts } from "../src/services/conceptQueueRanker";
 		createConcept("due", "Due", { dueCards: 1 }),
 	], {
 		due: createMemorySummary("due", 0.5),
-		"later-only": createMemorySummary("later-only", 0.9),
+		"later-only": createMemorySummary("later-only", 0.9, 0),
 	});
 
 	assert.deepEqual(ranked.map((concept) => concept.concept.conceptId), ["due"]);
@@ -144,6 +144,11 @@ function createQueueCards(
 			conceptId,
 			conceptTitle,
 			dueStatus,
+			eligibilityReason: dueStatus,
+			includedInDailyReview: dueStatus === "due" || dueStatus === "new",
+			isDue: dueStatus === "due",
+			isNew: dueStatus === "new",
+			isOverdue: false,
 			reviewCount: dueStatus === "new" ? 0 : 1,
 		};
 	});
@@ -166,23 +171,30 @@ function createCard(cardId: string): LoadedMnemeCard {
 	};
 }
 
-function createMemorySummary(conceptId: string, priorityScore: number): ConceptMemorySummary {
+function createMemorySummary(conceptId: string, priorityScore: number, reviewCardCount = 1): ConceptMemorySummary {
 	return {
 		averageRisk: priorityScore,
 		cardRisks: [],
 		conceptId,
 		dueCardCount: 0,
 		dueRatio: 0,
+		earliestDueAt: undefined,
+		includedReviewCardIds: [],
 		invalidCardCount: 0,
 		lapseRatio: 0,
 		newCardCount: 0,
 		newRatio: 0,
+		nextDueAt: undefined,
 		notDueCardCount: 0,
+		overdueCardCount: 0,
 		priorityBand: priorityScore >= 0.7 ? "high" : priorityScore >= 0.4 ? "medium" : "low",
 		priorityScore,
+		reviewCardCount,
+		reviewPriorityScore: priorityScore,
 		title: conceptId,
 		topK: 1,
 		topKAvgRisk: priorityScore,
+		totalCardCount: 1,
 		validCardCount: 1,
 		weakestRisk: priorityScore,
 	};

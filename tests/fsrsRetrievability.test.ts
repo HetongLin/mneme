@@ -71,6 +71,9 @@ const now = new Date("2026-01-02T12:00:00.000Z");
 	assert.equal(cardRisk?.riskSource, "fsrs");
 	assert.equal(typeof cardRisk?.retrievability, "number");
 	assert.equal(cardRisk?.risk, estimateFsrsRisk(state, now)?.risk);
+	assert.equal(cardRisk?.includedInDailyReview, false);
+	assert.equal(summary.reviewCardCount, 0);
+	assert.equal(summary.priorityScore, 0);
 }
 
 {
@@ -182,6 +185,11 @@ function createQueueCard(cardId: string, dueStatus: ReviewQueueCard["dueStatus"]
 		conceptTitle: "Encapsulation",
 		dueAt,
 		dueStatus,
+		eligibilityReason: dueStatus,
+		includedInDailyReview: dueStatus === "due" || dueStatus === "new",
+		isDue: dueStatus === "due",
+		isNew: dueStatus === "new",
+		isOverdue: false,
 		reviewCount: dueStatus === "new" ? 0 : 1,
 	};
 }
