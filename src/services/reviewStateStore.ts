@@ -1,5 +1,6 @@
 import { ReviewScheduler } from "../models/reviewScheduler";
 import { CardReviewState, MnemePluginData, ReviewRating } from "../models/reviewState";
+import { DEFAULT_SETTINGS, MnemeSettings, normalizeSettings } from "../models/settings";
 
 const CURRENT_SCHEMA_VERSION = 1;
 
@@ -57,6 +58,13 @@ export class ReviewStateStore {
 		return Object.keys(this.data.reviewStates).length;
 	}
 
+	setSettings(settings: MnemeSettings): void {
+		this.data = {
+			...this.data,
+			settings: normalizeSettings(settings),
+		};
+	}
+
 	async clearReviewStates(): Promise<void> {
 		await this.ensureLoaded();
 		const nextData = {
@@ -82,6 +90,7 @@ export function createDefaultPluginData(): MnemePluginData {
 	return {
 		reviewStates: {},
 		schemaVersion: CURRENT_SCHEMA_VERSION,
+		settings: { ...DEFAULT_SETTINGS },
 	};
 }
 
@@ -98,6 +107,7 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 		...data,
 		reviewStates: normalizeReviewStates(reviewStates),
 		schemaVersion: CURRENT_SCHEMA_VERSION,
+		settings: normalizeSettings(data.settings),
 	};
 }
 

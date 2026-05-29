@@ -6,6 +6,7 @@ import {
 	FsrsReviewScheduler,
 	fsrsCardToCardReviewState,
 	mapMnemeRatingToFsrsRating,
+	mapMnemeSettingsToFsrsConfig,
 } from "../src/services/fsrsReviewScheduler";
 
 const reviewedAt = "2026-01-01T12:00:00.000Z";
@@ -15,6 +16,35 @@ const reviewedAt = "2026-01-01T12:00:00.000Z";
 	assert.equal(mapMnemeRatingToFsrsRating("hard"), Rating.Hard);
 	assert.equal(mapMnemeRatingToFsrsRating("good"), Rating.Good);
 	assert.equal(mapMnemeRatingToFsrsRating("easy"), Rating.Easy);
+}
+
+{
+	assert.deepEqual(mapMnemeSettingsToFsrsConfig({
+		enableFuzz: true,
+		maximumInterval: 365,
+		requestRetention: 0.85,
+	}), {
+		enable_fuzz: true,
+		maximum_interval: 365,
+		request_retention: 0.85,
+	});
+}
+
+{
+	const scheduler = new FsrsReviewScheduler({
+		enableFuzz: false,
+		maximumInterval: 1,
+		requestRetention: 0.8,
+	});
+	const result = scheduler.schedule({
+		cardId: "custom-config-card",
+		rating: "easy",
+		reviewedAt,
+	});
+
+	assert.equal(result.scheduler, "fsrs");
+	assert.equal(result.nextState.scheduler, "fsrs");
+	assert.equal(result.nextState.scheduledDays !== undefined, true);
 }
 
 {

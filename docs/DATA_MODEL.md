@@ -269,6 +269,16 @@ FSRS `dueAt` is the authority for Daily Review eligibility. New Cards enter Dail
 
 Retrievability remains diagnostic for reviewed FSRS Cards. It may be useful as a secondary signal among already-due Cards, but it must not promote non-due Cards into Daily Review.
 
+## FSRS Settings
+
+Mneme stores minimal FSRS scheduler settings in plugin data alongside review state:
+
+- `fsrsRequestRetention` controls the target recall probability. Higher retention usually means shorter intervals and more reviews.
+- `fsrsEnableFuzz` spreads longer-interval reviews with small randomness to reduce review clustering.
+- `fsrsMaximumInterval` caps how far into the future a Card can be scheduled.
+
+Settings affect future reviews only; they do not rewrite existing Card review states. `Mneme: Clear Review History` resets stored review states while preserving settings. Daily Review still respects FSRS `dueAt`.
+
 ## Concept Memory Aggregation
 
 Card-level memory state remains the source of scheduling truth.

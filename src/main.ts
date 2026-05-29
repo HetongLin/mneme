@@ -1,21 +1,29 @@
 import { Notice, Plugin } from "obsidian";
 import { ConfirmClearReviewHistoryModal } from "./modals/confirmClearReviewHistoryModal";
-import { DEFAULT_SETTINGS, MnemeSettings } from "./settings";
+import {
+	DEFAULT_SETTINGS,
+	getSettingsFromPluginData,
+	mergeSettingsIntoPluginData,
+	MnemeSettings,
+	MnemeSettingTab,
+} from "./settings";
 import { CardFileLoader } from "./services/cardFileLoader";
-import { FsrsReviewScheduler } from "./services/fsrsReviewScheduler";
+import { FsrsReviewScheduler, FsrsSchedulerConfig } from "./services/fsrsReviewScheduler";
 import { ReviewStateStore } from "./services/reviewStateStore";
 import { MnemeReviewView, REVIEW_VIEW_TYPE } from "./views/reviewView";
 
 export default class MnemePlugin extends Plugin {
 	settings: MnemeSettings;
+	private reviewScheduler: FsrsReviewScheduler;
 	reviewStateStore: ReviewStateStore;
 
 	async onload() {
 		await this.loadSettings();
-		const reviewScheduler = new FsrsReviewScheduler();
-		this.reviewStateStore = new ReviewStateStore(this, reviewScheduler);
+		this.reviewScheduler = new FsrsReviewScheduler(settingsToFsrsConfig(this.settings));
+		this.reviewStateStore = new ReviewStateStore(this, this.reviewScheduler);
 		await this.reviewStateStore.load();
 
+		this.addSettingTab(new MnemeSettingTab(this.app, this));
 		this.registerView(REVIEW_VIEW_TYPE, (leaf) => new MnemeReviewView(leaf, this.reviewStateStore));
 
 		this.addCommand({
@@ -51,11 +59,19 @@ export default class MnemePlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<MnemeSettings>);
+		this.settings = {
+			...DEFAULT_SETTINGS,
+			...getSettingsFromPluginData(await this.loadData()),
+		};
 	}
 
 	async saveSettings() {
-		await this.saveData(this.settings);
+		await this.saveData(mergeSettingsIntoPluginData(await this.loadData(), this.settings));
+		this.reviewStateStore?.setSettings(this.settings);
+	}
+
+	updateFsrsSchedulerConfig(): void {
+		this.reviewScheduler?.updateConfig(settingsToFsrsConfig(this.settings));
 	}
 
 	private async scanCardFiles() {
@@ -138,4 +154,12 @@ export default class MnemePlugin extends Plugin {
 		});
 		await this.app.workspace.revealLeaf(leaf);
 	}
+}
+
+function settingsToFsrsConfig(settings: MnemeSettings): FsrsSchedulerConfig {
+	return {
+		enableFuzz: settings.fsrsEnableFuzz,
+		maximumInterval: settings.fsrsMaximumInterval,
+		requestRetention: settings.fsrsRequestRetention,
+	};
 }

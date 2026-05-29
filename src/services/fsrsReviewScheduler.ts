@@ -3,12 +3,36 @@ import { ReviewScheduler, ReviewScheduleInput, ReviewScheduleResult } from "../m
 import { CardReviewState, FsrsCardState, ReviewRating } from "../models/reviewState";
 
 const SCHEDULER_NAME = "fsrs";
-const scheduler = fsrs({ enable_fuzz: false });
+
+export interface FsrsSchedulerConfig {
+	enableFuzz: boolean;
+	maximumInterval: number;
+	requestRetention: number;
+}
+
+export const DEFAULT_FSRS_SCHEDULER_CONFIG: FsrsSchedulerConfig = {
+	enableFuzz: false,
+	maximumInterval: 36500,
+	requestRetention: 0.9,
+};
 
 export class FsrsReviewScheduler implements ReviewScheduler {
+	private scheduler = createScheduler(DEFAULT_FSRS_SCHEDULER_CONFIG);
+
+	constructor(config: Partial<FsrsSchedulerConfig> = {}) {
+		this.updateConfig(config);
+	}
+
+	updateConfig(config: Partial<FsrsSchedulerConfig>): void {
+		this.scheduler = createScheduler({
+			...DEFAULT_FSRS_SCHEDULER_CONFIG,
+			...config,
+		});
+	}
+
 	schedule(input: ReviewScheduleInput): ReviewScheduleResult {
 		const fsrsCard = cardReviewStateToFsrsCard(input.cardId, input.previousState, input.reviewedAt);
-		const result = scheduler.next(fsrsCard, new Date(input.reviewedAt), mapMnemeRatingToFsrsRating(input.rating));
+		const result = this.scheduler.next(fsrsCard, new Date(input.reviewedAt), mapMnemeRatingToFsrsRating(input.rating));
 		const nextState = fsrsCardToCardReviewState(
 			input.cardId,
 			result.card,
@@ -23,6 +47,18 @@ export class FsrsReviewScheduler implements ReviewScheduler {
 			scheduler: SCHEDULER_NAME,
 		};
 	}
+}
+
+export function mapMnemeSettingsToFsrsConfig(config: FsrsSchedulerConfig) {
+	return {
+		enable_fuzz: config.enableFuzz,
+		maximum_interval: config.maximumInterval,
+		request_retention: config.requestRetention,
+	};
+}
+
+function createScheduler(config: FsrsSchedulerConfig): ReturnType<typeof fsrs> {
+	return fsrs(mapMnemeSettingsToFsrsConfig(config));
 }
 
 export function mapMnemeRatingToFsrsRating(rating: ReviewRating): Grade {

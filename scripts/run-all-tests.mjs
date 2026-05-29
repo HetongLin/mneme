@@ -10,6 +10,7 @@ const testCommands = [
 	["npm", ["run", "test:daily-review-eligibility"]],
 	["npm", ["run", "test:fsrs-scheduler"]],
 	["npm", ["run", "test:fsrs-retrievability"]],
+	["npm", ["run", "test:settings"]],
 ];
 
 for (const [command, args] of testCommands) {

@@ -1,3 +1,5 @@
+import type { MnemeSettings } from "./settings";
+
 export type ReviewRating = "again" | "hard" | "good" | "easy";
 export type FsrsCardState = "New" | "Learning" | "Review" | "Relearning";
 
@@ -24,4 +26,5 @@ export interface MnemePluginData {
 	[key: string]: unknown;
 	reviewStates: Record<string, CardReviewState>;
 	schemaVersion: number;
+	settings: MnemeSettings;
 }

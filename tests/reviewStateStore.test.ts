@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { ReviewScheduler, ReviewScheduleInput, ReviewScheduleResult } from "../src/models/reviewScheduler";
 import { CardReviewState, MnemePluginData } from "../src/models/reviewState";
+import { DEFAULT_SETTINGS } from "../src/models/settings";
 import {
 	createDefaultPluginData,
 	normalizePluginData,
@@ -13,6 +14,7 @@ import {
 
 	assert.equal(data.schemaVersion, 1);
 	assert.deepEqual(data.reviewStates, {});
+	assert.deepEqual(data.settings, DEFAULT_SETTINGS);
 }
 
 {
@@ -20,6 +22,7 @@ import {
 
 	assert.equal(data.schemaVersion, 1);
 	assert.deepEqual(data.reviewStates, {});
+	assert.deepEqual(data.settings, DEFAULT_SETTINGS);
 }
 
 async function runAsyncTests(): Promise<void> {
@@ -47,6 +50,7 @@ async function runAsyncTests(): Promise<void> {
 				"encapsulation-basic": previousState,
 			},
 			schemaVersion: 1,
+			settings: DEFAULT_SETTINGS,
 		});
 		const scheduler = new FakeReviewScheduler();
 		const store = new ReviewStateStore(storage, scheduler);
@@ -68,6 +72,7 @@ async function runAsyncTests(): Promise<void> {
 				"polymorphism-basic": createReviewState("polymorphism-basic", 1),
 			},
 			schemaVersion: 1,
+			settings: DEFAULT_SETTINGS,
 		});
 		const scheduler = new FakeReviewScheduler();
 		const store = new ReviewStateStore(storage, scheduler);
@@ -91,7 +96,8 @@ async function runAsyncTests(): Promise<void> {
 			},
 			schemaVersion: 1,
 			settings: {
-				theme: "quiet",
+				...DEFAULT_SETTINGS,
+				fsrsRequestRetention: 0.85,
 			},
 		});
 		const scheduler = new FakeReviewScheduler();
@@ -102,7 +108,32 @@ async function runAsyncTests(): Promise<void> {
 
 		assert.deepEqual(storage.savedData?.reviewStates, {});
 		assert.deepEqual(storage.savedData?.settings, {
-			theme: "quiet",
+			...DEFAULT_SETTINGS,
+			fsrsRequestRetention: 0.85,
+		});
+	}
+
+	{
+		const storage = new MemoryReviewStateStorage({
+			reviewStates: {},
+			schemaVersion: 1,
+			settings: DEFAULT_SETTINGS,
+		});
+		const scheduler = new FakeReviewScheduler();
+		const store = new ReviewStateStore(storage, scheduler);
+
+		await store.load();
+		store.setSettings({
+			...DEFAULT_SETTINGS,
+			fsrsEnableFuzz: true,
+			fsrsRequestRetention: 0.84,
+		});
+		await store.recordReview("encapsulation-basic", "good");
+
+		assert.deepEqual(storage.savedData?.settings, {
+			...DEFAULT_SETTINGS,
+			fsrsEnableFuzz: true,
+			fsrsRequestRetention: 0.84,
 		});
 	}
 }

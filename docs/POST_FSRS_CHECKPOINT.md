@@ -59,6 +59,7 @@ FSRS `dueAt` is the authority for Daily Review eligibility. Retrievability is di
 - New cards enter Daily Review.
 - Reviewed FSRS cards enter Daily Review only when `dueAt <= now`.
 - Reviewed FSRS cards scheduled in the future remain out of the main queue even when retrievability risk is non-zero.
+- FSRS scheduling settings affect future reviews only.
 - FSRS details live in diagnostics.
 - The main queue remains concept-centered.
 
