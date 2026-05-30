@@ -1,0 +1,47 @@
+import { TFile, Vault, normalizePath } from "obsidian";
+import type { MnemeVaultAdapter } from "./approvedProposalWriter";
+
+export class ObsidianVaultAdapter implements MnemeVaultAdapter {
+	constructor(private readonly vault: Vault) {
+	}
+
+	async exists(path: string): Promise<boolean> {
+		return this.vault.getAbstractFileByPath(normalizePath(path)) !== null;
+	}
+
+	async createFolder(path: string): Promise<void> {
+		const normalizedPath = normalizePath(path);
+
+		if (this.vault.getAbstractFileByPath(normalizedPath)) {
+			return;
+		}
+
+		await this.vault.createFolder(normalizedPath);
+	}
+
+	async create(path: string, content: string): Promise<void> {
+		await this.vault.create(normalizePath(path), content);
+	}
+
+	async append(path: string, content: string): Promise<void> {
+		const file = this.getFile(path);
+
+		await this.vault.append(file, content);
+	}
+
+	async read(path: string): Promise<string> {
+		const file = this.getFile(path);
+
+		return this.vault.cachedRead(file);
+	}
+
+	private getFile(path: string): TFile {
+		const abstractFile = this.vault.getAbstractFileByPath(normalizePath(path));
+
+		if (!(abstractFile instanceof TFile)) {
+			throw new Error(`Markdown file not found: ${path}`);
+		}
+
+		return abstractFile;
+	}
+}

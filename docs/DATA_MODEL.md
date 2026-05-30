@@ -22,6 +22,8 @@ Markdown stores approved `Concept.md` and `Card.md` content. `data.json` stores 
 
 Knowledge proposals may include typed payloads for proposed Concept and Card changes. These payloads are proposal state only; approved Markdown content is still written later by an explicit writer pipeline.
 
+Approved proposal writing is explicit. Approval does not automatically mutate the vault. The initial Markdown writer supports `new_concept` and `new_card` proposals, writes clean editable `Concept.md` / `Card.md`, and marks proposals `written` only after a successful vault write.
+
 ## File Layout
 
 Recommended vault layout:
@@ -236,6 +238,15 @@ data.json must not store:
 - Card Front as source of truth
 - Card Back as source of truth
 - Card Rubric as source of truth
+
+## Markdown Writing Settings
+
+Mneme stores writer folder settings in plugin data:
+
+- `conceptsFolder`: default `Mneme/Concepts`
+- `cardsFolder`: default `Mneme/Cards`
+
+These settings affect future explicit Markdown writes only. They do not move existing files and do not change review state.
 
 ## Source Note Hash
 

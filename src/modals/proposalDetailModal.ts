@@ -1,5 +1,6 @@
 import { App, Modal, Notice } from "obsidian";
 import type { KnowledgeProposal, KnowledgeProposalPayload } from "../models/knowledgeProposal";
+import { ApprovedProposalWriter } from "../services/approvedProposalWriter";
 import { canTransitionProposalStatus } from "../services/knowledgeProposalLifecycle";
 import { KnowledgeProposalStore } from "../services/knowledgeProposalStore";
 import { validateKnowledgeProposalPayload } from "../services/knowledgeProposalValidation";
@@ -8,6 +9,7 @@ interface ProposalDetailModalOptions {
 	onChange?(): Promise<void> | void;
 	proposal: KnowledgeProposal;
 	store: KnowledgeProposalStore;
+	writer?: ApprovedProposalWriter;
 }
 
 export class ProposalDetailModal extends Modal {
@@ -67,6 +69,7 @@ export class ProposalDetailModal extends Modal {
 				void this.reject();
 			});
 		});
+		this.renderWriteMarkdownAction(actionsEl);
 		actionsEl.createEl("button", { text: "Close" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => this.close());
 		});
@@ -190,6 +193,54 @@ export class ProposalDetailModal extends Modal {
 		} catch (error) {
 			console.error("Mneme: failed to reject proposal", error);
 			new Notice("Mneme: Invalid proposal status transition.");
+		}
+	}
+
+	private renderWriteMarkdownAction(parentEl: HTMLElement): void {
+		parentEl.createEl("button", { text: "Write Markdown" }, (buttonEl) => {
+			buttonEl.disabled = !this.options.writer
+				|| this.proposal.status !== "approved";
+			buttonEl.title = this.proposal.status === "approved"
+				? "Write approved proposal to Markdown."
+				: "Approve before writing Markdown.";
+			buttonEl.addEventListener("click", () => {
+				void this.writeMarkdown();
+			});
+		});
+	}
+
+	private async writeMarkdown(): Promise<void> {
+		if (!this.options.writer) {
+			new Notice("Mneme: Markdown writer is not available.");
+			return;
+		}
+
+		try {
+			const result = await this.options.writer.writeApprovedProposal(this.proposal.id);
+
+			if (result.status === "written") {
+				const updatedProposal = await this.options.store.getProposal(this.proposal.id);
+
+				if (updatedProposal) {
+					this.proposal = updatedProposal;
+				}
+
+				await this.options.onChange?.();
+				new Notice("Mneme: Markdown written.");
+				this.renderContent();
+				return;
+			}
+
+			if (result.status === "skipped") {
+				new Notice("Mneme: This proposal type cannot be written yet.");
+				return;
+			}
+
+			console.error("Mneme: Markdown write failed", result);
+			new Notice("Mneme: Markdown write failed. See console.");
+		} catch (error) {
+			console.error("Mneme: Markdown write failed", error);
+			new Notice("Mneme: Markdown write failed. See console.");
 		}
 	}
 }

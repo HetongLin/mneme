@@ -1,6 +1,7 @@
 import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
 import type { KnowledgeProposal, KnowledgeProposalStatus } from "../models/knowledgeProposal";
 import { ProposalDetailModal } from "../modals/proposalDetailModal";
+import { ApprovedProposalWriter } from "../services/approvedProposalWriter";
 import {
 	getProposalEvidenceCount,
 	getProposalPreview,
@@ -10,6 +11,7 @@ import {
 } from "../services/knowledgeProposalDisplay";
 import { KnowledgeProposalStore } from "../services/knowledgeProposalStore";
 import { validateKnowledgeProposalPayload } from "../services/knowledgeProposalValidation";
+import { isMarkdownWritableProposalKind } from "../services/markdownProposalRenderer";
 
 export const INBOX_VIEW_TYPE = "mneme-inbox-view";
 
@@ -20,6 +22,7 @@ export class MnemeInboxView extends ItemView {
 	constructor(
 		leaf: WorkspaceLeaf,
 		private readonly proposalStore: KnowledgeProposalStore,
+		private readonly proposalWriter?: ApprovedProposalWriter,
 	) {
 		super(leaf);
 	}
@@ -149,6 +152,14 @@ export class MnemeInboxView extends ItemView {
 			cls: "mneme-review-queue-meta",
 			text: formatProposalMeta(proposal),
 		});
+		const writeIndicator = getWriteIndicator(proposal);
+
+		if (writeIndicator) {
+			textEl.createEl("p", {
+				cls: "mneme-review-queue-meta",
+				text: writeIndicator,
+			});
+		}
 
 		const actionsEl = mainEl.createDiv({ cls: "mneme-review-actions" });
 
@@ -164,6 +175,7 @@ export class MnemeInboxView extends ItemView {
 			onChange: () => this.refresh(),
 			proposal,
 			store: this.proposalStore,
+			writer: this.proposalWriter,
 		}).open();
 	}
 
@@ -208,6 +220,18 @@ export class MnemeInboxView extends ItemView {
 			new Notice("Mneme: Invalid proposal status transition.");
 		}
 	}
+}
+
+function getWriteIndicator(proposal: KnowledgeProposal): string | undefined {
+	if (proposal.status === "written") {
+		return "Written";
+	}
+
+	if (proposal.status === "approved" && isMarkdownWritableProposalKind(proposal.kind)) {
+		return "Ready to write";
+	}
+
+	return undefined;
 }
 
 function summarizeProposals(proposals: KnowledgeProposal[]): Record<"approved" | "pending" | "rejected" | "stale" | "written", number> {

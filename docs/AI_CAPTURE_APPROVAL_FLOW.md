@@ -79,11 +79,25 @@ The Inbox can open a proposal detail modal with a temporary JSON payload editor.
 
 `Mneme: Add Sample Knowledge Proposal` is a temporary debug command for manual Inbox validation. It creates proposal data only; it does not call AI or write files.
 
+## Approved Markdown Writer
+
+Approved proposal writing is explicit:
+
+```text
+Review proposal -> Approve -> Write Markdown
+```
+
+Approval does not automatically write files. The initial writer supports `new_concept` and `new_card` proposals only.
+
+Written `new_concept` proposals create editable `Concept.md` files in the configured Concepts folder. Written `new_card` proposals create parseable `Card.md` files using Mneme's existing card marker syntax in the configured Cards folder.
+
+Unsupported proposal kinds remain proposal-only until future diff/patch writers are added. Written Cards do not receive FSRS state during writing; they enter the normal parser/review pipeline after the vault is refreshed or reloaded.
+
 ## AI Does Not Write Permanent Markdown
 
 AI output is proposal data until approved.
 
-Suggested Concepts and Cards do not become `Concept.md` or `Card.md` content until a user approves them.
+Suggested Concepts and Cards do not become `Concept.md` or `Card.md` content until a user approves them and explicitly writes Markdown.
 
 ## No Accept All As Primary UX
 

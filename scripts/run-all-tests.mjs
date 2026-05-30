@@ -12,6 +12,7 @@ const testCommands = [
 	["npm", ["run", "test:fsrs-scheduler"]],
 	["npm", ["run", "test:fsrs-retrievability"]],
 	["npm", ["run", "test:knowledge-proposals"]],
+	["npm", ["run", "test:markdown-writer"]],
 	["npm", ["run", "test:settings"]],
 	["npm", ["run", "test:source-analysis"]],
 	["npm", ["run", "test:source-analysis-store"]],

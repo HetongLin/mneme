@@ -1,10 +1,14 @@
 export interface MnemeSettings {
+	cardsFolder: string;
+	conceptsFolder: string;
 	fsrsEnableFuzz: boolean;
 	fsrsMaximumInterval: number;
 	fsrsRequestRetention: number;
 }
 
 export const DEFAULT_SETTINGS: MnemeSettings = {
+	cardsFolder: "Mneme/Cards",
+	conceptsFolder: "Mneme/Concepts",
 	fsrsEnableFuzz: false,
 	fsrsMaximumInterval: 36500,
 	fsrsRequestRetention: 0.9,
@@ -16,6 +20,8 @@ export function normalizeSettings(value: unknown): MnemeSettings {
 	}
 
 	return {
+		cardsFolder: normalizeFolder(value.cardsFolder, DEFAULT_SETTINGS.cardsFolder),
+		conceptsFolder: normalizeFolder(value.conceptsFolder, DEFAULT_SETTINGS.conceptsFolder),
 		fsrsEnableFuzz: typeof value.fsrsEnableFuzz === "boolean"
 			? value.fsrsEnableFuzz
 			: DEFAULT_SETTINGS.fsrsEnableFuzz,
@@ -45,6 +51,20 @@ export function normalizeRetention(value: unknown): number {
 
 export function normalizeMaximumInterval(value: unknown): number {
 	return Math.max(1, Math.round(clampNumber(value, 1, Number.MAX_SAFE_INTEGER, DEFAULT_SETTINGS.fsrsMaximumInterval)));
+}
+
+export function normalizeFolder(value: unknown, fallback: string): string {
+	if (typeof value !== "string") {
+		return fallback;
+	}
+
+	const normalized = value
+		.trim()
+		.replace(/\\/g, "/")
+		.replace(/\/+/g, "/")
+		.replace(/^\/+|\/+$/g, "");
+
+	return normalized || fallback;
 }
 
 function clampNumber(value: unknown, min: number, max: number, fallback: number): number {

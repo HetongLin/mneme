@@ -14,6 +14,8 @@ import {
 {
 	const settings = getSettingsFromPluginData({
 		settings: {
+			cardsFolder: "Custom/Cards",
+			conceptsFolder: "Custom/Concepts",
 			fsrsEnableFuzz: true,
 			fsrsMaximumInterval: 365,
 			fsrsRequestRetention: 0.85,
@@ -21,6 +23,8 @@ import {
 	});
 
 	assert.deepEqual(settings, {
+		cardsFolder: "Custom/Cards",
+		conceptsFolder: "Custom/Concepts",
 		fsrsEnableFuzz: true,
 		fsrsMaximumInterval: 365,
 		fsrsRequestRetention: 0.85,
@@ -29,12 +33,16 @@ import {
 
 {
 	const settings = normalizeSettings({
+		cardsFolder: "",
+		conceptsFolder: " /Custom//Concepts/ ",
 		fsrsEnableFuzz: "yes",
 		fsrsMaximumInterval: -10,
 		fsrsRequestRetention: 1.5,
 	});
 
 	assert.deepEqual(settings, {
+		cardsFolder: DEFAULT_SETTINGS.cardsFolder,
+		conceptsFolder: "Custom/Concepts",
 		fsrsEnableFuzz: DEFAULT_SETTINGS.fsrsEnableFuzz,
 		fsrsMaximumInterval: 1,
 		fsrsRequestRetention: 0.98,

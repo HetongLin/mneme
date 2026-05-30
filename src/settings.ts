@@ -2,6 +2,7 @@ import { App, Plugin, PluginSettingTab, Setting } from "obsidian";
 import {
 	DEFAULT_SETTINGS,
 	MnemeSettings,
+	normalizeFolder,
 	normalizeMaximumInterval,
 	normalizeRetention,
 } from "./models/settings";
@@ -11,6 +12,7 @@ export {
 	getSettingsFromPluginData,
 	mergeSettingsIntoPluginData,
 	normalizeMaximumInterval,
+	normalizeFolder,
 	normalizeRetention,
 	normalizeSettings,
 } from "./models/settings";
@@ -33,6 +35,34 @@ export class MnemeSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		containerEl.createEl("h2", { text: "Mneme" });
+		containerEl.createEl("h3", { text: "Markdown Writing" });
+
+		new Setting(containerEl)
+			.setName("Concepts folder")
+			.setDesc("Approved concept proposals are written here.")
+			.addText((text) => {
+				text.setPlaceholder(DEFAULT_SETTINGS.conceptsFolder);
+				text.setValue(this.plugin.settings.conceptsFolder);
+				text.onChange(async (value) => {
+					this.plugin.settings.conceptsFolder = normalizeFolder(value, DEFAULT_SETTINGS.conceptsFolder);
+					text.setValue(this.plugin.settings.conceptsFolder);
+					await this.persistSettings();
+				});
+			});
+
+		new Setting(containerEl)
+			.setName("Cards folder")
+			.setDesc("Approved card proposals are written here.")
+			.addText((text) => {
+				text.setPlaceholder(DEFAULT_SETTINGS.cardsFolder);
+				text.setValue(this.plugin.settings.cardsFolder);
+				text.onChange(async (value) => {
+					this.plugin.settings.cardsFolder = normalizeFolder(value, DEFAULT_SETTINGS.cardsFolder);
+					text.setValue(this.plugin.settings.cardsFolder);
+					await this.persistSettings();
+				});
+			});
+
 		containerEl.createEl("h3", { text: "FSRS Scheduling" });
 
 		new Setting(containerEl)

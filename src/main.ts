@@ -10,7 +10,9 @@ import {
 } from "./settings";
 import { CardFileLoader } from "./services/cardFileLoader";
 import { FsrsReviewScheduler, FsrsSchedulerConfig } from "./services/fsrsReviewScheduler";
+import { ApprovedProposalWriter } from "./services/approvedProposalWriter";
 import { KnowledgeProposalStore } from "./services/knowledgeProposalStore";
+import { ObsidianVaultAdapter } from "./services/obsidianVaultAdapter";
 import { ReviewStateStore } from "./services/reviewStateStore";
 import { SourceAnalysisService } from "./services/sourceAnalysisService";
 import { SourceAnalysisStore } from "./services/sourceAnalysisStore";
@@ -23,6 +25,7 @@ export default class MnemePlugin extends Plugin {
 	reviewStateStore: ReviewStateStore;
 	private sourceAnalysisStore: SourceAnalysisStore;
 	private knowledgeProposalStore: KnowledgeProposalStore;
+	private approvedProposalWriter: ApprovedProposalWriter;
 
 	async onload() {
 		await this.loadSettings();
@@ -30,11 +33,20 @@ export default class MnemePlugin extends Plugin {
 		this.reviewStateStore = new ReviewStateStore(this, this.reviewScheduler);
 		this.sourceAnalysisStore = new SourceAnalysisStore(this);
 		this.knowledgeProposalStore = new KnowledgeProposalStore(this);
+		this.approvedProposalWriter = new ApprovedProposalWriter({
+			proposalStore: this.knowledgeProposalStore,
+			settingsProvider: () => this.settings,
+			vaultAdapter: new ObsidianVaultAdapter(this.app.vault),
+		});
 		await this.reviewStateStore.load();
 
 		this.addSettingTab(new MnemeSettingTab(this.app, this));
 		this.registerView(REVIEW_VIEW_TYPE, (leaf) => new MnemeReviewView(leaf, this.reviewStateStore));
-		this.registerView(INBOX_VIEW_TYPE, (leaf) => new MnemeInboxView(leaf, this.knowledgeProposalStore));
+		this.registerView(INBOX_VIEW_TYPE, (leaf) => new MnemeInboxView(
+			leaf,
+			this.knowledgeProposalStore,
+			this.approvedProposalWriter,
+		));
 
 		this.addCommand({
 			id: "open-review-view",

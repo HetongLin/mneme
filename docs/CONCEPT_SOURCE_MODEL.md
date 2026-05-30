@@ -97,13 +97,15 @@ Possible proposal kinds:
 Rules:
 
 - Suggested proposals cannot become permanent Markdown without approval.
-- Approved Concept proposals can write `Concept.md` later.
-- Approved Card proposals can write `Card.md` later.
+- Approved Concept proposals can explicitly write `Concept.md`.
+- Approved Card proposals can explicitly write `Card.md`.
 - Only written Cards enter FSRS.
 - Future AI edits also go through proposal approval.
-- The current Inbox shell does not write Markdown; approved proposals remain proposal state until a future writer pipeline is implemented.
+- Approval and Markdown writing are separate actions.
 
 Proposal payloads now describe draft Concept views, Concept-source links, and Card changes. The current detail review UI uses a temporary JSON editor; future UI can replace it with structured Concept/Card forms and Markdown diff preview.
+
+The first Markdown writer supports `new_concept` and `new_card` only. Unsupported proposal kinds remain in the Inbox until future writers can preview and patch existing Markdown safely.
 
 ## Living Assets
 
