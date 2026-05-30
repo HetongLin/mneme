@@ -15,6 +15,7 @@ import {
 	assert.equal(data.schemaVersion, 1);
 	assert.deepEqual(data.reviewStates, {});
 	assert.deepEqual(data.settings, DEFAULT_SETTINGS);
+	assert.deepEqual(data.sourceAnalysisRecords, {});
 }
 
 {
@@ -23,6 +24,7 @@ import {
 	assert.equal(data.schemaVersion, 1);
 	assert.deepEqual(data.reviewStates, {});
 	assert.deepEqual(data.settings, DEFAULT_SETTINGS);
+	assert.deepEqual(data.sourceAnalysisRecords, {});
 }
 
 async function runAsyncTests(): Promise<void> {

@@ -16,6 +16,8 @@ Source Note <-> Concept -> Card -> FSRS
 
 Markdown stores approved `Concept.md` and `Card.md` content. `data.json` stores settings, review states, later review logs, source analysis records, proposal metadata, indexes, and other plugin state.
 
+`SourceAnalysisStore` persists `SourceAnalysisRecord` entries in plugin data. `Mneme: Analyze Current Note` currently updates source path, metadata, and content hash only; it does not generate Concepts, Cards, Inbox proposals, or Markdown.
+
 ## File Layout
 
 Recommended vault layout:

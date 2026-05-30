@@ -13,6 +13,7 @@ const testCommands = [
 	["npm", ["run", "test:fsrs-retrievability"]],
 	["npm", ["run", "test:settings"]],
 	["npm", ["run", "test:source-analysis"]],
+	["npm", ["run", "test:source-analysis-store"]],
 ];
 
 for (const [command, args] of testCommands) {

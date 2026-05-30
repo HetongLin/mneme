@@ -1,6 +1,7 @@
 import { ReviewScheduler } from "../models/reviewScheduler";
 import { CardReviewState, MnemePluginData, ReviewRating } from "../models/reviewState";
 import { DEFAULT_SETTINGS, MnemeSettings, normalizeSettings } from "../models/settings";
+import { SourceAnalysisRecord } from "../models/sourceAnalysis";
 
 const CURRENT_SCHEMA_VERSION = 1;
 
@@ -91,6 +92,7 @@ export function createDefaultPluginData(): MnemePluginData {
 		reviewStates: {},
 		schemaVersion: CURRENT_SCHEMA_VERSION,
 		settings: { ...DEFAULT_SETTINGS },
+		sourceAnalysisRecords: {},
 	};
 }
 
@@ -102,12 +104,16 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 	const reviewStates = isObject(data.reviewStates)
 		? data.reviewStates
 		: {};
+	const sourceAnalysisRecords = isObject(data.sourceAnalysisRecords)
+		? data.sourceAnalysisRecords
+		: {};
 
 	return {
 		...data,
 		reviewStates: normalizeReviewStates(reviewStates),
 		schemaVersion: CURRENT_SCHEMA_VERSION,
 		settings: normalizeSettings(data.settings),
+		sourceAnalysisRecords: normalizeSourceAnalysisRecords(sourceAnalysisRecords),
 	};
 }
 
@@ -132,6 +138,41 @@ function isCardReviewState(value: unknown): value is CardReviewState {
 		&& typeof value.updatedAt === "string"
 		&& typeof value.reviewCount === "number"
 		&& typeof value.lapseCount === "number";
+}
+
+function normalizeSourceAnalysisRecords(states: Record<string, unknown>): Record<string, SourceAnalysisRecord> {
+	const normalizedRecords: Record<string, SourceAnalysisRecord> = {};
+
+	for (const [sourcePath, record] of Object.entries(states)) {
+		if (!isSourceAnalysisRecord(record)) {
+			continue;
+		}
+
+		normalizedRecords[sourcePath] = record;
+	}
+
+	return normalizedRecords;
+}
+
+function isSourceAnalysisRecord(value: unknown): value is SourceAnalysisRecord {
+	return isObject(value)
+		&& typeof value.sourcePath === "string"
+		&& typeof value.contentHash === "string"
+		&& typeof value.mtime === "number"
+		&& typeof value.size === "number"
+		&& typeof value.lastAnalyzedAt === "string"
+		&& Array.isArray(value.linkedConceptIds)
+		&& value.linkedConceptIds.every((conceptId) => typeof conceptId === "string")
+		&& Array.isArray(value.pendingProposalIds)
+		&& value.pendingProposalIds.every((proposalId) => typeof proposalId === "string")
+		&& isSourceAnalysisStatus(value.status);
+}
+
+function isSourceAnalysisStatus(value: unknown): value is SourceAnalysisRecord["status"] {
+	return value === "clean"
+		|| value === "stale"
+		|| value === "analyzing"
+		|| value === "failed";
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

@@ -55,6 +55,14 @@ Accurate path:
 - if content hash is unchanged, skip AI analysis
 - if content hash changed, mark stale and generate proposals
 
+## Runtime Foundation
+
+`Mneme: Analyze Current Note` currently indexes source note metadata and content hash only.
+
+It persists a `SourceAnalysisRecord` in plugin data through `SourceAnalysisStore`. This lets Mneme skip unchanged notes before any future AI call is made.
+
+This command does not extract Concepts, generate Cards, create Inbox proposals, or write Markdown yet.
+
 ## AI Does Not Write Permanent Markdown
 
 AI output is proposal data until approved.

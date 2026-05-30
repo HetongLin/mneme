@@ -67,6 +67,14 @@ The relation carries metadata:
 - approval status
 - timestamps
 
+## Source Analysis Records
+
+Source analysis state lives in plugin data, not in `Concept.md` or `Card.md`.
+
+`SourceAnalysisRecord` tracks path, `mtime`, size, content hash, linked Concept ids, pending proposal ids, and analysis status.
+
+Task 019 only indexes this source state. Future tasks will use it to decide whether AI proposal generation is needed.
+
 ## Inbox As Knowledge-Change Approval Layer
 
 Inbox stores AI-generated knowledge change proposals, not final knowledge.
