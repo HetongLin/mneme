@@ -63,6 +63,14 @@ It persists a `SourceAnalysisRecord` in plugin data through `SourceAnalysisStore
 
 This command does not extract Concepts, generate Cards, create Inbox proposals, or write Markdown yet.
 
+## Inbox Shell
+
+`KnowledgeProposalStore` persists future Inbox proposals in plugin data.
+
+The Inbox currently provides a review shell for proposal lifecycle status only. Users can open, approve, or reject stored proposals, but approved proposals do not write `Concept.md` or `Card.md` yet.
+
+Future tasks will add proposal payload schemas, AI generation, diff preview, editing, and Markdown writing.
+
 ## AI Does Not Write Permanent Markdown
 
 AI output is proposal data until approved.

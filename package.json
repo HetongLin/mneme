@@ -13,6 +13,7 @@
     "test:fsrs-contract": "node scripts/run-fsrs-integration-contract-tests.mjs",
     "test:fsrs-retrievability": "node scripts/run-fsrs-retrievability-tests.mjs",
     "test:fsrs-scheduler": "node scripts/run-fsrs-scheduler-tests.mjs",
+    "test:knowledge-proposals": "node scripts/run-knowledge-proposal-tests.mjs",
     "test:parser": "node scripts/run-card-marker-parser-tests.mjs",
     "test:review-queue": "node scripts/run-review-queue-tests.mjs",
     "test:settings": "node scripts/run-settings-tests.mjs",

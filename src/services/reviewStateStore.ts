@@ -2,6 +2,13 @@ import { ReviewScheduler } from "../models/reviewScheduler";
 import { CardReviewState, MnemePluginData, ReviewRating } from "../models/reviewState";
 import { DEFAULT_SETTINGS, MnemeSettings, normalizeSettings } from "../models/settings";
 import { SourceAnalysisRecord } from "../models/sourceAnalysis";
+import {
+	KNOWLEDGE_PROPOSAL_KINDS,
+	KNOWLEDGE_PROPOSAL_STATUSES,
+	KnowledgeProposal,
+	KnowledgeProposalKind,
+	KnowledgeProposalStatus,
+} from "../models/knowledgeProposal";
 
 const CURRENT_SCHEMA_VERSION = 1;
 
@@ -89,6 +96,7 @@ export class ReviewStateStore {
 
 export function createDefaultPluginData(): MnemePluginData {
 	return {
+		knowledgeProposals: {},
 		reviewStates: {},
 		schemaVersion: CURRENT_SCHEMA_VERSION,
 		settings: { ...DEFAULT_SETTINGS },
@@ -107,9 +115,13 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 	const sourceAnalysisRecords = isObject(data.sourceAnalysisRecords)
 		? data.sourceAnalysisRecords
 		: {};
+	const knowledgeProposals = isObject(data.knowledgeProposals)
+		? data.knowledgeProposals
+		: {};
 
 	return {
 		...data,
+		knowledgeProposals: normalizeKnowledgeProposals(knowledgeProposals),
 		reviewStates: normalizeReviewStates(reviewStates),
 		schemaVersion: CURRENT_SCHEMA_VERSION,
 		settings: normalizeSettings(data.settings),
@@ -173,6 +185,43 @@ function isSourceAnalysisStatus(value: unknown): value is SourceAnalysisRecord["
 		|| value === "stale"
 		|| value === "analyzing"
 		|| value === "failed";
+}
+
+function normalizeKnowledgeProposals(states: Record<string, unknown>): Record<string, KnowledgeProposal> {
+	const normalizedProposals: Record<string, KnowledgeProposal> = {};
+
+	for (const proposal of Object.values(states)) {
+		if (!isKnowledgeProposal(proposal)) {
+			continue;
+		}
+
+		normalizedProposals[proposal.id] = proposal;
+	}
+
+	return normalizedProposals;
+}
+
+function isKnowledgeProposal(value: unknown): value is KnowledgeProposal {
+	return isObject(value)
+		&& typeof value.id === "string"
+		&& isKnowledgeProposalKind(value.kind)
+		&& isKnowledgeProposalStatus(value.status)
+		&& typeof value.createdAt === "string"
+		&& typeof value.updatedAt === "string"
+		&& (value.sourcePath === undefined || typeof value.sourcePath === "string")
+		&& (value.sourceHash === undefined || typeof value.sourceHash === "string")
+		&& (value.conceptId === undefined || typeof value.conceptId === "string")
+		&& (value.cardId === undefined || typeof value.cardId === "string");
+}
+
+function isKnowledgeProposalKind(value: unknown): value is KnowledgeProposalKind {
+	return typeof value === "string"
+		&& (KNOWLEDGE_PROPOSAL_KINDS as readonly string[]).includes(value);
+}
+
+function isKnowledgeProposalStatus(value: unknown): value is KnowledgeProposalStatus {
+	return typeof value === "string"
+		&& (KNOWLEDGE_PROPOSAL_STATUSES as readonly string[]).includes(value);
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

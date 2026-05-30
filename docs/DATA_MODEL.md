@@ -18,6 +18,8 @@ Markdown stores approved `Concept.md` and `Card.md` content. `data.json` stores 
 
 `SourceAnalysisStore` persists `SourceAnalysisRecord` entries in plugin data. `Mneme: Analyze Current Note` currently updates source path, metadata, and content hash only; it does not generate Concepts, Cards, Inbox proposals, or Markdown.
 
+`KnowledgeProposalStore` persists future Inbox proposal records in plugin data. The current Inbox shell can display and update proposal lifecycle status, but approved proposals do not write Markdown yet.
+
 ## File Layout
 
 Recommended vault layout:

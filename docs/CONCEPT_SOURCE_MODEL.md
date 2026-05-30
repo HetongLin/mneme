@@ -79,6 +79,8 @@ Task 019 only indexes this source state. Future tasks will use it to decide whet
 
 Inbox stores AI-generated knowledge change proposals, not final knowledge.
 
+`KnowledgeProposalStore` keeps these proposal records in plugin data. The Inbox is a long-term approval layer for Concept and Card evolution, not just first-time generation.
+
 Possible proposal kinds:
 
 - `new_concept`
@@ -99,6 +101,7 @@ Rules:
 - Approved Card proposals can write `Card.md` later.
 - Only written Cards enter FSRS.
 - Future AI edits also go through proposal approval.
+- The current Inbox shell does not write Markdown; approved proposals remain proposal state until a future writer pipeline is implemented.
 
 ## Living Assets
 

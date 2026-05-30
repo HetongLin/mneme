@@ -13,6 +13,7 @@ import {
 	const data = createDefaultPluginData();
 
 	assert.equal(data.schemaVersion, 1);
+	assert.deepEqual(data.knowledgeProposals, {});
 	assert.deepEqual(data.reviewStates, {});
 	assert.deepEqual(data.settings, DEFAULT_SETTINGS);
 	assert.deepEqual(data.sourceAnalysisRecords, {});
@@ -22,6 +23,7 @@ import {
 	const data = normalizePluginData(undefined);
 
 	assert.equal(data.schemaVersion, 1);
+	assert.deepEqual(data.knowledgeProposals, {});
 	assert.deepEqual(data.reviewStates, {});
 	assert.deepEqual(data.settings, DEFAULT_SETTINGS);
 	assert.deepEqual(data.sourceAnalysisRecords, {});

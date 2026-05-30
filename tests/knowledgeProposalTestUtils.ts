@@ -1,9 +1,10 @@
+import type { KnowledgeProposal } from "../src/models/knowledgeProposal";
 import type { MnemePluginData } from "../src/models/reviewState";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
 import type { SourceAnalysisRecord } from "../src/models/sourceAnalysis";
-import type { SourceAnalysisStorage } from "../src/services/sourceAnalysisStore";
+import type { KnowledgeProposalStorage } from "../src/services/knowledgeProposalStore";
 
-export class MemorySourceAnalysisStorage implements SourceAnalysisStorage {
+export class MemoryKnowledgeProposalStorage implements KnowledgeProposalStorage {
 	savedData?: MnemePluginData;
 
 	constructor(private data: unknown) {
@@ -20,10 +21,11 @@ export class MemorySourceAnalysisStorage implements SourceAnalysisStorage {
 }
 
 export function createPluginData(
+	knowledgeProposals: Record<string, KnowledgeProposal> = {},
 	sourceAnalysisRecords: Record<string, SourceAnalysisRecord> = {},
 ): MnemePluginData {
 	return {
-		knowledgeProposals: {},
+		knowledgeProposals,
 		reviewStates: {},
 		schemaVersion: 1,
 		settings: DEFAULT_SETTINGS,
@@ -31,12 +33,23 @@ export function createPluginData(
 	};
 }
 
-export function createRecord(
-	sourcePath: string,
-	overrides: Partial<SourceAnalysisRecord> = {},
-): SourceAnalysisRecord {
+export function createProposal(
+	id: string,
+	overrides: Partial<KnowledgeProposal> = {},
+): KnowledgeProposal {
 	return {
-		contentHash: "previous-hash",
+		createdAt: "2026-01-01T12:00:00.000Z",
+		id,
+		kind: "new_concept",
+		status: "suggested",
+		updatedAt: "2026-01-01T12:00:00.000Z",
+		...overrides,
+	} as KnowledgeProposal;
+}
+
+export function createSourceRecord(sourcePath: string): SourceAnalysisRecord {
+	return {
+		contentHash: "source-hash",
 		lastAnalyzedAt: "2026-01-01T12:00:00.000Z",
 		linkedConceptIds: [],
 		mtime: 100,
@@ -44,6 +57,5 @@ export function createRecord(
 		size: 200,
 		sourcePath,
 		status: "clean",
-		...overrides,
 	};
 }

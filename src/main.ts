@@ -9,9 +9,11 @@ import {
 } from "./settings";
 import { CardFileLoader } from "./services/cardFileLoader";
 import { FsrsReviewScheduler, FsrsSchedulerConfig } from "./services/fsrsReviewScheduler";
+import { KnowledgeProposalStore } from "./services/knowledgeProposalStore";
 import { ReviewStateStore } from "./services/reviewStateStore";
 import { SourceAnalysisService } from "./services/sourceAnalysisService";
 import { SourceAnalysisStore } from "./services/sourceAnalysisStore";
+import { MnemeInboxView, INBOX_VIEW_TYPE } from "./views/inboxView";
 import { MnemeReviewView, REVIEW_VIEW_TYPE } from "./views/reviewView";
 
 export default class MnemePlugin extends Plugin {
@@ -19,16 +21,19 @@ export default class MnemePlugin extends Plugin {
 	private reviewScheduler: FsrsReviewScheduler;
 	reviewStateStore: ReviewStateStore;
 	private sourceAnalysisStore: SourceAnalysisStore;
+	private knowledgeProposalStore: KnowledgeProposalStore;
 
 	async onload() {
 		await this.loadSettings();
 		this.reviewScheduler = new FsrsReviewScheduler(settingsToFsrsConfig(this.settings));
 		this.reviewStateStore = new ReviewStateStore(this, this.reviewScheduler);
 		this.sourceAnalysisStore = new SourceAnalysisStore(this);
+		this.knowledgeProposalStore = new KnowledgeProposalStore(this);
 		await this.reviewStateStore.load();
 
 		this.addSettingTab(new MnemeSettingTab(this.app, this));
 		this.registerView(REVIEW_VIEW_TYPE, (leaf) => new MnemeReviewView(leaf, this.reviewStateStore));
+		this.registerView(INBOX_VIEW_TYPE, (leaf) => new MnemeInboxView(leaf, this.knowledgeProposalStore));
 
 		this.addCommand({
 			id: "open-review-view",
@@ -71,6 +76,22 @@ export default class MnemePlugin extends Plugin {
 			name: "Mneme: Log Source Analysis State",
 			callback: () => {
 				void this.logSourceAnalysisState();
+			},
+		});
+
+		this.addCommand({
+			id: "mneme-open-inbox",
+			name: "Mneme: Open Inbox",
+			callback: () => {
+				void this.openInboxView();
+			},
+		});
+
+		this.addCommand({
+			id: "mneme-log-knowledge-proposals",
+			name: "Mneme: Log Knowledge Proposals",
+			callback: () => {
+				void this.logKnowledgeProposals();
 			},
 		});
 	}
@@ -171,6 +192,18 @@ export default class MnemePlugin extends Plugin {
 		}
 	}
 
+	private async logKnowledgeProposals(): Promise<void> {
+		try {
+			const proposals = await this.knowledgeProposalStore.listProposals();
+
+			console.info("Mneme: knowledge proposals", proposals);
+			new Notice(`Mneme: Logged ${proposals.length} knowledge proposals.`);
+		} catch (error) {
+			console.error("Mneme: failed to log knowledge proposals", error);
+			new Notice("Mneme: failed to log knowledge proposals. See console.");
+		}
+	}
+
 	private logReviewState(): void {
 		const reviewStates = this.reviewStateStore.getAllStates();
 		const stateCount = this.reviewStateStore.getReviewStateCount();
@@ -227,6 +260,27 @@ export default class MnemePlugin extends Plugin {
 		await leaf.setViewState({
 			active: true,
 			type: REVIEW_VIEW_TYPE,
+		});
+		await this.app.workspace.revealLeaf(leaf);
+	}
+
+	private async openInboxView(): Promise<void> {
+		const existingLeaf = this.app.workspace.getLeavesOfType(INBOX_VIEW_TYPE)[0];
+
+		if (existingLeaf) {
+			await this.app.workspace.revealLeaf(existingLeaf);
+			return;
+		}
+
+		const leaf = this.app.workspace.getRightLeaf(false);
+		if (!leaf) {
+			new Notice("Mneme: could not open Inbox.");
+			return;
+		}
+
+		await leaf.setViewState({
+			active: true,
+			type: INBOX_VIEW_TYPE,
 		});
 		await this.app.workspace.revealLeaf(leaf);
 	}

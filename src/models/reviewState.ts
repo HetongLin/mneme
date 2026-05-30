@@ -1,5 +1,6 @@
 import type { MnemeSettings } from "./settings";
 import type { SourceAnalysisRecord } from "./sourceAnalysis";
+import type { KnowledgeProposal } from "./knowledgeProposal";
 
 export type ReviewRating = "again" | "hard" | "good" | "easy";
 export type FsrsCardState = "New" | "Learning" | "Review" | "Relearning";
@@ -29,4 +30,5 @@ export interface MnemePluginData {
 	schemaVersion: number;
 	settings: MnemeSettings;
 	sourceAnalysisRecords: Record<string, SourceAnalysisRecord>;
+	knowledgeProposals: Record<string, KnowledgeProposal>;
 }
