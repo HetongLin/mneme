@@ -71,6 +71,14 @@ The Inbox currently provides a review shell for proposal lifecycle status only. 
 
 Future tasks will add proposal payload schemas, AI generation, diff preview, editing, and Markdown writing.
 
+## Proposal Detail Review
+
+Knowledge proposals now support typed payloads for future Concept and Card changes.
+
+The Inbox can open a proposal detail modal with a temporary JSON payload editor. Users can save edits, approve valid payloads, or reject proposals. Approval still does not write Markdown.
+
+`Mneme: Add Sample Knowledge Proposal` is a temporary debug command for manual Inbox validation. It creates proposal data only; it does not call AI or write files.
+
 ## AI Does Not Write Permanent Markdown
 
 AI output is proposal data until approved.

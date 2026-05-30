@@ -218,6 +218,32 @@ If your plugin does not need CSS, delete this file.
 	margin-top: 12px;
 }
 
+.mneme-proposal-detail-modal-metadata {
+	background: var(--background-secondary);
+	border-radius: var(--radius-m);
+	margin-bottom: 16px;
+	padding: 12px 14px;
+}
+
+.mneme-proposal-detail-modal-metadata p {
+	color: var(--text-muted);
+	font-family: var(--font-ui-small);
+	margin: 4px 0;
+}
+
+.mneme-proposal-detail-modal-textarea {
+	font-family: var(--font-monospace);
+	min-height: 260px;
+	width: 100%;
+}
+
+.mneme-proposal-detail-modal-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin-top: 14px;
+}
+
 .mneme-review-details-list {
 	margin: 12px 0 0;
 	padding-left: 20px;

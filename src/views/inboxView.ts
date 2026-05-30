@@ -1,6 +1,15 @@
 import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
 import type { KnowledgeProposal, KnowledgeProposalStatus } from "../models/knowledgeProposal";
+import { ProposalDetailModal } from "../modals/proposalDetailModal";
+import {
+	getProposalEvidenceCount,
+	getProposalPreview,
+	getProposalSourcePath,
+	getProposalSubtitle,
+	getProposalTitle,
+} from "../services/knowledgeProposalDisplay";
 import { KnowledgeProposalStore } from "../services/knowledgeProposalStore";
+import { validateKnowledgeProposalPayload } from "../services/knowledgeProposalValidation";
 
 export const INBOX_VIEW_TYPE = "mneme-inbox-view";
 
@@ -126,7 +135,15 @@ export class MnemeInboxView extends ItemView {
 
 		textEl.createEl("h3", {
 			cls: "mneme-review-queue-title",
-			text: formatProposalKind(proposal.kind),
+			text: getProposalTitle(proposal),
+		});
+		textEl.createEl("p", {
+			cls: "mneme-review-queue-meta",
+			text: getProposalSubtitle(proposal),
+		});
+		textEl.createEl("p", {
+			cls: "mneme-review-status",
+			text: getProposalPreview(proposal),
 		});
 		textEl.createEl("p", {
 			cls: "mneme-review-queue-meta",
@@ -135,9 +152,19 @@ export class MnemeInboxView extends ItemView {
 
 		const actionsEl = mainEl.createDiv({ cls: "mneme-review-actions" });
 
-		this.renderProposalAction(actionsEl, proposal, "Open", "opened", "Mneme: Proposal opened.");
+		actionsEl.createEl("button", { text: "Open" }, (buttonEl) => {
+			buttonEl.addEventListener("click", () => this.openProposalDetail(proposal));
+		});
 		this.renderProposalAction(actionsEl, proposal, "Approve", "approved", "Mneme: Proposal approved.");
 		this.renderProposalAction(actionsEl, proposal, "Reject", "rejected", "Mneme: Proposal rejected.");
+	}
+
+	private openProposalDetail(proposal: KnowledgeProposal): void {
+		new ProposalDetailModal(this.app, {
+			onChange: () => this.refresh(),
+			proposal,
+			store: this.proposalStore,
+		}).open();
 	}
 
 	private renderProposalAction(
@@ -149,24 +176,33 @@ export class MnemeInboxView extends ItemView {
 	): void {
 		parentEl.createEl("button", { text: label }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
-				void this.updateProposalStatus(proposal.id, status, notice);
+				void this.updateProposalStatus(proposal, status, notice);
 			});
 		});
 	}
 
 	private async updateProposalStatus(
-		proposalId: string,
+		proposal: KnowledgeProposal,
 		status: KnowledgeProposalStatus,
 		successNotice: string,
 	): Promise<void> {
 		try {
-			await this.proposalStore.updateProposalStatus(proposalId, status);
+			if (status === "approved") {
+				const validation = validateKnowledgeProposalPayload(proposal);
+
+				if (!validation.valid) {
+					new Notice("Mneme: Open proposal and fix errors before approval.");
+					return;
+				}
+			}
+
+			await this.proposalStore.updateProposalStatus(proposal.id, status);
 			new Notice(successNotice);
 			await this.refresh();
 		} catch (error) {
 			console.error("Mneme: failed to update proposal status", {
 				error,
-				proposalId,
+				proposalId: proposal.id,
 				status,
 			});
 			new Notice("Mneme: Invalid proposal status transition.");
@@ -195,20 +231,14 @@ function sortProposals(proposals: KnowledgeProposal[]): KnowledgeProposal[] {
 	return [...proposals].sort((first, second) => second.updatedAt.localeCompare(first.updatedAt));
 }
 
-function formatProposalKind(kind: string): string {
-	return kind
-		.split("_")
-		.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-		.join(" ");
-}
-
 function formatProposalMeta(proposal: KnowledgeProposal): string {
+	const sourcePath = getProposalSourcePath(proposal);
+	const evidenceCount = getProposalEvidenceCount(proposal);
 	const parts = [
-		`Status: ${proposal.status}`,
-		proposal.sourcePath ? `Source: ${proposal.sourcePath}` : undefined,
+		sourcePath ? `Source: ${sourcePath}` : undefined,
 		proposal.conceptId ? `Concept: ${proposal.conceptId}` : undefined,
 		proposal.cardId ? `Card: ${proposal.cardId}` : undefined,
-		proposal.evidence ? `${proposal.evidence.length} evidence ${proposal.evidence.length === 1 ? "item" : "items"}` : undefined,
+		evidenceCount > 0 ? `${evidenceCount} evidence ${evidenceCount === 1 ? "item" : "items"}` : undefined,
 		`Created: ${proposal.createdAt}`,
 		`Updated: ${proposal.updatedAt}`,
 	];

@@ -103,6 +103,8 @@ Rules:
 - Future AI edits also go through proposal approval.
 - The current Inbox shell does not write Markdown; approved proposals remain proposal state until a future writer pipeline is implemented.
 
+Proposal payloads now describe draft Concept views, Concept-source links, and Card changes. The current detail review UI uses a temporary JSON editor; future UI can replace it with structured Concept/Card forms and Markdown diff preview.
+
 ## Living Assets
 
 Concepts and Cards are living, editable, evolvable learning assets.

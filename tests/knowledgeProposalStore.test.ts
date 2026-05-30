@@ -102,6 +102,10 @@ async function runAsyncTests(): Promise<void> {
 
 	{
 		const proposal = createProposal("proposal-a", {
+			payload: {
+				summary: "A test concept",
+				title: "Encapsulation",
+			},
 			status: "suggested",
 		});
 		const storage = new MemoryKnowledgeProposalStorage(createPluginData({
@@ -116,8 +120,21 @@ async function runAsyncTests(): Promise<void> {
 		);
 
 		assert.equal(updatedProposal.status, "opened");
+		assert.deepEqual(updatedProposal.payload, proposal.payload);
 		assert.equal(updatedProposal.updatedAt, "2026-01-02T12:00:00.000Z");
 		assert.equal(storage.savedData?.knowledgeProposals[proposal.id].status, "opened");
+	}
+
+	{
+		const legacyProposal = createProposal("legacy-proposal", {
+			payload: undefined,
+		});
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData({
+			[legacyProposal.id]: legacyProposal,
+		}));
+		const store = new KnowledgeProposalStore(storage);
+
+		assert.deepEqual(await store.getProposal(legacyProposal.id), legacyProposal);
 	}
 
 	{

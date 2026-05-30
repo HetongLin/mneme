@@ -20,6 +20,8 @@ Markdown stores approved `Concept.md` and `Card.md` content. `data.json` stores 
 
 `KnowledgeProposalStore` persists future Inbox proposal records in plugin data. The current Inbox shell can display and update proposal lifecycle status, but approved proposals do not write Markdown yet.
 
+Knowledge proposals may include typed payloads for proposed Concept and Card changes. These payloads are proposal state only; approved Markdown content is still written later by an explicit writer pipeline.
+
 ## File Layout
 
 Recommended vault layout:

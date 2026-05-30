@@ -3,8 +3,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 const tests = [
+	"tests/knowledgeProposalDisplay.test.ts",
 	"tests/knowledgeProposalLifecycle.test.ts",
 	"tests/knowledgeProposalStore.test.ts",
+	"tests/knowledgeProposalValidation.test.ts",
 ];
 
 for (const test of tests) {

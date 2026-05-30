@@ -1,4 +1,5 @@
 import { Notice, Plugin, TFile } from "obsidian";
+import type { KnowledgeProposal } from "./models/knowledgeProposal";
 import { ConfirmClearReviewHistoryModal } from "./modals/confirmClearReviewHistoryModal";
 import {
 	DEFAULT_SETTINGS,
@@ -92,6 +93,14 @@ export default class MnemePlugin extends Plugin {
 			name: "Mneme: Log Knowledge Proposals",
 			callback: () => {
 				void this.logKnowledgeProposals();
+			},
+		});
+
+		this.addCommand({
+			id: "mneme-add-sample-knowledge-proposal",
+			name: "Mneme: Add Sample Knowledge Proposal",
+			callback: () => {
+				void this.addSampleKnowledgeProposal();
 			},
 		});
 	}
@@ -204,6 +213,46 @@ export default class MnemePlugin extends Plugin {
 		}
 	}
 
+	private async addSampleKnowledgeProposal(): Promise<void> {
+		try {
+			const activeFile = this.app.workspace.getActiveFile();
+			const sourcePath = activeFile?.extension === "md" ? activeFile.path : undefined;
+			const sourceRecord = sourcePath ? await this.sourceAnalysisStore.getRecord(sourcePath) : undefined;
+			const now = new Date().toISOString();
+			const title = activeFile?.extension === "md"
+				? `Sample Concept from ${activeFile.basename}`
+				: "Sample Concept";
+			// Temporary debug seed for Inbox validation. It does not call AI or write Markdown.
+			const proposal: KnowledgeProposal = {
+				createdAt: now,
+				id: `sample-${Date.now()}`,
+				kind: "new_concept",
+				payload: {
+					coreMeaning: "Describe the core idea before approving this proposal.",
+					proposedCards: [{
+						back: "Replace this with the answer before approval.",
+						front: "What should this concept help you remember?",
+						rubric: "Mention the important distinctions and examples.",
+					}],
+					summary: "A temporary sample proposal for Inbox validation.",
+					title,
+				},
+				sourceHash: sourceRecord?.contentHash,
+				sourcePath,
+				status: "suggested",
+				updatedAt: now,
+			};
+
+			await this.knowledgeProposalStore.upsertProposal(proposal);
+			console.info("Mneme: sample knowledge proposal added", proposal);
+			new Notice("Mneme: Sample proposal added.");
+			await this.refreshOpenInboxViews();
+		} catch (error) {
+			console.error("Mneme: failed to add sample knowledge proposal", error);
+			new Notice("Mneme: failed to add sample proposal. See console.");
+		}
+	}
+
 	private logReviewState(): void {
 		const reviewStates = this.reviewStateStore.getAllStates();
 		const stateCount = this.reviewStateStore.getReviewStateCount();
@@ -239,6 +288,15 @@ export default class MnemePlugin extends Plugin {
 			.map((leaf) => leaf.view)
 			.filter((view): view is MnemeReviewView => view instanceof MnemeReviewView)
 			.map((view) => view.refreshCards());
+
+		await Promise.all(refreshes);
+	}
+
+	private async refreshOpenInboxViews(): Promise<void> {
+		const refreshes = this.app.workspace.getLeavesOfType(INBOX_VIEW_TYPE)
+			.map((leaf) => leaf.view)
+			.filter((view): view is MnemeInboxView => view instanceof MnemeInboxView)
+			.map((view) => view.refresh());
 
 		await Promise.all(refreshes);
 	}
