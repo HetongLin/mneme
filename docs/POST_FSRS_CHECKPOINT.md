@@ -24,6 +24,8 @@ Concepts are user-facing learning units. Review actions are recorded per stable 
 
 FSRS `dueAt` is the authority for Daily Review eligibility. Retrievability is diagnostic and may later become a secondary signal among eligible Cards, but it must not promote non-due Cards into Daily Review.
 
+See also: [FSRS Integration Contract](FSRS_INTEGRATION_CONTRACT.md).
+
 ## Manual Validation Protocol
 
 1. Run `Mneme: Clear Review History`.

@@ -32,6 +32,8 @@ export class FsrsReviewScheduler implements ReviewScheduler {
 
 	schedule(input: ReviewScheduleInput): ReviewScheduleResult {
 		const fsrsCard = cardReviewStateToFsrsCard(input.cardId, input.previousState, input.reviewedAt);
+		// FSRS owns the scheduling transition. Mneme only adapts the input and
+		// serializes result.card; do not reimplement due/stability/difficulty here.
 		const result = this.scheduler.next(fsrsCard, new Date(input.reviewedAt), mapMnemeRatingToFsrsRating(input.rating));
 		const nextState = fsrsCardToCardReviewState(
 			input.cardId,

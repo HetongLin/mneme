@@ -303,3 +303,5 @@ Future modes may intentionally bypass `dueAt` for Cram, Exam Mode, Random Concep
 See also: [Pre-FSRS Architecture Checkpoint](PRE_FSRS_CHECKPOINT.md).
 
 See also: [Post-FSRS Integration Checkpoint](POST_FSRS_CHECKPOINT.md).
+
+See also: [FSRS Integration Contract](FSRS_INTEGRATION_CONTRACT.md).
