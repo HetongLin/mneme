@@ -209,7 +209,7 @@ export class MnemeReviewView extends ItemView {
 		actionsEl.createEl("button", { text: "Flash Cards" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => this.startFlashCards(concept));
 		});
-		actionsEl.createEl("button", { text: "Source" }, (buttonEl) => {
+		actionsEl.createEl("button", { text: "Open Concept" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
 				void this.openConceptSource(concept.concept);
 			});
@@ -254,7 +254,7 @@ export class MnemeReviewView extends ItemView {
 				text: "Review complete.",
 			});
 			const actionsEl = cardEl.createDiv({ cls: "mneme-review-actions" });
-			actionsEl.createEl("button", { cls: "mneme-review-source-action", text: "Source" }, (buttonEl) => {
+			actionsEl.createEl("button", { cls: "mneme-review-source-action", text: "Open Concept" }, (buttonEl) => {
 				buttonEl.addEventListener("click", () => {
 					void this.openConceptSource(concept.concept);
 				});

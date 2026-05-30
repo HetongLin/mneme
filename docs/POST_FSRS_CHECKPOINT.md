@@ -26,6 +26,8 @@ FSRS `dueAt` is the authority for Daily Review eligibility. Retrievability is di
 
 See also: [FSRS Integration Contract](FSRS_INTEGRATION_CONTRACT.md).
 
+See also: [Concept-Source Model](CONCEPT_SOURCE_MODEL.md) and [AI Capture Approval Flow](AI_CAPTURE_APPROVAL_FLOW.md).
+
 ## Manual Validation Protocol
 
 1. Run `Mneme: Clear Review History`.

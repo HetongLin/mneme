@@ -16,6 +16,7 @@
     "test:parser": "node scripts/run-card-marker-parser-tests.mjs",
     "test:review-queue": "node scripts/run-review-queue-tests.mjs",
     "test:settings": "node scripts/run-settings-tests.mjs",
+    "test:source-analysis": "node scripts/run-source-analysis-tests.mjs",
     "test:scheduler": "node scripts/run-placeholder-scheduler-tests.mjs",
     "test:review-state": "node scripts/run-review-state-tests.mjs",
     "version": "node version-bump.mjs && git add manifest.json versions.json"

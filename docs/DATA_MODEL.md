@@ -8,6 +8,14 @@ data.json stores state, indexes, review logs, hashes, pending suggestions, FSRS 
 
 Do not duplicate Concept or Card content in data.json.
 
+Core knowledge model:
+
+```text
+Source Note <-> Concept -> Card -> FSRS
+```
+
+Markdown stores approved `Concept.md` and `Card.md` content. `data.json` stores settings, review states, later review logs, source analysis records, proposal metadata, indexes, and other plugin state.
+
 ## File Layout
 
 Recommended vault layout:
@@ -305,3 +313,7 @@ See also: [Pre-FSRS Architecture Checkpoint](PRE_FSRS_CHECKPOINT.md).
 See also: [Post-FSRS Integration Checkpoint](POST_FSRS_CHECKPOINT.md).
 
 See also: [FSRS Integration Contract](FSRS_INTEGRATION_CONTRACT.md).
+
+See also: [Concept-Source Model](CONCEPT_SOURCE_MODEL.md).
+
+See also: [AI Capture Approval Flow](AI_CAPTURE_APPROVAL_FLOW.md).
