@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import type { MnemeVaultAdapter } from "../src/services/approvedProposalWriter";
 import { ApprovedProposalWriter } from "../src/services/approvedProposalWriter";
 import { parseMnemeCards } from "../src/services/cardMarkerParser";
+import { ConceptSourceLinkStore } from "../src/services/conceptSourceLinkStore";
 import { KnowledgeProposalStore } from "../src/services/knowledgeProposalStore";
+import { SourceAnalysisStore } from "../src/services/sourceAnalysisStore";
 import { createPluginData, createProposal, createSourceRecord, MemoryKnowledgeProposalStorage } from "./knowledgeProposalTestUtils";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
 
@@ -52,6 +54,12 @@ class MemoryVaultAdapter implements MnemeVaultAdapter {
 	}
 }
 
+class FailingConceptSourceLinkStore extends ConceptSourceLinkStore {
+	async upsertLink(): Promise<void> {
+		throw new Error("Concept-source link write failed");
+	}
+}
+
 async function createWriter(
 	proposals = {},
 	vault = new MemoryVaultAdapter(),
@@ -63,10 +71,14 @@ async function createWriter(
 	writer: ApprovedProposalWriter;
 }> {
 	const store = new KnowledgeProposalStore(storage);
+	const conceptSourceLinkStore = new ConceptSourceLinkStore(storage);
+	const sourceAnalysisStore = new SourceAnalysisStore(storage);
 	const writer = new ApprovedProposalWriter({
+		conceptSourceLinkStore,
 		now: () => "2026-01-02T12:00:00.000Z",
 		proposalStore: store,
 		settingsProvider: () => DEFAULT_SETTINGS,
+		sourceAnalysisStore,
 		vaultAdapter: vault,
 	});
 
@@ -235,6 +247,184 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(parsedCards.length, 1);
 		assert.equal(parsedCards[0].isValid, true);
 		assert.equal(parsedCards[0].hasExplicitCardId, true);
+	}
+
+	{
+		const proposal = createProposal("proposal-with-source", {
+			kind: "new_concept",
+			payload: {
+				proposedSourceLinks: [{
+					evidence: [{ excerpt: "Encapsulation hides representation." }],
+					relationType: "supporting",
+					sourceHash: "source-hash",
+					sourcePath: "Notes/Intro.md",
+				}],
+				title: "Encapsulation",
+			},
+			status: "approved",
+		});
+		const sourceRecord = createSourceRecord("Notes/Intro.md");
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData({ [proposal.id]: proposal }, {
+			[sourceRecord.sourcePath]: sourceRecord,
+		}));
+		const { writer } = await createWriter({ [proposal.id]: proposal }, new MemoryVaultAdapter(), storage);
+		const result = await writer.writeApprovedProposal(proposal.id);
+		const links = Object.values(storage.savedData?.conceptSourceLinks ?? {});
+
+		assert.equal(result.status, "written");
+		assert.equal(links.length, 1);
+		assert.equal(links[0].relationType, "supporting");
+		assert.equal(links[0].evidence[0].excerpt, "Encapsulation hides representation.");
+	}
+
+	{
+		const proposal = createProposal("proposal-source-record", {
+			kind: "new_concept",
+			payload: {
+				title: "Encapsulation",
+			},
+			sourceHash: "source-hash",
+			sourcePath: "Notes/Intro.md",
+			status: "approved",
+		});
+		const sourceRecord = createSourceRecord("Notes/Intro.md");
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData({ [proposal.id]: proposal }, {
+			[sourceRecord.sourcePath]: sourceRecord,
+		}));
+		const { writer } = await createWriter({ [proposal.id]: proposal }, new MemoryVaultAdapter(), storage);
+
+		await writer.writeApprovedProposal(proposal.id);
+
+		assert.deepEqual(storage.savedData?.sourceAnalysisRecords[sourceRecord.sourcePath].linkedConceptIds, [
+			"Mneme/Concepts/Encapsulation/Concept.md",
+		]);
+	}
+
+	{
+		const proposal = createProposal("proposal-existing-links", {
+			kind: "new_concept",
+			payload: {
+				title: "Encapsulation",
+			},
+			sourceHash: "source-hash",
+			sourcePath: "Notes/Intro.md",
+			status: "approved",
+		});
+		const sourceRecord = {
+			...createSourceRecord("Notes/Intro.md"),
+			linkedConceptIds: ["existing-concept"],
+		};
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData({ [proposal.id]: proposal }, {
+			[sourceRecord.sourcePath]: sourceRecord,
+		}));
+		const { writer } = await createWriter({ [proposal.id]: proposal }, new MemoryVaultAdapter(), storage);
+
+		await writer.writeApprovedProposal(proposal.id);
+
+		assert.deepEqual(storage.savedData?.sourceAnalysisRecords[sourceRecord.sourcePath].linkedConceptIds, [
+			"existing-concept",
+			"Mneme/Concepts/Encapsulation/Concept.md",
+		]);
+	}
+
+	{
+		const proposal = createProposal("proposal-no-duplicate-links", {
+			kind: "new_concept",
+			payload: {
+				title: "Encapsulation",
+			},
+			sourceHash: "source-hash",
+			sourcePath: "Notes/Intro.md",
+			status: "approved",
+		});
+		const sourceRecord = {
+			...createSourceRecord("Notes/Intro.md"),
+			linkedConceptIds: ["Mneme/Concepts/Encapsulation/Concept.md"],
+		};
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData({ [proposal.id]: proposal }, {
+			[sourceRecord.sourcePath]: sourceRecord,
+		}));
+		const { writer } = await createWriter({ [proposal.id]: proposal }, new MemoryVaultAdapter(), storage);
+
+		await writer.writeApprovedProposal(proposal.id);
+
+		assert.deepEqual(storage.savedData?.sourceAnalysisRecords[sourceRecord.sourcePath].linkedConceptIds, [
+			"Mneme/Concepts/Encapsulation/Concept.md",
+		]);
+	}
+
+	{
+		const proposal = createProposal("proposal-vault-fail-no-index", {
+			kind: "new_concept",
+			payload: {
+				title: "Encapsulation",
+			},
+			sourceHash: "source-hash",
+			sourcePath: "Notes/Intro.md",
+			status: "approved",
+		});
+		const sourceRecord = createSourceRecord("Notes/Intro.md");
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData({ [proposal.id]: proposal }, {
+			[sourceRecord.sourcePath]: sourceRecord,
+		}));
+		const vault = new MemoryVaultAdapter();
+		vault.shouldFailCreate = true;
+		const { writer } = await createWriter({ [proposal.id]: proposal }, vault, storage);
+		const result = await writer.writeApprovedProposal(proposal.id);
+
+		assert.equal(result.status, "failed");
+		assert.equal(storage.savedData, undefined);
+	}
+
+	{
+		const proposal = createApprovedConceptProposal("proposal-no-source");
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData({ [proposal.id]: proposal }));
+		const { writer } = await createWriter({ [proposal.id]: proposal }, new MemoryVaultAdapter(), storage);
+		const result = await writer.writeApprovedProposal(proposal.id);
+
+		assert.equal(result.status, "written");
+		assert.deepEqual(storage.savedData?.conceptSourceLinks, {});
+	}
+
+	{
+		const proposal = createApprovedCardProposal("proposal-card-unchanged");
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData({ [proposal.id]: proposal }));
+		const { writer } = await createWriter({ [proposal.id]: proposal }, new MemoryVaultAdapter(), storage);
+
+		await writer.writeApprovedProposal(proposal.id);
+
+		assert.deepEqual(storage.savedData?.conceptSourceLinks, {});
+		assert.deepEqual(storage.savedData?.reviewStates, {});
+	}
+
+	{
+		const proposal = createProposal("proposal-link-fails", {
+			kind: "new_concept",
+			payload: {
+				title: "Encapsulation",
+			},
+			sourceHash: "source-hash",
+			sourcePath: "Notes/Intro.md",
+			status: "approved",
+		});
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData({ [proposal.id]: proposal }, {
+			"Notes/Intro.md": createSourceRecord("Notes/Intro.md"),
+		}));
+		const store = new KnowledgeProposalStore(storage);
+		const vault = new MemoryVaultAdapter();
+		const writer = new ApprovedProposalWriter({
+			conceptSourceLinkStore: new FailingConceptSourceLinkStore(storage),
+			now: () => "2026-01-02T12:00:00.000Z",
+			proposalStore: store,
+			settingsProvider: () => DEFAULT_SETTINGS,
+			sourceAnalysisStore: new SourceAnalysisStore(storage),
+			vaultAdapter: vault,
+		});
+		const result = await writer.writeApprovedProposal(proposal.id);
+
+		assert.equal(result.status, "failed");
+		assert.equal(vault.files.has("Mneme/Concepts/Encapsulation/Concept.md"), true);
+		assert.equal((await store.getProposal(proposal.id))?.status, "approved");
 	}
 }
 

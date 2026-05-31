@@ -3,6 +3,7 @@ import { DEFAULT_SETTINGS } from "../src/models/settings";
 import { KnowledgeProposalStore } from "../src/services/knowledgeProposalStore";
 import {
 	MemoryKnowledgeProposalStorage,
+	createConceptSourceLink,
 	createPluginData,
 	createProposal,
 	createSourceRecord,
@@ -18,6 +19,9 @@ async function runAsyncTests(): Promise<void> {
 
 	{
 		const storage = new MemoryKnowledgeProposalStorage({
+			conceptSourceLinks: {
+				"link-a": createConceptSourceLink("link-a"),
+			},
 			reviewStates: {
 				"encapsulation-basic": {
 					cardId: "encapsulation-basic",
@@ -45,6 +49,7 @@ async function runAsyncTests(): Promise<void> {
 
 		assert.deepEqual(storage.savedData?.knowledgeProposals["proposal-a"], proposal);
 		assert.equal(storage.savedData?.settings.fsrsRequestRetention, 0.85);
+		assert.equal(typeof storage.savedData?.conceptSourceLinks["link-a"], "object");
 		assert.equal(typeof storage.savedData?.reviewStates["encapsulation-basic"], "object");
 		assert.equal(typeof storage.savedData?.sourceAnalysisRecords["Notes/Intro.md"], "object");
 	}

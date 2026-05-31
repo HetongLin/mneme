@@ -1,4 +1,5 @@
 import type { KnowledgeProposal } from "../src/models/knowledgeProposal";
+import type { ConceptSourceLink } from "../src/models/conceptSource";
 import type { MnemePluginData } from "../src/models/reviewState";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
 import type { SourceAnalysisRecord } from "../src/models/sourceAnalysis";
@@ -23,13 +24,30 @@ export class MemoryKnowledgeProposalStorage implements KnowledgeProposalStorage 
 export function createPluginData(
 	knowledgeProposals: Record<string, KnowledgeProposal> = {},
 	sourceAnalysisRecords: Record<string, SourceAnalysisRecord> = {},
+	conceptSourceLinks: Record<string, ConceptSourceLink> = {},
 ): MnemePluginData {
 	return {
+		conceptSourceLinks,
 		knowledgeProposals,
 		reviewStates: {},
 		schemaVersion: 1,
 		settings: DEFAULT_SETTINGS,
 		sourceAnalysisRecords,
+	};
+}
+
+export function createConceptSourceLink(id: string, overrides: Partial<ConceptSourceLink> = {}): ConceptSourceLink {
+	return {
+		addedAt: "2026-01-01T12:00:00.000Z",
+		conceptId: "Mneme/Concepts/Encapsulation/Concept.md",
+		evidence: [],
+		id,
+		lastSeenAt: "2026-01-01T12:00:00.000Z",
+		relationType: "origin",
+		sourceHash: "source-hash",
+		sourcePath: "Notes/Intro.md",
+		status: "approved",
+		...overrides,
 	};
 }
 

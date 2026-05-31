@@ -107,6 +107,14 @@ Proposal payloads now describe draft Concept views, Concept-source links, and Ca
 
 The first Markdown writer supports `new_concept` and `new_card` only. Unsupported proposal kinds remain in the Inbox until future writers can preview and patch existing Markdown safely.
 
+## Runtime Concept-Source Indexing
+
+`ConceptSourceLinkStore` persists approved many-to-many links in plugin data.
+
+After a successful `new_concept` Markdown write, Mneme can create approved `ConceptSourceLink` records from the proposal's source links or from the proposal's source note metadata. It also updates `SourceAnalysisRecord.linkedConceptIds` for linked source notes.
+
+These links are index/state metadata. They help Mneme remember which Source Notes support which Concepts, but editable `Concept.md` and `Card.md` remain the content source of truth.
+
 ## Living Assets
 
 Concepts and Cards are living, editable, evolvable learning assets.

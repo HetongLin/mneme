@@ -160,6 +160,14 @@ export class MnemeInboxView extends ItemView {
 				text: writeIndicator,
 			});
 		}
+		const sourceLinkIndicator = getSourceLinkIndicator(proposal);
+
+		if (sourceLinkIndicator) {
+			textEl.createEl("p", {
+				cls: "mneme-review-queue-meta",
+				text: sourceLinkIndicator,
+			});
+		}
 
 		const actionsEl = mainEl.createDiv({ cls: "mneme-review-actions" });
 
@@ -232,6 +240,28 @@ function getWriteIndicator(proposal: KnowledgeProposal): string | undefined {
 	}
 
 	return undefined;
+}
+
+function getSourceLinkIndicator(proposal: KnowledgeProposal): string | undefined {
+	if (proposal.status !== "written" || proposal.kind !== "new_concept") {
+		return undefined;
+	}
+
+	if (hasSourceLinkData(proposal)) {
+		return "Source links indexed";
+	}
+
+	return "No source links";
+}
+
+function hasSourceLinkData(proposal: KnowledgeProposal): boolean {
+	const payload = typeof proposal.payload === "object" && proposal.payload !== null
+		? proposal.payload as { proposedSourceLinks?: unknown }
+		: undefined;
+	const proposedSourceLinks = payload?.proposedSourceLinks;
+
+	return Boolean(proposal.sourcePath)
+		|| (Array.isArray(proposedSourceLinks) && proposedSourceLinks.length > 0);
 }
 
 function summarizeProposals(proposals: KnowledgeProposal[]): Record<"approved" | "pending" | "rejected" | "stale" | "written", number> {

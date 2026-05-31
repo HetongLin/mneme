@@ -3,6 +3,11 @@ import { CardReviewState, MnemePluginData, ReviewRating } from "../models/review
 import { DEFAULT_SETTINGS, MnemeSettings, normalizeSettings } from "../models/settings";
 import { SourceAnalysisRecord } from "../models/sourceAnalysis";
 import {
+	ConceptSourceLink,
+	ConceptSourceRelationType,
+	ConceptSourceLinkStatus,
+} from "../models/conceptSource";
+import {
 	KNOWLEDGE_PROPOSAL_KINDS,
 	KNOWLEDGE_PROPOSAL_STATUSES,
 	KnowledgeProposal,
@@ -96,6 +101,7 @@ export class ReviewStateStore {
 
 export function createDefaultPluginData(): MnemePluginData {
 	return {
+		conceptSourceLinks: {},
 		knowledgeProposals: {},
 		reviewStates: {},
 		schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -118,9 +124,13 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 	const knowledgeProposals = isObject(data.knowledgeProposals)
 		? data.knowledgeProposals
 		: {};
+	const conceptSourceLinks = isObject(data.conceptSourceLinks)
+		? data.conceptSourceLinks
+		: {};
 
 	return {
 		...data,
+		conceptSourceLinks: normalizeConceptSourceLinks(conceptSourceLinks),
 		knowledgeProposals: normalizeKnowledgeProposals(knowledgeProposals),
 		reviewStates: normalizeReviewStates(reviewStates),
 		schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -222,6 +232,61 @@ function isKnowledgeProposalKind(value: unknown): value is KnowledgeProposalKind
 function isKnowledgeProposalStatus(value: unknown): value is KnowledgeProposalStatus {
 	return typeof value === "string"
 		&& (KNOWLEDGE_PROPOSAL_STATUSES as readonly string[]).includes(value);
+}
+
+function normalizeConceptSourceLinks(states: Record<string, unknown>): Record<string, ConceptSourceLink> {
+	const normalizedLinks: Record<string, ConceptSourceLink> = {};
+
+	for (const link of Object.values(states)) {
+		if (!isConceptSourceLink(link)) {
+			continue;
+		}
+
+		normalizedLinks[link.id] = link;
+	}
+
+	return normalizedLinks;
+}
+
+function isConceptSourceLink(value: unknown): value is ConceptSourceLink {
+	return isObject(value)
+		&& typeof value.id === "string"
+		&& typeof value.conceptId === "string"
+		&& typeof value.sourcePath === "string"
+		&& typeof value.sourceHash === "string"
+		&& isConceptSourceRelationType(value.relationType)
+		&& Array.isArray(value.evidence)
+		&& value.evidence.every(isSourceEvidence)
+		&& isConceptSourceLinkStatus(value.status)
+		&& typeof value.addedAt === "string"
+		&& typeof value.lastSeenAt === "string";
+}
+
+function isSourceEvidence(value: unknown): boolean {
+	return isObject(value)
+		&& typeof value.excerpt === "string"
+		&& (value.heading === undefined || typeof value.heading === "string")
+		&& (value.blockId === undefined || typeof value.blockId === "string")
+		&& (value.lineStart === undefined || typeof value.lineStart === "number")
+		&& (value.lineEnd === undefined || typeof value.lineEnd === "number");
+}
+
+function isConceptSourceRelationType(value: unknown): value is ConceptSourceRelationType {
+	return value === "origin"
+		|| value === "supporting"
+		|| value === "example"
+		|| value === "application"
+		|| value === "contrast"
+		|| value === "exam"
+		|| value === "project"
+		|| value === "update";
+}
+
+function isConceptSourceLinkStatus(value: unknown): value is ConceptSourceLinkStatus {
+	return value === "suggested"
+		|| value === "approved"
+		|| value === "rejected"
+		|| value === "stale";
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

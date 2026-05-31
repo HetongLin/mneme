@@ -93,6 +93,8 @@ Written `new_concept` proposals create editable `Concept.md` files in the config
 
 Unsupported proposal kinds remain proposal-only until future diff/patch writers are added. Written Cards do not receive FSRS state during writing; they enter the normal parser/review pipeline after the vault is refreshed or reloaded.
 
+Successful `new_concept` writes can also index approved Concept-source links. Mneme stores these links in plugin data and updates the analyzed Source Note's `linkedConceptIds` when source analysis state exists.
+
 ## AI Does Not Write Permanent Markdown
 
 AI output is proposal data until approved.

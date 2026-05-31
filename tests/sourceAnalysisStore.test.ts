@@ -7,6 +7,19 @@ import { SourceAnalysisStorage, SourceAnalysisStore } from "../src/services/sour
 async function runAsyncTests(): Promise<void> {
 	{
 		const storage = new MemorySourceAnalysisStorage({
+			conceptSourceLinks: {
+				"link-a": {
+					addedAt: "2026-01-01T12:00:00.000Z",
+					conceptId: "concept-a",
+					evidence: [],
+					id: "link-a",
+					lastSeenAt: "2026-01-01T12:00:00.000Z",
+					relationType: "origin",
+					sourceHash: "hash-a",
+					sourcePath: "Notes/Intro.md",
+					status: "approved",
+				},
+			},
 			knowledgeProposals: {
 				"proposal-a": {
 					createdAt: "2026-01-01T12:00:00.000Z",
@@ -38,6 +51,7 @@ async function runAsyncTests(): Promise<void> {
 
 		assert.deepEqual(storage.savedData?.sourceAnalysisRecords["Notes/Intro.md"], record);
 		assert.equal(typeof storage.savedData?.knowledgeProposals["proposal-a"], "object");
+		assert.equal(typeof storage.savedData?.conceptSourceLinks["link-a"], "object");
 		assert.equal(storage.savedData?.settings.fsrsRequestRetention, 0.85);
 		assert.equal(typeof storage.savedData?.reviewStates["encapsulation-basic"], "object");
 	}

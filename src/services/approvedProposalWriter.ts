@@ -1,8 +1,15 @@
 import type { MarkdownWriteDraft, MarkdownWriteResult } from "../models/markdownWrite";
 import type { MnemeSettings } from "../models/settings";
 import { ensureUniquePath, normalizeVaultPath } from "../utils/markdownPath";
+import {
+	buildConceptSourceLinksFromNewConceptProposal,
+	mergeLinkedConceptId,
+	normalizeConceptIdForWrittenConcept,
+} from "./conceptSourceLinking";
+import { ConceptSourceLinkStore } from "./conceptSourceLinkStore";
 import { KnowledgeProposalStore } from "./knowledgeProposalStore";
 import { renderMarkdownProposal } from "./markdownProposalRenderer";
+import { SourceAnalysisStore } from "./sourceAnalysisStore";
 
 export interface MnemeVaultAdapter {
 	append(path: string, content: string): Promise<void>;
@@ -13,9 +20,11 @@ export interface MnemeVaultAdapter {
 }
 
 export interface ApprovedProposalWriterOptions {
+	conceptSourceLinkStore?: ConceptSourceLinkStore;
 	now?: () => string;
 	proposalStore: KnowledgeProposalStore;
 	settingsProvider: () => MnemeSettings;
+	sourceAnalysisStore?: SourceAnalysisStore;
 	vaultAdapter: MnemeVaultAdapter;
 }
 
@@ -69,6 +78,7 @@ export class ApprovedProposalWriter {
 				targetPaths.push(draft.targetPath);
 			}
 
+			await this.indexConceptSourceLinksAfterWrite(proposal, targetPaths);
 			await this.options.proposalStore.updateProposalStatus(proposalId, "written", this.now());
 
 			return {
@@ -138,5 +148,41 @@ export class ApprovedProposalWriter {
 		}
 
 		await this.options.vaultAdapter.create(draft.targetPath, draft.content);
+	}
+
+	private async indexConceptSourceLinksAfterWrite(
+		proposal: Awaited<ReturnType<KnowledgeProposalStore["getProposal"]>>,
+		targetPaths: string[],
+	): Promise<void> {
+		if (
+			!proposal
+			|| proposal.kind !== "new_concept"
+			|| !this.options.conceptSourceLinkStore
+			|| !this.options.sourceAnalysisStore
+		) {
+			return;
+		}
+
+		const now = this.now();
+		const conceptId = normalizeConceptIdForWrittenConcept({
+			proposal,
+			targetPaths,
+		});
+		const links = buildConceptSourceLinksFromNewConceptProposal({
+			conceptId,
+			now,
+			proposal,
+		});
+
+		for (const link of links) {
+			await this.options.conceptSourceLinkStore.upsertLink(link);
+			const sourceRecord = await this.options.sourceAnalysisStore.getRecord(link.sourcePath);
+
+			if (!sourceRecord) {
+				continue;
+			}
+
+			await this.options.sourceAnalysisStore.upsertRecord(mergeLinkedConceptId(sourceRecord, conceptId));
+		}
 	}
 }

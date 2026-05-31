@@ -11,6 +11,7 @@ import {
 import { CardFileLoader } from "./services/cardFileLoader";
 import { FsrsReviewScheduler, FsrsSchedulerConfig } from "./services/fsrsReviewScheduler";
 import { ApprovedProposalWriter } from "./services/approvedProposalWriter";
+import { ConceptSourceLinkStore } from "./services/conceptSourceLinkStore";
 import { KnowledgeProposalStore } from "./services/knowledgeProposalStore";
 import { ObsidianVaultAdapter } from "./services/obsidianVaultAdapter";
 import { ReviewStateStore } from "./services/reviewStateStore";
@@ -25,6 +26,7 @@ export default class MnemePlugin extends Plugin {
 	reviewStateStore: ReviewStateStore;
 	private sourceAnalysisStore: SourceAnalysisStore;
 	private knowledgeProposalStore: KnowledgeProposalStore;
+	private conceptSourceLinkStore: ConceptSourceLinkStore;
 	private approvedProposalWriter: ApprovedProposalWriter;
 
 	async onload() {
@@ -33,9 +35,12 @@ export default class MnemePlugin extends Plugin {
 		this.reviewStateStore = new ReviewStateStore(this, this.reviewScheduler);
 		this.sourceAnalysisStore = new SourceAnalysisStore(this);
 		this.knowledgeProposalStore = new KnowledgeProposalStore(this);
+		this.conceptSourceLinkStore = new ConceptSourceLinkStore(this);
 		this.approvedProposalWriter = new ApprovedProposalWriter({
+			conceptSourceLinkStore: this.conceptSourceLinkStore,
 			proposalStore: this.knowledgeProposalStore,
 			settingsProvider: () => this.settings,
+			sourceAnalysisStore: this.sourceAnalysisStore,
 			vaultAdapter: new ObsidianVaultAdapter(this.app.vault),
 		});
 		await this.reviewStateStore.load();
@@ -105,6 +110,14 @@ export default class MnemePlugin extends Plugin {
 			name: "Mneme: Log Knowledge Proposals",
 			callback: () => {
 				void this.logKnowledgeProposals();
+			},
+		});
+
+		this.addCommand({
+			id: "mneme-log-concept-source-links",
+			name: "Mneme: Log Concept-Source Links",
+			callback: () => {
+				void this.logConceptSourceLinks();
 			},
 		});
 
@@ -222,6 +235,18 @@ export default class MnemePlugin extends Plugin {
 		} catch (error) {
 			console.error("Mneme: failed to log knowledge proposals", error);
 			new Notice("Mneme: failed to log knowledge proposals. See console.");
+		}
+	}
+
+	private async logConceptSourceLinks(): Promise<void> {
+		try {
+			const links = await this.conceptSourceLinkStore.listLinks();
+
+			console.info("Mneme: concept-source links", links);
+			new Notice(`Mneme: Logged concept-source links for ${links.length} links.`);
+		} catch (error) {
+			console.error("Mneme: failed to log concept-source links", error);
+			new Notice("Mneme: failed to log concept-source links. See console.");
 		}
 	}
 

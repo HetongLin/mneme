@@ -24,6 +24,8 @@ Knowledge proposals may include typed payloads for proposed Concept and Card cha
 
 Approved proposal writing is explicit. Approval does not automatically mutate the vault. The initial Markdown writer supports `new_concept` and `new_card` proposals, writes clean editable `Concept.md` / `Card.md`, and marks proposals `written` only after a successful vault write.
 
+`ConceptSourceLinkStore` persists approved Source Note to Concept links in plugin data. Successful `new_concept` writes can create approved `ConceptSourceLink` records and update `SourceAnalysisRecord.linkedConceptIds`. These links are runtime index metadata, not the main Concept body.
+
 ## File Layout
 
 Recommended vault layout:
@@ -225,6 +227,7 @@ data.json may store:
 
 - plugin settings
 - source note hashes
+- concept-source links
 - pending suggestions
 - FSRS card state
 - review logs
