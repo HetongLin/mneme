@@ -4,6 +4,7 @@ import path from "node:path";
 
 const tests = [
 	"tests/markdownPath.test.ts",
+	"tests/conceptMarkdownIdentity.test.ts",
 	"tests/markdownProposalRenderer.test.ts",
 	"tests/approvedProposalWriter.test.ts",
 ];

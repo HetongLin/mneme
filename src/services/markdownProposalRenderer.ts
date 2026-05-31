@@ -1,7 +1,13 @@
 import type { KnowledgeProposal, NewCardProposalPayload, NewConceptProposalPayload } from "../models/knowledgeProposal";
 import type { MarkdownWriteDraft } from "../models/markdownWrite";
 import type { MnemeSettings } from "../models/settings";
-import { buildCardPath, buildConceptPath, slugifyForFilename } from "../utils/markdownPath";
+import {
+	buildCardPath,
+	buildConceptPath,
+	createMnemeConceptId,
+	slugifyForFilename,
+	toObsidianInternalLink,
+} from "../utils/markdownPath";
 import { validateKnowledgeProposalPayload } from "./knowledgeProposalValidation";
 
 export type MarkdownProposalRenderResult =
@@ -55,12 +61,31 @@ function renderNewConceptDraft(
 	settings: MnemeSettings,
 	payload: NewConceptProposalPayload,
 ): MarkdownWriteDraft {
+	const conceptId = proposal.conceptId ?? createMnemeConceptId(payload.title);
+	const conceptPath = buildConceptPath(settings.conceptsFolder, payload.title);
+	const cardPath = buildCardPath(settings.cardsFolder, payload.title);
+	const cardLink = toObsidianInternalLink(cardPath, `${payload.title} Cards`);
 	const lines = [
+		"---",
+		"mneme_type: concept",
+		`mneme_id: ${conceptId}`,
+		"mneme_version: 1",
+		`cards: "${cardLink}"`,
+		...(payload.learningMode ? [`learning_mode: ${payload.learningMode}`] : []),
+		...(payload.suggestedImportance ? [`importance: ${payload.suggestedImportance}`] : []),
+		"---",
+		"",
 		`# ${payload.title}`,
 		"",
 		"## Core Meaning",
 		"",
 		payload.coreMeaning || payload.summary || "",
+		"",
+		"## Why It Matters",
+		"",
+		payload.summary && payload.summary !== payload.coreMeaning
+			? payload.summary
+			: "Add why this concept matters here.",
 		"",
 		"## Views",
 		"",
@@ -74,33 +99,33 @@ function renderNewConceptDraft(
 		lines.push("Add views here.", "");
 	}
 
+	lines.push("## Common Traps", "", "Add common traps here.", "");
+	lines.push("## Review", "");
+
+	if (cardLink) {
+		lines.push("> [!note]- Review Cards", `> ${cardLink}`, "");
+	} else {
+		lines.push("No review cards have been written yet.", "");
+	}
+
 	lines.push("## Source Notes", "");
 
 	if (payload.proposedSourceLinks && payload.proposedSourceLinks.length > 0) {
+		lines.push("> [!info]- Source Notes");
 		for (const link of payload.proposedSourceLinks) {
-			lines.push(`- [[${formatWikiLinkPath(link.sourcePath)}]]`);
-			lines.push(`  - relation: ${link.relationType}`);
+			lines.push(`> - ${toObsidianInternalLink(link.sourcePath)}`);
+			lines.push(`>   - relation: ${link.relationType}`);
 			const excerpt = link.evidence?.[0]?.excerpt;
 
 			if (excerpt) {
-				lines.push(`  - evidence: ${truncateSingleLine(excerpt, 180)}`);
+				lines.push(`>   - evidence: ${truncateSingleLine(excerpt, 180)}`);
 			}
 		}
 	} else if (proposal.sourcePath) {
-		lines.push(`- [[${formatWikiLinkPath(proposal.sourcePath)}]]`);
+		lines.push("> [!info]- Source Notes");
+		lines.push(`> - ${toObsidianInternalLink(proposal.sourcePath)}`);
 	} else {
-		lines.push("- Add source notes here.");
-	}
-
-	lines.push("", "## Cards", "");
-
-	if (payload.proposedCards && payload.proposedCards.length > 0) {
-		for (const card of payload.proposedCards) {
-			lines.push(`- ${truncateSingleLine(card.front, 160)}`);
-		}
-		lines.push("", "Cards are stored in Card.md.");
-	} else {
-		lines.push("Cards are stored in Card.md.");
+		lines.push("> [!info]- Source Notes", "> Add source notes here.");
 	}
 
 	lines.push("", "## Related Concepts", "", "<!-- Add related concepts here. -->", "");
@@ -110,7 +135,7 @@ function renderNewConceptDraft(
 		kind: "concept",
 		mode: "create",
 		sourceProposalId: proposal.id,
-		targetPath: buildConceptPath(settings.conceptsFolder, payload.title),
+		targetPath: conceptPath,
 	};
 }
 
@@ -120,8 +145,24 @@ function renderNewCardDraft(
 	payload: NewCardProposalPayload,
 ): MarkdownWriteDraft {
 	const conceptLabel = payload.conceptTitle || payload.conceptId || proposal.conceptId || "Concept";
+	const conceptId = payload.conceptId || proposal.conceptId || createMnemeConceptId(conceptLabel);
+	const conceptPath = buildConceptPath(settings.conceptsFolder, payload.conceptTitle || conceptLabel);
+	const conceptLink = toObsidianInternalLink(conceptPath, payload.conceptTitle || conceptLabel);
 	const cardId = createTemporaryWriterCardId(conceptLabel, payload.card.front, proposal.id);
 	const lines = [
+		"---",
+		"mneme_type: card_group",
+		`mneme_concept_id: ${conceptId}`,
+		"mneme_version: 1",
+		`concept: "${conceptLink}"`,
+		"---",
+		"",
+		`# ${payload.conceptTitle || conceptLabel} Cards`,
+		"",
+		`Related Concept: ${conceptLink}`,
+		"",
+		"<!-- Mneme cards below -->",
+		"",
 		`<!-- MNEME:CARD:start id="${escapeHtmlAttribute(cardId)}" -->`,
 		"<!-- MNEME:FRONT:start -->",
 		payload.card.front,
@@ -155,19 +196,15 @@ function renderNewCardDraft(
 export function createTemporaryWriterCardId(
 	conceptTitleOrId: string,
 	front: string,
-	proposalId: string,
+	_proposalId: string,
 ): string {
-	const base = slugifyForFilename(`${conceptTitleOrId} ${front} ${proposalId}`)
+	const base = slugifyForFilename(`${conceptTitleOrId} ${front}`)
 		.toLowerCase()
 		.replace(/[^a-z0-9-]/g, "-")
 		.replace(/-+/g, "-")
 		.replace(/^-|-$/g, "");
 
 	return (base || "mneme-card").slice(0, 96);
-}
-
-function formatWikiLinkPath(path: string): string {
-	return path.replace(/\.md$/i, "");
 }
 
 function truncateSingleLine(value: string, maxLength: number): string {

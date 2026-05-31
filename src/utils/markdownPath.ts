@@ -59,6 +59,30 @@ export function normalizeVaultPath(path: string): string {
 		.replace(/^\/+/, "");
 }
 
+export function toObsidianInternalLink(path: string, display?: string): string {
+	const normalizedPath = normalizeVaultPath(path).replace(/\.md$/i, "");
+
+	if (!normalizedPath) {
+		return "";
+	}
+
+	if (display && display.trim().length > 0) {
+		return `[[${normalizedPath}|${display.trim()}]]`;
+	}
+
+	return `[[${normalizedPath}]]`;
+}
+
+export function createMnemeConceptId(title: string): string {
+	const slug = slugifyForFilename(title)
+		.toLowerCase()
+		.replace(/[^a-z0-9-]/g, "-")
+		.replace(/-+/g, "-")
+		.replace(/^-|-$/g, "");
+
+	return `concept-${slug || "untitled"}`;
+}
+
 function capitalize(value: string): string {
 	return value.charAt(0).toUpperCase() + value.slice(1);
 }

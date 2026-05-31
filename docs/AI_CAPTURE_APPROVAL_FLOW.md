@@ -95,6 +95,14 @@ Unsupported proposal kinds remain proposal-only until future diff/patch writers 
 
 Successful `new_concept` writes can also index approved Concept-source links. Mneme stores these links in plugin data and updates the analyzed Source Note's `linkedConceptIds` when source analysis state exists.
 
+## Readable And Identifiable Markdown
+
+Generated `Concept.md` is a human-facing learning note with minimal Mneme frontmatter for identification. It links to its review `Card.md`, uses concise collapsible Source Notes, and keeps machine metadata in plugin data.
+
+Generated `Card.md` is the concept's review-card file. It includes minimal card-group frontmatter, links back to the Concept, and keeps the existing parser-compatible card marker syntax.
+
+Cards are not dumped into `Concept.md` by default. `sourceHash`, proposal ids, review state, FSRS state, due dates, stability, difficulty, and raw JSON remain outside the main Markdown reading flow.
+
 ## AI Does Not Write Permanent Markdown
 
 AI output is proposal data until approved.

@@ -5,7 +5,7 @@ import type {
 } from "../models/conceptSource";
 import type { KnowledgeProposal, NewConceptProposalPayload } from "../models/knowledgeProposal";
 import type { SourceAnalysisRecord } from "../models/sourceAnalysis";
-import { normalizeVaultPath, slugifyForFilename } from "../utils/markdownPath";
+import { createMnemeConceptId, normalizeVaultPath, slugifyForFilename } from "../utils/markdownPath";
 
 export interface BuildConceptSourceLinksArgs {
 	conceptId: string;
@@ -89,6 +89,14 @@ export function mergeLinkedConceptId(
 export function normalizeConceptIdForWrittenConcept(args: NormalizeWrittenConceptIdArgs): string {
 	if (args.proposal.conceptId) {
 		return args.proposal.conceptId;
+	}
+
+	if (args.proposal.kind === "new_concept" && isRecord(args.proposal.payload)) {
+		const title = args.proposal.payload.title;
+
+		if (typeof title === "string" && title.trim().length > 0) {
+			return createMnemeConceptId(title);
+		}
 	}
 
 	const conceptPath = args.targetPaths.find((path) => normalizeVaultPath(path).endsWith("/Concept.md"))

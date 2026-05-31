@@ -107,6 +107,14 @@ Proposal payloads now describe draft Concept views, Concept-source links, and Ca
 
 The first Markdown writer supports `new_concept` and `new_card` only. Unsupported proposal kinds remain in the Inbox until future writers can preview and patch existing Markdown safely.
 
+## Readable And Identifiable Markdown
+
+`Concept.md` is a clean learning note plus a thin identity layer. Generated Concept notes include minimal frontmatter such as `mneme_type: concept`, `mneme_id`, and `mneme_version`, then present Core Meaning, Views, Review Cards, Source Notes, and Related Concepts as editable reading sections.
+
+`Card.md` is the concept's review-card file. Generated Card groups include minimal frontmatter such as `mneme_type: card_group`, `mneme_concept_id`, and a Concept link, then use Mneme's existing card marker syntax.
+
+Concept notes link to their Card file, and Card files link back to their Concept. Machine metadata stays in plugin data, not in the main Markdown body.
+
 ## Runtime Concept-Source Indexing
 
 `ConceptSourceLinkStore` persists approved many-to-many links in plugin data.

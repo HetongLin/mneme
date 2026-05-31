@@ -127,4 +127,18 @@ import { createProposal, createSourceRecord } from "./knowledgeProposalTestUtils
 	}), "Mneme/Concepts/Encapsulation/Concept.md");
 }
 
+{
+	const proposal = createProposal("proposal-f", {
+		kind: "new_concept",
+		payload: {
+			title: "Encapsulation",
+		},
+	});
+
+	assert.equal(normalizeConceptIdForWrittenConcept({
+		proposal,
+		targetPaths: ["Mneme/Concepts/Encapsulation/Concept.md"],
+	}), "concept-encapsulation");
+}
+
 console.log("Concept-source linking tests passed.");

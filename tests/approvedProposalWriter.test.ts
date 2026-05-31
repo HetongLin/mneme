@@ -155,6 +155,11 @@ async function runAsyncTests(): Promise<void> {
 
 		assert.equal(result.status, "written");
 		assert.equal(vault.files.has("Mneme/Concepts/Encapsulation/Concept.md"), true);
+		const content = await vault.read("Mneme/Concepts/Encapsulation/Concept.md");
+		assert.match(content, /^---\nmneme_type: concept\nmneme_id: concept-encapsulation\nmneme_version: 1/m);
+		assert.match(content, /## Core Meaning/);
+		assert.equal(content.includes("sourceHash"), false);
+		assert.equal(content.includes("fsrsState"), false);
 		assert.equal((await store.getProposal(proposal.id))?.status, "written");
 	}
 
@@ -165,6 +170,9 @@ async function runAsyncTests(): Promise<void> {
 
 		assert.equal(result.status, "written");
 		assert.equal(vault.files.has("Mneme/Cards/Encapsulation/Card.md"), true);
+		const content = await vault.read("Mneme/Cards/Encapsulation/Card.md");
+		assert.match(content, /^---\nmneme_type: card_group\nmneme_concept_id: concept-encapsulation\nmneme_version: 1/m);
+		assert.match(content, /Related Concept: \[\[Mneme\/Concepts\/Encapsulation\/Concept\|Encapsulation\]\]/);
 		assert.equal((await store.getProposal(proposal.id))?.status, "written");
 	}
 
@@ -296,7 +304,7 @@ async function runAsyncTests(): Promise<void> {
 		await writer.writeApprovedProposal(proposal.id);
 
 		assert.deepEqual(storage.savedData?.sourceAnalysisRecords[sourceRecord.sourcePath].linkedConceptIds, [
-			"Mneme/Concepts/Encapsulation/Concept.md",
+			"concept-encapsulation",
 		]);
 	}
 
@@ -323,7 +331,7 @@ async function runAsyncTests(): Promise<void> {
 
 		assert.deepEqual(storage.savedData?.sourceAnalysisRecords[sourceRecord.sourcePath].linkedConceptIds, [
 			"existing-concept",
-			"Mneme/Concepts/Encapsulation/Concept.md",
+			"concept-encapsulation",
 		]);
 	}
 
@@ -339,7 +347,7 @@ async function runAsyncTests(): Promise<void> {
 		});
 		const sourceRecord = {
 			...createSourceRecord("Notes/Intro.md"),
-			linkedConceptIds: ["Mneme/Concepts/Encapsulation/Concept.md"],
+			linkedConceptIds: ["concept-encapsulation"],
 		};
 		const storage = new MemoryKnowledgeProposalStorage(createPluginData({ [proposal.id]: proposal }, {
 			[sourceRecord.sourcePath]: sourceRecord,
@@ -349,7 +357,7 @@ async function runAsyncTests(): Promise<void> {
 		await writer.writeApprovedProposal(proposal.id);
 
 		assert.deepEqual(storage.savedData?.sourceAnalysisRecords[sourceRecord.sourcePath].linkedConceptIds, [
-			"Mneme/Concepts/Encapsulation/Concept.md",
+			"concept-encapsulation",
 		]);
 	}
 

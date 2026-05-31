@@ -26,6 +26,18 @@ Approved proposal writing is explicit. Approval does not automatically mutate th
 
 `ConceptSourceLinkStore` persists approved Source Note to Concept links in plugin data. Successful `new_concept` writes can create approved `ConceptSourceLink` records and update `SourceAnalysisRecord.linkedConceptIds`. These links are runtime index metadata, not the main Concept body.
 
+Readable and identifiable Markdown principle:
+
+- `Concept.md` is a human-facing learning note.
+- `Concept.md` includes minimal Mneme frontmatter for stable identification.
+- `Card.md` is the Concept's review-card file.
+- `Card.md` includes minimal Mneme frontmatter for Concept association.
+- `Concept.md` links to `Card.md`.
+- `Card.md` links back to `Concept.md`.
+- Machine metadata remains in plugin data.
+- Source evidence is optional and should use progressive disclosure.
+- Cards should not be dumped into `Concept.md` by default.
+
 ## File Layout
 
 Recommended vault layout:
@@ -49,54 +61,69 @@ Plugin internal data:
 
 Concept.md is the source of truth for Concept content.
 
-Required frontmatter fields:
+Minimal generated frontmatter fields:
 
 - mneme_type: concept
-- concept_id: string
-- importance: low | normal | high | critical
-- learning_mode: mastery | recall | exploratory
-- review_policy: fsrs | random_only | paused
-- status: active | paused | archived
+- mneme_id: string
+- mneme_version: 1
+- cards: optional Obsidian link to Card.md
+- learning_mode: optional reviewable | exploratory
+- importance: optional low | normal | high | critical
 
 Recommended sections:
 
-- Core Understanding
-- Source Views
-- Common Mistakes
+- Core Meaning
+- Why It Matters
+- Views
+- Common Traps
+- Review
+- Source Notes
 - Related Concepts
-- Cards
 
 Example structure:
 
 ---
 mneme_type: concept
-concept_id: c_information_gain
-importance: high
-learning_mode: recall
-review_policy: fsrs
-status: active
+mneme_id: concept-information-gain
+mneme_version: 1
+cards: "[[Mneme/Cards/Information Gain/Card|Information Gain Cards]]"
+importance: normal
+learning_mode: reviewable
 ---
 
 # Information Gain
 
-## Core Understanding
+## Core Meaning
 
 Information gain measures the reduction of uncertainty after splitting a dataset by an attribute.
 
-## Source Views
+## Why It Matters
 
-- [[Decision Tree Notes]]: introduces the basic definition.
-- [[Exam Mistakes]]: adds the bias toward many-valued attributes.
+Add why this concept matters here.
 
-## Common Mistakes
+## Views
 
-- Confusing information gain with classification accuracy.
-- Forgetting that information gain tends to favor attributes with many values.
+Add views here.
 
-## Cards
+## Common Traps
 
-- [[Mneme/Cards/Information Gain/card_001]]
-- [[Mneme/Cards/Information Gain/card_002]]
+Add common traps here.
+
+## Review
+
+> [!note]- Review Cards
+> [[Mneme/Cards/Information Gain/Card|Information Gain Cards]]
+
+## Source Notes
+
+> [!info]- Source Notes
+> - [[Decision Tree Notes]]
+>   - relation: origin
+>   - evidence: introduces the basic definition.
+
+## Related Concepts
+
+<!-- Add related concepts here. -->
 
 ## Concept Fields
 
@@ -115,32 +142,19 @@ Recommended mapping:
 
 Controls how the concept is learned.
 
-- mastery: must be mastered
-- recall: should be actively recalled
 - exploratory: only for low-stakes exploration
-
-### review_policy
-
-Controls whether the concept enters scheduled review.
-
-- fsrs: cards enter FSRS review
-- random_only: concept enters Random Concept Draw only
-- paused: excluded from review queues
+- reviewable: concept can have Cards reviewed through FSRS
 
 ## Card.md
 
 Card.md is the source of truth for review UI content.
 
-Required frontmatter fields:
+Minimal generated frontmatter fields:
 
-- mneme_type: card
-- schema_version: 0.1
-- card_id: string
-- concept_id: string
-- card_type: definition | misconception | comparison | application
-- targets: string[]
-- status: active | suspended | archived | invalid
-- source_note: string
+- mneme_type: card_group
+- mneme_concept_id: string
+- mneme_version: 1
+- concept: Obsidian link to Concept.md
 
 Required marker sections:
 
@@ -158,18 +172,17 @@ Optional multi-card wrapper markers:
 Example structure:
 
 ---
-mneme_type: card
-schema_version: 0.1
-card_id: card_information_gain_001
-concept_id: c_information_gain
-card_type: misconception
-targets:
-  - bias_many_values
-status: active
-source_note: Machine Learning/Decision Tree.md
+mneme_type: card_group
+mneme_concept_id: concept-information-gain
+mneme_version: 1
+concept: "[[Mneme/Concepts/Information Gain/Concept|Information Gain]]"
 ---
 
-# Information Gain: Many-valued Attribute Bias
+# Information Gain Cards
+
+Related Concept: [[Mneme/Concepts/Information Gain/Concept|Information Gain]]
+
+<!-- Mneme cards below -->
 
 <!-- MNEME:FRONT:start -->
 Why does information gain tend to favor attributes with many values?
