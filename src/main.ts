@@ -1,4 +1,11 @@
 import { Notice, Plugin, TFile } from "obsidian";
+import {
+	ACCEPTANCE_CARD_PROPOSAL_ID,
+	ACCEPTANCE_CONCEPT_ID,
+	ACCEPTANCE_CONCEPT_PROPOSAL_ID,
+	ACCEPTANCE_CONCEPT_TITLE,
+	ACCEPTANCE_SOURCE_PATH,
+} from "./acceptance/preAiAcceptanceFixture";
 import type { KnowledgeProposal } from "./models/knowledgeProposal";
 import { ConfirmClearReviewHistoryModal } from "./modals/confirmClearReviewHistoryModal";
 import {
@@ -16,9 +23,11 @@ import { ConceptScanner } from "./services/conceptScanner";
 import { KnowledgeProposalStore } from "./services/knowledgeProposalStore";
 import { ObsidianConceptVaultAdapter } from "./services/obsidianConceptVaultAdapter";
 import { ObsidianVaultAdapter } from "./services/obsidianVaultAdapter";
+import { PreAiAcceptanceFixtureService } from "./services/preAiAcceptanceFixtureService";
 import { ReviewStateStore } from "./services/reviewStateStore";
 import { SourceAnalysisService } from "./services/sourceAnalysisService";
 import { SourceAnalysisStore } from "./services/sourceAnalysisStore";
+import { buildCardPath, buildConceptPath } from "./utils/markdownPath";
 import { CONCEPT_LIBRARY_VIEW_TYPE, MnemeConceptLibraryView } from "./views/conceptLibraryView";
 import { MnemeInboxView, INBOX_VIEW_TYPE } from "./views/inboxView";
 import { MnemeReviewView, REVIEW_VIEW_TYPE } from "./views/reviewView";
@@ -149,6 +158,22 @@ export default class MnemePlugin extends Plugin {
 			name: "Mneme: Add Sample Knowledge Proposal",
 			callback: () => {
 				void this.addSampleKnowledgeProposal();
+			},
+		});
+
+		this.addCommand({
+			id: "mneme-create-pre-ai-acceptance-fixture",
+			name: "Mneme: Create Pre-AI Acceptance Fixture",
+			callback: () => {
+				void this.createPreAiAcceptanceFixture();
+			},
+		});
+
+		this.addCommand({
+			id: "mneme-log-pre-ai-acceptance-fixture",
+			name: "Mneme: Log Pre-AI Acceptance Fixture",
+			callback: () => {
+				void this.logPreAiAcceptanceFixture();
 			},
 		});
 	}
@@ -322,6 +347,53 @@ export default class MnemePlugin extends Plugin {
 		} catch (error) {
 			console.error("Mneme: failed to add sample knowledge proposal", error);
 			new Notice("Mneme: failed to add sample proposal. See console.");
+		}
+	}
+
+	private async createPreAiAcceptanceFixture(): Promise<void> {
+		try {
+			const service = new PreAiAcceptanceFixtureService({
+				proposalStore: this.knowledgeProposalStore,
+				sourceAnalysisStore: this.sourceAnalysisStore,
+				vaultAdapter: new ObsidianVaultAdapter(this.app.vault),
+			});
+			const result = await service.createFixture();
+
+			console.info("Mneme: pre-AI acceptance fixture created", result);
+			new Notice("Mneme: Pre-AI acceptance fixture created.");
+			await this.refreshOpenInboxViews();
+		} catch (error) {
+			console.error("Mneme: failed to create pre-AI acceptance fixture", error);
+			new Notice("Mneme: failed to create pre-AI acceptance fixture. See console.");
+		}
+	}
+
+	private async logPreAiAcceptanceFixture(): Promise<void> {
+		try {
+			const sourceExists = this.app.vault.getAbstractFileByPath(ACCEPTANCE_SOURCE_PATH) instanceof TFile;
+			const conceptProposal = await this.knowledgeProposalStore.getProposal(ACCEPTANCE_CONCEPT_PROPOSAL_ID);
+			const cardProposal = await this.knowledgeProposalStore.getProposal(ACCEPTANCE_CARD_PROPOSAL_ID);
+			const conceptPath = buildConceptPath(this.settings.conceptsFolder, ACCEPTANCE_CONCEPT_TITLE);
+			const cardPath = buildCardPath(this.settings.cardsFolder, ACCEPTANCE_CONCEPT_TITLE);
+			const status = {
+				cardPath,
+				cardProposalExists: Boolean(cardProposal),
+				cardProposalStatus: cardProposal?.status,
+				conceptId: ACCEPTANCE_CONCEPT_ID,
+				conceptPath,
+				conceptProposalExists: Boolean(conceptProposal),
+				conceptProposalStatus: conceptProposal?.status,
+				writtenCardExists: this.app.vault.getAbstractFileByPath(cardPath) instanceof TFile,
+				writtenConceptExists: this.app.vault.getAbstractFileByPath(conceptPath) instanceof TFile,
+				sourceExists,
+				sourcePath: ACCEPTANCE_SOURCE_PATH,
+			};
+
+			console.info("Mneme: pre-AI acceptance fixture", status);
+			new Notice("Mneme: Logged pre-AI acceptance fixture.");
+		} catch (error) {
+			console.error("Mneme: failed to log pre-AI acceptance fixture", error);
+			new Notice("Mneme: failed to log pre-AI acceptance fixture. See console.");
 		}
 	}
 
