@@ -84,6 +84,12 @@ A Card is not the primary object. It is a tool for checking whether the Concept 
 
 A structured AI-generated proposal shown in Inbox before being committed.
 
+### Knowledge Proposal
+
+A structured proposal record produced by AI or developer fixtures and reviewed in Inbox.
+
+Initial AI capture is concept-first. Source Note analysis may propose Concept-stage changes only; Cards are generated later from written `Concept.md` and require their own review before `Card.md` is written.
+
 ## Core Workflow
 
 1. User opens a Source Note.
@@ -98,6 +104,10 @@ A structured AI-generated proposal shown in Inbox before being committed.
 10. FSRS schedules Cards.
 11. Review View groups due Cards by Concept.
 12. User reviews through Today’s Focus.
+
+Current implementation note:
+
+AI provider settings and adapter shells may exist before the full workflow is connected. Until the AI capture flow is explicitly wired, Analyze Current Note records source metadata and hashes only; it does not call AI, create Inbox proposals, or write Markdown.
 
 ## v0.1 Goal
 

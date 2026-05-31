@@ -18,6 +18,18 @@ Markdown stores approved `Concept.md` and `Card.md` content. `data.json` stores 
 
 `SourceAnalysisStore` persists `SourceAnalysisRecord` entries in plugin data. `Mneme: Analyze Current Note` currently updates source path, metadata, and content hash only; it does not generate Concepts, Cards, Inbox proposals, or Markdown.
 
+AI Capture settings are stored in plugin data under `settings`. They configure a future provider boundary only:
+
+- `aiCaptureEnabled`
+- `aiProvider`
+- `openaiApiKey`
+- `openaiBaseUrl`
+- `openaiModel`
+- `aiRequestTimeoutMs`
+- `aiMaxInputChars`
+
+These settings do not make `Analyze Current Note` call AI yet. Provider diagnostics must use log-safe configuration summaries and must not include raw API keys.
+
 `KnowledgeProposalStore` persists Inbox proposal records in plugin data. The Inbox displays active Concept and Card proposals for review, editing, acceptance, or rejection.
 
 Knowledge proposals may include typed payloads for proposed Concept and Card changes. These payloads are proposal state only; Markdown content is written only after explicit user acceptance.
@@ -243,6 +255,7 @@ Answer 2
 data.json may store:
 
 - plugin settings
+- AI provider settings
 - source note hashes
 - concept-source links
 - pending suggestions

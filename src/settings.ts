@@ -4,6 +4,7 @@ import {
 	MnemeSettings,
 	normalizeFolder,
 	normalizeMaximumInterval,
+	normalizePositiveInteger,
 	normalizeRetention,
 } from "./models/settings";
 
@@ -13,6 +14,7 @@ export {
 	mergeSettingsIntoPluginData,
 	normalizeMaximumInterval,
 	normalizeFolder,
+	normalizePositiveInteger,
 	normalizeRetention,
 	normalizeSettings,
 } from "./models/settings";
@@ -103,6 +105,101 @@ export class MnemeSettingTab extends PluginSettingTab {
 				text.onChange(async (value) => {
 					this.plugin.settings.fsrsMaximumInterval = normalizeMaximumInterval(Number(value));
 					text.setValue(String(this.plugin.settings.fsrsMaximumInterval));
+					await this.persistSettings();
+				});
+			});
+
+		containerEl.createEl("h3", { text: "AI Capture" });
+
+		new Setting(containerEl)
+			.setName("Enable AI capture")
+			.setDesc("Keeps AI proposal generation disabled until the capture flow is ready.")
+			.addToggle((toggle) => {
+				toggle.setValue(this.plugin.settings.aiCaptureEnabled);
+				toggle.onChange(async (value) => {
+					this.plugin.settings.aiCaptureEnabled = value;
+					await this.persistSettings();
+				});
+			});
+
+		new Setting(containerEl)
+			.setName("Provider")
+			.setDesc("Selects the AI provider boundary. Analyze Current Note is not connected to this yet.")
+			.addDropdown((dropdown) => {
+				dropdown.addOption("mock", "Mock");
+				dropdown.addOption("openai", "OpenAI");
+				dropdown.setValue(this.plugin.settings.aiProvider);
+				dropdown.onChange(async (value) => {
+					this.plugin.settings.aiProvider = value === "openai" ? "openai" : "mock";
+					await this.persistSettings();
+				});
+			});
+
+		new Setting(containerEl)
+			.setName("OpenAI API key")
+			.setDesc("Stored locally in Obsidian plugin data. Mneme does not log this value.")
+			.addText((text) => {
+				text.inputEl.type = "password";
+				text.setPlaceholder("sk-...");
+				text.setValue(this.plugin.settings.openaiApiKey);
+				text.onChange(async (value) => {
+					this.plugin.settings.openaiApiKey = value.trim();
+					await this.persistSettings();
+				});
+			});
+
+		new Setting(containerEl)
+			.setName("OpenAI base URL")
+			.setDesc("Use the default OpenAI API URL unless you have a compatible endpoint.")
+			.addText((text) => {
+				text.setPlaceholder(DEFAULT_SETTINGS.openaiBaseUrl);
+				text.setValue(this.plugin.settings.openaiBaseUrl);
+				text.onChange(async (value) => {
+					this.plugin.settings.openaiBaseUrl = value.trim().replace(/\/+$/g, "") || DEFAULT_SETTINGS.openaiBaseUrl;
+					text.setValue(this.plugin.settings.openaiBaseUrl);
+					await this.persistSettings();
+				});
+			});
+
+		new Setting(containerEl)
+			.setName("Model")
+			.setDesc("Model used by the future AI capture provider.")
+			.addText((text) => {
+				text.setPlaceholder(DEFAULT_SETTINGS.openaiModel);
+				text.setValue(this.plugin.settings.openaiModel);
+				text.onChange(async (value) => {
+					this.plugin.settings.openaiModel = value.trim() || DEFAULT_SETTINGS.openaiModel;
+					text.setValue(this.plugin.settings.openaiModel);
+					await this.persistSettings();
+				});
+			});
+
+		new Setting(containerEl)
+			.setName("Request timeout")
+			.setDesc("Maximum provider wait time in milliseconds.")
+			.addText((text) => {
+				text.inputEl.type = "number";
+				text.inputEl.min = "1";
+				text.inputEl.step = "1000";
+				text.setValue(String(this.plugin.settings.aiRequestTimeoutMs));
+				text.onChange(async (value) => {
+					this.plugin.settings.aiRequestTimeoutMs = normalizePositiveInteger(Number(value), DEFAULT_SETTINGS.aiRequestTimeoutMs);
+					text.setValue(String(this.plugin.settings.aiRequestTimeoutMs));
+					await this.persistSettings();
+				});
+			});
+
+		new Setting(containerEl)
+			.setName("Max input characters")
+			.setDesc("Caps how much source-note text the future provider can receive.")
+			.addText((text) => {
+				text.inputEl.type = "number";
+				text.inputEl.min = "1";
+				text.inputEl.step = "1000";
+				text.setValue(String(this.plugin.settings.aiMaxInputChars));
+				text.onChange(async (value) => {
+					this.plugin.settings.aiMaxInputChars = normalizePositiveInteger(Number(value), DEFAULT_SETTINGS.aiMaxInputChars);
+					text.setValue(String(this.plugin.settings.aiMaxInputChars));
 					await this.persistSettings();
 				});
 			});

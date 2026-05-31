@@ -1,19 +1,35 @@
 export interface MnemeSettings {
+	aiCaptureEnabled: boolean;
+	aiMaxInputChars: number;
+	aiProvider: AiProviderName;
+	aiRequestTimeoutMs: number;
 	cardsFolder: string;
 	conceptsFolder: string;
 	enableDeveloperTools: boolean;
 	fsrsEnableFuzz: boolean;
 	fsrsMaximumInterval: number;
 	fsrsRequestRetention: number;
+	openaiApiKey: string;
+	openaiBaseUrl: string;
+	openaiModel: string;
 }
 
+export type AiProviderName = "mock" | "openai";
+
 export const DEFAULT_SETTINGS: MnemeSettings = {
+	aiCaptureEnabled: false,
+	aiMaxInputChars: 20000,
+	aiProvider: "mock",
+	aiRequestTimeoutMs: 30000,
 	cardsFolder: "Mneme/Cards",
 	conceptsFolder: "Mneme/Concepts",
 	enableDeveloperTools: false,
 	fsrsEnableFuzz: false,
 	fsrsMaximumInterval: 36500,
 	fsrsRequestRetention: 0.9,
+	openaiApiKey: "",
+	openaiBaseUrl: "https://api.openai.com/v1",
+	openaiModel: "gpt-4.1-mini",
 };
 
 export function normalizeSettings(value: unknown): MnemeSettings {
@@ -22,6 +38,12 @@ export function normalizeSettings(value: unknown): MnemeSettings {
 	}
 
 	return {
+		aiCaptureEnabled: typeof value.aiCaptureEnabled === "boolean"
+			? value.aiCaptureEnabled
+			: DEFAULT_SETTINGS.aiCaptureEnabled,
+		aiMaxInputChars: normalizePositiveInteger(value.aiMaxInputChars, DEFAULT_SETTINGS.aiMaxInputChars),
+		aiProvider: normalizeAiProvider(value.aiProvider),
+		aiRequestTimeoutMs: normalizePositiveInteger(value.aiRequestTimeoutMs, DEFAULT_SETTINGS.aiRequestTimeoutMs),
 		cardsFolder: normalizeFolder(value.cardsFolder, DEFAULT_SETTINGS.cardsFolder),
 		conceptsFolder: normalizeFolder(value.conceptsFolder, DEFAULT_SETTINGS.conceptsFolder),
 		enableDeveloperTools: typeof value.enableDeveloperTools === "boolean"
@@ -32,6 +54,9 @@ export function normalizeSettings(value: unknown): MnemeSettings {
 			: DEFAULT_SETTINGS.fsrsEnableFuzz,
 		fsrsMaximumInterval: normalizeMaximumInterval(value.fsrsMaximumInterval),
 		fsrsRequestRetention: normalizeRetention(value.fsrsRequestRetention),
+		openaiApiKey: normalizeString(value.openaiApiKey, DEFAULT_SETTINGS.openaiApiKey),
+		openaiBaseUrl: normalizeUrlString(value.openaiBaseUrl, DEFAULT_SETTINGS.openaiBaseUrl),
+		openaiModel: normalizeRequiredString(value.openaiModel, DEFAULT_SETTINGS.openaiModel),
 	};
 }
 
@@ -58,6 +83,10 @@ export function normalizeMaximumInterval(value: unknown): number {
 	return Math.max(1, Math.round(clampNumber(value, 1, Number.MAX_SAFE_INTEGER, DEFAULT_SETTINGS.fsrsMaximumInterval)));
 }
 
+export function normalizePositiveInteger(value: unknown, fallback: number): number {
+	return Math.max(1, Math.round(clampNumber(value, 1, Number.MAX_SAFE_INTEGER, fallback)));
+}
+
 export function normalizeFolder(value: unknown, fallback: string): string {
 	if (typeof value !== "string") {
 		return fallback;
@@ -68,6 +97,32 @@ export function normalizeFolder(value: unknown, fallback: string): string {
 		.replace(/\\/g, "/")
 		.replace(/\/+/g, "/")
 		.replace(/^\/+|\/+$/g, "");
+
+	return normalized || fallback;
+}
+
+function normalizeAiProvider(value: unknown): AiProviderName {
+	return value === "openai" || value === "mock"
+		? value
+		: DEFAULT_SETTINGS.aiProvider;
+}
+
+function normalizeString(value: unknown, fallback: string): string {
+	if (typeof value !== "string") {
+		return fallback;
+	}
+
+	return value.trim();
+}
+
+function normalizeRequiredString(value: unknown, fallback: string): string {
+	const normalized = normalizeString(value, fallback);
+
+	return normalized || fallback;
+}
+
+function normalizeUrlString(value: unknown, fallback: string): string {
+	const normalized = normalizeString(value, fallback).replace(/\/+$/g, "");
 
 	return normalized || fallback;
 }

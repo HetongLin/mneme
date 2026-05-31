@@ -87,6 +87,44 @@ It persists a `SourceAnalysisRecord` in plugin data through `SourceAnalysisStore
 
 This command does not extract Concepts, generate Cards, create Inbox proposals, or write Markdown yet.
 
+## Provider Boundary
+
+Task 026A adds AI Capture infrastructure only.
+
+Current provider pieces:
+
+- AI Capture settings in Mneme settings, disabled by default
+- a provider adapter interface for structured proposal generation
+- a deterministic Mock provider for tests and offline development
+- an OpenAI provider shell that can build a future Structured Outputs request payload
+- log-safe provider configuration diagnostics that do not include raw API keys
+
+The provider interface returns `KnowledgeProposal[]` plus diagnostics and provider metadata. It is not connected to `Analyze Current Note`, Inbox acceptance, Markdown writers, FSRS, Daily Review, or Concept Library behavior.
+
+OpenAI Structured Outputs is the intended future enforcement layer for model output against JSON Schema. The current OpenAI provider is a shell and does not perform production network execution.
+
+## Structured Output Contract
+
+AI output must become validated `KnowledgeProposal[]` before it is shown in Inbox.
+
+In `concept_capture` mode, providers may return only Concept-stage proposal kinds:
+
+- `new_concept`
+- `link_existing_concept`
+- `add_view`
+- `update_concept`
+- `merge_concept`
+
+In `concept_capture` mode, providers must not return Card-stage proposal kinds:
+
+- `new_card`
+- `revise_card`
+- `split_card`
+- `merge_card`
+- `retire_card`
+
+Cards are generated later from written `Concept.md`, then reviewed and accepted separately before any `Card.md` is written.
+
 ## Inbox Shell
 
 `KnowledgeProposalStore` persists future Inbox proposals in plugin data.

@@ -17,6 +17,7 @@ Features:
 
 - Analyze Current Note
 - Hash-based skip
+- AI Capture settings and provider adapter infrastructure
 - Concept Suggestions JSON
 - Zod schema validation
 - Inbox approval
@@ -36,6 +37,7 @@ Non-goals:
 - Automatic vault scanning
 - PDF/PPT parsing
 - Anki sync
+- Connecting AI provider execution directly to Analyze Current Note before the approval boundary is complete
 - AI answer grading
 - Auto highlight
 - Full concept graph
