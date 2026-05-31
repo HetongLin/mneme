@@ -4,6 +4,7 @@ import path from "node:path";
 
 const tests = [
 	"tests/inboxAcceptanceWorkflow.test.ts",
+	"tests/inboxDisplayModel.test.ts",
 	"tests/inboxProposalFilters.test.ts",
 	"tests/knowledgeProposalDisplay.test.ts",
 	"tests/knowledgeProposalLifecycle.test.ts",

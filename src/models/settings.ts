@@ -1,6 +1,7 @@
 export interface MnemeSettings {
 	cardsFolder: string;
 	conceptsFolder: string;
+	enableDeveloperTools: boolean;
 	fsrsEnableFuzz: boolean;
 	fsrsMaximumInterval: number;
 	fsrsRequestRetention: number;
@@ -9,6 +10,7 @@ export interface MnemeSettings {
 export const DEFAULT_SETTINGS: MnemeSettings = {
 	cardsFolder: "Mneme/Cards",
 	conceptsFolder: "Mneme/Concepts",
+	enableDeveloperTools: false,
 	fsrsEnableFuzz: false,
 	fsrsMaximumInterval: 36500,
 	fsrsRequestRetention: 0.9,
@@ -22,6 +24,9 @@ export function normalizeSettings(value: unknown): MnemeSettings {
 	return {
 		cardsFolder: normalizeFolder(value.cardsFolder, DEFAULT_SETTINGS.cardsFolder),
 		conceptsFolder: normalizeFolder(value.conceptsFolder, DEFAULT_SETTINGS.conceptsFolder),
+		enableDeveloperTools: typeof value.enableDeveloperTools === "boolean"
+			? value.enableDeveloperTools
+			: DEFAULT_SETTINGS.enableDeveloperTools,
 		fsrsEnableFuzz: typeof value.fsrsEnableFuzz === "boolean"
 			? value.fsrsEnableFuzz
 			: DEFAULT_SETTINGS.fsrsEnableFuzz,

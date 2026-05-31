@@ -71,26 +71,22 @@ export default class MnemePlugin extends Plugin {
 			this.createConceptScanner(),
 		));
 
+		this.registerProductCommands();
+		if (this.settings.enableDeveloperTools) {
+			this.registerDeveloperCommands();
+		}
+	}
+
+	onunload() {
+	}
+
+	private registerProductCommands(): void {
 		this.addCommand({
 			id: "open-review-view",
 			name: "Mneme: Open Review View",
 			callback: () => {
 				void this.openReviewView();
 			},
-		});
-
-		this.addCommand({
-			id: "scan-card-files",
-			name: "Mneme: Scan Card Files",
-			callback: () => {
-				void this.scanCardFiles();
-			},
-		});
-
-		this.addCommand({
-			id: "mneme-log-review-state",
-			name: "Mneme: Log Review State",
-			callback: () => this.logReviewState(),
 		});
 
 		this.addCommand({
@@ -108,14 +104,6 @@ export default class MnemePlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "mneme-log-source-analysis-state",
-			name: "Mneme: Log Source Analysis State",
-			callback: () => {
-				void this.logSourceAnalysisState();
-			},
-		});
-
-		this.addCommand({
 			id: "mneme-open-inbox",
 			name: "Mneme: Open Inbox",
 			callback: () => {
@@ -128,6 +116,38 @@ export default class MnemePlugin extends Plugin {
 			name: "Mneme: Open Concept Library",
 			callback: () => {
 				void this.openConceptLibraryView();
+			},
+		});
+
+		this.addCommand({
+			id: "mneme-resync-index",
+			name: "Mneme: Resync Mneme Index",
+			callback: () => {
+				void this.resyncMnemeIndex();
+			},
+		});
+	}
+
+	private registerDeveloperCommands(): void {
+		this.addCommand({
+			id: "scan-card-files",
+			name: "Mneme: Scan Card Files",
+			callback: () => {
+				void this.scanCardFiles();
+			},
+		});
+
+		this.addCommand({
+			id: "mneme-log-review-state",
+			name: "Mneme: Log Review State",
+			callback: () => this.logReviewState(),
+		});
+
+		this.addCommand({
+			id: "mneme-log-source-analysis-state",
+			name: "Mneme: Log Source Analysis State",
+			callback: () => {
+				void this.logSourceAnalysisState();
 			},
 		});
 
@@ -186,17 +206,6 @@ export default class MnemePlugin extends Plugin {
 				void this.generatePreAiAcceptanceCards();
 			},
 		});
-
-		this.addCommand({
-			id: "mneme-resync-index",
-			name: "Mneme: Resync Mneme Index",
-			callback: () => {
-				void this.resyncMnemeIndex();
-			},
-		});
-	}
-
-	onunload() {
 	}
 
 	async loadSettings() {

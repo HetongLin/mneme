@@ -16,6 +16,7 @@ import {
 		settings: {
 			cardsFolder: "Custom/Cards",
 			conceptsFolder: "Custom/Concepts",
+			enableDeveloperTools: true,
 			fsrsEnableFuzz: true,
 			fsrsMaximumInterval: 365,
 			fsrsRequestRetention: 0.85,
@@ -25,6 +26,7 @@ import {
 	assert.deepEqual(settings, {
 		cardsFolder: "Custom/Cards",
 		conceptsFolder: "Custom/Concepts",
+		enableDeveloperTools: true,
 		fsrsEnableFuzz: true,
 		fsrsMaximumInterval: 365,
 		fsrsRequestRetention: 0.85,
@@ -35,6 +37,7 @@ import {
 	const settings = normalizeSettings({
 		cardsFolder: "",
 		conceptsFolder: " /Custom//Concepts/ ",
+		enableDeveloperTools: "yes",
 		fsrsEnableFuzz: "yes",
 		fsrsMaximumInterval: -10,
 		fsrsRequestRetention: 1.5,
@@ -43,10 +46,17 @@ import {
 	assert.deepEqual(settings, {
 		cardsFolder: DEFAULT_SETTINGS.cardsFolder,
 		conceptsFolder: "Custom/Concepts",
+		enableDeveloperTools: false,
 		fsrsEnableFuzz: DEFAULT_SETTINGS.fsrsEnableFuzz,
 		fsrsMaximumInterval: 1,
 		fsrsRequestRetention: 0.98,
 	});
+}
+
+{
+	const settings = normalizeSettings({});
+
+	assert.equal(settings.enableDeveloperTools, false);
 }
 
 {

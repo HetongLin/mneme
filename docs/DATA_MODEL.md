@@ -18,11 +18,13 @@ Markdown stores approved `Concept.md` and `Card.md` content. `data.json` stores 
 
 `SourceAnalysisStore` persists `SourceAnalysisRecord` entries in plugin data. `Mneme: Analyze Current Note` currently updates source path, metadata, and content hash only; it does not generate Concepts, Cards, Inbox proposals, or Markdown.
 
-`KnowledgeProposalStore` persists future Inbox proposal records in plugin data. The current Inbox shell can display and update proposal lifecycle status, but approved proposals do not write Markdown yet.
+`KnowledgeProposalStore` persists Inbox proposal records in plugin data. The Inbox displays active Concept and Card proposals for review, editing, acceptance, or rejection.
 
 Knowledge proposals may include typed payloads for proposed Concept and Card changes. These payloads are proposal state only; Markdown content is written only after explicit user acceptance.
 
 Inbox acceptance is explicit. `Accept Concept` and `Accept Card` validate supported proposal payloads, write clean editable `Concept.md` / `Card.md`, and mark proposals `written` only after a successful vault write. Rejected and written proposals are not active Inbox work.
+
+The product-facing Inbox does not present proposal lifecycle states as primary navigation. Its main counters are To Review, Concept Proposals, Card Proposals, and Invalid items. Developer and diagnostic commands are hidden unless Developer Tools is enabled in settings.
 
 Inbox Refresh and `Mneme: Resync Mneme Index` reconcile plugin data with the current vault. Stale proposals, source analysis records, and Concept-source links that point to deleted vault files are pruned from `data.json`. Reconciliation never deletes user Markdown files; it only cleans index/cache/proposal state.
 

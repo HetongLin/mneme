@@ -106,6 +106,19 @@ export class MnemeSettingTab extends PluginSettingTab {
 					await this.persistSettings();
 				});
 			});
+
+		containerEl.createEl("h3", { text: "Developer Tools" });
+
+		new Setting(containerEl)
+			.setName("Enable developer tools")
+			.setDesc("Shows acceptance fixtures, debug commands, and diagnostic logging commands. Reload Mneme after changing this setting to update command palette visibility.")
+			.addToggle((toggle) => {
+				toggle.setValue(this.plugin.settings.enableDeveloperTools);
+				toggle.onChange(async (value) => {
+					this.plugin.settings.enableDeveloperTools = value;
+					await this.persistSettings();
+				});
+			});
 	}
 
 	private async persistSettings(): Promise<void> {
