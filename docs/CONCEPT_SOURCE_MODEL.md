@@ -107,7 +107,9 @@ Proposal payloads now describe draft Concept views, Concept-source links, and Ca
 
 The first Markdown writer supports `new_concept` and `new_card` only. Unsupported proposal kinds remain in the Inbox until future writers can preview and patch existing Markdown safely.
 
-Active Inbox contains actionable proposals with `suggested`, `opened`, `edited`, or `stale` status. Rejected and written proposals move to History. Clearing Inbox History removes those proposal records from plugin data, but never deletes generated `Concept.md` / `Card.md`, settings, review states, source analysis records, or Concept-source links.
+Active Inbox contains actionable proposals with `suggested`, `opened`, `edited`, or `stale` status. Rejected and written proposals are not a permanent user-facing history archive.
+
+Inbox Refresh and `Mneme: Resync Mneme Index` reconcile plugin data with the current vault. If a source note, Concept, or linked Markdown file was deleted, Mneme prunes stale proposal, source analysis, or Concept-source link records from plugin data. This never deletes user Markdown; it only removes stale index/cache state.
 
 ## Concept-First Capture
 

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type { MnemeVaultAdapter } from "../src/services/approvedProposalWriter";
 import { ApprovedProposalWriter } from "../src/services/approvedProposalWriter";
 import { InboxAcceptanceWorkflow, formatAcceptActionLabel } from "../src/services/inboxAcceptanceWorkflow";
+import { filterActiveInboxProposals } from "../src/services/inboxProposalFilters";
 import { KnowledgeProposalStore } from "../src/services/knowledgeProposalStore";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
 import { createPluginData, createProposal, MemoryKnowledgeProposalStorage } from "./knowledgeProposalTestUtils";
@@ -86,6 +87,7 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(result.status, "accepted");
 		assert.equal(result.kind, "concept");
 		assert.equal((await store.getProposal(proposal.id))?.status, "written");
+		assert.deepEqual(filterActiveInboxProposals(await store.listProposals()), []);
 		assert.equal(vault.files.has("Mneme/Concepts/Encapsulation/Concept.md"), true);
 		assert.equal(formatAcceptActionLabel(proposal), "Accept Concept");
 	}
@@ -111,6 +113,7 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(result.status, "accepted");
 		assert.equal(result.kind, "card");
 		assert.equal((await store.getProposal(proposal.id))?.status, "written");
+		assert.deepEqual(filterActiveInboxProposals(await store.listProposals()), []);
 		assert.match(content, /MNEME:FRONT:start/);
 		assert.equal(content.includes("fsrsState"), false);
 		assert.equal(formatAcceptActionLabel(proposal), "Accept Card");
@@ -175,6 +178,7 @@ async function runAsyncTests(): Promise<void> {
 
 		assert.equal(result.status, "accepted");
 		assert.equal((await store.getProposal(proposal.id))?.status, "rejected");
+		assert.deepEqual(filterActiveInboxProposals(await store.listProposals()), []);
 	}
 }
 

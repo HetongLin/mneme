@@ -27,6 +27,7 @@ import { PreAiAcceptanceFixtureService } from "./services/preAiAcceptanceFixture
 import { ReviewStateStore } from "./services/reviewStateStore";
 import { SourceAnalysisService } from "./services/sourceAnalysisService";
 import { SourceAnalysisStore } from "./services/sourceAnalysisStore";
+import { VaultStateReconciler } from "./services/vaultStateReconciler";
 import { buildCardPath, buildConceptPath } from "./utils/markdownPath";
 import { CONCEPT_LIBRARY_VIEW_TYPE, MnemeConceptLibraryView } from "./views/conceptLibraryView";
 import { MnemeInboxView, INBOX_VIEW_TYPE } from "./views/inboxView";
@@ -63,6 +64,7 @@ export default class MnemePlugin extends Plugin {
 			leaf,
 			this.knowledgeProposalStore,
 			this.approvedProposalWriter,
+			this.createVaultStateReconciler(),
 		));
 		this.registerView(CONCEPT_LIBRARY_VIEW_TYPE, (leaf) => new MnemeConceptLibraryView(
 			leaf,
@@ -138,14 +140,6 @@ export default class MnemePlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "mneme-clear-inbox-history",
-			name: "Mneme: Clear Inbox History",
-			callback: () => {
-				void this.clearInboxHistory();
-			},
-		});
-
-		this.addCommand({
 			id: "mneme-log-concept-source-links",
 			name: "Mneme: Log Concept-Source Links",
 			callback: () => {
@@ -190,6 +184,14 @@ export default class MnemePlugin extends Plugin {
 			name: "Mneme: Generate Pre-AI Acceptance Cards",
 			callback: () => {
 				void this.generatePreAiAcceptanceCards();
+			},
+		});
+
+		this.addCommand({
+			id: "mneme-resync-index",
+			name: "Mneme: Resync Mneme Index",
+			callback: () => {
+				void this.resyncMnemeIndex();
 			},
 		});
 	}
@@ -302,14 +304,19 @@ export default class MnemePlugin extends Plugin {
 		}
 	}
 
-	private async clearInboxHistory(): Promise<void> {
+	private async resyncMnemeIndex(): Promise<void> {
 		try {
-			await this.knowledgeProposalStore.clearHistory();
-			new Notice("Mneme: Inbox history cleared.");
+			const result = await this.createVaultStateReconciler().reconcile();
+			const removedCount = result.removedProposalIds.length
+				+ result.removedSourcePaths.length
+				+ result.removedConceptSourceLinkIds.length;
+
+			console.info("Mneme: index resync result", result);
+			new Notice(`Mneme: Index resynced. Removed ${removedCount} stale items.`);
 			await this.refreshOpenInboxViews();
 		} catch (error) {
-			console.error("Mneme: failed to clear Inbox history", error);
-			new Notice("Mneme: failed to clear Inbox history. See console.");
+			console.error("Mneme: failed to resync index", error);
+			new Notice("Mneme: failed to resync index. See console.");
 		}
 	}
 
@@ -565,6 +572,16 @@ export default class MnemePlugin extends Plugin {
 		return new ConceptScanner({
 			conceptSourceLinkStore: this.conceptSourceLinkStore,
 			vault: new ObsidianConceptVaultAdapter(this.app),
+		});
+	}
+
+	private createVaultStateReconciler(): VaultStateReconciler {
+		return new VaultStateReconciler({
+			conceptScanner: this.createConceptScanner(),
+			conceptSourceLinkStore: this.conceptSourceLinkStore,
+			knowledgeProposalStore: this.knowledgeProposalStore,
+			sourceAnalysisStore: this.sourceAnalysisStore,
+			vault: new ObsidianVaultAdapter(this.app.vault),
 		});
 	}
 }

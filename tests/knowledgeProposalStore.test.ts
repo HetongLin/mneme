@@ -104,10 +104,6 @@ async function runAsyncTests(): Promise<void> {
 			"proposal-d",
 			"proposal-e",
 		]);
-		assert.deepEqual((await store.listHistory()).map((proposal) => proposal.id).sort(), [
-			"proposal-f",
-			"proposal-g",
-		]);
 		assert.deepEqual(await store.listByStatus("approved"), [secondProposal]);
 		assert.deepEqual((await store.listBySourcePath("Notes/Intro.md")).map((proposal) => proposal.id), [
 			"proposal-a",
@@ -188,27 +184,12 @@ async function runAsyncTests(): Promise<void> {
 	}
 
 	{
-		const suggestedProposal = createProposal("proposal-suggested", {
-			status: "suggested",
-		});
-		const editedProposal = createProposal("proposal-edited", {
-			status: "edited",
-		});
-		const rejectedProposal = createProposal("proposal-rejected", {
-			status: "rejected",
-		});
-		const writtenProposal = createProposal("proposal-written", {
-			status: "written",
-		});
+		const firstProposal = createProposal("proposal-a");
+		const secondProposal = createProposal("proposal-b");
 		const sourceRecord = createSourceRecord("Notes/Intro.md");
 		const link = createConceptSourceLink("link-a");
 		const storage = new MemoryKnowledgeProposalStorage({
-			...createPluginData({
-				[suggestedProposal.id]: suggestedProposal,
-				[editedProposal.id]: editedProposal,
-				[rejectedProposal.id]: rejectedProposal,
-				[writtenProposal.id]: writtenProposal,
-			}, {
+			...createPluginData({}, {
 				[sourceRecord.sourcePath]: sourceRecord,
 			}, {
 				[link.id]: link,
@@ -229,11 +210,14 @@ async function runAsyncTests(): Promise<void> {
 		});
 		const store = new KnowledgeProposalStore(storage);
 
-		await store.clearHistory();
+		await store.replaceProposals({
+			[firstProposal.id]: firstProposal,
+			[secondProposal.id]: secondProposal,
+		});
 
 		assert.deepEqual(Object.keys(storage.savedData?.knowledgeProposals ?? {}).sort(), [
-			"proposal-edited",
-			"proposal-suggested",
+			"proposal-a",
+			"proposal-b",
 		]);
 		assert.equal(storage.savedData?.settings.conceptsFolder, "Custom/Concepts");
 		assert.equal(typeof storage.savedData?.reviewStates["encapsulation-basic"], "object");

@@ -123,7 +123,11 @@ Written Cards do not receive FSRS state during writing; they enter the normal pa
 
 Successful `new_concept` writes can also index approved Concept-source links. Mneme stores these links in plugin data and updates the analyzed Source Note's `linkedConceptIds` when source analysis state exists.
 
-Active Inbox shows actionable proposals only: `suggested`, `opened`, `edited`, and `stale`. Written and rejected proposals move to History. Clearing Inbox History removes rejected/written proposal records only; it does not delete generated Markdown, review state, settings, source analysis records, or Concept-source links.
+Active Inbox shows actionable proposals only: `suggested`, `opened`, `edited`, and `stale`. Written and rejected proposals are not a user-facing history archive; they should disappear from the active Inbox.
+
+Inbox Refresh and `Mneme: Resync Mneme Index` reconcile plugin data against the current vault. If a proposal's source note no longer exists, Mneme removes that stale proposal from plugin data. If a Source Analysis record or Concept-source link points to a missing source note or missing Concept, Mneme prunes the stale index entry.
+
+Reconciliation never deletes user Markdown. It only cleans plugin index/cache/proposal state so `data.json` follows the current vault instead of acting as a second content source of truth.
 
 Raw JSON editing remains available under Advanced / Raw JSON for debugging and escape hatches, but the primary flow should present proposal-specific fields and `Accept Concept` / `Accept Card` actions.
 

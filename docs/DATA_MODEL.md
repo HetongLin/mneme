@@ -22,9 +22,9 @@ Markdown stores approved `Concept.md` and `Card.md` content. `data.json` stores 
 
 Knowledge proposals may include typed payloads for proposed Concept and Card changes. These payloads are proposal state only; Markdown content is written only after explicit user acceptance.
 
-Inbox acceptance is explicit. `Accept Concept` and `Accept Card` validate supported proposal payloads, write clean editable `Concept.md` / `Card.md`, and mark proposals `written` only after a successful vault write. Rejected and written proposals are history records, not active Inbox work.
+Inbox acceptance is explicit. `Accept Concept` and `Accept Card` validate supported proposal payloads, write clean editable `Concept.md` / `Card.md`, and mark proposals `written` only after a successful vault write. Rejected and written proposals are not active Inbox work.
 
-Clearing Inbox History removes rejected/written proposal records from `data.json` only. It does not delete generated Markdown, settings, review states, source analysis records, or Concept-source links.
+Inbox Refresh and `Mneme: Resync Mneme Index` reconcile plugin data with the current vault. Stale proposals, source analysis records, and Concept-source links that point to deleted vault files are pruned from `data.json`. Reconciliation never deletes user Markdown files; it only cleans index/cache/proposal state.
 
 `ConceptSourceLinkStore` persists approved Source Note to Concept links in plugin data. Successful `new_concept` writes can create approved `ConceptSourceLink` records and update `SourceAnalysisRecord.linkedConceptIds`. These links are runtime index metadata, not the main Concept body.
 

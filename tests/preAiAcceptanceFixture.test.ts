@@ -205,6 +205,25 @@ async function runAsyncTests(): Promise<void> {
 	}
 
 	{
+		const staleLink = createConceptSourceLink("stale-acceptance-link", {
+			conceptId: ACCEPTANCE_CONCEPT_ID,
+			sourcePath: ACCEPTANCE_SOURCE_PATH,
+			status: "approved",
+		});
+		const { proposalStore, service } = await createFixtureService(
+			new MemoryKnowledgeProposalStorage(createPluginData({}, {}, {
+				[staleLink.id]: staleLink,
+			})),
+			new MemoryVaultAdapter(),
+			new MemoryConceptScanner(),
+		);
+		const result = await service.generateCardProposal();
+
+		assert.equal(result.status, "missing_concept");
+		assert.equal(await proposalStore.getProposal(ACCEPTANCE_CARD_PROPOSAL_ID), undefined);
+	}
+
+	{
 		const sourceRecord = createSourceRecord(ACCEPTANCE_SOURCE_PATH);
 		const conceptPath = "Mneme/Concepts/Pre-AI-Acceptance-Pipeline/Concept.md";
 		const conceptScanner = new MemoryConceptScanner([{

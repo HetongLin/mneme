@@ -70,10 +70,12 @@ Pass:
 - `Accept Concept` creates readable `Concept.md`
 - `Accept Card` creates parser-compatible `Card.md`
 - accepted proposals move out of Active Inbox
-- rejected and written proposals are visible only in History
-- clearing Inbox History does not delete generated Markdown
+- rejected proposals move out of Active Inbox
+- Inbox Refresh removes stale proposals whose source note was deleted
+- `Mneme: Resync Mneme Index` removes stale plugin index state without deleting Markdown
 - concept-source link is indexed after Concept write
 - Concept Library shows the Concept
+- deleted `Concept.md` files disappear from Concept Library after refresh
 - Review View behavior is unchanged
 
 Fail:
@@ -83,7 +85,9 @@ Fail:
 - proposal writes Markdown without an explicit `Accept Concept` or `Accept Card`
 - `Concept.md` shows raw `sourceHash`, `proposalId`, `fsrsState`, `dueAt`, `stability`, `difficulty`, or raw JSON
 - `Card.md` contains FSRS state
-- clearing Inbox History deletes generated `Concept.md` or `Card.md`
+- index reconciliation deletes generated `Concept.md` or `Card.md`
+- deleted source notes leave stale proposals visible after Inbox Refresh
+- deleted `Concept.md` files remain visible after Concept Library refresh
 - Concept Library cannot find the generated Concept
 - Review View breaks or Daily Review behavior changes
 

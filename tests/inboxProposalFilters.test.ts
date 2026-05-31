@@ -1,9 +1,7 @@
 import assert from "node:assert/strict";
 import {
 	filterActiveInboxProposals,
-	filterInboxHistoryProposals,
 	isActiveInboxProposal,
-	isInboxHistoryProposal,
 } from "../src/services/inboxProposalFilters";
 import { createProposal } from "./knowledgeProposalTestUtils";
 
@@ -25,19 +23,11 @@ import { createProposal } from "./knowledgeProposalTestUtils";
 	assert.equal(isActiveInboxProposal(rejected), false);
 	assert.equal(isActiveInboxProposal(written), false);
 
-	assert.equal(isInboxHistoryProposal(rejected), true);
-	assert.equal(isInboxHistoryProposal(written), true);
-	assert.equal(isInboxHistoryProposal(suggested), false);
-
 	assert.deepEqual(filterActiveInboxProposals(proposals).map((proposal) => proposal.id), [
 		"suggested",
 		"opened",
 		"edited",
 		"stale",
-	]);
-	assert.deepEqual(filterInboxHistoryProposals(proposals).map((proposal) => proposal.id), [
-		"rejected",
-		"written",
 	]);
 }
 

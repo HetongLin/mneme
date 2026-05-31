@@ -4,7 +4,6 @@ import { ProposalDetailModal } from "../modals/proposalDetailModal";
 import { ApprovedProposalWriter } from "../services/approvedProposalWriter";
 import {
 	filterActiveInboxProposals,
-	filterInboxHistoryProposals,
 } from "../services/inboxProposalFilters";
 import {
 	formatAcceptActionLabel,
@@ -26,19 +25,19 @@ import {
 	isConceptStageProposal,
 } from "../services/knowledgeProposalStage";
 import { validateKnowledgeProposalPayload } from "../services/knowledgeProposalValidation";
-import { isMarkdownWritableProposalKind } from "../services/markdownProposalRenderer";
+import type { VaultStateReconciler } from "../services/vaultStateReconciler";
 
 export const INBOX_VIEW_TYPE = "mneme-inbox-view";
 
 export class MnemeInboxView extends ItemView {
 	private proposals: KnowledgeProposal[] = [];
-	private showHistory = false;
 	private statusMessage = "Loading proposals...";
 
 	constructor(
 		leaf: WorkspaceLeaf,
 		private readonly proposalStore: KnowledgeProposalStore,
 		private readonly proposalWriter?: ApprovedProposalWriter,
+		private readonly vaultStateReconciler?: VaultStateReconciler,
 	) {
 		super(leaf);
 	}
@@ -64,10 +63,22 @@ export class MnemeInboxView extends ItemView {
 		this.contentEl.empty();
 	}
 
-	async refresh(): Promise<void> {
+	async refresh(options: { showNotice?: boolean } = {}): Promise<void> {
 		try {
+			const reconciliationResult = await this.vaultStateReconciler?.reconcile();
 			this.proposals = await this.proposalStore.listProposals();
-			this.statusMessage = `${filterActiveInboxProposals(this.proposals).length} active proposals loaded.`;
+			const activeCount = filterActiveInboxProposals(this.proposals).length;
+			const removedCount = countRemovedItems(reconciliationResult);
+
+			this.statusMessage = removedCount > 0
+				? `${activeCount} active proposals loaded. Removed ${removedCount} stale items.`
+				: `${activeCount} active proposals loaded.`;
+
+			if (options.showNotice) {
+				new Notice(removedCount > 0
+					? `Mneme: Inbox refreshed. Removed ${removedCount} stale proposals.`
+					: "Mneme: Inbox refreshed.");
+			}
 		} catch (error) {
 			console.error("Mneme: failed to load Inbox proposals", error);
 			this.proposals = [];
@@ -104,18 +115,7 @@ export class MnemeInboxView extends ItemView {
 		const toolbarEl = headerEl.createDiv({ cls: "mneme-review-toolbar" });
 		toolbarEl.createEl("button", { text: "Refresh" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
-				void this.refresh();
-			});
-		});
-		toolbarEl.createEl("button", { text: this.showHistory ? "Hide History" : "Show History" }, (buttonEl) => {
-			buttonEl.addEventListener("click", () => {
-				this.showHistory = !this.showHistory;
-				this.render();
-			});
-		});
-		toolbarEl.createEl("button", { text: "Clear History" }, (buttonEl) => {
-			buttonEl.addEventListener("click", () => {
-				void this.clearHistory();
+				void this.refresh({ showNotice: true });
 			});
 		});
 	}
@@ -142,12 +142,11 @@ export class MnemeInboxView extends ItemView {
 		const listEl = this.contentEl.createDiv({ cls: "mneme-review-queue" });
 
 		const activeProposals = filterActiveInboxProposals(this.proposals);
-		const historyProposals = filterInboxHistoryProposals(this.proposals);
 
-		if (activeProposals.length === 0 && (!this.showHistory || historyProposals.length === 0)) {
+		if (activeProposals.length === 0) {
 			listEl.createEl("p", {
 				cls: "mneme-review-empty",
-				text: "No proposals yet.",
+				text: "No active proposals.",
 			});
 			listEl.createEl("p", {
 				cls: "mneme-review-status",
@@ -173,14 +172,6 @@ export class MnemeInboxView extends ItemView {
 				return !isConceptStageProposal(proposal) && !isCardStageProposal(proposal);
 			})),
 		);
-
-		if (this.showHistory) {
-			this.renderProposalSection(
-				listEl,
-				"History",
-				sortProposals(historyProposals),
-			);
-		}
 	}
 
 	private renderProposalSection(parentEl: HTMLElement, title: string, proposals: KnowledgeProposal[]): void {
@@ -223,14 +214,6 @@ export class MnemeInboxView extends ItemView {
 			cls: getValidationSummary(proposal).startsWith("Needs") ? "mneme-review-error" : "mneme-review-queue-meta",
 			text: getValidationSummary(proposal),
 		});
-		const writeIndicator = getWriteIndicator(proposal);
-
-		if (writeIndicator) {
-			textEl.createEl("p", {
-				cls: "mneme-review-queue-meta",
-				text: writeIndicator,
-			});
-		}
 		const sourceLinkIndicator = getSourceLinkIndicator(proposal);
 
 		if (sourceLinkIndicator) {
@@ -338,28 +321,6 @@ export class MnemeInboxView extends ItemView {
 		}
 	}
 
-	private async clearHistory(): Promise<void> {
-		try {
-			await this.proposalStore.clearHistory();
-			new Notice("Mneme: Inbox history cleared.");
-			await this.refresh();
-		} catch (error) {
-			console.error("Mneme: failed to clear Inbox history", error);
-			new Notice("Mneme: failed to clear Inbox history. See console.");
-		}
-	}
-}
-
-function getWriteIndicator(proposal: KnowledgeProposal): string | undefined {
-	if (proposal.status === "written") {
-		return "Written";
-	}
-
-	if (proposal.status === "approved" && isMarkdownWritableProposalKind(proposal.kind)) {
-		return "Ready to write";
-	}
-
-	return undefined;
 }
 
 function getSourceLinkIndicator(proposal: KnowledgeProposal): string | undefined {
@@ -393,6 +354,18 @@ function summarizeProposals(proposals: KnowledgeProposal[]): Record<"approved" |
 		stale: proposals.filter((proposal) => proposal.status === "stale").length,
 		written: proposals.filter((proposal) => proposal.status === "written").length,
 	};
+}
+
+function countRemovedItems(
+	result: Awaited<ReturnType<VaultStateReconciler["reconcile"]>> | undefined,
+): number {
+	if (!result) {
+		return 0;
+	}
+
+	return result.removedProposalIds.length
+		+ result.removedSourcePaths.length
+		+ result.removedConceptSourceLinkIds.length;
 }
 
 function isPendingStatus(status: KnowledgeProposalStatus): boolean {

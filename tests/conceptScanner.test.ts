@@ -149,6 +149,43 @@ async function runAsyncTests(): Promise<void> {
 
 		assert.deepEqual(concepts.map((concept) => concept.title), ["Alpha", "Beta"]);
 	}
+
+	{
+		const files: Record<string, {
+			frontmatter?: unknown;
+			markdown: string;
+			mtime?: number;
+		}> = {
+			"Mneme/Concepts/Deleted/Concept.md": {
+				frontmatter: {
+					mneme_id: "concept-deleted",
+					mneme_type: "concept",
+				},
+				markdown: "# Deleted",
+			},
+			"Mneme/Concepts/Kept/Concept.md": {
+				frontmatter: {
+					mneme_id: "concept-kept",
+					mneme_type: "concept",
+				},
+				markdown: "# Kept",
+			},
+		};
+		const scanner = new ConceptScanner({
+			vault: new MemoryConceptVaultAdapter(files),
+		});
+
+		assert.deepEqual((await scanner.scanConcepts()).map((concept) => concept.conceptId).sort(), [
+			"concept-deleted",
+			"concept-kept",
+		]);
+
+		delete files["Mneme/Concepts/Deleted/Concept.md"];
+
+		assert.deepEqual((await scanner.scanConcepts()).map((concept) => concept.conceptId), [
+			"concept-kept",
+		]);
+	}
 }
 
 export const done = runAsyncTests();

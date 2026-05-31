@@ -36,6 +36,15 @@ export class SourceAnalysisStore {
 		await this.storage.saveData(nextData);
 	}
 
+	async replaceRecords(records: Record<string, SourceAnalysisRecord>): Promise<void> {
+		const data = await this.loadPluginData();
+
+		await this.storage.saveData({
+			...data,
+			sourceAnalysisRecords: { ...records },
+		});
+	}
+
 	async listRecords(): Promise<SourceAnalysisRecord[]> {
 		return Object.values(await this.loadRecords());
 	}

@@ -19,6 +19,7 @@ const testCommands = [
 	["npm", ["run", "test:settings"]],
 	["npm", ["run", "test:source-analysis"]],
 	["npm", ["run", "test:source-analysis-store"]],
+	["npm", ["run", "test:vault-state"]],
 ];
 
 for (const [command, args] of testCommands) {

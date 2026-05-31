@@ -1,0 +1,161 @@
+import type { ConceptSummary } from "../models/conceptLibrary";
+import type { ConceptSourceLink } from "../models/conceptSource";
+import type { KnowledgeProposal, KnowledgeProposalStatus } from "../models/knowledgeProposal";
+import type { ConceptSourceLinkStore } from "./conceptSourceLinkStore";
+import type { ConceptSummaryScanner } from "./preAiAcceptanceFixtureService";
+import type { SourceAnalysisStore } from "./sourceAnalysisStore";
+import type { KnowledgeProposalStore } from "./knowledgeProposalStore";
+
+export interface VaultStateFile {
+	path: string;
+}
+
+export interface VaultStateAdapter {
+	exists(path: string): Promise<boolean>;
+	listMarkdownFiles(): Promise<VaultStateFile[]>;
+}
+
+export interface VaultStateReconciliationResult {
+	message: string;
+	missingConceptIds: string[];
+	removedConceptSourceLinkIds: string[];
+	removedProposalIds: string[];
+	removedSourcePaths: string[];
+}
+
+export interface VaultStateReconcilerOptions {
+	conceptScanner?: ConceptSummaryScanner;
+	conceptSourceLinkStore: ConceptSourceLinkStore;
+	knowledgeProposalStore: KnowledgeProposalStore;
+	sourceAnalysisStore: SourceAnalysisStore;
+	vault: VaultStateAdapter;
+}
+
+export class VaultStateReconciler {
+	constructor(private readonly options: VaultStateReconcilerOptions) {
+	}
+
+	async reconcile(): Promise<VaultStateReconciliationResult> {
+		const proposalResult = await this.reconcileProposals();
+		const sourceResult = await this.reconcileSourceAnalysisRecords();
+		const linkResult = await this.reconcileConceptSourceLinks();
+		const removedCount = proposalResult.removedProposalIds.length
+			+ sourceResult.removedSourcePaths.length
+			+ linkResult.removedConceptSourceLinkIds.length;
+
+		return {
+			message: removedCount > 0
+				? `Removed ${removedCount} stale index items.`
+				: "Mneme indexes already match the current vault state.",
+			missingConceptIds: linkResult.missingConceptIds,
+			removedConceptSourceLinkIds: linkResult.removedConceptSourceLinkIds,
+			removedProposalIds: proposalResult.removedProposalIds,
+			removedSourcePaths: sourceResult.removedSourcePaths,
+		};
+	}
+
+	private async reconcileProposals(): Promise<{ removedProposalIds: string[] }> {
+		const proposals = await this.options.knowledgeProposalStore.loadProposals();
+		const activeProposals: Record<string, KnowledgeProposal> = {};
+		const removedProposalIds: string[] = [];
+
+		for (const [id, proposal] of Object.entries(proposals)) {
+			if (await this.shouldKeepProposal(proposal)) {
+				activeProposals[id] = proposal;
+			} else {
+				removedProposalIds.push(id);
+			}
+		}
+
+		if (removedProposalIds.length > 0) {
+			await this.options.knowledgeProposalStore.replaceProposals(activeProposals);
+		}
+
+		return { removedProposalIds };
+	}
+
+	private async shouldKeepProposal(proposal: KnowledgeProposal): Promise<boolean> {
+		if (!isActionableProposalStatus(proposal.status)) {
+			return false;
+		}
+
+		if (!proposal.sourcePath) {
+			return true;
+		}
+
+		return this.options.vault.exists(proposal.sourcePath);
+	}
+
+	private async reconcileSourceAnalysisRecords(): Promise<{ removedSourcePaths: string[] }> {
+		const records = await this.options.sourceAnalysisStore.loadRecords();
+		const activeRecords = { ...records };
+		const removedSourcePaths: string[] = [];
+
+		for (const [sourcePath, record] of Object.entries(records)) {
+			if (await this.options.vault.exists(record.sourcePath)) {
+				continue;
+			}
+
+			delete activeRecords[sourcePath];
+			removedSourcePaths.push(sourcePath);
+		}
+
+		if (removedSourcePaths.length > 0) {
+			await this.options.sourceAnalysisStore.replaceRecords(activeRecords);
+		}
+
+		return { removedSourcePaths };
+	}
+
+	private async reconcileConceptSourceLinks(): Promise<{
+		missingConceptIds: string[];
+		removedConceptSourceLinkIds: string[];
+	}> {
+		const links = await this.options.conceptSourceLinkStore.loadLinks();
+		const concepts = await this.scanConceptsSafely();
+		const knownConceptIds = concepts ? new Set(concepts.map((concept) => concept.conceptId)) : undefined;
+		const activeLinks: Record<string, ConceptSourceLink> = {};
+		const removedConceptSourceLinkIds: string[] = [];
+		const missingConceptIds = new Set<string>();
+
+		for (const [id, link] of Object.entries(links)) {
+			const sourceExists = await this.options.vault.exists(link.sourcePath);
+			const conceptExists = !knownConceptIds || knownConceptIds.has(link.conceptId);
+
+			if (sourceExists && conceptExists) {
+				activeLinks[id] = link;
+				continue;
+			}
+
+			removedConceptSourceLinkIds.push(id);
+
+			if (!conceptExists) {
+				missingConceptIds.add(link.conceptId);
+			}
+		}
+
+		if (removedConceptSourceLinkIds.length > 0) {
+			await this.options.conceptSourceLinkStore.replaceLinks(activeLinks);
+		}
+
+		return {
+			missingConceptIds: [...missingConceptIds],
+			removedConceptSourceLinkIds,
+		};
+	}
+
+	private async scanConceptsSafely(): Promise<ConceptSummary[] | undefined> {
+		if (!this.options.conceptScanner) {
+			return undefined;
+		}
+
+		return this.options.conceptScanner.scanConcepts();
+	}
+}
+
+function isActionableProposalStatus(status: KnowledgeProposalStatus): boolean {
+	return status === "suggested"
+		|| status === "opened"
+		|| status === "edited"
+		|| status === "stale";
+}

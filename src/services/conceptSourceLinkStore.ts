@@ -38,6 +38,15 @@ export class ConceptSourceLinkStore {
 		});
 	}
 
+	async replaceLinks(links: Record<string, ConceptSourceLink>): Promise<void> {
+		const data = await this.loadPluginData();
+
+		await this.storage.saveData({
+			...data,
+			conceptSourceLinks: { ...links },
+		});
+	}
+
 	async listLinks(): Promise<ConceptSourceLink[]> {
 		return Object.values(await this.loadLinks());
 	}
