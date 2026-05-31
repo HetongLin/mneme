@@ -245,6 +245,15 @@ If your plugin does not need CSS, delete this file.
 	margin-bottom: 8px;
 }
 
+.mneme-inbox-section-title {
+	color: var(--text-muted);
+	font-family: var(--font-ui-medium);
+	font-size: 13px;
+	letter-spacing: 0;
+	margin: 14px 0 0;
+	text-transform: none;
+}
+
 .mneme-proposal-detail-modal-metadata {
 	background: var(--background-secondary);
 	border-radius: var(--radius-m);

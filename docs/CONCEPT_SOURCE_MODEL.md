@@ -107,6 +107,14 @@ Proposal payloads now describe draft Concept views, Concept-source links, and Ca
 
 The first Markdown writer supports `new_concept` and `new_card` only. Unsupported proposal kinds remain in the Inbox until future writers can preview and patch existing Markdown safely.
 
+## Concept-First Capture
+
+Source Note analysis is Concept-first. It may suggest new Concepts, links to existing Concepts, merges, updates, or additional views, but it must not create Card proposals in the same initial step.
+
+Cards are generated in a separate stage after a Concept exists as approved/written Markdown. Card proposals then enter the same Inbox approval lifecycle before any `Card.md` write occurs.
+
+This keeps Concepts and Cards separately reviewable and editable, and prevents raw Source Note analysis from becoming a direct Card dump.
+
 ## Readable And Identifiable Markdown
 
 `Concept.md` is a clean learning note plus a thin identity layer. Generated Concept notes include minimal frontmatter such as `mneme_type: concept`, `mneme_id`, and `mneme_version`, then present Core Meaning, Views, Review Cards, Source Notes, and Related Concepts as editable reading sections.

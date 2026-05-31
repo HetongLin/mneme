@@ -354,6 +354,18 @@ The library displays clean learning information from Markdown sections such as C
 
 This scanner also prepares future AI Capture: existing Concept summaries can help avoid duplicates and support merge, update, and add-view proposals.
 
+## Concept-First Capture
+
+Source Note analysis and future vault scanning are Concept-first. They may create Concept-stage proposals, but they must not create Card proposals during the initial source-analysis step.
+
+Card proposals are created later from written Concepts. They remain Inbox proposals until reviewed, approved, and explicitly written to `Card.md`.
+
+This preserves the product model:
+
+```text
+Source Note -> Concept proposal -> Concept.md -> Card proposal -> Card.md -> FSRS
+```
+
 See also: [Pre-FSRS Architecture Checkpoint](PRE_FSRS_CHECKPOINT.md).
 
 See also: [Post-FSRS Integration Checkpoint](POST_FSRS_CHECKPOINT.md).

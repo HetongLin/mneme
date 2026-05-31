@@ -10,6 +10,11 @@ import {
 	getProposalTitle,
 } from "../services/knowledgeProposalDisplay";
 import { KnowledgeProposalStore } from "../services/knowledgeProposalStore";
+import {
+	getProposalStageLabel,
+	isCardStageProposal,
+	isConceptStageProposal,
+} from "../services/knowledgeProposalStage";
 import { validateKnowledgeProposalPayload } from "../services/knowledgeProposalValidation";
 import { isMarkdownWritableProposalKind } from "../services/markdownProposalRenderer";
 
@@ -126,8 +131,37 @@ export class MnemeInboxView extends ItemView {
 			return;
 		}
 
-		for (const proposal of sortProposals(this.proposals)) {
-			this.renderProposalCard(listEl, proposal);
+		this.renderProposalSection(
+			listEl,
+			"Concept Proposals",
+			sortProposals(this.proposals.filter(isConceptStageProposal)),
+		);
+		this.renderProposalSection(
+			listEl,
+			"Card Proposals",
+			sortProposals(this.proposals.filter(isCardStageProposal)),
+		);
+		this.renderProposalSection(
+			listEl,
+			"Unsupported/Other Proposals",
+			sortProposals(this.proposals.filter((proposal) => {
+				return !isConceptStageProposal(proposal) && !isCardStageProposal(proposal);
+			})),
+		);
+	}
+
+	private renderProposalSection(parentEl: HTMLElement, title: string, proposals: KnowledgeProposal[]): void {
+		if (proposals.length === 0) {
+			return;
+		}
+
+		parentEl.createEl("h3", {
+			cls: "mneme-inbox-section-title",
+			text: title,
+		});
+
+		for (const proposal of proposals) {
+			this.renderProposalCard(parentEl, proposal);
 		}
 	}
 
@@ -142,7 +176,7 @@ export class MnemeInboxView extends ItemView {
 		});
 		textEl.createEl("p", {
 			cls: "mneme-review-queue-meta",
-			text: getProposalSubtitle(proposal),
+			text: `${getProposalStageLabel(proposal)} · ${getProposalSubtitle(proposal)}`,
 		});
 		textEl.createEl("p", {
 			cls: "mneme-review-status",

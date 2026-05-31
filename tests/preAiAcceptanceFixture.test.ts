@@ -1,13 +1,17 @@
 import assert from "node:assert/strict";
 import {
 	ACCEPTANCE_CARD_PROPOSAL_ID,
+	ACCEPTANCE_CONCEPT_ID,
 	ACCEPTANCE_CONCEPT_PROPOSAL_ID,
+	ACCEPTANCE_CONCEPT_TITLE,
 	ACCEPTANCE_SOURCE_NOTE_TEMPLATE,
 	ACCEPTANCE_SOURCE_PATH,
 } from "../src/acceptance/preAiAcceptanceFixture";
+import type { ConceptSummary } from "../src/models/conceptLibrary";
 import type { MnemeVaultAdapter } from "../src/services/approvedProposalWriter";
 import { KnowledgeProposalStore } from "../src/services/knowledgeProposalStore";
 import { PreAiAcceptanceFixtureService } from "../src/services/preAiAcceptanceFixtureService";
+import type { ConceptSummaryScanner } from "../src/services/preAiAcceptanceFixtureService";
 import { SourceAnalysisStore } from "../src/services/sourceAnalysisStore";
 import { validateKnowledgeProposalPayload } from "../src/services/knowledgeProposalValidation";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
@@ -60,13 +64,24 @@ class MemoryVaultAdapter implements MnemeVaultAdapter {
 	}
 }
 
+class MemoryConceptScanner implements ConceptSummaryScanner {
+	constructor(private readonly concepts: ConceptSummary[] = []) {
+	}
+
+	async scanConcepts(): Promise<ConceptSummary[]> {
+		return [...this.concepts];
+	}
+}
+
 async function createFixtureService(
 	storage = new MemoryKnowledgeProposalStorage(createPluginData()),
 	vault = new MemoryVaultAdapter(),
+	conceptScanner = new MemoryConceptScanner(),
 ) {
 	const proposalStore = new KnowledgeProposalStore(storage);
 	const sourceAnalysisStore = new SourceAnalysisStore(storage);
 	const service = new PreAiAcceptanceFixtureService({
+		conceptScanner,
 		now: () => "2026-01-03T12:00:00.000Z",
 		proposalStore,
 		sourceAnalysisStore,
@@ -121,15 +136,11 @@ async function runAsyncTests(): Promise<void> {
 		const cardProposal = await proposalStore.getProposal(ACCEPTANCE_CARD_PROPOSAL_ID);
 
 		assert.equal(conceptProposal?.kind, "new_concept");
-		assert.equal(cardProposal?.kind, "new_card");
+		assert.equal(cardProposal, undefined);
 		assert.equal(conceptProposal?.status, "suggested");
-		assert.equal(cardProposal?.status, "suggested");
 		assert.equal(conceptProposal?.sourcePath, ACCEPTANCE_SOURCE_PATH);
-		assert.equal(cardProposal?.sourcePath, ACCEPTANCE_SOURCE_PATH);
 		assert.equal(conceptProposal?.sourceHash, sourceRecord.contentHash);
-		assert.equal(cardProposal?.sourceHash, sourceRecord.contentHash);
 		assert.equal(validateKnowledgeProposalPayload(conceptProposal!).valid, true);
-		assert.equal(validateKnowledgeProposalPayload(cardProposal!).valid, true);
 	}
 
 	{
@@ -140,9 +151,8 @@ async function runAsyncTests(): Promise<void> {
 
 		const proposals = await proposalStore.listProposals();
 
-		assert.equal(proposals.length, 2);
+		assert.equal(proposals.length, 1);
 		assert.deepEqual(proposals.map((proposal) => proposal.id).sort(), [
-			ACCEPTANCE_CARD_PROPOSAL_ID,
 			ACCEPTANCE_CONCEPT_PROPOSAL_ID,
 		].sort());
 	}
@@ -183,6 +193,108 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(typeof storage.savedData?.conceptSourceLinks[link.id], "object");
 		assert.equal(typeof storage.savedData?.knowledgeProposals[existingProposal.id], "object");
 		assert.equal(typeof storage.savedData?.knowledgeProposals[ACCEPTANCE_CONCEPT_PROPOSAL_ID], "object");
+		assert.equal(storage.savedData?.knowledgeProposals[ACCEPTANCE_CARD_PROPOSAL_ID], undefined);
+	}
+
+	{
+		const { proposalStore, service } = await createFixtureService();
+		const result = await service.generateCardProposal();
+
+		assert.equal(result.status, "missing_concept");
+		assert.equal(await proposalStore.getProposal(ACCEPTANCE_CARD_PROPOSAL_ID), undefined);
+	}
+
+	{
+		const sourceRecord = createSourceRecord(ACCEPTANCE_SOURCE_PATH);
+		const conceptPath = "Mneme/Concepts/Pre-AI-Acceptance-Pipeline/Concept.md";
+		const conceptScanner = new MemoryConceptScanner([{
+			conceptId: ACCEPTANCE_CONCEPT_ID,
+			path: conceptPath,
+			title: ACCEPTANCE_CONCEPT_TITLE,
+		}]);
+		const { proposalStore, service, vault } = await createFixtureService(
+			new MemoryKnowledgeProposalStorage(createPluginData({}, {
+				[ACCEPTANCE_SOURCE_PATH]: sourceRecord,
+			})),
+			new MemoryVaultAdapter(),
+			conceptScanner,
+		);
+		const result = await service.generateCardProposal();
+		const cardProposal = await proposalStore.getProposal(ACCEPTANCE_CARD_PROPOSAL_ID);
+
+		assert.equal(result.status, "created");
+		assert.equal(cardProposal?.kind, "new_card");
+		assert.equal(cardProposal?.status, "suggested");
+		assert.equal(cardProposal?.conceptId, ACCEPTANCE_CONCEPT_ID);
+		assert.equal(cardProposal?.sourcePath, conceptPath);
+		assert.equal(cardProposal?.sourceHash, undefined);
+		assert.equal(cardProposal?.kind === "new_card" ? cardProposal.payload?.conceptId : undefined, ACCEPTANCE_CONCEPT_ID);
+		assert.equal(cardProposal?.kind === "new_card" ? cardProposal.payload?.conceptTitle : undefined, ACCEPTANCE_CONCEPT_TITLE);
+		assert.equal(validateKnowledgeProposalPayload(cardProposal!).valid, true);
+		assert.equal(vault.files.has("Mneme/Acceptance/Card.md"), false);
+	}
+
+	{
+		const conceptScanner = new MemoryConceptScanner([{
+			conceptId: ACCEPTANCE_CONCEPT_ID,
+			path: "Mneme/Concepts/Pre-AI-Acceptance-Pipeline/Concept.md",
+			title: ACCEPTANCE_CONCEPT_TITLE,
+		}]);
+		const { proposalStore, service } = await createFixtureService(
+			new MemoryKnowledgeProposalStorage(createPluginData()),
+			new MemoryVaultAdapter(),
+			conceptScanner,
+		);
+
+		await service.generateCardProposal();
+		await service.generateCardProposal();
+
+		const proposals = await proposalStore.listProposals();
+
+		assert.equal(proposals.length, 1);
+		assert.equal(proposals[0].id, ACCEPTANCE_CARD_PROPOSAL_ID);
+	}
+
+	{
+		const existingProposal = createProposal("existing-proposal");
+		const sourceRecord = createSourceRecord("Notes/Existing.md");
+		const link = createConceptSourceLink("link-a");
+		const storage = new MemoryKnowledgeProposalStorage({
+			...createPluginData({
+				[existingProposal.id]: existingProposal,
+			}, {
+				[sourceRecord.sourcePath]: sourceRecord,
+			}, {
+				[link.id]: link,
+			}),
+			reviewStates: {
+				"encapsulation-basic": {
+					cardId: "encapsulation-basic",
+					createdAt: "2026-01-01T12:00:00.000Z",
+					lapseCount: 0,
+					reviewCount: 1,
+					updatedAt: "2026-01-01T12:00:00.000Z",
+				},
+			},
+			settings: {
+				...DEFAULT_SETTINGS,
+				fsrsRequestRetention: 0.85,
+			},
+		});
+		const conceptScanner = new MemoryConceptScanner([{
+			conceptId: ACCEPTANCE_CONCEPT_ID,
+			path: "Mneme/Concepts/Pre-AI-Acceptance-Pipeline/Concept.md",
+			title: ACCEPTANCE_CONCEPT_TITLE,
+		}]);
+		const { service } = await createFixtureService(storage, new MemoryVaultAdapter(), conceptScanner);
+
+		await service.generateCardProposal();
+
+		assert.equal(storage.savedData?.settings.fsrsRequestRetention, 0.85);
+		assert.equal(typeof storage.savedData?.reviewStates["encapsulation-basic"], "object");
+		assert.equal(typeof storage.savedData?.sourceAnalysisRecords[sourceRecord.sourcePath], "object");
+		assert.equal(typeof storage.savedData?.conceptSourceLinks[link.id], "object");
+		assert.equal(typeof storage.savedData?.knowledgeProposals[existingProposal.id], "object");
 		assert.equal(typeof storage.savedData?.knowledgeProposals[ACCEPTANCE_CARD_PROPOSAL_ID], "object");
 	}
 }

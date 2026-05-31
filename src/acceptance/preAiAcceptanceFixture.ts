@@ -46,14 +46,6 @@ export function buildPreAiAcceptanceConceptProposal(
 		payload: {
 			coreMeaning: "Mneme's pre-AI acceptance pipeline proves that reviewed proposals can become readable Markdown and searchable Concepts without bypassing human approval.",
 			learningMode: "reviewable",
-			proposedCards: [{
-				back: ACCEPTANCE_CARD_BACK,
-				cardType: "procedure",
-				evidence,
-				front: ACCEPTANCE_CARD_FRONT,
-				rubric: "A correct answer mentions Inbox approval, explicit Markdown writing, ConceptSourceLink indexing, Concept Library scanning, and unchanged Review behavior.",
-				sourcePath: args.sourcePath,
-			}],
 			proposedSourceLinks: args.sourcePath ? [{
 				evidence,
 				relationType: "origin",

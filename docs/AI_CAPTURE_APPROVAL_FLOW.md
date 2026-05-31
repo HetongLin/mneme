@@ -34,6 +34,30 @@ Source Note -> direct Card dump
 
 Cards are generated to test Concepts, not to replace Concepts.
 
+## Concept-First Capture Contract
+
+Initial source analysis can create Concept-stage proposals only:
+
+- `new_concept`
+- `link_existing_concept`
+- `add_view`
+- `update_concept`
+- `merge_concept`
+
+It must not create Card proposals during the same initial step.
+
+After a Concept is reviewed, approved, and explicitly written to `Concept.md`, the user can choose a separate Generate Cards action. That later stage may create Card-stage proposals:
+
+- `new_card`
+- `revise_card`
+- `split_card`
+- `merge_card`
+- `retire_card`
+
+Card proposals still enter Inbox, require review/edit/approval, and write `Card.md` only through explicit `Write Markdown`.
+
+Future Scan Vault behavior follows the same rule: first propose Concepts, then generate Cards from written Concepts.
+
 ## Hash-Based Scanning
 
 Source Notes should be re-analyzed only when changed.

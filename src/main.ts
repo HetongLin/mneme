@@ -176,6 +176,14 @@ export default class MnemePlugin extends Plugin {
 				void this.logPreAiAcceptanceFixture();
 			},
 		});
+
+		this.addCommand({
+			id: "mneme-generate-pre-ai-acceptance-cards",
+			name: "Mneme: Generate Pre-AI Acceptance Cards",
+			callback: () => {
+				void this.generatePreAiAcceptanceCards();
+			},
+		});
 	}
 
 	onunload() {
@@ -353,6 +361,7 @@ export default class MnemePlugin extends Plugin {
 	private async createPreAiAcceptanceFixture(): Promise<void> {
 		try {
 			const service = new PreAiAcceptanceFixtureService({
+				conceptScanner: this.createConceptScanner(),
 				proposalStore: this.knowledgeProposalStore,
 				sourceAnalysisStore: this.sourceAnalysisStore,
 				vaultAdapter: new ObsidianVaultAdapter(this.app.vault),
@@ -360,11 +369,36 @@ export default class MnemePlugin extends Plugin {
 			const result = await service.createFixture();
 
 			console.info("Mneme: pre-AI acceptance fixture created", result);
-			new Notice("Mneme: Pre-AI acceptance fixture created.");
+			new Notice("Mneme: Pre-AI concept fixture created.");
 			await this.refreshOpenInboxViews();
 		} catch (error) {
 			console.error("Mneme: failed to create pre-AI acceptance fixture", error);
 			new Notice("Mneme: failed to create pre-AI acceptance fixture. See console.");
+		}
+	}
+
+	private async generatePreAiAcceptanceCards(): Promise<void> {
+		try {
+			const service = new PreAiAcceptanceFixtureService({
+				conceptScanner: this.createConceptScanner(),
+				proposalStore: this.knowledgeProposalStore,
+				sourceAnalysisStore: this.sourceAnalysisStore,
+				vaultAdapter: new ObsidianVaultAdapter(this.app.vault),
+			});
+			const result = await service.generateCardProposal();
+
+			console.info("Mneme: pre-AI acceptance card generation result", result);
+
+			if (result.status === "missing_concept") {
+				new Notice("Mneme: Write the acceptance Concept before generating Cards.");
+				return;
+			}
+
+			new Notice("Mneme: Pre-AI card proposal created.");
+			await this.refreshOpenInboxViews();
+		} catch (error) {
+			console.error("Mneme: failed to generate pre-AI acceptance cards", error);
+			new Notice("Mneme: failed to generate pre-AI acceptance cards. See console.");
 		}
 	}
 

@@ -34,32 +34,39 @@ This does not validate:
 2. Open the generated source note.
 3. Run `Mneme: Analyze Current Note`.
 4. Run `Mneme: Open Inbox`.
-5. Open the concept proposal.
-6. Confirm payload is readable and editable.
-7. Save a small JSON edit.
-8. Approve the concept proposal.
-9. Click `Write Markdown`.
-10. Open generated `Concept.md`.
-11. Confirm `Concept.md` is readable and has minimal frontmatter.
-12. Open the card proposal.
-13. Approve the card proposal.
-14. Click `Write Markdown`.
-15. Open generated `Card.md`.
-16. Confirm `Card.md` links back to `Concept.md` and remains parseable.
-17. Run `Mneme: Log Concept-Source Links`.
-18. Run `Mneme: Log Source Analysis State`.
-19. Run `Mneme: Open Concept Library`.
-20. Search for `Pre-AI Acceptance Pipeline`.
-21. Open Concept from Concept Library.
-22. Open Cards from Concept Library if `cardsPath` exists.
-23. Open Review View and confirm Daily Review behavior is unchanged.
+5. Confirm only the Concept proposal appears initially.
+6. Open the concept proposal.
+7. Confirm payload is readable and editable.
+8. Save a small JSON edit.
+9. Approve the concept proposal.
+10. Click `Write Markdown`.
+11. Open generated `Concept.md`.
+12. Confirm `Concept.md` is readable and has minimal frontmatter.
+13. Run `Mneme: Generate Pre-AI Acceptance Cards`.
+14. Run `Mneme: Open Inbox`.
+15. Confirm the Card proposal now appears under Card Proposals.
+16. Open the card proposal.
+17. Approve the card proposal.
+18. Click `Write Markdown`.
+19. Open generated `Card.md`.
+20. Confirm `Card.md` links back to `Concept.md` and remains parseable.
+21. Run `Mneme: Log Concept-Source Links`.
+22. Run `Mneme: Log Source Analysis State`.
+23. Run `Mneme: Open Concept Library`.
+24. Search for `Pre-AI Acceptance Pipeline`.
+25. Open Concept from Concept Library.
+26. Open Cards from Concept Library if `cardsPath` exists.
+27. Open Review View and confirm Daily Review behavior is unchanged.
 
 ## Pass Criteria
 
 Pass:
 
 - fixture source note exists
-- proposals appear in Inbox
+- initial fixture creates only the Concept proposal
+- Card proposal can only be generated after `Concept.md` exists
+- Card proposal references the written Concept
+- Concept and Card approval remain separate
 - invalid JSON is rejected
 - valid edited payload can be saved
 - approval does not write Markdown automatically
@@ -72,6 +79,7 @@ Pass:
 Fail:
 
 - proposal bypasses approval
+- initial fixture creates a Card proposal before the Concept is written
 - approved proposal writes Markdown automatically without `Write Markdown`
 - `Concept.md` shows raw `sourceHash`, `proposalId`, `fsrsState`, `dueAt`, `stability`, `difficulty`, or raw JSON
 - `Card.md` contains FSRS state
