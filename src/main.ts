@@ -12,11 +12,14 @@ import { CardFileLoader } from "./services/cardFileLoader";
 import { FsrsReviewScheduler, FsrsSchedulerConfig } from "./services/fsrsReviewScheduler";
 import { ApprovedProposalWriter } from "./services/approvedProposalWriter";
 import { ConceptSourceLinkStore } from "./services/conceptSourceLinkStore";
+import { ConceptScanner } from "./services/conceptScanner";
 import { KnowledgeProposalStore } from "./services/knowledgeProposalStore";
+import { ObsidianConceptVaultAdapter } from "./services/obsidianConceptVaultAdapter";
 import { ObsidianVaultAdapter } from "./services/obsidianVaultAdapter";
 import { ReviewStateStore } from "./services/reviewStateStore";
 import { SourceAnalysisService } from "./services/sourceAnalysisService";
 import { SourceAnalysisStore } from "./services/sourceAnalysisStore";
+import { CONCEPT_LIBRARY_VIEW_TYPE, MnemeConceptLibraryView } from "./views/conceptLibraryView";
 import { MnemeInboxView, INBOX_VIEW_TYPE } from "./views/inboxView";
 import { MnemeReviewView, REVIEW_VIEW_TYPE } from "./views/reviewView";
 
@@ -51,6 +54,10 @@ export default class MnemePlugin extends Plugin {
 			leaf,
 			this.knowledgeProposalStore,
 			this.approvedProposalWriter,
+		));
+		this.registerView(CONCEPT_LIBRARY_VIEW_TYPE, (leaf) => new MnemeConceptLibraryView(
+			leaf,
+			this.createConceptScanner(),
 		));
 
 		this.addCommand({
@@ -106,6 +113,14 @@ export default class MnemePlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: "mneme-open-concept-library",
+			name: "Mneme: Open Concept Library",
+			callback: () => {
+				void this.openConceptLibraryView();
+			},
+		});
+
+		this.addCommand({
 			id: "mneme-log-knowledge-proposals",
 			name: "Mneme: Log Knowledge Proposals",
 			callback: () => {
@@ -118,6 +133,14 @@ export default class MnemePlugin extends Plugin {
 			name: "Mneme: Log Concept-Source Links",
 			callback: () => {
 				void this.logConceptSourceLinks();
+			},
+		});
+
+		this.addCommand({
+			id: "mneme-log-concept-library",
+			name: "Mneme: Log Concept Library",
+			callback: () => {
+				void this.logConceptLibrary();
 			},
 		});
 
@@ -250,6 +273,18 @@ export default class MnemePlugin extends Plugin {
 		}
 	}
 
+	private async logConceptLibrary(): Promise<void> {
+		try {
+			const concepts = await this.createConceptScanner().scanConcepts();
+
+			console.info("Mneme: concept library", concepts);
+			new Notice(`Mneme: Logged ${concepts.length} concepts.`);
+		} catch (error) {
+			console.error("Mneme: failed to log Concept Library", error);
+			new Notice("Mneme: failed to log Concept Library. See console.");
+		}
+	}
+
 	private async addSampleKnowledgeProposal(): Promise<void> {
 		try {
 			const activeFile = this.app.workspace.getActiveFile();
@@ -378,6 +413,34 @@ export default class MnemePlugin extends Plugin {
 			type: INBOX_VIEW_TYPE,
 		});
 		await this.app.workspace.revealLeaf(leaf);
+	}
+
+	private async openConceptLibraryView(): Promise<void> {
+		const existingLeaf = this.app.workspace.getLeavesOfType(CONCEPT_LIBRARY_VIEW_TYPE)[0];
+
+		if (existingLeaf) {
+			await this.app.workspace.revealLeaf(existingLeaf);
+			return;
+		}
+
+		const leaf = this.app.workspace.getRightLeaf(false);
+		if (!leaf) {
+			new Notice("Mneme: could not open Concept Library.");
+			return;
+		}
+
+		await leaf.setViewState({
+			active: true,
+			type: CONCEPT_LIBRARY_VIEW_TYPE,
+		});
+		await this.app.workspace.revealLeaf(leaf);
+	}
+
+	private createConceptScanner(): ConceptScanner {
+		return new ConceptScanner({
+			conceptSourceLinkStore: this.conceptSourceLinkStore,
+			vault: new ObsidianConceptVaultAdapter(this.app),
+		});
 	}
 }
 

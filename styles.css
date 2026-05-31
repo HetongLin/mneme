@@ -218,6 +218,33 @@ If your plugin does not need CSS, delete this file.
 	margin-top: 12px;
 }
 
+.mneme-concept-library-controls {
+	align-items: end;
+	display: grid;
+	gap: 12px;
+	grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(140px, auto));
+	margin-bottom: 18px;
+}
+
+.mneme-concept-library-search {
+	width: 100%;
+}
+
+.mneme-concept-library-filter {
+	color: var(--text-muted);
+	display: grid;
+	font-family: var(--font-ui-small);
+	gap: 4px;
+}
+
+.mneme-concept-library-filter select {
+	min-width: 140px;
+}
+
+.mneme-concept-library-item .mneme-review-status {
+	margin-bottom: 8px;
+}
+
 .mneme-proposal-detail-modal-metadata {
 	background: var(--background-secondary);
 	border-radius: var(--radius-m);

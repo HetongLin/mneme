@@ -341,6 +341,19 @@ Not-due-only Concepts are hidden from the main queue but visible in diagnostics.
 
 Future modes may intentionally bypass `dueAt` for Cram, Exam Mode, Random Concept Draw, or Concept Activation. Daily Review must remain due-card driven.
 
+## Concept Library
+
+The Concept Library scans readable, identifiable `Concept.md` files and builds lightweight `ConceptSummary` records at runtime.
+
+Concept recognition uses minimal frontmatter:
+
+- `mneme_type: concept`
+- `mneme_id`
+
+The library displays clean learning information from Markdown sections such as Core Meaning and Why It Matters. It can open the Concept file and linked Card file, but it does not replace Markdown editing or store Concept content in `data.json`.
+
+This scanner also prepares future AI Capture: existing Concept summaries can help avoid duplicates and support merge, update, and add-view proposals.
+
 See also: [Pre-FSRS Architecture Checkpoint](PRE_FSRS_CHECKPOINT.md).
 
 See also: [Post-FSRS Integration Checkpoint](POST_FSRS_CHECKPOINT.md).

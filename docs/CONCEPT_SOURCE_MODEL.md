@@ -115,6 +115,12 @@ The first Markdown writer supports `new_concept` and `new_card` only. Unsupporte
 
 Concept notes link to their Card file, and Card files link back to their Concept. Machine metadata stays in plugin data, not in the main Markdown body.
 
+## Concept Library
+
+The Concept Library is a scanner and browser over approved `Concept.md` files. It recognizes Concepts through minimal Mneme frontmatter, extracts readable sections such as Core Meaning and Why It Matters, and opens the underlying Markdown for editing.
+
+It does not create or modify Concepts. It prepares later AI Capture work by giving Mneme a lightweight view of existing Concepts before proposing duplicates, merges, updates, or additional views.
+
 ## Runtime Concept-Source Indexing
 
 `ConceptSourceLinkStore` persists approved many-to-many links in plugin data.

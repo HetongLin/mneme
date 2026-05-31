@@ -103,6 +103,12 @@ Generated `Card.md` is the concept's review-card file. It includes minimal card-
 
 Cards are not dumped into `Concept.md` by default. `sourceHash`, proposal ids, review state, FSRS state, due dates, stability, difficulty, and raw JSON remain outside the main Markdown reading flow.
 
+## Concept Library Foundation
+
+The Concept Library scans existing `Concept.md` files with Mneme concept frontmatter and shows clean Concept summaries.
+
+It is a browsing and opening layer only. Users edit Concepts by opening Markdown. Future AI Capture can use these summaries to match new source-note candidates against existing Concepts before proposing duplicates, merges, updates, or new views.
+
 ## AI Does Not Write Permanent Markdown
 
 AI output is proposal data until approved.
