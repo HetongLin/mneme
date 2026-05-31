@@ -273,6 +273,23 @@ If your plugin does not need CSS, delete this file.
 	width: 100%;
 }
 
+.mneme-proposal-detail-field {
+	color: var(--text-muted);
+	display: grid;
+	font-family: var(--font-ui-small);
+	gap: 6px;
+	margin: 10px 0;
+}
+
+.mneme-proposal-detail-field input,
+.mneme-proposal-detail-field textarea {
+	width: 100%;
+}
+
+.mneme-proposal-detail-field-textarea {
+	min-height: 92px;
+}
+
 .mneme-proposal-detail-modal-actions {
 	display: flex;
 	flex-wrap: wrap;

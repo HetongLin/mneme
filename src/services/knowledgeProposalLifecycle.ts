@@ -6,7 +6,7 @@ const VALID_STATUS_TRANSITIONS: Record<KnowledgeProposalStatus, KnowledgeProposa
 	merged: ["written", "stale"],
 	opened: ["edited", "approved", "rejected", "stale"],
 	rejected: [],
-	stale: ["opened", "edited", "rejected"],
+	stale: ["opened", "edited", "approved", "rejected"],
 	suggested: ["opened", "edited", "approved", "rejected", "stale"],
 	written: [],
 };

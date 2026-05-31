@@ -98,6 +98,16 @@ async function runAsyncTests(): Promise<void> {
 			"proposal-d",
 			"proposal-e",
 		]);
+		assert.deepEqual((await store.listActive()).map((proposal) => proposal.id).sort(), [
+			"proposal-a",
+			"proposal-c",
+			"proposal-d",
+			"proposal-e",
+		]);
+		assert.deepEqual((await store.listHistory()).map((proposal) => proposal.id).sort(), [
+			"proposal-f",
+			"proposal-g",
+		]);
 		assert.deepEqual(await store.listByStatus("approved"), [secondProposal]);
 		assert.deepEqual((await store.listBySourcePath("Notes/Intro.md")).map((proposal) => proposal.id), [
 			"proposal-a",
@@ -175,6 +185,60 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(storage.savedData?.settings.fsrsEnableFuzz, true);
 		assert.equal(typeof storage.savedData?.reviewStates["encapsulation-basic"], "object");
 		assert.equal(typeof storage.savedData?.sourceAnalysisRecords[sourceRecord.sourcePath], "object");
+	}
+
+	{
+		const suggestedProposal = createProposal("proposal-suggested", {
+			status: "suggested",
+		});
+		const editedProposal = createProposal("proposal-edited", {
+			status: "edited",
+		});
+		const rejectedProposal = createProposal("proposal-rejected", {
+			status: "rejected",
+		});
+		const writtenProposal = createProposal("proposal-written", {
+			status: "written",
+		});
+		const sourceRecord = createSourceRecord("Notes/Intro.md");
+		const link = createConceptSourceLink("link-a");
+		const storage = new MemoryKnowledgeProposalStorage({
+			...createPluginData({
+				[suggestedProposal.id]: suggestedProposal,
+				[editedProposal.id]: editedProposal,
+				[rejectedProposal.id]: rejectedProposal,
+				[writtenProposal.id]: writtenProposal,
+			}, {
+				[sourceRecord.sourcePath]: sourceRecord,
+			}, {
+				[link.id]: link,
+			}),
+			reviewStates: {
+				"encapsulation-basic": {
+					cardId: "encapsulation-basic",
+					createdAt: "2026-01-01T12:00:00.000Z",
+					lapseCount: 0,
+					reviewCount: 1,
+					updatedAt: "2026-01-01T12:00:00.000Z",
+				},
+			},
+			settings: {
+				...DEFAULT_SETTINGS,
+				conceptsFolder: "Custom/Concepts",
+			},
+		});
+		const store = new KnowledgeProposalStore(storage);
+
+		await store.clearHistory();
+
+		assert.deepEqual(Object.keys(storage.savedData?.knowledgeProposals ?? {}).sort(), [
+			"proposal-edited",
+			"proposal-suggested",
+		]);
+		assert.equal(storage.savedData?.settings.conceptsFolder, "Custom/Concepts");
+		assert.equal(typeof storage.savedData?.reviewStates["encapsulation-basic"], "object");
+		assert.equal(typeof storage.savedData?.sourceAnalysisRecords[sourceRecord.sourcePath], "object");
+		assert.equal(typeof storage.savedData?.conceptSourceLinks[link.id], "object");
 	}
 }
 

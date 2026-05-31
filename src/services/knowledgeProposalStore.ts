@@ -10,6 +10,11 @@ const PENDING_PROPOSAL_STATUSES = new Set<KnowledgeProposalStatus>([
 	"stale",
 ]);
 
+const HISTORY_PROPOSAL_STATUSES = new Set<KnowledgeProposalStatus>([
+	"rejected",
+	"written",
+]);
+
 export interface KnowledgeProposalStorage {
 	loadData(): Promise<unknown>;
 	saveData(data: MnemePluginData): Promise<void>;
@@ -71,6 +76,16 @@ export class KnowledgeProposalStore {
 		return proposals.filter((proposal) => PENDING_PROPOSAL_STATUSES.has(proposal.status));
 	}
 
+	async listActive(): Promise<KnowledgeProposal[]> {
+		return this.listPending();
+	}
+
+	async listHistory(): Promise<KnowledgeProposal[]> {
+		const proposals = await this.listProposals();
+
+		return proposals.filter((proposal) => HISTORY_PROPOSAL_STATUSES.has(proposal.status));
+	}
+
 	async listByStatus(status: KnowledgeProposalStatus): Promise<KnowledgeProposal[]> {
 		const proposals = await this.listProposals();
 
@@ -89,6 +104,22 @@ export class KnowledgeProposalStore {
 		await this.storage.saveData({
 			...data,
 			knowledgeProposals: {},
+		});
+	}
+
+	async clearHistory(): Promise<void> {
+		const data = await this.loadPluginData();
+		const activeProposals: Record<string, KnowledgeProposal> = {};
+
+		for (const [id, proposal] of Object.entries(data.knowledgeProposals)) {
+			if (!HISTORY_PROPOSAL_STATUSES.has(proposal.status)) {
+				activeProposals[id] = proposal;
+			}
+		}
+
+		await this.storage.saveData({
+			...data,
+			knowledgeProposals: activeProposals,
 		});
 	}
 

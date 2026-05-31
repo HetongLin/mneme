@@ -1,0 +1,181 @@
+import assert from "node:assert/strict";
+import type { MnemeVaultAdapter } from "../src/services/approvedProposalWriter";
+import { ApprovedProposalWriter } from "../src/services/approvedProposalWriter";
+import { InboxAcceptanceWorkflow, formatAcceptActionLabel } from "../src/services/inboxAcceptanceWorkflow";
+import { KnowledgeProposalStore } from "../src/services/knowledgeProposalStore";
+import { DEFAULT_SETTINGS } from "../src/models/settings";
+import { createPluginData, createProposal, MemoryKnowledgeProposalStorage } from "./knowledgeProposalTestUtils";
+
+class MemoryVaultAdapter implements MnemeVaultAdapter {
+	files = new Map<string, string>();
+	createdFolders = new Set<string>();
+	shouldFailCreate = false;
+
+	async append(path: string, content: string): Promise<void> {
+		this.files.set(path, `${this.files.get(path) ?? ""}${content}`);
+	}
+
+	async create(path: string, content: string): Promise<void> {
+		if (this.shouldFailCreate) {
+			throw new Error("Vault create failed");
+		}
+
+		if (this.files.has(path)) {
+			throw new Error(`File already exists: ${path}`);
+		}
+
+		this.files.set(path, content);
+	}
+
+	async createFolder(path: string): Promise<void> {
+		this.createdFolders.add(path);
+	}
+
+	async exists(path: string): Promise<boolean> {
+		return this.files.has(path) || this.createdFolders.has(path);
+	}
+
+	async read(path: string): Promise<string> {
+		const content = this.files.get(path);
+
+		if (content === undefined) {
+			throw new Error(`Missing file: ${path}`);
+		}
+
+		return content;
+	}
+}
+
+function createWorkflow(proposals = {}, vault = new MemoryVaultAdapter()): {
+	store: KnowledgeProposalStore;
+	vault: MemoryVaultAdapter;
+	workflow: InboxAcceptanceWorkflow;
+} {
+	const storage = new MemoryKnowledgeProposalStorage(createPluginData(proposals));
+	const store = new KnowledgeProposalStore(storage);
+	const writer = new ApprovedProposalWriter({
+		now: () => "2026-01-02T12:00:00.000Z",
+		proposalStore: store,
+		settingsProvider: () => DEFAULT_SETTINGS,
+		vaultAdapter: vault,
+	});
+
+	return {
+		store,
+		vault,
+		workflow: new InboxAcceptanceWorkflow({
+			proposalStore: store,
+			writer,
+		}),
+	};
+}
+
+async function runAsyncTests(): Promise<void> {
+	{
+		const proposal = createProposal("concept-proposal", {
+			kind: "new_concept",
+			payload: {
+				coreMeaning: "Encapsulation protects internal representation.",
+				title: "Encapsulation",
+			},
+			status: "suggested",
+		});
+		const { store, vault, workflow } = createWorkflow({ [proposal.id]: proposal });
+		const result = await workflow.acceptProposal(proposal.id);
+
+		assert.equal(result.status, "accepted");
+		assert.equal(result.kind, "concept");
+		assert.equal((await store.getProposal(proposal.id))?.status, "written");
+		assert.equal(vault.files.has("Mneme/Concepts/Encapsulation/Concept.md"), true);
+		assert.equal(formatAcceptActionLabel(proposal), "Accept Concept");
+	}
+
+	{
+		const proposal = createProposal("card-proposal", {
+			kind: "new_card",
+			payload: {
+				card: {
+					back: "Encapsulation hides representation behind a stable interface.",
+					front: "Why does encapsulation help maintainability?",
+					rubric: "Mention hidden representation and stable interface.",
+				},
+				conceptId: "concept-encapsulation",
+				conceptTitle: "Encapsulation",
+			},
+			status: "edited",
+		});
+		const { store, vault, workflow } = createWorkflow({ [proposal.id]: proposal });
+		const result = await workflow.acceptProposal(proposal.id);
+		const content = await vault.read("Mneme/Cards/Encapsulation/Card.md");
+
+		assert.equal(result.status, "accepted");
+		assert.equal(result.kind, "card");
+		assert.equal((await store.getProposal(proposal.id))?.status, "written");
+		assert.match(content, /MNEME:FRONT:start/);
+		assert.equal(content.includes("fsrsState"), false);
+		assert.equal(formatAcceptActionLabel(proposal), "Accept Card");
+	}
+
+	{
+		const proposal = createProposal("invalid-concept", {
+			kind: "new_concept",
+			payload: {
+				title: "",
+			},
+			status: "suggested",
+		});
+		const { store, vault, workflow } = createWorkflow({ [proposal.id]: proposal });
+		const result = await workflow.acceptProposal(proposal.id);
+
+		assert.equal(result.status, "invalid");
+		assert.deepEqual(result.errors, ["New concept title is required."]);
+		assert.equal((await store.getProposal(proposal.id))?.status, "suggested");
+		assert.equal(vault.files.size, 0);
+	}
+
+	{
+		const proposal = createProposal("failing-concept", {
+			kind: "new_concept",
+			payload: {
+				title: "Encapsulation",
+			},
+			status: "suggested",
+		});
+		const vault = new MemoryVaultAdapter();
+		vault.shouldFailCreate = true;
+		const { store, workflow } = createWorkflow({ [proposal.id]: proposal }, vault);
+		const result = await workflow.acceptProposal(proposal.id);
+
+		assert.equal(result.status, "failed");
+		assert.equal((await store.getProposal(proposal.id))?.status, "stale");
+	}
+
+	{
+		const proposal = createProposal("unsupported", {
+			kind: "update_concept",
+			payload: {
+				conceptId: "concept-a",
+				proposedSummary: "Updated summary",
+			},
+			status: "suggested",
+		});
+		const { store, workflow } = createWorkflow({ [proposal.id]: proposal });
+		const result = await workflow.acceptProposal(proposal.id);
+
+		assert.equal(result.status, "unsupported");
+		assert.equal((await store.getProposal(proposal.id))?.status, "suggested");
+	}
+
+	{
+		const proposal = createProposal("reject-me", {
+			status: "stale",
+		});
+		const { store, workflow } = createWorkflow({ [proposal.id]: proposal });
+		const result = await workflow.rejectProposal(proposal.id);
+
+		assert.equal(result.status, "accepted");
+		assert.equal((await store.getProposal(proposal.id))?.status, "rejected");
+	}
+}
+
+export const done = runAsyncTests();

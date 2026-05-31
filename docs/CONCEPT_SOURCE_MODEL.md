@@ -97,15 +97,17 @@ Possible proposal kinds:
 Rules:
 
 - Suggested proposals cannot become permanent Markdown without approval.
-- Approved Concept proposals can explicitly write `Concept.md`.
-- Approved Card proposals can explicitly write `Card.md`.
+- Accepted Concept proposals explicitly write `Concept.md`.
+- Accepted Card proposals explicitly write `Card.md`.
 - Only written Cards enter FSRS.
 - Future AI edits also go through proposal approval.
-- Approval and Markdown writing are separate actions.
+- Acceptance is the explicit user action that validates and writes supported proposal kinds.
 
-Proposal payloads now describe draft Concept views, Concept-source links, and Card changes. The current detail review UI uses a temporary JSON editor; future UI can replace it with structured Concept/Card forms and Markdown diff preview.
+Proposal payloads now describe draft Concept views, Concept-source links, and Card changes. The current detail review UI uses structured fields for `new_concept` and `new_card`, with raw JSON kept under Advanced for debugging and fallback editing.
 
 The first Markdown writer supports `new_concept` and `new_card` only. Unsupported proposal kinds remain in the Inbox until future writers can preview and patch existing Markdown safely.
+
+Active Inbox contains actionable proposals with `suggested`, `opened`, `edited`, or `stale` status. Rejected and written proposals move to History. Clearing Inbox History removes those proposal records from plugin data, but never deletes generated `Concept.md` / `Card.md`, settings, review states, source analysis records, or Concept-source links.
 
 ## Concept-First Capture
 

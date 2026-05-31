@@ -138,6 +138,14 @@ export default class MnemePlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: "mneme-clear-inbox-history",
+			name: "Mneme: Clear Inbox History",
+			callback: () => {
+				void this.clearInboxHistory();
+			},
+		});
+
+		this.addCommand({
 			id: "mneme-log-concept-source-links",
 			name: "Mneme: Log Concept-Source Links",
 			callback: () => {
@@ -291,6 +299,17 @@ export default class MnemePlugin extends Plugin {
 		} catch (error) {
 			console.error("Mneme: failed to log knowledge proposals", error);
 			new Notice("Mneme: failed to log knowledge proposals. See console.");
+		}
+	}
+
+	private async clearInboxHistory(): Promise<void> {
+		try {
+			await this.knowledgeProposalStore.clearHistory();
+			new Notice("Mneme: Inbox history cleared.");
+			await this.refreshOpenInboxViews();
+		} catch (error) {
+			console.error("Mneme: failed to clear Inbox history", error);
+			new Notice("Mneme: failed to clear Inbox history. See console.");
 		}
 	}
 

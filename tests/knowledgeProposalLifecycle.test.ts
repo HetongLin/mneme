@@ -10,7 +10,11 @@ import { createProposal } from "./knowledgeProposalTestUtils";
 	assert.equal(canTransitionProposalStatus("rejected", "approved"), false);
 	assert.equal(canTransitionProposalStatus("written", "opened"), false);
 	assert.equal(canTransitionProposalStatus("stale", "opened"), true);
-	assert.equal(canTransitionProposalStatus("stale", "approved"), false);
+	assert.equal(canTransitionProposalStatus("stale", "approved"), true);
+	assert.equal(canTransitionProposalStatus("suggested", "rejected"), true);
+	assert.equal(canTransitionProposalStatus("opened", "rejected"), true);
+	assert.equal(canTransitionProposalStatus("edited", "rejected"), true);
+	assert.equal(canTransitionProposalStatus("stale", "rejected"), true);
 }
 
 {

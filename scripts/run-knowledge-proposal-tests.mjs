@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 const tests = [
+	"tests/inboxAcceptanceWorkflow.test.ts",
+	"tests/inboxProposalFilters.test.ts",
 	"tests/knowledgeProposalDisplay.test.ts",
 	"tests/knowledgeProposalLifecycle.test.ts",
 	"tests/knowledgeProposalStage.test.ts",

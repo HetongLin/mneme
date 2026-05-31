@@ -10,8 +10,8 @@ Analyze Current Note
 -> Generate Proposals
 -> Inbox Review
 -> User edits / approves / rejects / merges
--> Approved Concepts write Concept.md
--> Approved Cards write Card.md
+-> Accepted Concepts write Concept.md
+-> Accepted Cards write Card.md
 -> Written Cards enter FSRS
 -> Review Mode groups due/new Cards by Concept
 ```
@@ -54,7 +54,7 @@ After a Concept is reviewed, approved, and explicitly written to `Concept.md`, t
 - `merge_card`
 - `retire_card`
 
-Card proposals still enter Inbox, require review/edit/approval, and write `Card.md` only through explicit `Write Markdown`.
+Card proposals still enter Inbox and require a separate review/edit/acceptance step before any `Card.md` is written.
 
 Future Scan Vault behavior follows the same rule: first propose Concepts, then generate Cards from written Concepts.
 
@@ -103,21 +103,29 @@ The Inbox can open a proposal detail modal with a temporary JSON payload editor.
 
 `Mneme: Add Sample Knowledge Proposal` is a temporary debug command for manual Inbox validation. It creates proposal data only; it does not call AI or write files.
 
-## Approved Markdown Writer
+## Inbox Acceptance And Markdown Writer
 
-Approved proposal writing is explicit:
+Proposal acceptance is the explicit commit action:
 
 ```text
-Review proposal -> Approve -> Write Markdown
+Review proposal -> Accept Concept / Accept Card -> Markdown write
 ```
 
-Approval does not automatically write files. The initial writer supports `new_concept` and `new_card` proposals only.
+`Accept Concept` validates the proposal, writes `Concept.md`, and marks the proposal `written` only after a successful vault write.
+
+`Accept Card` validates the proposal, writes parser-compatible `Card.md`, and marks the proposal `written` only after a successful vault write.
+
+The initial writer supports `new_concept` and `new_card` proposals only. Unsupported proposal kinds stay in Inbox until future structured editors and diff/patch writers exist.
 
 Written `new_concept` proposals create editable `Concept.md` files in the configured Concepts folder. Written `new_card` proposals create parseable `Card.md` files using Mneme's existing card marker syntax in the configured Cards folder.
 
-Unsupported proposal kinds remain proposal-only until future diff/patch writers are added. Written Cards do not receive FSRS state during writing; they enter the normal parser/review pipeline after the vault is refreshed or reloaded.
+Written Cards do not receive FSRS state during writing; they enter the normal parser/review pipeline after the vault is refreshed or reloaded.
 
 Successful `new_concept` writes can also index approved Concept-source links. Mneme stores these links in plugin data and updates the analyzed Source Note's `linkedConceptIds` when source analysis state exists.
+
+Active Inbox shows actionable proposals only: `suggested`, `opened`, `edited`, and `stale`. Written and rejected proposals move to History. Clearing Inbox History removes rejected/written proposal records only; it does not delete generated Markdown, review state, settings, source analysis records, or Concept-source links.
+
+Raw JSON editing remains available under Advanced / Raw JSON for debugging and escape hatches, but the primary flow should present proposal-specific fields and `Accept Concept` / `Accept Card` actions.
 
 ## Readable And Identifiable Markdown
 
@@ -135,9 +143,9 @@ It is a browsing and opening layer only. Users edit Concepts by opening Markdown
 
 ## AI Does Not Write Permanent Markdown
 
-AI output is proposal data until approved.
+AI output is proposal data until accepted by the user.
 
-Suggested Concepts and Cards do not become `Concept.md` or `Card.md` content until a user approves them and explicitly writes Markdown.
+Suggested Concepts and Cards do not become `Concept.md` or `Card.md` content until a user explicitly accepts the proposal.
 
 ## No Accept All As Primary UX
 

@@ -3,10 +3,20 @@ import type { KnowledgeProposal, KnowledgeProposalStatus } from "../models/knowl
 import { ProposalDetailModal } from "../modals/proposalDetailModal";
 import { ApprovedProposalWriter } from "../services/approvedProposalWriter";
 import {
+	filterActiveInboxProposals,
+	filterInboxHistoryProposals,
+} from "../services/inboxProposalFilters";
+import {
+	formatAcceptActionLabel,
+	getAcceptanceKind,
+	InboxAcceptanceWorkflow,
+} from "../services/inboxAcceptanceWorkflow";
+import {
 	getProposalEvidenceCount,
 	getProposalPreview,
 	getProposalSourcePath,
 	getProposalSubtitle,
+	getProposalTargetLabel,
 	getProposalTitle,
 } from "../services/knowledgeProposalDisplay";
 import { KnowledgeProposalStore } from "../services/knowledgeProposalStore";
@@ -22,6 +32,7 @@ export const INBOX_VIEW_TYPE = "mneme-inbox-view";
 
 export class MnemeInboxView extends ItemView {
 	private proposals: KnowledgeProposal[] = [];
+	private showHistory = false;
 	private statusMessage = "Loading proposals...";
 
 	constructor(
@@ -56,7 +67,7 @@ export class MnemeInboxView extends ItemView {
 	async refresh(): Promise<void> {
 		try {
 			this.proposals = await this.proposalStore.listProposals();
-			this.statusMessage = `${this.proposals.length} knowledge proposals loaded.`;
+			this.statusMessage = `${filterActiveInboxProposals(this.proposals).length} active proposals loaded.`;
 		} catch (error) {
 			console.error("Mneme: failed to load Inbox proposals", error);
 			this.proposals = [];
@@ -96,6 +107,17 @@ export class MnemeInboxView extends ItemView {
 				void this.refresh();
 			});
 		});
+		toolbarEl.createEl("button", { text: this.showHistory ? "Hide History" : "Show History" }, (buttonEl) => {
+			buttonEl.addEventListener("click", () => {
+				this.showHistory = !this.showHistory;
+				this.render();
+			});
+		});
+		toolbarEl.createEl("button", { text: "Clear History" }, (buttonEl) => {
+			buttonEl.addEventListener("click", () => {
+				void this.clearHistory();
+			});
+		});
 	}
 
 	private renderSummary(): void {
@@ -119,7 +141,10 @@ export class MnemeInboxView extends ItemView {
 	private renderProposalList(): void {
 		const listEl = this.contentEl.createDiv({ cls: "mneme-review-queue" });
 
-		if (this.proposals.length === 0) {
+		const activeProposals = filterActiveInboxProposals(this.proposals);
+		const historyProposals = filterInboxHistoryProposals(this.proposals);
+
+		if (activeProposals.length === 0 && (!this.showHistory || historyProposals.length === 0)) {
 			listEl.createEl("p", {
 				cls: "mneme-review-empty",
 				text: "No proposals yet.",
@@ -134,20 +159,28 @@ export class MnemeInboxView extends ItemView {
 		this.renderProposalSection(
 			listEl,
 			"Concept Proposals",
-			sortProposals(this.proposals.filter(isConceptStageProposal)),
+			sortProposals(activeProposals.filter(isConceptStageProposal)),
 		);
 		this.renderProposalSection(
 			listEl,
 			"Card Proposals",
-			sortProposals(this.proposals.filter(isCardStageProposal)),
+			sortProposals(activeProposals.filter(isCardStageProposal)),
 		);
 		this.renderProposalSection(
 			listEl,
 			"Unsupported/Other Proposals",
-			sortProposals(this.proposals.filter((proposal) => {
+			sortProposals(activeProposals.filter((proposal) => {
 				return !isConceptStageProposal(proposal) && !isCardStageProposal(proposal);
 			})),
 		);
+
+		if (this.showHistory) {
+			this.renderProposalSection(
+				listEl,
+				"History",
+				sortProposals(historyProposals),
+			);
+		}
 	}
 
 	private renderProposalSection(parentEl: HTMLElement, title: string, proposals: KnowledgeProposal[]): void {
@@ -186,6 +219,10 @@ export class MnemeInboxView extends ItemView {
 			cls: "mneme-review-queue-meta",
 			text: formatProposalMeta(proposal),
 		});
+		textEl.createEl("p", {
+			cls: getValidationSummary(proposal).startsWith("Needs") ? "mneme-review-error" : "mneme-review-queue-meta",
+			text: getValidationSummary(proposal),
+		});
 		const writeIndicator = getWriteIndicator(proposal);
 
 		if (writeIndicator) {
@@ -208,8 +245,10 @@ export class MnemeInboxView extends ItemView {
 		actionsEl.createEl("button", { text: "Open" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => this.openProposalDetail(proposal));
 		});
-		this.renderProposalAction(actionsEl, proposal, "Approve", "approved", "Mneme: Proposal approved.");
-		this.renderProposalAction(actionsEl, proposal, "Reject", "rejected", "Mneme: Proposal rejected.");
+		if (filterActiveInboxProposals([proposal]).length > 0) {
+			this.renderAcceptAction(actionsEl, proposal);
+			this.renderRejectAction(actionsEl, proposal);
+		}
 	}
 
 	private openProposalDetail(proposal: KnowledgeProposal): void {
@@ -221,45 +260,92 @@ export class MnemeInboxView extends ItemView {
 		}).open();
 	}
 
-	private renderProposalAction(
-		parentEl: HTMLElement,
-		proposal: KnowledgeProposal,
-		label: string,
-		status: KnowledgeProposalStatus,
-		notice: string,
-	): void {
-		parentEl.createEl("button", { text: label }, (buttonEl) => {
+	private renderAcceptAction(parentEl: HTMLElement, proposal: KnowledgeProposal): void {
+		if (!getAcceptanceKind(proposal)) {
+			return;
+		}
+
+		parentEl.createEl("button", { text: formatAcceptActionLabel(proposal) }, (buttonEl) => {
+			buttonEl.disabled = !this.proposalWriter;
 			buttonEl.addEventListener("click", () => {
-				void this.updateProposalStatus(proposal, status, notice);
+				void this.acceptProposal(proposal);
 			});
 		});
 	}
 
-	private async updateProposalStatus(
-		proposal: KnowledgeProposal,
-		status: KnowledgeProposalStatus,
-		successNotice: string,
-	): Promise<void> {
-		try {
-			if (status === "approved") {
-				const validation = validateKnowledgeProposalPayload(proposal);
+	private renderRejectAction(parentEl: HTMLElement, proposal: KnowledgeProposal): void {
+		parentEl.createEl("button", { text: "Reject" }, (buttonEl) => {
+			buttonEl.addEventListener("click", () => {
+				void this.rejectProposal(proposal);
+			});
+		});
+	}
 
-				if (!validation.valid) {
-					new Notice("Mneme: Open proposal and fix errors before approval.");
-					return;
-				}
+	private async acceptProposal(proposal: KnowledgeProposal): Promise<void> {
+		if (!this.proposalWriter) {
+			new Notice("Mneme: Markdown writer is not available.");
+			return;
+		}
+
+		try {
+			const workflow = new InboxAcceptanceWorkflow({
+				proposalStore: this.proposalStore,
+				writer: this.proposalWriter,
+			});
+			const result = await workflow.acceptProposal(proposal.id);
+
+			if (result.status === "accepted") {
+				new Notice(result.kind === "concept" ? "Mneme: Concept accepted." : "Mneme: Card accepted.");
+				await this.refresh();
+				return;
 			}
 
-			await this.proposalStore.updateProposalStatus(proposal.id, status);
-			new Notice(successNotice);
-			await this.refresh();
+			if (result.status === "invalid") {
+				new Notice("Mneme: Open proposal and fix errors before accepting.");
+				return;
+			}
+
+			console.error("Mneme: proposal acceptance failed", result);
+			new Notice(result.kind === "card"
+				? "Mneme: Card write failed. See console."
+				: "Mneme: Concept write failed. See console.");
 		} catch (error) {
-			console.error("Mneme: failed to update proposal status", {
+			console.error("Mneme: failed to accept proposal", {
 				error,
 				proposalId: proposal.id,
-				status,
 			});
-			new Notice("Mneme: Invalid proposal status transition.");
+			new Notice("Mneme: Proposal acceptance failed. See console.");
+		}
+	}
+
+	private async rejectProposal(proposal: KnowledgeProposal): Promise<void> {
+		try {
+			if (this.proposalWriter) {
+				const workflow = new InboxAcceptanceWorkflow({
+					proposalStore: this.proposalStore,
+					writer: this.proposalWriter,
+				});
+				await workflow.rejectProposal(proposal.id);
+			} else {
+				await this.proposalStore.updateProposalStatus(proposal.id, "rejected");
+			}
+
+			new Notice("Mneme: Proposal rejected.");
+			await this.refresh();
+		} catch (error) {
+			console.error("Mneme: failed to reject proposal", error);
+			new Notice("Mneme: Proposal could not be rejected.");
+		}
+	}
+
+	private async clearHistory(): Promise<void> {
+		try {
+			await this.proposalStore.clearHistory();
+			new Notice("Mneme: Inbox history cleared.");
+			await this.refresh();
+		} catch (error) {
+			console.error("Mneme: failed to clear Inbox history", error);
+			new Notice("Mneme: failed to clear Inbox history. See console.");
 		}
 	}
 }
@@ -299,9 +385,10 @@ function hasSourceLinkData(proposal: KnowledgeProposal): boolean {
 }
 
 function summarizeProposals(proposals: KnowledgeProposal[]): Record<"approved" | "pending" | "rejected" | "stale" | "written", number> {
+	const activeProposals = filterActiveInboxProposals(proposals);
 	return {
 		approved: proposals.filter((proposal) => proposal.status === "approved").length,
-		pending: proposals.filter((proposal) => isPendingStatus(proposal.status)).length,
+		pending: activeProposals.filter((proposal) => isPendingStatus(proposal.status)).length,
 		rejected: proposals.filter((proposal) => proposal.status === "rejected").length,
 		stale: proposals.filter((proposal) => proposal.status === "stale").length,
 		written: proposals.filter((proposal) => proposal.status === "written").length,
@@ -324,12 +411,23 @@ function formatProposalMeta(proposal: KnowledgeProposal): string {
 	const evidenceCount = getProposalEvidenceCount(proposal);
 	const parts = [
 		sourcePath ? `Source: ${sourcePath}` : undefined,
-		proposal.conceptId ? `Concept: ${proposal.conceptId}` : undefined,
-		proposal.cardId ? `Card: ${proposal.cardId}` : undefined,
+		getProposalTargetLabel(proposal),
 		evidenceCount > 0 ? `${evidenceCount} evidence ${evidenceCount === 1 ? "item" : "items"}` : undefined,
-		`Created: ${proposal.createdAt}`,
-		`Updated: ${proposal.updatedAt}`,
 	];
 
 	return parts.filter((part): part is string => Boolean(part)).join(" · ");
+}
+
+function getValidationSummary(proposal: KnowledgeProposal): string {
+	if (proposal.status === "written") {
+		return "Written";
+	}
+
+	if (proposal.status === "rejected") {
+		return "Rejected";
+	}
+
+	const validation = validateKnowledgeProposalPayload(proposal);
+
+	return validation.valid ? "Ready to accept" : "Needs edits";
 }
