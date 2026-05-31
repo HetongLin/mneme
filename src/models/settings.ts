@@ -5,6 +5,9 @@ export interface MnemeSettings {
 	aiRequestTimeoutMs: number;
 	cardsFolder: string;
 	conceptsFolder: string;
+	deepseekApiKey: string;
+	deepseekBaseUrl: string;
+	deepseekModel: string;
 	enableDeveloperTools: boolean;
 	fsrsEnableFuzz: boolean;
 	fsrsMaximumInterval: number;
@@ -14,7 +17,7 @@ export interface MnemeSettings {
 	openaiModel: string;
 }
 
-export type AiProviderName = "mock" | "openai";
+export type AiProviderName = "mock" | "openai" | "deepseek";
 
 export const DEFAULT_SETTINGS: MnemeSettings = {
 	aiCaptureEnabled: false,
@@ -23,6 +26,9 @@ export const DEFAULT_SETTINGS: MnemeSettings = {
 	aiRequestTimeoutMs: 30000,
 	cardsFolder: "Mneme/Cards",
 	conceptsFolder: "Mneme/Concepts",
+	deepseekApiKey: "",
+	deepseekBaseUrl: "https://api.deepseek.com",
+	deepseekModel: "deepseek-v4-flash",
 	enableDeveloperTools: false,
 	fsrsEnableFuzz: false,
 	fsrsMaximumInterval: 36500,
@@ -46,6 +52,9 @@ export function normalizeSettings(value: unknown): MnemeSettings {
 		aiRequestTimeoutMs: normalizePositiveInteger(value.aiRequestTimeoutMs, DEFAULT_SETTINGS.aiRequestTimeoutMs),
 		cardsFolder: normalizeFolder(value.cardsFolder, DEFAULT_SETTINGS.cardsFolder),
 		conceptsFolder: normalizeFolder(value.conceptsFolder, DEFAULT_SETTINGS.conceptsFolder),
+		deepseekApiKey: normalizeString(value.deepseekApiKey, DEFAULT_SETTINGS.deepseekApiKey),
+		deepseekBaseUrl: normalizeUrlString(value.deepseekBaseUrl, DEFAULT_SETTINGS.deepseekBaseUrl),
+		deepseekModel: normalizeRequiredString(value.deepseekModel, DEFAULT_SETTINGS.deepseekModel),
 		enableDeveloperTools: typeof value.enableDeveloperTools === "boolean"
 			? value.enableDeveloperTools
 			: DEFAULT_SETTINGS.enableDeveloperTools,
@@ -102,7 +111,7 @@ export function normalizeFolder(value: unknown, fallback: string): string {
 }
 
 function normalizeAiProvider(value: unknown): AiProviderName {
-	return value === "openai" || value === "mock"
+	return value === "deepseek" || value === "openai" || value === "mock"
 		? value
 		: DEFAULT_SETTINGS.aiProvider;
 }

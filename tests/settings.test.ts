@@ -16,10 +16,13 @@ import {
 		settings: {
 			aiCaptureEnabled: true,
 			aiMaxInputChars: 12000,
-			aiProvider: "openai",
+			aiProvider: "deepseek",
 			aiRequestTimeoutMs: 45000,
 			cardsFolder: "Custom/Cards",
 			conceptsFolder: "Custom/Concepts",
+			deepseekApiKey: "deepseek-test",
+			deepseekBaseUrl: "https://deepseek.example/v1/",
+			deepseekModel: "deepseek-reasoner",
 			enableDeveloperTools: true,
 			fsrsEnableFuzz: true,
 			fsrsMaximumInterval: 365,
@@ -33,10 +36,13 @@ import {
 	assert.deepEqual(settings, {
 		aiCaptureEnabled: true,
 		aiMaxInputChars: 12000,
-		aiProvider: "openai",
+		aiProvider: "deepseek",
 		aiRequestTimeoutMs: 45000,
 		cardsFolder: "Custom/Cards",
 		conceptsFolder: "Custom/Concepts",
+		deepseekApiKey: "deepseek-test",
+		deepseekBaseUrl: "https://deepseek.example/v1",
+		deepseekModel: "deepseek-reasoner",
 		enableDeveloperTools: true,
 		fsrsEnableFuzz: true,
 		fsrsMaximumInterval: 365,
@@ -55,6 +61,9 @@ import {
 		aiRequestTimeoutMs: 0,
 		cardsFolder: "",
 		conceptsFolder: " /Custom//Concepts/ ",
+		deepseekApiKey: 456,
+		deepseekBaseUrl: "",
+		deepseekModel: "",
 		enableDeveloperTools: "yes",
 		fsrsEnableFuzz: "yes",
 		fsrsMaximumInterval: -10,
@@ -71,6 +80,9 @@ import {
 		aiRequestTimeoutMs: 1,
 		cardsFolder: DEFAULT_SETTINGS.cardsFolder,
 		conceptsFolder: "Custom/Concepts",
+		deepseekApiKey: DEFAULT_SETTINGS.deepseekApiKey,
+		deepseekBaseUrl: DEFAULT_SETTINGS.deepseekBaseUrl,
+		deepseekModel: DEFAULT_SETTINGS.deepseekModel,
 		enableDeveloperTools: false,
 		fsrsEnableFuzz: DEFAULT_SETTINGS.fsrsEnableFuzz,
 		fsrsMaximumInterval: 1,
@@ -87,6 +99,9 @@ import {
 	assert.equal(settings.enableDeveloperTools, false);
 	assert.equal(settings.aiCaptureEnabled, false);
 	assert.equal(settings.aiProvider, "mock");
+	assert.equal(settings.deepseekApiKey, "");
+	assert.equal(settings.deepseekBaseUrl, "https://api.deepseek.com");
+	assert.equal(settings.deepseekModel, "deepseek-v4-flash");
 }
 
 {
@@ -140,16 +155,26 @@ import {
 		...DEFAULT_SETTINGS,
 		aiCaptureEnabled: true,
 		aiMaxInputChars: 10000,
-		aiProvider: "openai",
+		aiProvider: "deepseek",
 		aiRequestTimeoutMs: 15000,
+		deepseekApiKey: "deepseek-updated",
+		deepseekBaseUrl: "https://deepseek.example",
+		deepseekModel: "deepseek-reasoner",
+		enableDeveloperTools: true,
 		fsrsRequestRetention: 0.82,
+		fsrsEnableFuzz: true,
 		openaiApiKey: "sk-updated",
 	});
 
 	assert.equal((data.settings as typeof DEFAULT_SETTINGS).fsrsRequestRetention, 0.82);
-	assert.equal((data.settings as typeof DEFAULT_SETTINGS).aiProvider, "openai");
+	assert.equal((data.settings as typeof DEFAULT_SETTINGS).fsrsEnableFuzz, true);
+	assert.equal((data.settings as typeof DEFAULT_SETTINGS).enableDeveloperTools, true);
+	assert.equal((data.settings as typeof DEFAULT_SETTINGS).aiProvider, "deepseek");
 	assert.equal((data.settings as typeof DEFAULT_SETTINGS).aiCaptureEnabled, true);
 	assert.equal((data.settings as typeof DEFAULT_SETTINGS).openaiApiKey, "sk-updated");
+	assert.equal((data.settings as typeof DEFAULT_SETTINGS).deepseekApiKey, "deepseek-updated");
+	assert.equal((data.settings as typeof DEFAULT_SETTINGS).deepseekBaseUrl, "https://deepseek.example");
+	assert.equal((data.settings as typeof DEFAULT_SETTINGS).deepseekModel, "deepseek-reasoner");
 	assert.equal((data.settings as typeof DEFAULT_SETTINGS).cardsFolder, DEFAULT_SETTINGS.cardsFolder);
 	assert.equal((data.settings as typeof DEFAULT_SETTINGS).conceptsFolder, DEFAULT_SETTINGS.conceptsFolder);
 	assert.equal(typeof data.reviewStates, "object");

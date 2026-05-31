@@ -89,7 +89,7 @@ This command does not extract Concepts, generate Cards, create Inbox proposals, 
 
 ## Provider Boundary
 
-Task 026A adds AI Capture infrastructure only.
+Task 026A and Task 026A.1 add AI Capture infrastructure only.
 
 Current provider pieces:
 
@@ -97,11 +97,14 @@ Current provider pieces:
 - a provider adapter interface for structured proposal generation
 - a deterministic Mock provider for tests and offline development
 - an OpenAI provider shell that can build a future Structured Outputs request payload
+- a DeepSeek provider shell modeled as an OpenAI-compatible provider with editable base URL and model
 - log-safe provider configuration diagnostics that do not include raw API keys
 
 The provider interface returns `KnowledgeProposal[]` plus diagnostics and provider metadata. It is not connected to `Analyze Current Note`, Inbox acceptance, Markdown writers, FSRS, Daily Review, or Concept Library behavior.
 
 OpenAI Structured Outputs is the intended future enforcement layer for model output against JSON Schema. The current OpenAI provider is a shell and does not perform production network execution.
+
+DeepSeek support uses the same OpenAI-compatible request boundary and Bearer-key configuration shape. It is infrastructure only at this stage and does not perform production network execution.
 
 ## Structured Output Contract
 

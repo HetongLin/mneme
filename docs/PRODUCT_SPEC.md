@@ -107,7 +107,7 @@ Initial AI capture is concept-first. Source Note analysis may propose Concept-st
 
 Current implementation note:
 
-AI provider settings and adapter shells may exist before the full workflow is connected. Until the AI capture flow is explicitly wired, Analyze Current Note records source metadata and hashes only; it does not call AI, create Inbox proposals, or write Markdown.
+AI provider settings and adapter shells may exist before the full workflow is connected. The supported provider options are Mock, OpenAI, and DeepSeek. DeepSeek is treated as an OpenAI-compatible provider, and its model remains configurable. Until the AI capture flow is explicitly wired, Analyze Current Note records source metadata and hashes only; it does not call AI, create Inbox proposals, or write Markdown.
 
 ## v0.1 Goal
 

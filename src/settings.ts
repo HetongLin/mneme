@@ -128,9 +128,10 @@ export class MnemeSettingTab extends PluginSettingTab {
 			.addDropdown((dropdown) => {
 				dropdown.addOption("mock", "Mock");
 				dropdown.addOption("openai", "OpenAI");
+				dropdown.addOption("deepseek", "DeepSeek");
 				dropdown.setValue(this.plugin.settings.aiProvider);
 				dropdown.onChange(async (value) => {
-					this.plugin.settings.aiProvider = value === "openai" ? "openai" : "mock";
+					this.plugin.settings.aiProvider = value === "deepseek" || value === "openai" ? value : "mock";
 					await this.persistSettings();
 				});
 			});
@@ -170,6 +171,45 @@ export class MnemeSettingTab extends PluginSettingTab {
 				text.onChange(async (value) => {
 					this.plugin.settings.openaiModel = value.trim() || DEFAULT_SETTINGS.openaiModel;
 					text.setValue(this.plugin.settings.openaiModel);
+					await this.persistSettings();
+				});
+			});
+
+		new Setting(containerEl)
+			.setName("DeepSeek API key")
+			.setDesc("Stored locally in Obsidian plugin data. Mneme does not log this value.")
+			.addText((text) => {
+				text.inputEl.type = "password";
+				text.setPlaceholder("DeepSeek API key");
+				text.setValue(this.plugin.settings.deepseekApiKey);
+				text.onChange(async (value) => {
+					this.plugin.settings.deepseekApiKey = value.trim();
+					await this.persistSettings();
+				});
+			});
+
+		new Setting(containerEl)
+			.setName("DeepSeek base URL")
+			.setDesc("OpenAI-compatible DeepSeek API endpoint.")
+			.addText((text) => {
+				text.setPlaceholder(DEFAULT_SETTINGS.deepseekBaseUrl);
+				text.setValue(this.plugin.settings.deepseekBaseUrl);
+				text.onChange(async (value) => {
+					this.plugin.settings.deepseekBaseUrl = value.trim().replace(/\/+$/g, "") || DEFAULT_SETTINGS.deepseekBaseUrl;
+					text.setValue(this.plugin.settings.deepseekBaseUrl);
+					await this.persistSettings();
+				});
+			});
+
+		new Setting(containerEl)
+			.setName("DeepSeek model")
+			.setDesc("Model used by the future DeepSeek AI capture provider.")
+			.addText((text) => {
+				text.setPlaceholder(DEFAULT_SETTINGS.deepseekModel);
+				text.setValue(this.plugin.settings.deepseekModel);
+				text.onChange(async (value) => {
+					this.plugin.settings.deepseekModel = value.trim() || DEFAULT_SETTINGS.deepseekModel;
+					text.setValue(this.plugin.settings.deepseekModel);
 					await this.persistSettings();
 				});
 			});

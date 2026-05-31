@@ -6,6 +6,8 @@ import {
 	validateAiProviderConfig,
 	validateConceptCaptureResponse,
 } from "../src/services/aiProvider";
+import { createAiProvider } from "../src/services/aiProviderFactory";
+import { buildDeepSeekKnowledgeProposalPayload, DeepSeekProvider } from "../src/services/deepSeekProvider";
 import { MockAiProvider } from "../src/services/mockAiProvider";
 import { buildOpenAiKnowledgeProposalPayload, OpenAiProvider } from "../src/services/openAiProvider";
 
@@ -36,6 +38,7 @@ async function run(): Promise<void> {
 {
 	const provider = new MockAiProvider({
 		...DEFAULT_SETTINGS,
+		deepseekApiKey: "deepseek-secret-value",
 		openaiApiKey: "sk-secret-value",
 	});
 	const response = await provider.generateKnowledgeProposals(request);
@@ -45,6 +48,7 @@ async function run(): Promise<void> {
 	assert.equal(kinds.some((kind) => CARD_STAGE_PROPOSAL_KINDS.includes(kind)), false);
 	assert.equal(validateConceptCaptureResponse(response.proposals).valid, true);
 	assert.equal(serializedDiagnostics.includes("sk-secret-value"), false);
+	assert.equal(serializedDiagnostics.includes("deepseek-secret-value"), false);
 }
 
 {
@@ -71,10 +75,34 @@ async function run(): Promise<void> {
 }
 
 {
+	const result = validateAiProviderConfig({
+		...DEFAULT_SETTINGS,
+		aiCaptureEnabled: true,
+		aiProvider: "deepseek",
+		deepseekApiKey: "",
+	});
+
+	assert.equal(result.valid, false);
+	assert.equal(result.errors.includes("DeepSeek API key is required when AI capture is enabled with the DeepSeek provider."), true);
+}
+
+{
+	const result = validateAiProviderConfig({
+		...DEFAULT_SETTINGS,
+		aiCaptureEnabled: true,
+		aiProvider: "deepseek",
+		deepseekApiKey: "deepseek-test-key",
+	});
+
+	assert.equal(result.valid, true);
+}
+
+{
 	const settings = {
 		...DEFAULT_SETTINGS,
 		aiCaptureEnabled: true,
 		aiProvider: "openai" as const,
+		deepseekApiKey: "deepseek-secret-value",
 		openaiApiKey: "sk-secret-value",
 		openaiBaseUrl: "https://api.openai.com/v1",
 		openaiModel: "gpt-test",
@@ -83,7 +111,9 @@ async function run(): Promise<void> {
 	const serialized = JSON.stringify(logSafe);
 
 	assert.equal(logSafe.openaiApiKeyConfigured, true);
+	assert.equal(logSafe.deepseekApiKeyConfigured, true);
 	assert.equal(serialized.includes("sk-secret-value"), false);
+	assert.equal(serialized.includes("deepseek-secret-value"), false);
 }
 
 {
@@ -106,6 +136,28 @@ async function run(): Promise<void> {
 }
 
 {
+	const settings = {
+		...DEFAULT_SETTINGS,
+		aiMaxInputChars: 20,
+		aiProvider: "deepseek" as const,
+		deepseekApiKey: "deepseek-secret-value",
+		deepseekBaseUrl: "https://deepseek.example/v1",
+		deepseekModel: "deepseek-reasoner",
+	};
+	const payload = buildDeepSeekKnowledgeProposalPayload(request, settings);
+	const serialized = JSON.stringify(payload);
+
+	assert.equal(payload.endpoint, "https://deepseek.example/v1/chat/completions");
+	assert.equal(payload.model, "deepseek-reasoner");
+	assert.equal(payload.response_format.type, "json_object");
+	assert.equal(payload.messages?.length, 2);
+	assert.equal(payload.input, undefined);
+	assert.equal(serialized.includes("deepseek-secret-value"), false);
+	assert.equal(serialized.includes("Encapsulation keeps object internals hidden"), false);
+	assert.equal(serialized.includes("Encapsulation keeps"), true);
+}
+
+{
 	const provider = new OpenAiProvider({
 		...DEFAULT_SETTINGS,
 		aiCaptureEnabled: false,
@@ -117,6 +169,32 @@ async function run(): Promise<void> {
 		() => provider.generateKnowledgeProposals(request),
 		/OpenAI API key is required to use the OpenAI provider/,
 	);
+}
+
+{
+	const provider = new DeepSeekProvider({
+		...DEFAULT_SETTINGS,
+		aiCaptureEnabled: false,
+		aiProvider: "deepseek",
+		deepseekApiKey: "",
+	});
+
+	await assert.rejects(
+		() => provider.generateKnowledgeProposals(request),
+		/DeepSeek API key is required to use the DeepSeek provider/,
+	);
+}
+
+{
+	assert.equal(createAiProvider(DEFAULT_SETTINGS) instanceof MockAiProvider, true);
+	assert.equal(createAiProvider({
+		...DEFAULT_SETTINGS,
+		aiProvider: "openai",
+	}) instanceof OpenAiProvider, true);
+	assert.equal(createAiProvider({
+		...DEFAULT_SETTINGS,
+		aiProvider: "deepseek",
+	}) instanceof DeepSeekProvider, true);
 }
 
 console.log("AI provider tests passed.");

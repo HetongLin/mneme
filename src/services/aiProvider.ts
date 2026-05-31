@@ -45,6 +45,9 @@ export interface LogSafeAiConfig {
 	aiMaxInputChars: number;
 	aiProvider: AiProviderName;
 	aiRequestTimeoutMs: number;
+	deepseekApiKeyConfigured: boolean;
+	deepseekBaseUrl: string;
+	deepseekModel: string;
 	openaiApiKeyConfigured: boolean;
 	openaiBaseUrl: string;
 	openaiModel: string;
@@ -83,8 +86,8 @@ export function validateAiProviderConfig(settings: MnemeSettings): AiProviderCon
 	const errors: string[] = [];
 	const warnings: string[] = [];
 
-	if (settings.aiProvider !== "mock" && settings.aiProvider !== "openai") {
-		errors.push("AI provider must be mock or openai.");
+	if (settings.aiProvider !== "mock" && settings.aiProvider !== "openai" && settings.aiProvider !== "deepseek") {
+		errors.push("AI provider must be mock, openai, or deepseek.");
 	}
 
 	if (settings.aiRequestTimeoutMs < 1) {
@@ -107,6 +110,18 @@ export function validateAiProviderConfig(settings: MnemeSettings): AiProviderCon
 		errors.push("OpenAI base URL is required when using the OpenAI provider.");
 	}
 
+	if (settings.aiProvider === "deepseek" && settings.aiCaptureEnabled && settings.deepseekApiKey.trim().length === 0) {
+		errors.push("DeepSeek API key is required when AI capture is enabled with the DeepSeek provider.");
+	}
+
+	if (settings.aiProvider === "deepseek" && settings.deepseekModel.trim().length === 0) {
+		errors.push("DeepSeek model is required when using the DeepSeek provider.");
+	}
+
+	if (settings.aiProvider === "deepseek" && settings.deepseekBaseUrl.trim().length === 0) {
+		errors.push("DeepSeek base URL is required when using the DeepSeek provider.");
+	}
+
 	if (!settings.aiCaptureEnabled) {
 		warnings.push("AI capture is disabled.");
 	}
@@ -125,6 +140,9 @@ export function toLogSafeAiConfig(settings: MnemeSettings): LogSafeAiConfig {
 		aiMaxInputChars: settings.aiMaxInputChars,
 		aiProvider: settings.aiProvider,
 		aiRequestTimeoutMs: settings.aiRequestTimeoutMs,
+		deepseekApiKeyConfigured: settings.deepseekApiKey.trim().length > 0,
+		deepseekBaseUrl: settings.deepseekBaseUrl,
+		deepseekModel: settings.deepseekModel,
 		openaiApiKeyConfigured: settings.openaiApiKey.trim().length > 0,
 		openaiBaseUrl: settings.openaiBaseUrl,
 		openaiModel: settings.openaiModel,

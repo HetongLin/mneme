@@ -6,9 +6,9 @@ import {
 	OpenAiCompatibleStructuredOutputPayload,
 } from "./openAiCompatibleProvider";
 
-export type OpenAiStructuredOutputPayload = OpenAiCompatibleStructuredOutputPayload;
+export type DeepSeekStructuredOutputPayload = OpenAiCompatibleStructuredOutputPayload;
 
-export class OpenAiProvider implements AiProvider {
+export class DeepSeekProvider implements AiProvider {
 	constructor(private readonly settings: MnemeSettings) {
 	}
 
@@ -19,38 +19,38 @@ export class OpenAiProvider implements AiProvider {
 			throw new Error(validation.errors.join(" "));
 		}
 
-		if (this.settings.openaiApiKey.trim().length === 0) {
-			throw new Error("OpenAI API key is required to use the OpenAI provider.");
+		if (this.settings.deepseekApiKey.trim().length === 0) {
+			throw new Error("DeepSeek API key is required to use the DeepSeek provider.");
 		}
 
 		if (input.mode !== "concept_capture") {
 			throw new Error(`Unsupported AI proposal mode: ${input.mode}`);
 		}
 
-		buildOpenAiKnowledgeProposalPayload(input, this.settings);
+		buildDeepSeekKnowledgeProposalPayload(input, this.settings);
 
-		throw new Error("OpenAI AI capture is an infrastructure shell and is not connected to network execution yet.");
+		throw new Error("DeepSeek AI capture is an infrastructure shell and is not connected to network execution yet.");
 	}
 }
 
-export function buildOpenAiKnowledgeProposalPayload(
+export function buildDeepSeekKnowledgeProposalPayload(
 	input: AiProposalRequest,
 	settings: MnemeSettings,
-): OpenAiStructuredOutputPayload {
+): DeepSeekStructuredOutputPayload {
 	return buildOpenAiCompatibleKnowledgeProposalPayload(input, {
-		baseUrl: settings.openaiBaseUrl,
-		endpointPath: "responses",
+		baseUrl: settings.deepseekBaseUrl,
+		endpointPath: "chat/completions",
 		maxInputChars: settings.aiMaxInputChars,
-		model: settings.openaiModel,
-		requestShape: "responses",
+		model: settings.deepseekModel,
+		requestShape: "chat_completions",
 		timeoutMs: settings.aiRequestTimeoutMs,
 	});
 }
 
-export function createOpenAiProviderDiagnostics(settings: MnemeSettings, sourceContentLength: number): AiProposalResponse["diagnostics"] {
+export function createDeepSeekProviderDiagnostics(settings: MnemeSettings, sourceContentLength: number): AiProposalResponse["diagnostics"] {
 	return {
 		inputChars: sourceContentLength,
 		logSafeConfig: toLogSafeAiConfig(settings),
-		warnings: ["OpenAI provider is a shell; network execution is not enabled in Task 026A."],
+		warnings: ["DeepSeek provider is OpenAI-compatible shell infrastructure; network execution is not enabled in Task 026A.1."],
 	};
 }

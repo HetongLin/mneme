@@ -25,8 +25,13 @@ AI Capture settings are stored in plugin data under `settings`. They configure a
 - `openaiApiKey`
 - `openaiBaseUrl`
 - `openaiModel`
+- `deepseekApiKey`
+- `deepseekBaseUrl`
+- `deepseekModel`
 - `aiRequestTimeoutMs`
 - `aiMaxInputChars`
+
+Supported provider settings include `mock`, `openai`, and `deepseek`. DeepSeek is modeled as an OpenAI-compatible provider with an editable base URL and model; the default model is `deepseek-v4-flash`, but users may change it.
 
 These settings do not make `Analyze Current Note` call AI yet. Provider diagnostics must use log-safe configuration summaries and must not include raw API keys.
 

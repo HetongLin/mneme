@@ -17,7 +17,7 @@ Features:
 
 - Analyze Current Note
 - Hash-based skip
-- AI Capture settings and provider adapter infrastructure
+- AI Capture settings and provider adapter infrastructure for Mock, OpenAI, and DeepSeek
 - Concept Suggestions JSON
 - Zod schema validation
 - Inbox approval
