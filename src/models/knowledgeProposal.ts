@@ -67,6 +67,7 @@ export interface NewConceptProposalPayload {
 	coreMeaning?: string;
 	learningMode?: ProposalLearningMode;
 	proposedCards?: CardDraft[];
+	relatedConceptHints?: string[];
 	proposedSourceLinks?: ConceptSourceLinkDraft[];
 	proposedViews?: ConceptViewDraft[];
 	suggestedImportance?: SuggestedImportance;
@@ -157,6 +158,13 @@ export type KnowledgeProposalPayload =
 	| RetireCardProposalPayload;
 
 export interface KnowledgeProposalBase {
+	ai?: {
+		confidence?: number;
+		normalizedAt: string;
+		rationale?: string;
+		schemaVersion: string;
+		warnings?: string[];
+	};
 	cardId?: string;
 	conceptId?: string;
 	createdAt: string;

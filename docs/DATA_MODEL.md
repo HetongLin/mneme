@@ -35,9 +35,29 @@ Supported provider settings include `mock`, `openai`, and `deepseek`. DeepSeek i
 
 These settings do not make `Analyze Current Note` call AI yet. Provider diagnostics must use log-safe configuration summaries and must not include raw API keys.
 
+AI raw JSON is untrusted input. The structured AI proposal contract is:
+
+```text
+AI raw JSON
+-> runtime validation
+-> normalization
+-> KnowledgeProposal
+-> Inbox review
+-> Accept
+-> Markdown writer
+```
+
+`mneme.ai.proposals.v1` defines the concept-capture response shape. It may include machine-oriented fields such as confidence, rationale, and evidence for validation and review support, but those fields remain internal proposal metadata unless explicitly shown under Advanced / Raw JSON.
+
 `KnowledgeProposalStore` persists Inbox proposal records in plugin data. The Inbox displays active Concept and Card proposals for review, editing, acceptance, or rejection.
 
 Knowledge proposals may include typed payloads for proposed Concept and Card changes. These payloads are proposal state only; Markdown content is written only after explicit user acceptance.
+
+User-facing Markdown must stay concise:
+
+- `Concept.md` is a readable learning note, not a database export.
+- `Card.md` is review content, not a provider trace.
+- AI schema fields, provider metadata, prompt text, diagnostics, confidence scores, raw evidence arrays, source hashes, proposal ids, lifecycle metadata, and FSRS state stay in plugin data, proposal internals, diagnostics, or Advanced / Raw JSON.
 
 Inbox acceptance is explicit. `Accept Concept` and `Accept Card` validate supported proposal payloads, write clean editable `Concept.md` / `Card.md`, and mark proposals `written` only after a successful vault write. Rejected and written proposals are not active Inbox work.
 

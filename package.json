@@ -8,6 +8,7 @@
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
     "test:all": "node scripts/run-all-tests.mjs",
     "test:ai-provider": "node scripts/run-ai-provider-tests.mjs",
+    "test:ai-schema": "node scripts/run-ai-schema-tests.mjs",
     "test:acceptance-fixture": "node scripts/run-acceptance-fixture-tests.mjs",
     "test:concept-library": "node scripts/run-concept-library-tests.mjs",
     "test:concept-memory": "node scripts/run-concept-memory-tests.mjs",

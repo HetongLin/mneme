@@ -59,6 +59,16 @@ function getFirstDraftContent(result: ReturnType<typeof renderMarkdownProposal>)
 
 {
 	const proposal = createProposal("proposal-c", {
+		ai: {
+			confidence: 0.99,
+			normalizedAt: "2026-01-01T12:00:00.000Z",
+			rationale: "internal rationale should not render",
+			schemaVersion: "mneme.ai.proposals.v1",
+			warnings: ["internal warning"],
+		},
+		evidence: [{
+			excerpt: "{\"quote\":\"raw evidence JSON should not render\"}",
+		}],
 		kind: "new_concept",
 		payload: {
 			proposedCards: [{
@@ -75,6 +85,16 @@ function getFirstDraftContent(result: ReturnType<typeof renderMarkdownProposal>)
 
 	assert.equal(content.includes("source-hash-that-should-not-render"), false);
 	assert.equal(content.includes("proposal-c"), false);
+	assert.equal(content.includes("schemaVersion"), false);
+	assert.equal(content.includes("mneme.ai.proposals.v1"), false);
+	assert.equal(content.includes("confidence"), false);
+	assert.equal(content.includes("0.99"), false);
+	assert.equal(content.includes("provider"), false);
+	assert.equal(content.includes("model"), false);
+	assert.equal(content.includes("prompt"), false);
+	assert.equal(content.includes("diagnostics"), false);
+	assert.equal(content.includes("raw evidence JSON"), false);
+	assert.equal(content.includes("internal rationale"), false);
 	assert.equal(content.includes("linkId"), false);
 	assert.equal(content.includes("fsrsState"), false);
 	assert.equal(content.includes("dueAt"), false);

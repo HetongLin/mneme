@@ -9,15 +9,34 @@ import { createProposal } from "./knowledgeProposalTestUtils";
 
 {
 	const proposal = createProposal("proposal-a", {
+		ai: {
+			confidence: 0.97,
+			normalizedAt: "2026-01-01T12:00:00.000Z",
+			rationale: "Internal rationale",
+			schemaVersion: "mneme.ai.proposals.v1",
+		},
 		kind: "new_concept",
 		payload: {
 			summary: "A boundary around representation details.",
 			title: "Encapsulation",
 		},
+		sourcePath: "Notes/OOP.md",
+		status: "written",
 	});
+	const primaryText = [
+		getProposalTitle(proposal),
+		getProposalSubtitle(proposal),
+		getProposalPreview(proposal),
+	].join(" ");
 
 	assert.equal(getProposalTitle(proposal), "Encapsulation");
 	assert.equal(getProposalPreview(proposal), "A boundary around representation details.");
+	assert.equal(primaryText.includes("written"), false);
+	assert.equal(primaryText.includes("Status"), false);
+	assert.equal(primaryText.includes("confidence"), false);
+	assert.equal(primaryText.includes("0.97"), false);
+	assert.equal(primaryText.includes("mneme.ai.proposals.v1"), false);
+	assert.equal(primaryText.includes("Internal rationale"), false);
 }
 
 {

@@ -95,20 +95,33 @@ Current provider pieces:
 
 - AI Capture settings in Mneme settings, disabled by default
 - a provider adapter interface for structured proposal generation
+- a strict `mneme.ai.proposals.v1` concept-capture schema
+- runtime validation and normalization into `KnowledgeProposal`
 - a deterministic Mock provider for tests and offline development
 - an OpenAI provider shell that can build a future Structured Outputs request payload
 - a DeepSeek provider shell modeled as an OpenAI-compatible provider with editable base URL and model
 - log-safe provider configuration diagnostics that do not include raw API keys
 
-The provider interface returns `KnowledgeProposal[]` plus diagnostics and provider metadata. It is not connected to `Analyze Current Note`, Inbox acceptance, Markdown writers, FSRS, Daily Review, or Concept Library behavior.
+The provider interface returns structured AI response data plus diagnostics and provider metadata. The raw structured response is validated and normalized before it can become `KnowledgeProposal` data. This boundary is not connected to `Analyze Current Note`, Inbox acceptance, Markdown writers, FSRS, Daily Review, or Concept Library behavior.
 
-OpenAI Structured Outputs is the intended future enforcement layer for model output against JSON Schema. The current OpenAI provider is a shell and does not perform production network execution.
+OpenAI Structured Outputs is the intended provider-side enforcement layer for model output against JSON Schema. Mneme still treats provider output as untrusted until local runtime validation passes. The current OpenAI provider is a shell and does not perform production network execution.
 
-DeepSeek support uses the same OpenAI-compatible request boundary and Bearer-key configuration shape. It is infrastructure only at this stage and does not perform production network execution.
+DeepSeek support uses an OpenAI-compatible request boundary and Bearer-key configuration shape. DeepSeek JSON Output can request valid JSON, but Mneme still requires application-side schema validation and normalization. It is infrastructure only at this stage and does not perform production network execution.
 
 ## Structured Output Contract
 
-AI output must become validated `KnowledgeProposal[]` before it is shown in Inbox.
+AI output must become validated and normalized `KnowledgeProposal[]` before it is shown in Inbox.
+
+The concept-capture response uses:
+
+- `schemaVersion: "mneme.ai.proposals.v1"`
+- `mode: "concept_capture"`
+- `source.path`
+- `source.hash`
+- `proposals`
+- `warnings`
+
+Proposal entries may include machine-oriented `confidence`, `rationale`, and source evidence. These fields support validation and internal review, but they must not automatically appear in `Concept.md`, `Card.md`, Inbox primary UI, or Concept Library primary UI.
 
 In `concept_capture` mode, providers may return only Concept-stage proposal kinds:
 

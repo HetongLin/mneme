@@ -1,5 +1,6 @@
 import type { KnowledgeProposal, KnowledgeProposalKind } from "../models/knowledgeProposal";
 import type { AiProviderName, MnemeSettings } from "../models/settings";
+import type { AiStructuredProposalResponseV1 } from "./aiProposalSchema";
 
 export type AiProposalMode = "concept_capture";
 
@@ -32,8 +33,8 @@ export interface AiProposalDiagnostics {
 
 export interface AiProposalResponse {
 	diagnostics: AiProposalDiagnostics;
-	proposals: KnowledgeProposal[];
 	provider: AiProviderMetadata;
+	structuredResponse: AiStructuredProposalResponseV1;
 }
 
 export interface AiProvider {

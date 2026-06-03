@@ -34,7 +34,6 @@ export function getProposalTitle(proposal: KnowledgeProposal): string {
 export function getProposalSubtitle(proposal: KnowledgeProposal): string {
 	const parts = [
 		formatProposalKind(proposal.kind),
-		`Status: ${proposal.status}`,
 		getProposalSourcePath(proposal) ? `Source: ${getProposalSourcePath(proposal)}` : undefined,
 		getProposalTargetLabel(proposal),
 	];

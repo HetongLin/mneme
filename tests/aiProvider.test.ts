@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
 import {
-	CARD_STAGE_PROPOSAL_KINDS,
 	toLogSafeAiConfig,
 	validateAiProviderConfig,
-	validateConceptCaptureResponse,
 } from "../src/services/aiProvider";
 import { createAiProvider } from "../src/services/aiProviderFactory";
+import { validateAiStructuredProposalResponse } from "../src/services/aiProposalValidator";
 import { buildDeepSeekKnowledgeProposalPayload, DeepSeekProvider } from "../src/services/deepSeekProvider";
 import { MockAiProvider } from "../src/services/mockAiProvider";
 import { buildOpenAiKnowledgeProposalPayload, OpenAiProvider } from "../src/services/openAiProvider";
@@ -29,10 +28,11 @@ async function run(): Promise<void> {
 	const first = await provider.generateKnowledgeProposals(request);
 	const second = await provider.generateKnowledgeProposals(request);
 
-	assert.deepEqual(first.proposals, second.proposals);
-	assert.equal(first.proposals.length, 1);
-	assert.equal(first.proposals[0]?.kind, "new_concept");
+	assert.deepEqual(first.structuredResponse, second.structuredResponse);
+	assert.equal(first.structuredResponse.proposals.length, 1);
+	assert.equal(first.structuredResponse.proposals[0]?.kind, "new_concept");
 	assert.equal(first.provider.provider, "mock");
+	assert.equal(validateAiStructuredProposalResponse(first.structuredResponse).valid, true);
 }
 
 {
@@ -42,11 +42,11 @@ async function run(): Promise<void> {
 		openaiApiKey: "sk-secret-value",
 	});
 	const response = await provider.generateKnowledgeProposals(request);
-	const kinds = response.proposals.map((proposal) => proposal.kind);
+	const kinds = response.structuredResponse.proposals.map((proposal) => proposal.kind);
 	const serializedDiagnostics = JSON.stringify(response.diagnostics);
 
-	assert.equal(kinds.some((kind) => CARD_STAGE_PROPOSAL_KINDS.includes(kind)), false);
-	assert.equal(validateConceptCaptureResponse(response.proposals).valid, true);
+	assert.equal(kinds.some((kind) => kind.includes("card")), false);
+	assert.equal(validateAiStructuredProposalResponse(response.structuredResponse).valid, true);
 	assert.equal(serializedDiagnostics.includes("sk-secret-value"), false);
 	assert.equal(serializedDiagnostics.includes("deepseek-secret-value"), false);
 }

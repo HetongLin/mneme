@@ -6,6 +6,21 @@ All user-facing UI labels must be in English.
 
 The product should feel low-pressure. Avoid debt-like language.
 
+User experience is the first requirement. Primary UI should present concise review content, not AI/provider internals.
+
+Do not expose these in primary UI surfaces:
+
+- AI schema fields
+- diagnostics
+- confidence scores
+- provider metadata
+- prompt text
+- raw evidence arrays
+- lifecycle metadata
+- validation internals
+
+Machine-oriented data belongs in plugin data, diagnostics, proposal internals, Developer Tools, or Advanced / Raw JSON.
+
 Prefer:
 
 - Today’s Focus
@@ -118,6 +133,8 @@ Do not display a scary overdue queue by default.
 ### Purpose
 
 Show AI-generated Concept Suggestions before committing them.
+
+Inbox is a review surface, not a JSON/debug surface. Primary Inbox cards should show clear proposal titles, short previews, source context, and readiness. Raw structured AI output and lifecycle metadata belong under Advanced / Raw JSON only.
 
 ### Suggestion Types
 

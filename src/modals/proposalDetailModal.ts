@@ -86,7 +86,6 @@ export class ProposalDetailModal extends Modal {
 		const metadataEl = parentEl.createDiv({ cls: "mneme-proposal-detail-modal-metadata" });
 		const rows = [
 			["Title", getProposalTitle(this.proposal)],
-			["Status", this.proposal.status],
 			["Source", getProposalSourcePath(this.proposal)],
 			["Target", getProposalTargetLabel(this.proposal)],
 		];

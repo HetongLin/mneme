@@ -97,7 +97,7 @@ Initial AI capture is concept-first. Source Note analysis may propose Concept-st
 3. Mneme checks whether the note changed using hash.
 4. If changed, Mneme sends the note to AI.
 5. AI returns Concept Suggestions as JSON.
-6. Mneme validates JSON with Zod.
+6. Mneme validates JSON with a runtime schema.
 7. Suggestions appear in Inbox.
 8. User accepts, edits, rejects, merges, or updates.
 9. Mneme writes Concept.md and Card.md.
@@ -107,7 +107,9 @@ Initial AI capture is concept-first. Source Note analysis may propose Concept-st
 
 Current implementation note:
 
-AI provider settings and adapter shells may exist before the full workflow is connected. The supported provider options are Mock, OpenAI, and DeepSeek. DeepSeek is treated as an OpenAI-compatible provider, and its model remains configurable. Until the AI capture flow is explicitly wired, Analyze Current Note records source metadata and hashes only; it does not call AI, create Inbox proposals, or write Markdown.
+AI provider settings and adapter shells may exist before the full workflow is connected. The supported provider options are Mock, OpenAI, and DeepSeek. DeepSeek is treated as an OpenAI-compatible provider, and its model remains configurable. Provider output is untrusted until it passes Mneme's structured proposal validation and normalization into `KnowledgeProposal`. Until the AI capture flow is explicitly wired, Analyze Current Note records source metadata and hashes only; it does not call AI, create Inbox proposals, or write Markdown.
+
+User experience is the first requirement. Internal schemas can be strict and detailed, but primary user surfaces should stay concise. Concept notes should read like learning notes, not exported database records.
 
 ## v0.1 Goal
 
@@ -124,7 +126,7 @@ AI suggests Concepts and Cards
 - Analyze Current Note
 - Hash-based skip
 - Concept Suggestions JSON
-- Zod schema validation
+- Runtime schema validation
 - Inbox approval
 - Concept.md generation
 - Card.md generation
