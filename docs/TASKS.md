@@ -444,3 +444,26 @@ Acceptance criteria:
 - Invalid Views or Source Links are rejected before writing
 - Missing or duplicate target Concept ids fail safely
 - Successful proposals become `written` and leave the active Inbox queue
+
+## Task 036: Basic Concept Edit Modal
+
+Goal:
+
+Give students a concise way to maintain a written Concept from Concept Library without exposing plugin internals.
+
+Requirements:
+
+- Add `Edit Concept` to each Concept Library item
+- Edit Core Meaning and Why It Matters
+- Edit learning mode and importance through constrained selectors
+- Re-read the latest Concept before saving
+- Preserve frontmatter identity, custom fields, Views, Cards, Sources, and unrelated Markdown
+- Detect targeted-field changes made while the modal is open and refuse a stale overwrite
+
+Acceptance criteria:
+
+- Core Meaning cannot be saved empty
+- Why It Matters may be cleared intentionally
+- Unspecified learning mode or importance removes only that optional field
+- External changes to edited sections or metadata produce a conflict notice
+- Editing a Concept never changes Card or FSRS state

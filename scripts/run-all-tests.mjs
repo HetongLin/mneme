@@ -15,6 +15,7 @@ const testCommands = [
 	["npm", ["run", "test:concept-memory"]],
 	["npm", ["run", "test:concept-queue"]],
 	["npm", ["run", "test:concept-library"]],
+	["npm", ["run", "test:concept-metadata-updater"]],
 	["npm", ["run", "test:concept-source-links"]],
 	["npm", ["run", "test:concept-source-note-appender"]],
 	["npm", ["run", "test:concept-section-updater"]],

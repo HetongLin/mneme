@@ -4,6 +4,7 @@ import type {
 	ConceptLibrarySortMode,
 	ConceptSummary,
 } from "../models/conceptLibrary";
+import { ConceptEditModal } from "../modals/conceptEditModal";
 import { createConceptPreview } from "../services/conceptMarkdownParser";
 import { ConceptScanner } from "../services/conceptScanner";
 import {
@@ -239,6 +240,14 @@ export class MnemeConceptLibraryView extends ItemView {
 		actionsEl.createEl("button", { text: "Open Concept" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
 				void this.openMarkdownPath(concept.path, "Concept");
+			});
+		});
+		actionsEl.createEl("button", { text: "Edit Concept" }, (buttonEl) => {
+			buttonEl.addEventListener("click", () => {
+				new ConceptEditModal(this.app, {
+					concept,
+					onSaved: () => this.refresh(),
+				}).open();
 			});
 		});
 

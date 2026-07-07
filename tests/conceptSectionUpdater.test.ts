@@ -53,3 +53,11 @@ assert.throws(
 	() => updateConceptSections("# Empty\n", {}),
 	/At least one Concept section update is required/,
 );
+
+{
+	const markdown = "# Encapsulation\n\n## Why It Matters\n\nRemove this.\n\n## Views\n";
+	const result = updateConceptSections(markdown, { whyItMatters: "" });
+
+	assert.equal(result.status, "updated");
+	assert.match(result.markdown, /## Why It Matters\n\n## Views/);
+}

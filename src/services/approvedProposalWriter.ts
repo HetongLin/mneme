@@ -162,8 +162,8 @@ export class ApprovedProposalWriter {
 
 			if (payload.proposedCoreMeaning?.trim() || payload.proposedSummary?.trim()) {
 				updatedMarkdown = updateConceptSections(updatedMarkdown, {
-					coreMeaning: payload.proposedCoreMeaning,
-					whyItMatters: payload.proposedSummary,
+					coreMeaning: payload.proposedCoreMeaning?.trim() || undefined,
+					whyItMatters: payload.proposedSummary?.trim() || undefined,
 				}).markdown;
 			}
 

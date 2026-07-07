@@ -15,14 +15,14 @@ export function updateConceptSections(
 	const coreMeaning = normalizeOptionalContent(update.coreMeaning);
 	const whyItMatters = normalizeOptionalContent(update.whyItMatters);
 
-	if (!coreMeaning && !whyItMatters) {
+	if (coreMeaning === undefined && whyItMatters === undefined) {
 		throw new Error("At least one Concept section update is required.");
 	}
 
 	let result = markdown;
 	let changed = false;
 
-	if (coreMeaning) {
+	if (coreMeaning !== undefined) {
 		const sectionResult = replaceLevelTwoSection(
 			result,
 			"Core Meaning",
@@ -33,7 +33,7 @@ export function updateConceptSections(
 		changed ||= sectionResult.changed;
 	}
 
-	if (whyItMatters) {
+	if (whyItMatters !== undefined) {
 		const sectionResult = replaceLevelTwoSection(
 			result,
 			"Why It Matters",
@@ -60,6 +60,7 @@ function replaceLevelTwoSection(
 	const start = findLevelTwoHeading(lines, heading);
 
 	if (start === -1) {
+		const contentLines = content ? content.split("\n") : [];
 		const anchor = insertBeforeHeadings
 			.map((candidate) => findLevelTwoHeading(lines, candidate))
 			.find((index) => index >= 0);
@@ -75,8 +76,8 @@ function replaceLevelTwoSection(
 					"",
 					`## ${heading}`,
 					"",
-					...content.split("\n"),
-					"",
+					...contentLines,
+					...(contentLines.length > 0 ? [""] : []),
 					...after,
 				].join("\n").trimEnd()}\n`,
 			};
@@ -84,7 +85,7 @@ function replaceLevelTwoSection(
 
 		return {
 			changed: true,
-			markdown: `${markdown.trimEnd()}\n\n## ${heading}\n\n${content}\n`,
+			markdown: `${markdown.trimEnd()}\n\n## ${heading}\n${content ? `\n${content}\n` : "\n"}`,
 		};
 	}
 
@@ -97,7 +98,14 @@ function replaceLevelTwoSection(
 
 	const before = lines.slice(0, start + 1);
 	const after = trimLeadingBlankLines(lines.slice(end));
-	const combined = [...before, "", ...content.split("\n"), "", ...after];
+	const contentLines = content ? content.split("\n") : [];
+	const combined = [
+		...before,
+		"",
+		...contentLines,
+		...(contentLines.length > 0 ? [""] : []),
+		...after,
+	];
 
 	return {
 		changed: true,
@@ -155,9 +163,7 @@ function updateFence(currentFence: string | undefined, line: string): string | u
 }
 
 function normalizeOptionalContent(value: string | undefined): string | undefined {
-	const normalized = value?.trim();
-
-	return normalized ? normalized : undefined;
+	return value === undefined ? undefined : value.trim();
 }
 
 function trimLeadingBlankLines(lines: string[]): string[] {
