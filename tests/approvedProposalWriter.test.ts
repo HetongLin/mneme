@@ -199,21 +199,29 @@ async function runAsyncTests(): Promise<void> {
 				conceptTitle: "Encapsulation",
 				view: {
 					body: "A stable interface lets internal representation change independently.",
+					evidence: [{ excerpt: "Clients depend on stable interfaces." }],
+					sourcePath: "Notes/Interfaces.md",
 					title: "Change boundary",
 				},
 			},
+			sourceHash: "view-source-hash",
 			status: "approved",
 		});
 		const conceptPath = "Mneme/Concepts/Encapsulation/Concept.md";
 		const vault = new MemoryVaultAdapter({
 			[conceptPath]: "# Encapsulation\n\n## Views\n\n## Source Notes\n",
 		});
-		const { store, writer } = await createWriter({ [proposal.id]: proposal }, vault);
+		const { storage, store, writer } = await createWriter({ [proposal.id]: proposal }, vault);
 		const result = await writer.writeApprovedProposal(proposal.id);
 
 		assert.equal(result.status, "written");
 		assert.deepEqual(result.targetPaths, [conceptPath]);
 		assert.match(await vault.read(conceptPath), /### Change boundary\n\nA stable interface/);
+		assert.match(await vault.read(conceptPath), /\[\[Notes\/Interfaces\]\]/);
+		const sourceLinks = Object.values(storage.savedData?.conceptSourceLinks ?? {});
+		assert.equal(sourceLinks.length, 1);
+		assert.equal(sourceLinks[0].relationType, "supporting");
+		assert.equal(sourceLinks[0].sourcePath, "Notes/Interfaces.md");
 		assert.equal((await store.getProposal(proposal.id))?.status, "written");
 	}
 

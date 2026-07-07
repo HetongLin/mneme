@@ -2,11 +2,37 @@ import assert from "node:assert/strict";
 import {
 	buildConceptSourceLinksFromNewConceptProposal,
 	buildExistingConceptSourceLink,
+	buildViewSourceLink,
 	createConceptSourceLinkId,
 	mergeLinkedConceptId,
 	normalizeConceptIdForWrittenConcept,
 } from "../src/services/conceptSourceLinking";
 import { createProposal, createSourceRecord } from "./knowledgeProposalTestUtils";
+
+{
+	const proposal = createProposal("proposal-view-source", {
+		kind: "add_view",
+		payload: {
+			conceptId: "concept-encapsulation",
+			view: {
+				body: "Think of an interface as a contract.",
+				evidence: [{ excerpt: "Clients depend on the interface." }],
+				sourcePath: "Notes/Interfaces.md",
+				title: "Contract view",
+			},
+		},
+		sourceHash: "hash-view",
+	});
+	const link = buildViewSourceLink({
+		now: "2026-01-02T12:00:00.000Z",
+		proposal,
+	});
+
+	assert.equal(link?.conceptId, "concept-encapsulation");
+	assert.equal(link?.relationType, "supporting");
+	assert.equal(link?.sourcePath, "Notes/Interfaces.md");
+	assert.deepEqual(link?.evidence, [{ excerpt: "Clients depend on the interface." }]);
+}
 
 {
 	const proposal = createProposal("proposal-existing", {

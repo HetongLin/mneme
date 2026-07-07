@@ -400,3 +400,24 @@ Acceptance criteria:
 - An existing Markdown source link is not duplicated
 - Missing or duplicate Concept ids fail safely
 - Successful proposals leave the active Inbox queue as `written`
+
+## Task 034: Preserve Add View Provenance
+
+Goal:
+
+Keep every approved Concept View traceable to the Source Note that supported it.
+
+Requirements:
+
+- Derive a supporting Concept-source link from `add_view` source metadata
+- Write the View and Source Note reference in one Concept Markdown update
+- Persist evidence and source hash in the runtime link index
+- Update the Source Note analysis record when present
+- Keep retries idempotent across Markdown and plugin state
+
+Acceptance criteria:
+
+- A sourced View appears under `## Views` and its note under `## Source Notes`
+- The approved runtime link uses the target Concept id
+- Views without source metadata remain valid
+- No source reference is duplicated on retry

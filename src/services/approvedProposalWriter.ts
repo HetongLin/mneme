@@ -6,6 +6,7 @@ import { ensureUniquePath, normalizeVaultPath } from "../utils/markdownPath";
 import {
 	buildConceptSourceLinksFromNewConceptProposal,
 	buildExistingConceptSourceLink,
+	buildViewSourceLink,
 	mergeLinkedConceptId,
 	normalizeConceptIdForWrittenConcept,
 } from "./conceptSourceLinking";
@@ -195,6 +196,17 @@ export class ApprovedProposalWriter {
 		}
 
 		const payload = proposal.payload;
+		const now = this.now();
+		const sourceLink = buildViewSourceLink({ now, proposal });
+
+		if (sourceLink && !this.options.conceptSourceLinkStore) {
+			return {
+				message: "Concept source linking is unavailable.",
+				proposalId: proposal.id,
+				status: "skipped",
+				targetPaths: [],
+			};
+		}
 
 		if (!this.options.conceptScanner) {
 			return {
@@ -208,16 +220,31 @@ export class ApprovedProposalWriter {
 		try {
 			const targetPath = await this.resolveConceptPath(payload.conceptId);
 			const markdown = await this.options.vaultAdapter.read(targetPath);
-			const appendResult = appendConceptView(markdown, payload.view);
+			const viewResult = appendConceptView(markdown, payload.view);
+			const sourceResult = sourceLink
+				? appendConceptSourceNote(viewResult.markdown, sourceLink)
+				: undefined;
+			const updatedMarkdown = sourceResult?.markdown ?? viewResult.markdown;
 
-			if (appendResult.status === "appended") {
-				await this.options.vaultAdapter.modify(targetPath, appendResult.markdown);
+			if (viewResult.status === "appended" || sourceResult?.status === "appended") {
+				await this.options.vaultAdapter.modify(targetPath, updatedMarkdown);
 			}
 
-			await this.options.proposalStore.updateProposalStatus(proposal.id, "written", this.now());
+			if (sourceLink) {
+				await this.options.conceptSourceLinkStore?.upsertLink(sourceLink);
+				const sourceRecord = await this.options.sourceAnalysisStore?.getRecord(sourceLink.sourcePath);
+
+				if (sourceRecord) {
+					await this.options.sourceAnalysisStore?.upsertRecord(
+						mergeLinkedConceptId(sourceRecord, payload.conceptId),
+					);
+				}
+			}
+
+			await this.options.proposalStore.updateProposalStatus(proposal.id, "written", now);
 
 			return {
-				message: appendResult.status === "unchanged"
+				message: viewResult.status === "unchanged" && sourceResult?.status !== "appended"
 					? "Concept view already written."
 					: "Concept view written.",
 				proposalId: proposal.id,

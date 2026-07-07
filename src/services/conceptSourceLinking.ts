@@ -4,6 +4,7 @@ import type {
 	SourceEvidence,
 } from "../models/conceptSource";
 import type {
+	AddViewProposalPayload,
 	KnowledgeProposal,
 	LinkExistingConceptProposalPayload,
 	NewConceptProposalPayload,
@@ -25,6 +26,11 @@ export interface NormalizeWrittenConceptIdArgs {
 export interface BuildExistingConceptSourceLinkArgs {
 	now: string;
 	proposal: KnowledgeProposal & { kind: "link_existing_concept" };
+}
+
+export interface BuildViewSourceLinkArgs {
+	now: string;
+	proposal: KnowledgeProposal & { kind: "add_view" };
 }
 
 export function createConceptSourceLinkId(
@@ -93,6 +99,26 @@ export function buildExistingConceptSourceLink(
 		relationType: link.relationType,
 		sourceHash: link.sourceHash ?? args.proposal.sourceHash ?? "",
 		sourcePath: link.sourcePath,
+	});
+}
+
+export function buildViewSourceLink(args: BuildViewSourceLinkArgs): ConceptSourceLink | undefined {
+	const payload = isRecord(args.proposal.payload)
+		? args.proposal.payload as AddViewProposalPayload
+		: undefined;
+	const sourcePath = payload?.view.sourcePath ?? args.proposal.sourcePath;
+
+	if (!payload?.conceptId || !sourcePath) {
+		return undefined;
+	}
+
+	return createLink({
+		conceptId: payload.conceptId,
+		evidence: payload.view.evidence ?? args.proposal.evidence ?? [],
+		now: args.now,
+		relationType: "supporting",
+		sourceHash: args.proposal.sourceHash ?? "",
+		sourcePath,
 	});
 }
 
