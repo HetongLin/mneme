@@ -242,3 +242,27 @@ Acceptance criteria:
 - Files are created in configured folders
 - Card parser can parse generated Card.md
 - Concept.md remains human-editable
+
+## Task 027: Analyze Current Note to AI Concept Proposals
+
+Goal:
+
+Connect Source Note analysis to the approved AI proposal boundary without bypassing Inbox.
+
+Requirements:
+
+- Keep source indexing when AI Capture is disabled
+- Skip provider calls only when the current source hash was already captured
+- Send concise existing Concept summaries to the selected provider
+- Validate and normalize all provider output
+- Accept Concept-stage proposals only
+- Store valid proposals as active Inbox items
+- Never generate Cards or write Markdown from this command
+
+Acceptance criteria:
+
+- Mock capture creates deterministic Concept proposals
+- Invalid provider configuration creates no proposals
+- Unchanged captured notes make no provider call
+- Previously indexed but uncaptured notes can still run their first capture
+- Card-stage and source-mismatched responses are rejected

@@ -38,7 +38,6 @@ Non-goals:
 - Automatic vault scanning
 - PDF/PPT parsing
 - Anki sync
-- Connecting AI provider execution directly to Analyze Current Note before the approval boundary is complete
 - AI answer grading
 - Auto highlight
 - Full concept graph

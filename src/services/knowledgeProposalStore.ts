@@ -32,13 +32,18 @@ export class KnowledgeProposalStore {
 	}
 
 	async upsertProposal(proposal: KnowledgeProposal): Promise<void> {
+		await this.upsertProposals([proposal]);
+	}
+
+	async upsertProposals(proposals: KnowledgeProposal[]): Promise<void> {
 		const data = await this.loadPluginData();
+		const proposalsById = Object.fromEntries(proposals.map((proposal) => [proposal.id, proposal]));
 
 		await this.storage.saveData({
 			...data,
 			knowledgeProposals: {
 				...data.knowledgeProposals,
-				[proposal.id]: proposal,
+				...proposalsById,
 			},
 		});
 	}

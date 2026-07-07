@@ -1,5 +1,5 @@
 import type { MnemeSettings } from "../models/settings";
-import type { AiProposalRequest, AiProposalResponse, AiProvider } from "./aiProvider";
+import type { AiJsonHttpClient, AiProposalRequest, AiProposalResponse, AiProvider } from "./aiProvider";
 import { toLogSafeAiConfig, validateAiProviderConfig } from "./aiProvider";
 import {
 	buildOpenAiCompatibleKnowledgeProposalPayload,
@@ -9,7 +9,10 @@ import {
 export type OpenAiStructuredOutputPayload = OpenAiCompatibleStructuredOutputPayload;
 
 export class OpenAiProvider implements AiProvider {
-	constructor(private readonly settings: MnemeSettings) {
+	constructor(
+		private readonly settings: MnemeSettings,
+		private readonly httpClient?: AiJsonHttpClient,
+	) {
 	}
 
 	async generateKnowledgeProposals(input: AiProposalRequest): Promise<AiProposalResponse> {
@@ -27,9 +30,33 @@ export class OpenAiProvider implements AiProvider {
 			throw new Error(`Unsupported AI proposal mode: ${input.mode}`);
 		}
 
-		buildOpenAiKnowledgeProposalPayload(input, this.settings);
+		if (!this.httpClient) {
+			throw new Error("OpenAI network transport is not configured.");
+		}
 
-		throw new Error("OpenAI AI capture is an infrastructure shell and is not connected to network execution yet.");
+		const payload = buildOpenAiKnowledgeProposalPayload(input, this.settings);
+		const { endpoint, timeoutMs, ...body } = payload;
+		const raw = await this.httpClient.postJson({
+			body,
+			headers: {
+				Authorization: `Bearer ${this.settings.openaiApiKey}`,
+				"Content-Type": "application/json",
+			},
+			timeoutMs,
+			url: endpoint,
+		});
+		const structuredResponse = parseOpenAiStructuredResponse(raw);
+
+		return {
+			diagnostics: createOpenAiProviderDiagnostics(this.settings, input.sourceContent.length),
+			provider: {
+				baseUrl: this.settings.openaiBaseUrl,
+				model: this.settings.openaiModel,
+				provider: "openai",
+				structuredOutput: "json_schema",
+			},
+			structuredResponse,
+		};
 	}
 }
 
@@ -51,6 +78,38 @@ export function createOpenAiProviderDiagnostics(settings: MnemeSettings, sourceC
 	return {
 		inputChars: sourceContentLength,
 		logSafeConfig: toLogSafeAiConfig(settings),
-		warnings: ["OpenAI provider is a shell; network execution is not enabled in Task 026A."],
+		warnings: [],
 	};
+}
+
+function parseOpenAiStructuredResponse(raw: unknown): unknown {
+	if (!isRecord(raw) || !Array.isArray(raw.output)) {
+		throw new Error("OpenAI response did not contain structured proposal JSON.");
+	}
+
+	for (const output of raw.output) {
+		if (!isRecord(output) || !Array.isArray(output.content)) {
+			continue;
+		}
+
+		for (const content of output.content) {
+			if (isRecord(content) && content.type === "output_text" && typeof content.text === "string") {
+				return parseJson(content.text, "OpenAI");
+			}
+		}
+	}
+
+	throw new Error("OpenAI response did not contain structured proposal JSON.");
+}
+
+function parseJson(value: string, provider: string): unknown {
+	try {
+		return JSON.parse(value);
+	} catch {
+		throw new Error(`${provider} response contained invalid JSON.`);
+	}
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }

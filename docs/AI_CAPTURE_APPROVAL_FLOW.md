@@ -81,7 +81,7 @@ Accurate path:
 
 ## Runtime Foundation
 
-`Mneme: Analyze Current Note` currently indexes source note metadata and content hash only.
+`Mneme: Analyze Current Note` indexes source note metadata and content hash. With AI Capture enabled, it also creates validated Concept-stage proposals in Inbox.
 
 It persists a `SourceAnalysisRecord` in plugin data through `SourceAnalysisStore`. This lets Mneme skip unchanged notes before any future AI call is made.
 
@@ -89,7 +89,7 @@ This command does not extract Concepts, generate Cards, create Inbox proposals, 
 
 ## Provider Boundary
 
-Task 026A and Task 026A.1 add AI Capture infrastructure only.
+Task 026A and Task 026A.1 established the provider infrastructure. Task 027 connects that boundary to Analyze Current Note.
 
 Current provider pieces:
 
@@ -102,7 +102,7 @@ Current provider pieces:
 - a DeepSeek provider shell modeled as an OpenAI-compatible provider with editable base URL and model
 - log-safe provider configuration diagnostics that do not include raw API keys
 
-The provider interface returns structured AI response data plus diagnostics and provider metadata. The raw structured response is validated and normalized before it can become `KnowledgeProposal` data. This boundary is not connected to `Analyze Current Note`, Inbox acceptance, Markdown writers, FSRS, Daily Review, or Concept Library behavior.
+The provider interface returns structured AI response data plus diagnostics and provider metadata. Analyze Current Note validates and normalizes the raw response before it can become `KnowledgeProposal` data, then places valid Concept proposals in Inbox. Acceptance, Markdown writers, FSRS, and Daily Review remain separate boundaries.
 
 OpenAI Structured Outputs is the intended provider-side enforcement layer for model output against JSON Schema. Mneme still treats provider output as untrusted until local runtime validation passes. The current OpenAI provider is a shell and does not perform production network execution.
 

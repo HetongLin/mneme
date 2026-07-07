@@ -18,10 +18,13 @@ import {
 import { CardFileLoader } from "./services/cardFileLoader";
 import { FsrsReviewScheduler, FsrsSchedulerConfig } from "./services/fsrsReviewScheduler";
 import { ApprovedProposalWriter } from "./services/approvedProposalWriter";
+import { AiConceptCaptureService } from "./services/aiConceptCaptureService";
+import { createAiProvider } from "./services/aiProviderFactory";
 import { ConceptSourceLinkStore } from "./services/conceptSourceLinkStore";
 import { ConceptScanner } from "./services/conceptScanner";
 import { KnowledgeProposalStore } from "./services/knowledgeProposalStore";
 import { ObsidianConceptVaultAdapter } from "./services/obsidianConceptVaultAdapter";
+import { ObsidianAiHttpClient } from "./services/obsidianAiHttpClient";
 import { ObsidianVaultAdapter } from "./services/obsidianVaultAdapter";
 import { PreAiAcceptanceFixtureService } from "./services/preAiAcceptanceFixtureService";
 import { ReviewStateStore } from "./services/reviewStateStore";
@@ -258,25 +261,50 @@ export default class MnemePlugin extends Plugin {
 			return;
 		}
 
-		const service = new SourceAnalysisService(
+		const readSourceContent = (sourcePath: string) => this.readSourceNote(sourcePath);
+		const sourceAnalysisService = new SourceAnalysisService(
 			this.sourceAnalysisStore,
-			(sourcePath) => this.readSourceNote(sourcePath),
+			readSourceContent,
 		);
-
-		const result = await service.analyzeSource({
+		const service = new AiConceptCaptureService({
+			conceptScanner: this.createConceptScanner(),
+			createProvider: (settings) => createAiProvider(settings, new ObsidianAiHttpClient()),
+			proposalStore: this.knowledgeProposalStore,
+			readSourceContent,
+			settingsProvider: () => this.settings,
+			sourceAnalysisService,
+			sourceAnalysisStore: this.sourceAnalysisStore,
+		});
+		const result = await service.analyze({
 			mtime: activeFile.stat.mtime,
 			path: activeFile.path,
 			size: activeFile.stat.size,
 		});
 
 		if (result.status === "failed") {
-			console.error("Mneme: source analysis failed", result);
-			new Notice("Mneme: Source analysis failed. See console.");
+			console.error("Mneme: source analysis or AI capture failed", {
+				message: result.message,
+				sourcePath: activeFile.path,
+				status: result.status,
+			});
+			new Notice("Mneme: AI capture failed. See console.");
 			return;
 		}
 
-		console.info("Mneme: source analysis result", result);
-		new Notice(getSourceAnalysisNotice(result.status));
+		if (result.status === "invalid_response") {
+			console.warn("Mneme: AI response rejected", {
+				message: result.message,
+				sourcePath: activeFile.path,
+			});
+			new Notice("Mneme: AI response was invalid. No proposals added.");
+			return;
+		}
+
+		new Notice(`Mneme: ${result.message}`);
+
+		if (result.status === "captured") {
+			await this.refreshOpenInboxViews();
+		}
 	}
 
 	private async readSourceNote(sourcePath: string): Promise<string> {
@@ -601,17 +629,4 @@ function settingsToFsrsConfig(settings: MnemeSettings): FsrsSchedulerConfig {
 		maximumInterval: settings.fsrsMaximumInterval,
 		requestRetention: settings.fsrsRequestRetention,
 	};
-}
-
-function getSourceAnalysisNotice(status: string): string {
-	switch (status) {
-		case "analyzed":
-			return "Mneme: Source note indexed.";
-		case "skipped_metadata_unchanged":
-			return "Mneme: No changes since last analysis.";
-		case "skipped_hash_unchanged":
-			return "Mneme: Content hash unchanged.";
-		default:
-			return "Mneme: Source analysis updated.";
-	}
 }

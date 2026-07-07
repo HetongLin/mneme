@@ -1,5 +1,5 @@
 import type { MnemeSettings } from "../models/settings";
-import type { AiProposalRequest, AiProposalResponse, AiProvider } from "./aiProvider";
+import type { AiJsonHttpClient, AiProposalRequest, AiProposalResponse, AiProvider } from "./aiProvider";
 import { toLogSafeAiConfig, validateAiProviderConfig } from "./aiProvider";
 import {
 	buildOpenAiCompatibleKnowledgeProposalPayload,
@@ -9,7 +9,10 @@ import {
 export type DeepSeekStructuredOutputPayload = OpenAiCompatibleStructuredOutputPayload;
 
 export class DeepSeekProvider implements AiProvider {
-	constructor(private readonly settings: MnemeSettings) {
+	constructor(
+		private readonly settings: MnemeSettings,
+		private readonly httpClient?: AiJsonHttpClient,
+	) {
 	}
 
 	async generateKnowledgeProposals(input: AiProposalRequest): Promise<AiProposalResponse> {
@@ -27,9 +30,33 @@ export class DeepSeekProvider implements AiProvider {
 			throw new Error(`Unsupported AI proposal mode: ${input.mode}`);
 		}
 
-		buildDeepSeekKnowledgeProposalPayload(input, this.settings);
+		if (!this.httpClient) {
+			throw new Error("DeepSeek network transport is not configured.");
+		}
 
-		throw new Error("DeepSeek AI capture is an infrastructure shell and is not connected to network execution yet.");
+		const payload = buildDeepSeekKnowledgeProposalPayload(input, this.settings);
+		const { endpoint, timeoutMs, ...body } = payload;
+		const raw = await this.httpClient.postJson({
+			body,
+			headers: {
+				Authorization: `Bearer ${this.settings.deepseekApiKey}`,
+				"Content-Type": "application/json",
+			},
+			timeoutMs,
+			url: endpoint,
+		});
+		const structuredResponse = parseDeepSeekStructuredResponse(raw);
+
+		return {
+			diagnostics: createDeepSeekProviderDiagnostics(this.settings, input.sourceContent.length),
+			provider: {
+				baseUrl: this.settings.deepseekBaseUrl,
+				model: this.settings.deepseekModel,
+				provider: "deepseek",
+				structuredOutput: "json_object",
+			},
+			structuredResponse,
+		};
 	}
 }
 
@@ -51,6 +78,30 @@ export function createDeepSeekProviderDiagnostics(settings: MnemeSettings, sourc
 	return {
 		inputChars: sourceContentLength,
 		logSafeConfig: toLogSafeAiConfig(settings),
-		warnings: ["DeepSeek provider is OpenAI-compatible shell infrastructure; network execution is not enabled in Task 026A.1."],
+		warnings: [],
 	};
+}
+
+function parseDeepSeekStructuredResponse(raw: unknown): unknown {
+	if (!isRecord(raw) || !Array.isArray(raw.choices)) {
+		throw new Error("DeepSeek response did not contain structured proposal JSON.");
+	}
+
+	const choice = raw.choices[0];
+	const message = isRecord(choice) ? choice.message : undefined;
+	const content = isRecord(message) ? message.content : undefined;
+
+	if (typeof content !== "string") {
+		throw new Error("DeepSeek response did not contain structured proposal JSON.");
+	}
+
+	try {
+		return JSON.parse(content);
+	} catch {
+		throw new Error("DeepSeek response contained invalid JSON.");
+	}
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }

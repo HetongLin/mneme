@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
 import {
+	AiJsonHttpClient,
 	toLogSafeAiConfig,
 	validateAiProviderConfig,
 } from "../src/services/aiProvider";
@@ -129,7 +130,7 @@ async function run(): Promise<void> {
 
 	assert.equal(payload.endpoint, "https://api.openai.com/v1/responses");
 	assert.equal(payload.model, "gpt-test");
-	assert.equal(payload.response_format.type, "json_schema");
+	assert.equal(payload.text?.format.type, "json_schema");
 	assert.equal(serialized.includes("sk-secret-value"), false);
 	assert.equal(serialized.includes("Encapsulation keeps object internals"), false);
 	assert.equal(serialized.includes("Encapsulatio"), true);
@@ -152,6 +153,8 @@ async function run(): Promise<void> {
 	assert.equal(payload.response_format.type, "json_object");
 	assert.equal(payload.messages?.length, 2);
 	assert.equal(payload.input, undefined);
+	assert.equal(serialized.includes("mneme.ai.proposals.v1"), true);
+	assert.equal(serialized.includes("new_card"), true);
 	assert.equal(serialized.includes("deepseek-secret-value"), false);
 	assert.equal(serialized.includes("Encapsulation keeps object internals hidden"), false);
 	assert.equal(serialized.includes("Encapsulation keeps"), true);
@@ -186,6 +189,60 @@ async function run(): Promise<void> {
 }
 
 {
+	const http = new FakeHttpClient({
+		output: [{
+			content: [{ type: "output_text", text: JSON.stringify(createStructuredResponse()) }],
+		}],
+	});
+	const provider = new OpenAiProvider({
+		...DEFAULT_SETTINGS,
+		aiCaptureEnabled: true,
+		aiProvider: "openai",
+		openaiApiKey: "sk-test-only",
+	}, http);
+	const response = await provider.generateKnowledgeProposals(request);
+
+	assert.equal(validateAiStructuredProposalResponse(response.structuredResponse).valid, true);
+	assert.equal(http.lastRequest?.url, "https://api.openai.com/v1/responses");
+	assert.equal(http.lastRequest?.headers.Authorization, "Bearer sk-test-only");
+	assert.equal(response.provider.structuredOutput, "json_schema");
+	assert.equal(JSON.stringify(response.diagnostics).includes("sk-test-only"), false);
+}
+
+{
+	const http = new FakeHttpClient({
+		choices: [{ message: { content: JSON.stringify(createStructuredResponse()) } }],
+	});
+	const provider = new DeepSeekProvider({
+		...DEFAULT_SETTINGS,
+		aiCaptureEnabled: true,
+		aiProvider: "deepseek",
+		deepseekApiKey: "deepseek-test-only",
+	}, http);
+	const response = await provider.generateKnowledgeProposals(request);
+
+	assert.equal(validateAiStructuredProposalResponse(response.structuredResponse).valid, true);
+	assert.equal(http.lastRequest?.url, "https://api.deepseek.com/chat/completions");
+	assert.equal(http.lastRequest?.headers.Authorization, "Bearer deepseek-test-only");
+	assert.equal(response.provider.structuredOutput, "json_object");
+	assert.equal(JSON.stringify(response.diagnostics).includes("deepseek-test-only"), false);
+}
+
+{
+	const provider = new OpenAiProvider({
+		...DEFAULT_SETTINGS,
+		aiCaptureEnabled: true,
+		aiProvider: "openai",
+		openaiApiKey: "sk-test-only",
+	}, new FakeHttpClient({ output: [] }));
+
+	await assert.rejects(
+		() => provider.generateKnowledgeProposals(request),
+		/OpenAI response did not contain structured proposal JSON/,
+	);
+}
+
+{
 	assert.equal(createAiProvider(DEFAULT_SETTINGS) instanceof MockAiProvider, true);
 	assert.equal(createAiProvider({
 		...DEFAULT_SETTINGS,
@@ -204,3 +261,25 @@ void run().catch((error) => {
 	console.error(error);
 	process.exit(1);
 });
+
+function createStructuredResponse() {
+	return {
+		mode: "concept_capture",
+		proposals: [],
+		schemaVersion: "mneme.ai.proposals.v1",
+		source: { hash: request.sourceHash, path: request.sourcePath },
+		warnings: [],
+	};
+}
+
+class FakeHttpClient implements AiJsonHttpClient {
+	lastRequest?: Parameters<AiJsonHttpClient["postJson"]>[0];
+
+	constructor(private readonly response: unknown) {
+	}
+
+	async postJson(input: Parameters<AiJsonHttpClient["postJson"]>[0]): Promise<unknown> {
+		this.lastRequest = input;
+		return this.response;
+	}
+}

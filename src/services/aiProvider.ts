@@ -1,7 +1,5 @@
 import type { KnowledgeProposal, KnowledgeProposalKind } from "../models/knowledgeProposal";
 import type { AiProviderName, MnemeSettings } from "../models/settings";
-import type { AiStructuredProposalResponseV1 } from "./aiProposalSchema";
-
 export type AiProposalMode = "concept_capture";
 
 export interface ExistingConceptSummary {
@@ -22,7 +20,7 @@ export interface AiProviderMetadata {
 	baseUrl?: string;
 	model?: string;
 	provider: AiProviderName;
-	structuredOutput: "planned" | "mock";
+	structuredOutput: "json_object" | "json_schema" | "mock";
 }
 
 export interface AiProposalDiagnostics {
@@ -34,11 +32,22 @@ export interface AiProposalDiagnostics {
 export interface AiProposalResponse {
 	diagnostics: AiProposalDiagnostics;
 	provider: AiProviderMetadata;
-	structuredResponse: AiStructuredProposalResponseV1;
+	structuredResponse: unknown;
 }
 
 export interface AiProvider {
 	generateKnowledgeProposals(input: AiProposalRequest): Promise<AiProposalResponse>;
+}
+
+export interface AiJsonHttpRequest {
+	body: unknown;
+	headers: Record<string, string>;
+	timeoutMs: number;
+	url: string;
+}
+
+export interface AiJsonHttpClient {
+	postJson(input: AiJsonHttpRequest): Promise<unknown>;
 }
 
 export interface LogSafeAiConfig {

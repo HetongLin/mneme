@@ -107,7 +107,7 @@ Initial AI capture is concept-first. Source Note analysis may propose Concept-st
 
 Current implementation note:
 
-AI provider settings and adapter shells may exist before the full workflow is connected. The supported provider options are Mock, OpenAI, and DeepSeek. DeepSeek is treated as an OpenAI-compatible provider, and its model remains configurable. Provider output is untrusted until it passes Mneme's structured proposal validation and normalization into `KnowledgeProposal`. Until the AI capture flow is explicitly wired, Analyze Current Note records source metadata and hashes only; it does not call AI, create Inbox proposals, or write Markdown.
+Analyze Current Note indexes the Source Note and, when AI Capture is enabled, asks the selected Mock, OpenAI, or DeepSeek provider for Concept-stage proposals. DeepSeek uses its OpenAI-compatible chat-completions endpoint, while OpenAI uses the Responses API. Provider output remains untrusted until it passes Mneme's structured proposal validation and normalization into `KnowledgeProposal`. The command stores valid proposals in Inbox and never writes Markdown directly.
 
 User experience is the first requirement. Internal schemas can be strict and detailed, but primary user surfaces should stay concise. Concept notes should read like learning notes, not exported database records.
 

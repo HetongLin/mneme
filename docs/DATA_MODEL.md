@@ -16,9 +16,9 @@ Source Note <-> Concept -> Card -> FSRS
 
 Markdown stores approved `Concept.md` and `Card.md` content. `data.json` stores settings, review states, later review logs, source analysis records, proposal metadata, indexes, and other plugin state.
 
-`SourceAnalysisStore` persists `SourceAnalysisRecord` entries in plugin data. `Mneme: Analyze Current Note` currently updates source path, metadata, and content hash only; it does not generate Concepts, Cards, Inbox proposals, or Markdown.
+`SourceAnalysisStore` persists `SourceAnalysisRecord` entries in plugin data. `Mneme: Analyze Current Note` always updates source path, metadata, and content hash. When AI Capture is enabled, it may also add validated Concept proposals to Inbox; it never generates Cards or writes Markdown directly.
 
-AI Capture settings are stored in plugin data under `settings`. They configure a future provider boundary only:
+AI Capture settings are stored in plugin data under `settings` and configure the provider boundary:
 
 - `aiCaptureEnabled`
 - `aiProvider`
@@ -33,7 +33,7 @@ AI Capture settings are stored in plugin data under `settings`. They configure a
 
 Supported provider settings include `mock`, `openai`, and `deepseek`. DeepSeek is modeled as an OpenAI-compatible provider with an editable base URL and model; the default model is `deepseek-v4-flash`, but users may change it.
 
-These settings do not make `Analyze Current Note` call AI yet. Provider diagnostics must use log-safe configuration summaries and must not include raw API keys.
+These settings control AI calls from `Analyze Current Note`. Provider diagnostics must use log-safe configuration summaries and must not include raw API keys.
 
 AI raw JSON is untrusted input. The structured AI proposal contract is:
 
@@ -310,13 +310,14 @@ These settings affect future explicit Markdown writes only. They do not move exi
 
 For each analyzed Source Note, store:
 
-- path
-- lastAnalyzedHash
-- lastAnalyzedMtime
-- lastAnalyzedSize
+- sourcePath
+- contentHash
+- lastAiCaptureHash (optional; records the hash that completed proposal capture)
+- mtime
+- size
 - lastAnalyzedAt
 
-If hash is unchanged, skip AI analysis by default.
+Skip the AI call only when `contentHash` matches `lastAiCaptureHash`. This lets a note indexed while AI Capture was disabled receive its first later capture without pretending the provider already ran.
 
 ## FSRS State
 

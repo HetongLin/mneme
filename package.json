@@ -7,6 +7,7 @@
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
     "test:all": "node scripts/run-all-tests.mjs",
+    "test:ai-capture": "node scripts/run-ai-concept-capture-tests.mjs",
     "test:ai-provider": "node scripts/run-ai-provider-tests.mjs",
     "test:ai-schema": "node scripts/run-ai-schema-tests.mjs",
     "test:acceptance-fixture": "node scripts/run-acceptance-fixture-tests.mjs",

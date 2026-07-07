@@ -20,16 +20,17 @@ export interface OpenAiCompatibleStructuredOutputPayload {
 		role: "system" | "user";
 	}>;
 	model: string;
-	response_format: JsonSchemaResponseFormat | JsonObjectResponseFormat;
+	response_format?: JsonObjectResponseFormat;
+	text?: {
+		format: ResponsesJsonSchemaFormat;
+	};
 	timeoutMs: number;
 }
 
-interface JsonSchemaResponseFormat {
-	json_schema: {
-		name: "mneme_knowledge_proposals";
-		schema: Record<string, unknown>;
-		strict: true;
-	};
+interface ResponsesJsonSchemaFormat {
+	name: "mneme_knowledge_proposals";
+	schema: Record<string, unknown>;
+	strict: true;
 	type: "json_schema";
 }
 
@@ -45,9 +46,11 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 	const messages = [
 		{
 			content: [
-				"You generate Mneme KnowledgeProposal JSON only.",
+				"Return one JSON object with schemaVersion 'mneme.ai.proposals.v1', mode 'concept_capture', the exact source path/hash, proposals, and string warnings.",
 				"Concept capture may return only new_concept, link_existing_concept, add_view, update_concept, or merge_concept.",
-				"Do not return card-stage proposal kinds.",
+				"Every proposal requires kind, title, rationale, confidence from 0 to 1, evidence entries with sourcePath/quote/explanation, and a kind-specific payload.",
+				"Payloads: new_concept={conceptTitle,summary,coreMeaning,learningMode, suggestedImportance,relatedConceptHints,views[{title,body}]}; link_existing_concept={existingConceptId,existingConceptTitle,reason}; add_view={targetConceptId,targetConceptTitle,viewTitle,viewBody}; update_concept={targetConceptId,targetConceptTitle,reason,proposedSummary and/or proposedCoreMeaning}; merge_concept={sourceConceptIds,proposedTitle,reason}.",
+				"Never return new_card, revise_card, split_card, merge_card, or retire_card.",
 				"Do not write Markdown.",
 			].join("\n"),
 			role: "system" as const,
@@ -67,60 +70,123 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 	const payload: OpenAiCompatibleStructuredOutputPayload = {
 		endpoint: `${config.baseUrl.replace(/\/+$/g, "")}/${config.endpointPath}`,
 		model: config.model,
-		response_format: createResponseFormat(config.requestShape),
 		timeoutMs: config.timeoutMs,
 	};
 
 	if (config.requestShape === "responses") {
 		payload.input = messages;
+		payload.text = { format: createResponsesFormat() };
 	} else {
 		payload.messages = messages;
+		payload.response_format = { type: "json_object" };
 	}
 
 	return payload;
 }
 
-function createResponseFormat(shape: OpenAiCompatibleProviderConfig["requestShape"]): JsonSchemaResponseFormat | JsonObjectResponseFormat {
-	if (shape === "chat_completions") {
-		return { type: "json_object" };
-	}
-
+function createResponsesFormat(): ResponsesJsonSchemaFormat {
 	return {
-		json_schema: {
-			name: "mneme_knowledge_proposals",
-			schema: createKnowledgeProposalArrayJsonSchema(),
-			strict: true,
-		},
+		name: "mneme_knowledge_proposals",
+		schema: createKnowledgeProposalResponseJsonSchema(),
+		strict: true,
 		type: "json_schema",
 	};
 }
 
-function createKnowledgeProposalArrayJsonSchema(): Record<string, unknown> {
-	return {
-		items: {
-			additionalProperties: true,
-			properties: {
-				createdAt: { type: "string" },
-				id: { type: "string" },
-				kind: {
-					enum: [
-						"new_concept",
-						"link_existing_concept",
-						"add_view",
-						"update_concept",
-						"merge_concept",
-					],
-					type: "string",
-				},
-				payload: { type: "object" },
-				sourceHash: { type: "string" },
-				sourcePath: { type: "string" },
-				status: { enum: ["suggested"], type: "string" },
-				updatedAt: { type: "string" },
-			},
-			required: ["id", "kind", "status", "createdAt", "updatedAt"],
-			type: "object",
+function createKnowledgeProposalResponseJsonSchema(): Record<string, unknown> {
+	const evidence = {
+		additionalProperties: false,
+		properties: {
+			explanation: { type: "string" },
+			quote: { type: "string" },
+			sourcePath: { type: "string" },
 		},
-		type: "array",
+		required: ["explanation", "quote", "sourcePath"],
+		type: "object",
+	};
+	const proposalBase = {
+		confidence: { maximum: 1, minimum: 0, type: "number" },
+		evidence: { items: evidence, type: "array" },
+		rationale: { type: "string" },
+		title: { type: "string" },
+	};
+	const proposal = (kind: string, payload: Record<string, unknown>, required: string[]) => ({
+		additionalProperties: false,
+		properties: {
+			...proposalBase,
+			kind: { const: kind, type: "string" },
+			payload: {
+				additionalProperties: false,
+				properties: payload,
+				required,
+				type: "object",
+			},
+		},
+		required: ["confidence", "evidence", "kind", "payload", "rationale", "title"],
+		type: "object",
+	});
+
+	return {
+		additionalProperties: false,
+		properties: {
+			mode: { const: "concept_capture", type: "string" },
+			proposals: {
+				items: {
+					anyOf: [
+						proposal("new_concept", {
+							conceptTitle: { type: "string" },
+							coreMeaning: { type: "string" },
+							learningMode: { enum: ["reviewable", "exploratory"], type: "string" },
+							relatedConceptHints: { items: { type: "string" }, type: "array" },
+							suggestedImportance: { enum: ["low", "normal", "high", "critical"], type: "string" },
+							summary: { type: "string" },
+							views: {
+								items: {
+									additionalProperties: false,
+									properties: { body: { type: "string" }, title: { type: "string" } },
+									required: ["body", "title"],
+									type: "object",
+								},
+								type: "array",
+							},
+						}, ["conceptTitle", "coreMeaning", "learningMode", "relatedConceptHints", "suggestedImportance", "summary", "views"]),
+						proposal("link_existing_concept", {
+							existingConceptId: { type: "string" },
+							existingConceptTitle: { type: "string" },
+							reason: { type: "string" },
+						}, ["existingConceptId", "existingConceptTitle", "reason"]),
+						proposal("add_view", {
+							targetConceptId: { type: "string" },
+							targetConceptTitle: { type: "string" },
+							viewBody: { type: "string" },
+							viewTitle: { type: "string" },
+						}, ["targetConceptId", "targetConceptTitle", "viewBody", "viewTitle"]),
+						proposal("update_concept", {
+							proposedCoreMeaning: { type: "string" },
+							proposedSummary: { type: "string" },
+							reason: { type: "string" },
+							targetConceptId: { type: "string" },
+							targetConceptTitle: { type: "string" },
+						}, ["proposedCoreMeaning", "proposedSummary", "reason", "targetConceptId", "targetConceptTitle"]),
+						proposal("merge_concept", {
+							proposedTitle: { type: "string" },
+							reason: { type: "string" },
+							sourceConceptIds: { items: { type: "string" }, minItems: 2, type: "array" },
+						}, ["proposedTitle", "reason", "sourceConceptIds"]),
+					],
+				},
+				type: "array",
+			},
+			schemaVersion: { const: "mneme.ai.proposals.v1", type: "string" },
+			source: {
+				additionalProperties: false,
+				properties: { hash: { type: "string" }, path: { type: "string" } },
+				required: ["hash", "path"],
+				type: "object",
+			},
+			warnings: { items: { type: "string" }, type: "array" },
+		},
+		required: ["mode", "proposals", "schemaVersion", "source", "warnings"],
+		type: "object",
 	};
 }

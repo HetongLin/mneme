@@ -113,7 +113,7 @@ export class MnemeSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Enable AI capture")
-			.setDesc("Keeps AI proposal generation disabled until the capture flow is ready.")
+			.setDesc("Generate Concept proposals from Analyze Current Note.")
 			.addToggle((toggle) => {
 				toggle.setValue(this.plugin.settings.aiCaptureEnabled);
 				toggle.onChange(async (value) => {
@@ -124,7 +124,7 @@ export class MnemeSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Provider")
-			.setDesc("Selects the AI provider boundary. Analyze Current Note is not connected to this yet.")
+			.setDesc("Selects the provider used for Concept proposals.")
 			.addDropdown((dropdown) => {
 				dropdown.addOption("mock", "Mock");
 				dropdown.addOption("openai", "OpenAI");
@@ -164,7 +164,7 @@ export class MnemeSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Model")
-			.setDesc("Model used by the future AI capture provider.")
+			.setDesc("Model used by the OpenAI provider.")
 			.addText((text) => {
 				text.setPlaceholder(DEFAULT_SETTINGS.openaiModel);
 				text.setValue(this.plugin.settings.openaiModel);
@@ -203,7 +203,7 @@ export class MnemeSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("DeepSeek model")
-			.setDesc("Model used by the future DeepSeek AI capture provider.")
+			.setDesc("Model used by the DeepSeek provider.")
 			.addText((text) => {
 				text.setPlaceholder(DEFAULT_SETTINGS.deepseekModel);
 				text.setValue(this.plugin.settings.deepseekModel);
