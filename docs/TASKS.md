@@ -377,3 +377,26 @@ Acceptance criteria:
 - Missing or duplicate Concept ids fail safely
 - Conflicting View content is never overwritten
 - Successful proposals leave the active Inbox queue as `written`
+
+## Task 033: Accept Existing Concept Source Links
+
+Goal:
+
+Let a student approve AI evidence that an existing Concept is supported by the current Source Note.
+
+Requirements:
+
+- Show `Accept Source Link` for `link_existing_concept` proposals
+- Resolve the target Concept by stable Mneme concept id
+- Append a readable Obsidian link under `## Source Notes`
+- Persist the approved many-to-many Concept-source index record
+- Update the Source Note analysis record when it exists
+- Make repeated acceptance idempotent
+
+Acceptance criteria:
+
+- No Markdown or index changes before explicit acceptance
+- The source path, relation type, and evidence remain traceable
+- An existing Markdown source link is not duplicated
+- Missing or duplicate Concept ids fail safely
+- Successful proposals leave the active Inbox queue as `written`

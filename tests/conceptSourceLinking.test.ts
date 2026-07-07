@@ -1,11 +1,35 @@
 import assert from "node:assert/strict";
 import {
 	buildConceptSourceLinksFromNewConceptProposal,
+	buildExistingConceptSourceLink,
 	createConceptSourceLinkId,
 	mergeLinkedConceptId,
 	normalizeConceptIdForWrittenConcept,
 } from "../src/services/conceptSourceLinking";
 import { createProposal, createSourceRecord } from "./knowledgeProposalTestUtils";
+
+{
+	const proposal = createProposal("proposal-existing", {
+		kind: "link_existing_concept",
+		payload: {
+			proposedSourceLink: {
+				evidence: [{ excerpt: "A supporting explanation." }],
+				relationType: "supporting",
+				sourceHash: "hash-a",
+				sourcePath: "Notes/Intro.md",
+			},
+			targetConceptId: "concept-encapsulation",
+		},
+	});
+	const link = buildExistingConceptSourceLink({
+		now: "2026-01-02T12:00:00.000Z",
+		proposal,
+	});
+
+	assert.equal(link?.conceptId, "concept-encapsulation");
+	assert.equal(link?.sourcePath, "Notes/Intro.md");
+	assert.equal(link?.status, "approved");
+}
 
 {
 	const first = createConceptSourceLinkId("concept-a", "Notes/Intro.md", "origin");

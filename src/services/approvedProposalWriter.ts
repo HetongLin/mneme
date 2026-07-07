@@ -5,6 +5,7 @@ import type { MnemeSettings } from "../models/settings";
 import { ensureUniquePath, normalizeVaultPath } from "../utils/markdownPath";
 import {
 	buildConceptSourceLinksFromNewConceptProposal,
+	buildExistingConceptSourceLink,
 	mergeLinkedConceptId,
 	normalizeConceptIdForWrittenConcept,
 } from "./conceptSourceLinking";
@@ -13,6 +14,7 @@ import { KnowledgeProposalStore } from "./knowledgeProposalStore";
 import { renderMarkdownProposal } from "./markdownProposalRenderer";
 import { SourceAnalysisStore } from "./sourceAnalysisStore";
 import { appendConceptView } from "./conceptViewAppender";
+import { appendConceptSourceNote } from "./conceptSourceNoteAppender";
 import { validateKnowledgeProposalPayload } from "./knowledgeProposalValidation";
 
 export interface MnemeVaultAdapter {
@@ -66,6 +68,10 @@ export class ApprovedProposalWriter {
 			};
 		}
 
+		if (proposal.kind === "link_existing_concept") {
+			return this.writeExistingConceptLinkProposal(proposal);
+		}
+
 		if (proposal.kind === "add_view") {
 			return this.writeConceptViewProposal(proposal);
 		}
@@ -111,6 +117,69 @@ export class ApprovedProposalWriter {
 		}
 	}
 
+	private async writeExistingConceptLinkProposal(
+		proposal: Extract<KnowledgeProposal, { kind: "link_existing_concept" }>,
+	): Promise<MarkdownWriteResult> {
+		const validation = validateKnowledgeProposalPayload(proposal);
+
+		if (!validation.valid || !proposal.payload) {
+			return this.failedResult(proposal.id, validation.errors.join(" ") || "Source link proposal is invalid.");
+		}
+
+		if (!this.options.conceptScanner || !this.options.conceptSourceLinkStore) {
+			return {
+				message: "Concept source linking is unavailable.",
+				proposalId: proposal.id,
+				status: "skipped",
+				targetPaths: [],
+			};
+		}
+
+		const payload = proposal.payload;
+
+		try {
+			const targetPath = await this.resolveConceptPath(payload.targetConceptId);
+			const markdown = await this.options.vaultAdapter.read(targetPath);
+			const appendResult = appendConceptSourceNote(markdown, payload.proposedSourceLink);
+
+			if (appendResult.status === "appended") {
+				await this.options.vaultAdapter.modify(targetPath, appendResult.markdown);
+			}
+
+			const now = this.now();
+			const sourceLink = buildExistingConceptSourceLink({ now, proposal });
+
+			if (!sourceLink) {
+				throw new Error("Source link proposal is invalid.");
+			}
+
+			await this.options.conceptSourceLinkStore.upsertLink(sourceLink);
+			const sourceRecord = await this.options.sourceAnalysisStore?.getRecord(sourceLink.sourcePath);
+
+			if (sourceRecord) {
+				await this.options.sourceAnalysisStore?.upsertRecord(
+					mergeLinkedConceptId(sourceRecord, payload.targetConceptId),
+				);
+			}
+
+			await this.options.proposalStore.updateProposalStatus(proposal.id, "written", now);
+
+			return {
+				message: appendResult.status === "unchanged"
+					? "Concept source link already written."
+					: "Concept source link written.",
+				proposalId: proposal.id,
+				status: "written",
+				targetPaths: [targetPath],
+			};
+		} catch (error) {
+			return this.failedResult(
+				proposal.id,
+				error instanceof Error ? error.message : "Concept source link write failed.",
+			);
+		}
+	}
+
 	private async writeConceptViewProposal(
 		proposal: Extract<KnowledgeProposal, { kind: "add_view" }>,
 	): Promise<MarkdownWriteResult> {
@@ -137,24 +206,7 @@ export class ApprovedProposalWriter {
 		}
 
 		try {
-			const concepts = await this.options.conceptScanner.scanConcepts();
-			const matches = concepts.filter((concept) => concept.conceptId === payload.conceptId);
-
-			if (matches.length === 0) {
-				throw new Error(`Concept not found: ${payload.conceptId}`);
-			}
-
-			if (matches.length > 1) {
-				throw new Error(`Multiple Concept files use id: ${payload.conceptId}`);
-			}
-
-			const targetConcept = matches[0];
-
-			if (!targetConcept) {
-				throw new Error(`Concept not found: ${payload.conceptId}`);
-			}
-
-			const targetPath = targetConcept.path;
+			const targetPath = await this.resolveConceptPath(payload.conceptId);
 			const markdown = await this.options.vaultAdapter.read(targetPath);
 			const appendResult = appendConceptView(markdown, payload.view);
 
@@ -180,6 +232,40 @@ export class ApprovedProposalWriter {
 				targetPaths: [],
 			};
 		}
+	}
+
+	private async resolveConceptPath(conceptId: string): Promise<string> {
+		if (!this.options.conceptScanner) {
+			throw new Error("Concept lookup is unavailable.");
+		}
+
+		const concepts = await this.options.conceptScanner.scanConcepts();
+		const matches = concepts.filter((concept) => concept.conceptId === conceptId);
+
+		if (matches.length === 0) {
+			throw new Error(`Concept not found: ${conceptId}`);
+		}
+
+		if (matches.length > 1) {
+			throw new Error(`Multiple Concept files use id: ${conceptId}`);
+		}
+
+		const targetConcept = matches[0];
+
+		if (!targetConcept) {
+			throw new Error(`Concept not found: ${conceptId}`);
+		}
+
+		return targetConcept.path;
+	}
+
+	private failedResult(proposalId: string, message: string): MarkdownWriteResult {
+		return {
+			message,
+			proposalId,
+			status: "failed",
+			targetPaths: [],
+		};
 	}
 
 	private async assignUniqueTargetPaths(drafts: MarkdownWriteDraft[]): Promise<MarkdownWriteDraft[]> {

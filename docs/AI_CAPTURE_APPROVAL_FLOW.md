@@ -146,6 +146,7 @@ Cards are generated later from written `Concept.md`, then reviewed and accepted 
 Current implementation supports two post-review write paths:
 
 - `add_view` appends an approved perspective to the resolved Concept's `## Views` section. Identical retries are idempotent, while same-title conflicts fail without overwriting Markdown.
+- `link_existing_concept` appends an approved Source Note reference to the resolved Concept and records the provenance link in plugin state.
 - `new_card` writes approved Card proposals generated from a written Concept.
 
 Other Concept updates and revise, split, merge, or retire Card operations remain future work because their safe Markdown patch writers are not implemented yet.

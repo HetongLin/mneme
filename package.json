@@ -8,6 +8,7 @@
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
     "test:all": "node scripts/run-all-tests.mjs",
     "test:concept-view-appender": "node scripts/run-concept-view-appender-tests.mjs",
+    "test:concept-source-note-appender": "node scripts/run-concept-source-note-appender-tests.mjs",
     "test:ai-card-generation": "node scripts/run-ai-card-generation-tests.mjs",
     "test:ai-capture": "node scripts/run-ai-concept-capture-tests.mjs",
     "test:ai-provider": "node scripts/run-ai-provider-tests.mjs",

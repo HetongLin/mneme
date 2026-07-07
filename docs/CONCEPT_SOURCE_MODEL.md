@@ -141,6 +141,8 @@ It does not create or modify Concepts. It prepares later AI Capture work by givi
 
 After a successful `new_concept` Markdown write, Mneme can create approved `ConceptSourceLink` records from the proposal's source links or from the proposal's source note metadata. It also updates `SourceAnalysisRecord.linkedConceptIds` for linked source notes.
 
+An approved `link_existing_concept` proposal follows the same provenance boundary: Mneme appends the Source Note to the written Concept's readable `## Source Notes` section, then updates the runtime link index and the Source Note analysis record. Repeated writes are idempotent.
+
 These links are index/state metadata. They help Mneme remember which Source Notes support which Concepts, but editable `Concept.md` and `Card.md` remain the content source of truth.
 
 ## Living Assets

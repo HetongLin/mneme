@@ -16,6 +16,7 @@ const testCommands = [
 	["npm", ["run", "test:concept-queue"]],
 	["npm", ["run", "test:concept-library"]],
 	["npm", ["run", "test:concept-source-links"]],
+	["npm", ["run", "test:concept-source-note-appender"]],
 	["npm", ["run", "test:concept-view-appender"]],
 	["npm", ["run", "test:daily-review-eligibility"]],
 	["npm", ["run", "test:fsrs-contract"]],

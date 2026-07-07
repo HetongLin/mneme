@@ -265,6 +265,42 @@ async function runAsyncTests(): Promise<void> {
 	}
 
 	{
+		const proposal = createProposal("proposal-existing-source-link", {
+			kind: "link_existing_concept",
+			payload: {
+				proposedSourceLink: {
+					evidence: [{ excerpt: "Interfaces isolate representation changes." }],
+					relationType: "supporting",
+					sourceHash: "source-hash",
+					sourcePath: "Notes/Intro.md",
+				},
+				targetConceptId: "concept-encapsulation",
+				targetConceptTitle: "Encapsulation",
+			},
+			status: "approved",
+		});
+		const conceptPath = "Mneme/Concepts/Encapsulation/Concept.md";
+		const sourceRecord = createSourceRecord("Notes/Intro.md");
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData(
+			{ [proposal.id]: proposal },
+			{ [sourceRecord.sourcePath]: sourceRecord },
+		));
+		const vault = new MemoryVaultAdapter({
+			[conceptPath]: "# Encapsulation\n\n## Source Notes\n\n> [!info]- Source Notes\n> Add source notes here.\n",
+		});
+		const { store, writer } = await createWriter({ [proposal.id]: proposal }, vault, storage);
+		const result = await writer.writeApprovedProposal(proposal.id);
+
+		assert.equal(result.status, "written");
+		assert.match(await vault.read(conceptPath), /> - \[\[Notes\/Intro\]\]/);
+		assert.equal(Object.values(storage.savedData?.conceptSourceLinks ?? {}).length, 1);
+		assert.deepEqual(storage.savedData?.sourceAnalysisRecords["Notes/Intro.md"].linkedConceptIds, [
+			"concept-encapsulation",
+		]);
+		assert.equal((await store.getProposal(proposal.id))?.status, "written");
+	}
+
+	{
 		const proposal = createApprovedConceptProposal();
 		const vault = new MemoryVaultAdapter();
 		vault.shouldFailCreate = true;

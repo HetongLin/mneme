@@ -3,7 +3,11 @@ import type {
 	ConceptSourceRelationType,
 	SourceEvidence,
 } from "../models/conceptSource";
-import type { KnowledgeProposal, NewConceptProposalPayload } from "../models/knowledgeProposal";
+import type {
+	KnowledgeProposal,
+	LinkExistingConceptProposalPayload,
+	NewConceptProposalPayload,
+} from "../models/knowledgeProposal";
 import type { SourceAnalysisRecord } from "../models/sourceAnalysis";
 import { createMnemeConceptId, normalizeVaultPath, slugifyForFilename } from "../utils/markdownPath";
 
@@ -16,6 +20,11 @@ export interface BuildConceptSourceLinksArgs {
 export interface NormalizeWrittenConceptIdArgs {
 	proposal: KnowledgeProposal;
 	targetPaths: string[];
+}
+
+export interface BuildExistingConceptSourceLinkArgs {
+	now: string;
+	proposal: KnowledgeProposal & { kind: "link_existing_concept" };
 }
 
 export function createConceptSourceLinkId(
@@ -62,6 +71,29 @@ export function buildConceptSourceLinksFromNewConceptProposal(
 		sourceHash: args.proposal.sourceHash ?? "",
 		sourcePath: args.proposal.sourcePath,
 	})];
+}
+
+export function buildExistingConceptSourceLink(
+	args: BuildExistingConceptSourceLinkArgs,
+): ConceptSourceLink | undefined {
+	const payload = isRecord(args.proposal.payload)
+		? args.proposal.payload as LinkExistingConceptProposalPayload
+		: undefined;
+
+	if (!payload?.targetConceptId || !payload.proposedSourceLink?.sourcePath) {
+		return undefined;
+	}
+
+	const link = payload.proposedSourceLink;
+
+	return createLink({
+		conceptId: payload.targetConceptId,
+		evidence: link.evidence ?? args.proposal.evidence ?? [],
+		now: args.now,
+		relationType: link.relationType,
+		sourceHash: link.sourceHash ?? args.proposal.sourceHash ?? "",
+		sourcePath: link.sourcePath,
+	});
 }
 
 export function mergeLinkedConceptId(

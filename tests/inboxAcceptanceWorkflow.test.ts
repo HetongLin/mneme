@@ -4,6 +4,8 @@ import { ApprovedProposalWriter } from "../src/services/approvedProposalWriter";
 import { InboxAcceptanceWorkflow, formatAcceptActionLabel } from "../src/services/inboxAcceptanceWorkflow";
 import { filterActiveInboxProposals } from "../src/services/inboxProposalFilters";
 import { KnowledgeProposalStore } from "../src/services/knowledgeProposalStore";
+import { ConceptSourceLinkStore } from "../src/services/conceptSourceLinkStore";
+import { SourceAnalysisStore } from "../src/services/sourceAnalysisStore";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
 import { createPluginData, createProposal, MemoryKnowledgeProposalStorage } from "./knowledgeProposalTestUtils";
 
@@ -63,6 +65,7 @@ function createWorkflow(proposals = {}, vault = new MemoryVaultAdapter()): {
 	const storage = new MemoryKnowledgeProposalStorage(createPluginData(proposals));
 	const store = new KnowledgeProposalStore(storage);
 	const writer = new ApprovedProposalWriter({
+		conceptSourceLinkStore: new ConceptSourceLinkStore(storage),
 		conceptScanner: {
 			scanConcepts: async () => [{
 				conceptId: "concept-encapsulation",
@@ -73,6 +76,7 @@ function createWorkflow(proposals = {}, vault = new MemoryVaultAdapter()): {
 		now: () => "2026-01-02T12:00:00.000Z",
 		proposalStore: store,
 		settingsProvider: () => DEFAULT_SETTINGS,
+		sourceAnalysisStore: new SourceAnalysisStore(storage),
 		vaultAdapter: vault,
 	});
 
@@ -173,6 +177,31 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(result.kind, "concept");
 		assert.equal(formatAcceptActionLabel(proposal), "Accept View");
 		assert.match(await vault.read(conceptPath), /### Change boundary\n\nA stable interface isolates change\./);
+		assert.equal((await store.getProposal(proposal.id))?.status, "written");
+	}
+
+	{
+		const proposal = createProposal("source-link-proposal", {
+			kind: "link_existing_concept",
+			payload: {
+				proposedSourceLink: {
+					relationType: "origin",
+					sourcePath: "Notes/Lecture 1.md",
+				},
+				targetConceptId: "concept-encapsulation",
+			},
+			status: "suggested",
+		});
+		const conceptPath = "Mneme/Concepts/Encapsulation/Concept.md";
+		const vault = new MemoryVaultAdapter();
+		vault.files.set(conceptPath, "# Encapsulation\n\n## Source Notes\n");
+		const { store, workflow } = createWorkflow({ [proposal.id]: proposal }, vault);
+		const result = await workflow.acceptProposal(proposal.id);
+
+		assert.equal(result.status, "accepted");
+		assert.equal(result.kind, "concept");
+		assert.equal(formatAcceptActionLabel(proposal), "Accept Source Link");
+		assert.match(await vault.read(conceptPath), /\[\[Notes\/Lecture 1\]\]/);
 		assert.equal((await store.getProposal(proposal.id))?.status, "written");
 	}
 

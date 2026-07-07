@@ -137,7 +137,7 @@ export class InboxAcceptanceWorkflow {
 }
 
 export function getAcceptanceKind(proposal: KnowledgeProposal): InboxAcceptanceKind | undefined {
-	if (proposal.kind === "new_concept") {
+	if (proposal.kind === "new_concept" || proposal.kind === "link_existing_concept") {
 		return "concept";
 	}
 
@@ -153,6 +153,10 @@ export function getAcceptanceKind(proposal: KnowledgeProposal): InboxAcceptanceK
 }
 
 export function formatAcceptActionLabel(proposal: KnowledgeProposal): string {
+	if (proposal.kind === "link_existing_concept") {
+		return "Accept Source Link";
+	}
+
 	if (proposal.kind === "add_view") {
 		return "Accept View";
 	}
