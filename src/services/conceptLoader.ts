@@ -2,11 +2,21 @@ import { App, TFile } from "obsidian";
 import { LoadedMnemeCard } from "../models/card";
 import { LoadedMnemeConcepts, MnemeConcept } from "../models/concept";
 import { CardFileLoader } from "./cardFileLoader";
+import {
+	getCardGroupConceptIdFromFrontmatter,
+	getConceptLinkFromCardGroupFrontmatter,
+} from "./conceptMarkdownIdentity";
+import { extractFirstConceptSourcePath, parseObsidianLinkPath } from "./reviewNavigation";
 
 interface ConceptMetadata {
 	sourcePath?: string;
 	title?: string;
 	warnings: string[];
+}
+
+interface CardGroupMetadata {
+	conceptId?: string;
+	conceptPath?: string;
 }
 
 export class ConceptLoader {
@@ -35,8 +45,11 @@ export class ConceptLoader {
 	}
 
 	private async createConcept(folderPath: string, cards: LoadedMnemeCard[]): Promise<MnemeConcept> {
-		const conceptPath = getConceptPath(folderPath);
-		const conceptFile = this.getConceptFile(conceptPath);
+		const cardGroupMetadata = this.getCardGroupMetadata(cards[0]);
+		const legacyConceptPath = getConceptPath(folderPath);
+		const conceptFile = cardGroupMetadata.conceptPath
+			? this.resolveMarkdownFile(cardGroupMetadata.conceptPath, cards[0]?.path ?? "")
+			: this.getConceptFile(legacyConceptPath);
 		const metadata = conceptFile
 			? await this.loadConceptMetadata(conceptFile)
 			: { warnings: [] };
@@ -49,12 +62,48 @@ export class ConceptLoader {
 			conceptPath: conceptFile?.path,
 			errors: [],
 			folderPath,
-			id: folderPath || cards[0]?.path || fallbackTitle,
+			id: cardGroupMetadata.conceptId ?? (folderPath || cards[0]?.path || fallbackTitle),
 			isReviewable: validCards.length > 0,
 			sourcePath: metadata.sourcePath,
 			title: metadata.title || fallbackTitle,
 			warnings: metadata.warnings,
 		};
+	}
+
+	private getCardGroupMetadata(card: LoadedMnemeCard | undefined): CardGroupMetadata {
+		if (!card) {
+			return {};
+		}
+
+		const file = this.app.vault.getAbstractFileByPath(card.path);
+
+		if (!(file instanceof TFile)) {
+			return {};
+		}
+
+		const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+		const conceptLink = getConceptLinkFromCardGroupFrontmatter(frontmatter);
+
+		return {
+			conceptId: getCardGroupConceptIdFromFrontmatter(frontmatter),
+			conceptPath: conceptLink ? parseObsidianLinkPath(conceptLink) : undefined,
+		};
+	}
+
+	private resolveMarkdownFile(linkPath: string, sourcePath: string): TFile | null {
+		const direct = this.app.vault.getAbstractFileByPath(linkPath);
+
+		if (direct instanceof TFile) {
+			return direct;
+		}
+
+		const withExtension = this.app.vault.getAbstractFileByPath(
+			/\.md$/i.test(linkPath) ? linkPath : `${linkPath}.md`,
+		);
+
+		return withExtension instanceof TFile
+			? withExtension
+			: this.app.metadataCache.getFirstLinkpathDest(linkPath, sourcePath);
 	}
 
 	private getConceptFile(path: string): TFile | null {
@@ -73,7 +122,7 @@ export class ConceptLoader {
 			const frontmatter = parseSimpleFrontmatter(content);
 
 			return {
-				sourcePath: frontmatter.source,
+				sourcePath: frontmatter.source ?? extractFirstConceptSourcePath(content),
 				title: frontmatter.title || getFirstHeading(content),
 				warnings: [],
 			};

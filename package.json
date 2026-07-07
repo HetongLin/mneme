@@ -24,6 +24,7 @@
     "test:markdown-writer": "node scripts/run-markdown-writer-tests.mjs",
     "test:parser": "node scripts/run-card-marker-parser-tests.mjs",
     "test:review-queue": "node scripts/run-review-queue-tests.mjs",
+    "test:review-navigation": "node scripts/run-review-navigation-tests.mjs",
     "test:settings": "node scripts/run-settings-tests.mjs",
     "test:source-analysis": "node scripts/run-source-analysis-tests.mjs",
     "test:source-analysis-store": "node scripts/run-source-analysis-store-tests.mjs",

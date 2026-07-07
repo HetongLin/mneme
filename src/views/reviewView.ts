@@ -9,6 +9,7 @@ import { aggregateConceptMemoryById } from "../services/conceptMemoryAggregator"
 import { indexRankedConceptsById, rankReviewQueueConcepts } from "../services/conceptQueueRanker";
 import { buildReviewQueue } from "../services/reviewQueueBuilder";
 import { ReviewStateStore } from "../services/reviewStateStore";
+import { formatReviewCompletion } from "../services/reviewNavigation";
 
 export const REVIEW_VIEW_TYPE = "mneme-review-view";
 
@@ -34,6 +35,7 @@ export class MnemeReviewView extends ItemView {
 	private selectedCardIndex = 0;
 	private selectedCards: ReviewQueueCard[] = [];
 	private selectedConcept: ReviewQueueConcept | null = null;
+	private skippedCardCount = 0;
 	private statusMessage = "Ready to scan Card.md files.";
 
 	constructor(leaf: WorkspaceLeaf, private readonly reviewStateStore: ReviewStateStore) {
@@ -241,9 +243,10 @@ export class MnemeReviewView extends ItemView {
 		}
 
 		if (this.isReviewComplete) {
+			const completion = formatReviewCompletion(reviewableCards.length, this.skippedCardCount);
 			cardEl.createEl("p", {
 				cls: "mneme-review-card-meta",
-				text: `${reviewableCards.length} ${reviewableCards.length === 1 ? "card" : "cards"} reviewed`,
+				text: completion.label,
 			});
 			cardEl.createEl("h3", {
 				cls: "mneme-review-card-title",
@@ -291,6 +294,7 @@ export class MnemeReviewView extends ItemView {
 			actionsEl.createEl("button", { text: "Show Answer" }, (buttonEl) => {
 				buttonEl.addEventListener("click", () => this.showAnswer());
 			});
+			this.renderCardNavigationActions(actionsEl, concept);
 			return;
 		}
 
@@ -314,6 +318,20 @@ export class MnemeReviewView extends ItemView {
 				});
 			});
 		}
+
+		const actionsEl = cardEl.createDiv({ cls: "mneme-review-actions" });
+		this.renderCardNavigationActions(actionsEl, concept);
+	}
+
+	private renderCardNavigationActions(parentEl: HTMLElement, concept: ReviewQueueConcept): void {
+		parentEl.createEl("button", { text: "View Source" }, (buttonEl) => {
+			buttonEl.addEventListener("click", () => {
+				void this.openReviewSource(concept.concept);
+			});
+		});
+		parentEl.createEl("button", { text: "Skip" }, (buttonEl) => {
+			buttonEl.addEventListener("click", () => this.skipCurrentCard());
+		});
 	}
 
 	private renderDiagnostics(): void {
@@ -548,6 +566,7 @@ export class MnemeReviewView extends ItemView {
 		this.selectedCardIndex = 0;
 		this.isAnswerShown = false;
 		this.isReviewComplete = false;
+		this.skippedCardCount = 0;
 		this.statusMessage = "Flash card ready.";
 		this.render();
 	}
@@ -562,6 +581,20 @@ export class MnemeReviewView extends ItemView {
 		this.isAnswerShown = true;
 		this.statusMessage = "Answer shown.";
 		this.render();
+	}
+
+	private skipCurrentCard(): void {
+		const card = this.getCurrentReviewableCard();
+
+		if (!card) {
+			this.isReviewComplete = true;
+			this.statusMessage = "Review complete.";
+			this.render();
+			return;
+		}
+
+		this.skippedCardCount += 1;
+		this.advanceToNextCard(`Skipped ${card.cardId}. FSRS state unchanged.`);
 	}
 
 	private async rateCurrentCard(rating: ReviewRating, label: ReviewRatingLabel): Promise<void> {
@@ -657,6 +690,55 @@ export class MnemeReviewView extends ItemView {
 		this.render();
 	}
 
+	private async openReviewSource(concept: MnemeConcept): Promise<void> {
+		if (!concept.sourcePath) {
+			await this.openConceptSource(concept);
+			return;
+		}
+
+		const sourceFile = this.resolveMarkdownFile(concept.sourcePath, concept.conceptPath ?? "");
+
+		if (!sourceFile) {
+			console.warn("Mneme: Source Note path did not resolve to a file", {
+				conceptTitle: concept.title,
+				sourcePath: concept.sourcePath,
+			});
+			new Notice("Mneme: Source Note not found. Opening Concept instead.");
+			await this.openConceptSource(concept);
+			return;
+		}
+
+		const existingLeaf = this.findOpenMarkdownLeaf(sourceFile.path);
+		if (existingLeaf) {
+			await this.app.workspace.revealLeaf(existingLeaf);
+			this.app.workspace.setActiveLeaf(existingLeaf, { focus: true });
+		} else {
+			await this.app.workspace.getLeaf("tab").openFile(sourceFile);
+		}
+
+		this.statusMessage = `Opened ${sourceFile.basename}.`;
+		new Notice(`Opened ${sourceFile.basename}.`);
+		this.render();
+	}
+
+	private resolveMarkdownFile(linkPath: string, sourcePath: string): TFile | null {
+		const direct = this.app.vault.getAbstractFileByPath(linkPath);
+
+		if (direct instanceof TFile) {
+			return direct;
+		}
+
+		const withExtension = this.app.vault.getAbstractFileByPath(
+			/\.md$/i.test(linkPath) ? linkPath : `${linkPath}.md`,
+		);
+
+		if (withExtension instanceof TFile) {
+			return withExtension;
+		}
+
+		return this.app.metadataCache.getFirstLinkpathDest(linkPath, sourcePath);
+	}
+
 	private findOpenMarkdownLeaf(path: string): WorkspaceLeaf | undefined {
 		return this.app.workspace.getLeavesOfType("markdown").find((leaf) => {
 			const view = leaf.view;
@@ -671,6 +753,7 @@ export class MnemeReviewView extends ItemView {
 		this.selectedCardIndex = 0;
 		this.isAnswerShown = false;
 		this.isReviewComplete = false;
+		this.skippedCardCount = 0;
 	}
 
 	private getCurrentReviewableCard(): ReviewQueueCard | undefined {

@@ -289,3 +289,25 @@ Acceptance criteria:
 - Invalid provider configuration creates no proposals
 - Accept Card remains the only action that writes `Card.md`
 - Review and FSRS behavior remain unchanged
+
+## Task 029: Review Navigation Actions
+
+Goal:
+
+Let students continue a review without forced scoring and return to the learning source when needed.
+
+Requirements:
+
+- Add Skip before and after answer reveal
+- Skip advances to the next Card without updating FSRS
+- Add View Source before and after answer reveal
+- Resolve the first Source Note link from the written Concept
+- Fall back to opening Concept.md when no Source Note can be resolved
+- Show reviewed and skipped counts separately at completion
+
+Acceptance criteria:
+
+- Skip never calls the review-state writer
+- View Source opens the Source Note when available
+- Missing Source Note navigation does not break the review
+- Existing rating behavior remains unchanged

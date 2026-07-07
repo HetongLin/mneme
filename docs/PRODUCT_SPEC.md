@@ -141,6 +141,7 @@ AI suggests Concepts and Cards
 - Again / Hard / Good / Easy
 - Edit Card
 - View Source
+- Skip without changing FSRS state
 - FSRS card scheduling
 - Concept-based grouping
 
