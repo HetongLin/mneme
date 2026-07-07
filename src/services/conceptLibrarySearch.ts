@@ -12,6 +12,10 @@ const IMPORTANCE_RANK: Record<ConceptImportance, number> = {
 	low: 1,
 };
 
+export function canGenerateCardsFromConcept(concept: ConceptSummary): boolean {
+	return concept.learningMode !== "exploratory";
+}
+
 export function filterConceptSummaries(
 	concepts: ConceptSummary[],
 	filter: ConceptLibraryFilter = {},

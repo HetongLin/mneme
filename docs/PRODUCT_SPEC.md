@@ -114,6 +114,8 @@ Analyze Current Note indexes the Source Note and, when AI Capture is enabled, as
 
 Generate Cards from Current Concept works only from a written Mneme `Concept.md`. It sends that approved Concept to the selected provider in `card_generation` mode, accepts only `new_card` responses, and stores validated Card proposals in Inbox. `Card.md` is written only after the user accepts an individual Card proposal.
 
+Concept Library also exposes Generate Cards for reviewable Concepts. Exploratory Concepts intentionally omit this action and remain outside Card/FSRS review.
+
 User experience is the first requirement. Internal schemas can be strict and detailed, but primary user surfaces should stay concise. Concept notes should read like learning notes, not exported database records.
 
 ## v0.1 Goal

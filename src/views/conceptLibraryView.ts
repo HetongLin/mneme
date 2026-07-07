@@ -7,11 +7,16 @@ import type {
 import { createConceptPreview } from "../services/conceptMarkdownParser";
 import { ConceptScanner } from "../services/conceptScanner";
 import {
+	canGenerateCardsFromConcept,
 	filterConceptSummaries,
 	sortConceptSummaries,
 } from "../services/conceptLibrarySearch";
 
 export const CONCEPT_LIBRARY_VIEW_TYPE = "mneme-concept-library-view";
+
+export interface ConceptLibraryActions {
+	generateCards?(concept: ConceptSummary): Promise<void> | void;
+}
 
 export class MnemeConceptLibraryView extends ItemView {
 	private concepts: ConceptSummary[] = [];
@@ -26,6 +31,7 @@ export class MnemeConceptLibraryView extends ItemView {
 	constructor(
 		leaf: WorkspaceLeaf,
 		private readonly scanner: ConceptScanner,
+		private readonly actions: ConceptLibraryActions = {},
 	) {
 		super(leaf);
 	}
@@ -240,6 +246,14 @@ export class MnemeConceptLibraryView extends ItemView {
 			actionsEl.createEl("button", { text: "Open Cards" }, (buttonEl) => {
 				buttonEl.addEventListener("click", () => {
 					void this.openMarkdownPath(concept.cardsPath, "Card");
+				});
+			});
+		}
+
+		if (this.actions.generateCards && canGenerateCardsFromConcept(concept)) {
+			actionsEl.createEl("button", { text: "Generate Cards" }, (buttonEl) => {
+				buttonEl.addEventListener("click", () => {
+					void this.actions.generateCards?.(concept);
 				});
 			});
 		}

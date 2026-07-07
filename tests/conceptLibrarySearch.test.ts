@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import type { ConceptSummary } from "../src/models/conceptLibrary";
 import {
+	canGenerateCardsFromConcept,
 	filterConceptSummaries,
 	sortConceptSummaries,
 } from "../src/services/conceptLibrarySearch";
@@ -36,6 +37,12 @@ const concepts: ConceptSummary[] = [
 
 {
 	assert.equal(filterConceptSummaries(concepts, { query: "" }).length, 3);
+}
+
+{
+	assert.equal(canGenerateCardsFromConcept(concepts[0]!), true);
+	assert.equal(canGenerateCardsFromConcept(concepts[1]!), false);
+	assert.equal(canGenerateCardsFromConcept(concepts[2]!), true);
 }
 
 {

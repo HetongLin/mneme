@@ -334,3 +334,23 @@ Acceptance criteria:
 - Empty Front or Back is rejected
 - Other Card blocks and surrounding Markdown remain unchanged
 - Saving never records a review rating
+
+## Task 031: Generate Cards from Concept Library
+
+Goal:
+
+Make the Concept-to-Card bridge discoverable where students browse learned Concepts.
+
+Requirements:
+
+- Add Generate Cards to reviewable Concept Library items
+- Reuse the same validated Card-generation service as the command
+- Do not show the action for exploratory Concepts
+- Keep the command available for the current Concept
+- Reject Card generation when Concept frontmatter is exploratory
+
+Acceptance criteria:
+
+- Reviewable and legacy Concepts can generate Card proposals
+- Exploratory Concepts cannot generate Cards
+- Generated proposals still enter Inbox and require acceptance

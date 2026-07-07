@@ -75,6 +75,9 @@ export default class MnemePlugin extends Plugin {
 		this.registerView(CONCEPT_LIBRARY_VIEW_TYPE, (leaf) => new MnemeConceptLibraryView(
 			leaf,
 			this.createConceptScanner(),
+			{
+				generateCards: (concept) => this.generateCardsFromConceptPath(concept.path),
+			},
 		));
 
 		this.registerProductCommands();
@@ -336,7 +339,22 @@ export default class MnemePlugin extends Plugin {
 			return;
 		}
 
-		const frontmatter = this.app.metadataCache.getFileCache(activeFile)?.frontmatter;
+		await this.generateCardsFromConceptFile(activeFile);
+	}
+
+	private async generateCardsFromConceptPath(conceptPath: string): Promise<void> {
+		const abstractFile = this.app.vault.getAbstractFileByPath(conceptPath);
+
+		if (!(abstractFile instanceof TFile)) {
+			new Notice("Mneme: Concept file not found.");
+			return;
+		}
+
+		await this.generateCardsFromConceptFile(abstractFile);
+	}
+
+	private async generateCardsFromConceptFile(conceptFile: TFile): Promise<void> {
+		const frontmatter = this.app.metadataCache.getFileCache(conceptFile)?.frontmatter;
 		const conceptId = getConceptIdFromFrontmatter(frontmatter);
 
 		if (!conceptId) {
@@ -344,8 +362,13 @@ export default class MnemePlugin extends Plugin {
 			return;
 		}
 
-		const markdown = await this.app.vault.cachedRead(activeFile);
-		const conceptTitle = parseConceptTitle(markdown, activeFile.path);
+		if (frontmatter?.learning_mode === "exploratory") {
+			new Notice("Mneme: Exploratory Concepts do not generate review Cards.");
+			return;
+		}
+
+		const markdown = await this.app.vault.cachedRead(conceptFile);
+		const conceptTitle = parseConceptTitle(markdown, conceptFile.path);
 		const service = new AiCardGenerationService({
 			createProvider: (settings) => createAiProvider(settings, new ObsidianAiHttpClient()),
 			proposalStore: this.knowledgeProposalStore,
@@ -353,14 +376,14 @@ export default class MnemePlugin extends Plugin {
 		});
 		const result = await service.generate({
 			conceptId,
-			conceptPath: activeFile.path,
+			conceptPath: conceptFile.path,
 			conceptTitle,
 			markdown,
 		});
 
 		if (result.status === "failed") {
 			console.error("Mneme: Card proposal generation failed", {
-				conceptPath: activeFile.path,
+				conceptPath: conceptFile.path,
 				message: result.message,
 			});
 			new Notice("Mneme: Card generation failed. See console.");
@@ -369,7 +392,7 @@ export default class MnemePlugin extends Plugin {
 
 		if (result.status === "invalid_response") {
 			console.warn("Mneme: Card generation response rejected", {
-				conceptPath: activeFile.path,
+				conceptPath: conceptFile.path,
 				message: result.message,
 			});
 			new Notice("Mneme: AI response was invalid. No Card proposals added.");
