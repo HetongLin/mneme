@@ -3,7 +3,12 @@ import { ConceptMemorySummary } from "../models/conceptMemory";
 import { RankedReviewQueueConcept } from "../models/conceptQueue";
 import { ConceptLoadSummary, MnemeConcept } from "../models/concept";
 import { ReviewQueue, ReviewQueueCard, ReviewQueueConcept } from "../models/reviewQueue";
-import { CardReviewState, ReviewDeferral, ReviewRating } from "../models/reviewState";
+import {
+	CardReviewState,
+	CardReviewSuspension,
+	ReviewDeferral,
+	ReviewRating,
+} from "../models/reviewState";
 import { DEFAULT_SETTINGS, MnemeSettings } from "../models/settings";
 import { CardEditModal } from "../modals/cardEditModal";
 import { ConceptLoader } from "../services/conceptLoader";
@@ -32,6 +37,7 @@ const REVIEW_RATINGS: Array<{ label: ReviewRatingLabel; value: ReviewRating }> =
 
 export class MnemeReviewView extends ItemView {
 	private activeDeferrals: Record<string, ReviewDeferral> = {};
+	private activeSuspensions: Record<string, CardReviewSuspension> = {};
 	private pausedConceptIds = new Set<string>();
 	private deferredCardCount = 0;
 	private readonly loader: ConceptLoader;
@@ -50,6 +56,7 @@ export class MnemeReviewView extends ItemView {
 	private skippedCardCount = 0;
 	private shouldRefreshQueueOnBack = false;
 	private statusMessage = "Ready to scan Card.md files.";
+	private suspendedCardCount = 0;
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -91,6 +98,7 @@ export class MnemeReviewView extends ItemView {
 			const reviewStates = this.reviewStateStore.getAllStates();
 			const now = new Date();
 			this.activeDeferrals = this.reviewStateStore.getActiveReviewDeferrals(now);
+			this.activeSuspensions = this.reviewStateStore.getSuspendedCards();
 			this.pausedConceptIds = new Set(Object.keys(this.reviewStateStore.getPausedConcepts()));
 
 			this.reviewQueue = buildReviewQueue(loadedConcepts.concepts, reviewStates, now);
@@ -104,6 +112,7 @@ export class MnemeReviewView extends ItemView {
 			}, buildTodaysFocusUsage(this.reviewQueue.concepts, reviewStates, now), {
 				deferredCardIds: new Set(Object.keys(this.activeDeferrals)),
 				pausedConceptIds: this.pausedConceptIds,
+				suspendedCardIds: new Set(Object.keys(this.activeSuspensions)),
 			});
 			this.rankedReviewQueue = this.focusSelection.concepts;
 			this.rankedConceptsById = indexRankedConceptsById(rankReviewQueueConcepts(this.reviewQueue.concepts, this.memorySummaries, {
@@ -120,6 +129,7 @@ export class MnemeReviewView extends ItemView {
 			this.rankedReviewQueue = [];
 			this.focusSelection = createEmptyFocusSelection();
 			this.activeDeferrals = {};
+			this.activeSuspensions = {};
 			this.pausedConceptIds = new Set<string>();
 			this.statusMessage = "Failed to scan concepts. See console for details.";
 			this.render();
@@ -275,6 +285,7 @@ export class MnemeReviewView extends ItemView {
 				this.sessionCardCount,
 				this.skippedCardCount,
 				this.deferredCardCount,
+				this.suspendedCardCount,
 			);
 			cardEl.createEl("p", {
 				cls: "mneme-review-card-meta",
@@ -387,6 +398,11 @@ export class MnemeReviewView extends ItemView {
 		parentEl.createEl("button", { text: "Review Later" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
 				void this.deferCurrentCard();
+			});
+		});
+		parentEl.createEl("button", { text: "Suspend Card" }, (buttonEl) => {
+			buttonEl.addEventListener("click", () => {
+				void this.suspendCurrentCard();
 			});
 		});
 	}
@@ -514,6 +530,15 @@ export class MnemeReviewView extends ItemView {
 		if (deferral) {
 			cardEl.createEl("p", { text: `Review Later until: ${deferral.resumeAt}` });
 		}
+		const suspension = this.activeSuspensions[queueCard.cardId];
+		if (suspension) {
+			cardEl.createEl("p", { text: `Suspended at: ${suspension.suspendedAt}` });
+			cardEl.createEl("button", { text: "Resume Card" }, (buttonEl) => {
+				buttonEl.addEventListener("click", () => {
+					void this.resumeCard(queueCard.cardId);
+				});
+			});
+		}
 		cardEl.createEl("p", { text: `Risk: ${cardRisk ? formatPercent(cardRisk.risk) : "(unset)"}` });
 		cardEl.createEl("p", { text: `Risk source: ${cardRisk?.riskSource ?? "(unset)"}` });
 		cardEl.createEl("p", { text: `Retrievability: ${cardRisk?.retrievability === undefined ? "(unset)" : formatPercent(cardRisk.retrievability)}` });
@@ -639,6 +664,7 @@ export class MnemeReviewView extends ItemView {
 		this.isReviewComplete = false;
 		this.skippedCardCount = 0;
 		this.deferredCardCount = 0;
+		this.suspendedCardCount = 0;
 		this.statusMessage = "Flash card ready.";
 		this.render();
 	}
@@ -720,6 +746,44 @@ export class MnemeReviewView extends ItemView {
 				error,
 			});
 			new Notice("Mneme: Concept could not be paused.");
+		}
+	}
+
+	private async suspendCurrentCard(): Promise<void> {
+		const card = this.getCurrentReviewableCard();
+
+		if (!card) {
+			return;
+		}
+
+		try {
+			const suspension = await this.reviewStateStore.suspendCard(card.cardId);
+			this.activeSuspensions[card.cardId] = suspension;
+			this.selectedCards.splice(this.selectedCardIndex, 1);
+			this.suspendedCardCount += 1;
+			this.isAnswerShown = false;
+			this.shouldRefreshQueueOnBack = true;
+
+			if (this.selectedCardIndex >= this.selectedCards.length) {
+				this.isReviewComplete = true;
+			}
+
+			this.statusMessage = `Suspended ${card.cardId}. FSRS state unchanged.`;
+			this.render();
+		} catch (error) {
+			console.error("Mneme: failed to suspend Card", { cardId: card.cardId, error });
+			new Notice("Mneme: Card could not be suspended.");
+		}
+	}
+
+	private async resumeCard(cardId: string): Promise<void> {
+		try {
+			await this.reviewStateStore.resumeCard(cardId);
+			new Notice("Mneme: Card resumed.");
+			await this.refreshCards();
+		} catch (error) {
+			console.error("Mneme: failed to resume Card", { cardId, error });
+			new Notice("Mneme: Card could not be resumed.");
 		}
 	}
 
@@ -893,6 +957,7 @@ export class MnemeReviewView extends ItemView {
 		this.isReviewComplete = false;
 		this.skippedCardCount = 0;
 		this.deferredCardCount = 0;
+		this.suspendedCardCount = 0;
 		this.shouldRefreshQueueOnBack = false;
 	}
 

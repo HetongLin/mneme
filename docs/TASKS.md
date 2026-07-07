@@ -536,3 +536,26 @@ Acceptance criteria:
 - Pause state survives refresh and plugin reload
 - Resuming makes eligible Cards available to ranking again
 - Pause/resume writes preserve unrelated Inbox, source, settings, and review data
+
+## Task 040: Suspend Card
+
+Goal:
+
+Let a student remove a single low-value or unsuitable Card from review without deleting its Markdown or schedule history.
+
+Requirements:
+
+- Add `Suspend Card` before and after answer reveal
+- Persist suspension by stable Card id outside FSRS state
+- Clear any temporary Review Later deferral when suspending
+- Exclude suspended Cards from Today’s Focus and focus counts
+- Keep suspended Cards visible in Advanced Diagnostics
+- Add `Resume Card` beside suspended Card diagnostics
+
+Acceptance criteria:
+
+- Suspend/resume never invokes the scheduler
+- Existing due date, review count, lapse count, difficulty, and stability remain unchanged
+- Suspending advances the current review safely
+- Completion summary distinguishes suspended Cards from reviewed or skipped Cards
+- Resume restores normal eligibility without changing FSRS state

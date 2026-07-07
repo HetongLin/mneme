@@ -94,7 +94,7 @@ Current progress:
 - Same-day review history is counted across refreshes, and cards outside the focus remain unchanged in Advanced Diagnostics.
 - Review Later persists a Card-level deferral until the next local day without changing FSRS state.
 - Pause Concept is persisted separately from FSRS and can be resumed from Advanced Diagnostics.
-- Suspend Card remains unfinished.
+- Suspend Card is persisted separately from FSRS and can be resumed from Advanced Diagnostics.
 
 ## v0.4: Importance and Retention Policy
 

@@ -50,24 +50,35 @@ import {
 		label: "3 cards reviewed",
 		reviewedCount: 3,
 		skippedCount: 0,
+		suspendedCount: 0,
 	});
 	assert.deepEqual(formatReviewCompletion(3, 1), {
 		deferredCount: 0,
 		label: "2 reviewed · 1 skipped",
 		reviewedCount: 2,
 		skippedCount: 1,
+		suspendedCount: 0,
 	});
 	assert.deepEqual(formatReviewCompletion(1, 1), {
 		deferredCount: 0,
 		label: "0 reviewed · 1 skipped",
 		reviewedCount: 0,
 		skippedCount: 1,
+		suspendedCount: 0,
 	});
 	assert.deepEqual(formatReviewCompletion(3, 0, 1), {
 		deferredCount: 1,
 		label: "2 reviewed · 1 later",
 		reviewedCount: 2,
 		skippedCount: 0,
+		suspendedCount: 0,
+	});
+	assert.deepEqual(formatReviewCompletion(3, 0, 0, 1), {
+		deferredCount: 0,
+		label: "2 reviewed · 1 suspended",
+		reviewedCount: 2,
+		skippedCount: 0,
+		suspendedCount: 1,
 	});
 }
 

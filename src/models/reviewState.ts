@@ -36,11 +36,17 @@ export interface ConceptReviewPause {
 	pausedAt: string;
 }
 
+export interface CardReviewSuspension {
+	cardId: string;
+	suspendedAt: string;
+}
+
 export interface MnemePluginData {
 	[key: string]: unknown;
 	reviewStates: Record<string, CardReviewState>;
 	reviewDeferrals: Record<string, ReviewDeferral>;
 	pausedConcepts: Record<string, ConceptReviewPause>;
+	suspendedCards: Record<string, CardReviewSuspension>;
 	schemaVersion: number;
 	settings: MnemeSettings;
 	sourceAnalysisRecords: Record<string, SourceAnalysisRecord>;

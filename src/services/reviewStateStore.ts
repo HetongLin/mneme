@@ -1,6 +1,7 @@
 import { ReviewScheduler } from "../models/reviewScheduler";
 import {
 	CardReviewState,
+	CardReviewSuspension,
 	ConceptReviewPause,
 	MnemePluginData,
 	ReviewDeferral,
@@ -60,6 +61,7 @@ export class ReviewStateStore {
 		const nextData = {
 			...latestData,
 			reviewDeferrals: omitKey(latestData.reviewDeferrals, cardId),
+			suspendedCards: omitKey(latestData.suspendedCards, cardId),
 			reviewStates: {
 				...latestData.reviewStates,
 				[cardId]: scheduleResult.nextState,
@@ -101,6 +103,57 @@ export class ReviewStateStore {
 		}
 
 		return pauses;
+	}
+
+	getSuspendedCards(): Record<string, CardReviewSuspension> {
+		const suspensions: Record<string, CardReviewSuspension> = {};
+
+		for (const [cardId, suspension] of Object.entries(this.data.suspendedCards)) {
+			suspensions[cardId] = { ...suspension };
+		}
+
+		return suspensions;
+	}
+
+	async suspendCard(cardId: string, now = new Date()): Promise<CardReviewSuspension> {
+		await this.ensureLoaded();
+
+		if (!cardId.trim() || Number.isNaN(now.getTime())) {
+			throw new Error("Card suspension requires a Card id and valid time.");
+		}
+
+		const suspension: CardReviewSuspension = {
+			cardId,
+			suspendedAt: now.toISOString(),
+		};
+		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+		const nextData = {
+			...latestData,
+			reviewDeferrals: omitKey(latestData.reviewDeferrals, cardId),
+			suspendedCards: {
+				...latestData.suspendedCards,
+				[cardId]: suspension,
+			},
+		};
+
+		await this.storage.saveData(nextData);
+		this.data = nextData;
+		this.pendingSettings = undefined;
+
+		return suspension;
+	}
+
+	async resumeCard(cardId: string): Promise<void> {
+		await this.ensureLoaded();
+		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+		const nextData = {
+			...latestData,
+			suspendedCards: omitKey(latestData.suspendedCards, cardId),
+		};
+
+		await this.storage.saveData(nextData);
+		this.data = nextData;
+		this.pendingSettings = undefined;
 	}
 
 	async pauseConcept(conceptId: string, now = new Date()): Promise<ConceptReviewPause> {
@@ -218,6 +271,7 @@ export function createDefaultPluginData(): MnemePluginData {
 		pausedConcepts: {},
 		reviewStates: {},
 		reviewDeferrals: {},
+		suspendedCards: {},
 		schemaVersion: CURRENT_SCHEMA_VERSION,
 		settings: { ...DEFAULT_SETTINGS },
 		sourceAnalysisRecords: {},
@@ -238,6 +292,9 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 	const reviewDeferrals = isObject(data.reviewDeferrals)
 		? data.reviewDeferrals
 		: {};
+	const suspendedCards = isObject(data.suspendedCards)
+		? data.suspendedCards
+		: {};
 	const sourceAnalysisRecords = isObject(data.sourceAnalysisRecords)
 		? data.sourceAnalysisRecords
 		: {};
@@ -255,10 +312,31 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 		pausedConcepts: normalizePausedConcepts(pausedConcepts),
 		reviewStates: normalizeReviewStates(reviewStates),
 		reviewDeferrals: normalizeReviewDeferrals(reviewDeferrals),
+		suspendedCards: normalizeSuspendedCards(suspendedCards),
 		schemaVersion: CURRENT_SCHEMA_VERSION,
 		settings: normalizeSettings(data.settings),
 		sourceAnalysisRecords: normalizeSourceAnalysisRecords(sourceAnalysisRecords),
 	};
+}
+
+function normalizeSuspendedCards(suspensions: Record<string, unknown>): Record<string, CardReviewSuspension> {
+	const normalized: Record<string, CardReviewSuspension> = {};
+
+	for (const suspension of Object.values(suspensions)) {
+		if (
+			isObject(suspension)
+			&& typeof suspension.cardId === "string"
+			&& typeof suspension.suspendedAt === "string"
+			&& !Number.isNaN(Date.parse(suspension.suspendedAt))
+		) {
+			normalized[suspension.cardId] = {
+				cardId: suspension.cardId,
+				suspendedAt: suspension.suspendedAt,
+			};
+		}
+	}
+
+	return normalized;
 }
 
 function normalizePausedConcepts(pauses: Record<string, unknown>): Record<string, ConceptReviewPause> {

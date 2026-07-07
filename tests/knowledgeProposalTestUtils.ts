@@ -35,6 +35,7 @@ export function createPluginData(
 		schemaVersion: 1,
 		settings: DEFAULT_SETTINGS,
 		sourceAnalysisRecords,
+		suspendedCards: {},
 	};
 }
 

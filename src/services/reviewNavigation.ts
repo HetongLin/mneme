@@ -5,6 +5,7 @@ export interface ReviewCompletionSummary {
 	label: string;
 	reviewedCount: number;
 	skippedCount: number;
+	suspendedCount: number;
 }
 
 export function extractFirstConceptSourcePath(markdown: string): string | undefined {
@@ -32,6 +33,7 @@ export function formatReviewCompletion(
 	totalCards: number,
 	skippedCards: number,
 	deferredCards = 0,
+	suspendedCards = 0,
 ): ReviewCompletionSummary {
 	const total = Math.max(0, Math.floor(totalCards));
 	const skippedCount = Math.min(total, Math.max(0, Math.floor(skippedCards)));
@@ -39,14 +41,19 @@ export function formatReviewCompletion(
 		total - skippedCount,
 		Math.max(0, Math.floor(deferredCards)),
 	);
-	const reviewedCount = total - skippedCount - deferredCount;
-	const label = skippedCount === 0 && deferredCount === 0
+	const suspendedCount = Math.min(
+		total - skippedCount - deferredCount,
+		Math.max(0, Math.floor(suspendedCards)),
+	);
+	const reviewedCount = total - skippedCount - deferredCount - suspendedCount;
+	const label = skippedCount === 0 && deferredCount === 0 && suspendedCount === 0
 		? `${reviewedCount} ${reviewedCount === 1 ? "card" : "cards"} reviewed`
 		: [
 			`${reviewedCount} reviewed`,
 			skippedCount > 0 ? `${skippedCount} skipped` : undefined,
 			deferredCount > 0 ? `${deferredCount} later` : undefined,
+			suspendedCount > 0 ? `${suspendedCount} suspended` : undefined,
 		].filter((part): part is string => Boolean(part)).join(" · ");
 
-	return { deferredCount, label, reviewedCount, skippedCount };
+	return { deferredCount, label, reviewedCount, skippedCount, suspendedCount };
 }

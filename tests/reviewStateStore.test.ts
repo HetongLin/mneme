@@ -21,6 +21,7 @@ import {
 	assert.deepEqual(data.reviewDeferrals, {});
 	assert.deepEqual(data.settings, DEFAULT_SETTINGS);
 	assert.deepEqual(data.sourceAnalysisRecords, {});
+	assert.deepEqual(data.suspendedCards, {});
 }
 
 {
@@ -34,6 +35,7 @@ import {
 	assert.deepEqual(data.reviewDeferrals, {});
 	assert.deepEqual(data.settings, DEFAULT_SETTINGS);
 	assert.deepEqual(data.sourceAnalysisRecords, {});
+	assert.deepEqual(data.suspendedCards, {});
 }
 
 {
@@ -62,6 +64,37 @@ import {
 }
 
 async function runAsyncTests(): Promise<void> {
+	{
+		const existingState = createReviewState("encapsulation-basic", 2);
+		const storage = new MemoryReviewStateStorage({
+			reviewDeferrals: {
+				"encapsulation-basic": {
+					cardId: "encapsulation-basic",
+					deferredAt: "2026-07-07T10:00:00.000Z",
+					resumeAt: "2026-07-08T00:00:00.000Z",
+				},
+			},
+			reviewStates: { "encapsulation-basic": existingState },
+			schemaVersion: 1,
+			settings: DEFAULT_SETTINGS,
+			suspendedCards: {},
+		});
+		const scheduler = new FakeReviewScheduler();
+		const store = new ReviewStateStore(storage, scheduler);
+
+		await store.load();
+		await store.suspendCard("encapsulation-basic", new Date("2026-07-07T12:00:00.000Z"));
+
+		assert.equal(store.getSuspendedCards()["encapsulation-basic"]?.cardId, "encapsulation-basic");
+		assert.equal(storage.savedData?.reviewDeferrals["encapsulation-basic"], undefined);
+		assert.deepEqual(storage.savedData?.reviewStates["encapsulation-basic"], existingState);
+		assert.equal(scheduler.lastInput, undefined);
+
+		await store.resumeCard("encapsulation-basic");
+		assert.deepEqual(store.getSuspendedCards(), {});
+		assert.deepEqual(storage.savedData?.reviewStates["encapsulation-basic"], existingState);
+	}
+
 	{
 		const existingState = createReviewState("encapsulation-basic", 2);
 		const storage = new MemoryReviewStateStorage({
