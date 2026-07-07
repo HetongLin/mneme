@@ -57,6 +57,7 @@ export default class MnemePlugin extends Plugin {
 		this.conceptSourceLinkStore = new ConceptSourceLinkStore(this);
 		this.approvedProposalWriter = new ApprovedProposalWriter({
 			conceptSourceLinkStore: this.conceptSourceLinkStore,
+			conceptScanner: this.createConceptScanner(),
 			proposalStore: this.knowledgeProposalStore,
 			settingsProvider: () => this.settings,
 			sourceAnalysisStore: this.sourceAnalysisStore,

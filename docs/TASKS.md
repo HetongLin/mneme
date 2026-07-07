@@ -354,3 +354,26 @@ Acceptance criteria:
 - Reviewable and legacy Concepts can generate Card proposals
 - Exploratory Concepts cannot generate Cards
 - Generated proposals still enter Inbox and require acceptance
+
+## Task 032: Accept Add View Proposals
+
+Goal:
+
+Let a student approve an AI-proposed perspective and append it to an existing written Concept.
+
+Requirements:
+
+- Show `Accept View` for valid `add_view` proposals in Inbox
+- Resolve the target Concept by its stable Mneme concept id
+- Append the approved content under `## Views`
+- Preserve every other Concept section
+- Treat an identical existing View as an idempotent successful retry
+- Reject same-title Views with different content instead of overwriting the student's note
+
+Acceptance criteria:
+
+- No Concept Markdown changes before explicit acceptance
+- Acceptance updates only the resolved Concept file
+- Missing or duplicate Concept ids fail safely
+- Conflicting View content is never overwritten
+- Successful proposals leave the active Inbox queue as `written`

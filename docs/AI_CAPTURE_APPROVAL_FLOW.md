@@ -143,7 +143,12 @@ In `concept_capture` mode, providers must not return Card-stage proposal kinds:
 
 Cards are generated later from written `Concept.md`, then reviewed and accepted separately before any `Card.md` is written.
 
-Current implementation supports the first safe Card-generation slice: `Mneme: Generate Cards from Current Concept` accepts only `new_card` AI proposals. Revise, split, merge, and retire Card operations remain future work because their Markdown patch writers are not implemented yet.
+Current implementation supports two post-review write paths:
+
+- `add_view` appends an approved perspective to the resolved Concept's `## Views` section. Identical retries are idempotent, while same-title conflicts fail without overwriting Markdown.
+- `new_card` writes approved Card proposals generated from a written Concept.
+
+Other Concept updates and revise, split, merge, or retire Card operations remain future work because their safe Markdown patch writers are not implemented yet.
 
 ## Inbox Shell
 

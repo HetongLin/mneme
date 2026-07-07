@@ -62,6 +62,14 @@ class MemoryVaultAdapter implements MnemeVaultAdapter {
 
 		return content;
 	}
+
+	async modify(path: string, content: string): Promise<void> {
+		if (!this.files.has(path)) {
+			throw new Error(`Missing file: ${path}`);
+		}
+
+		this.files.set(path, content);
+	}
 }
 
 class MemoryConceptScanner implements ConceptSummaryScanner {

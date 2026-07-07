@@ -52,6 +52,14 @@ class MemoryVaultAdapter implements MnemeVaultAdapter {
 
 		return content;
 	}
+
+	async modify(path: string, content: string): Promise<void> {
+		if (!this.files.has(path)) {
+			throw new Error(`Missing file: ${path}`);
+		}
+
+		this.files.set(path, content);
+	}
 }
 
 class FailingConceptSourceLinkStore extends ConceptSourceLinkStore {
@@ -75,6 +83,13 @@ async function createWriter(
 	const sourceAnalysisStore = new SourceAnalysisStore(storage);
 	const writer = new ApprovedProposalWriter({
 		conceptSourceLinkStore,
+		conceptScanner: {
+			scanConcepts: async () => [{
+				conceptId: "concept-encapsulation",
+				path: "Mneme/Concepts/Encapsulation/Concept.md",
+				title: "Encapsulation",
+			}],
+		},
 		now: () => "2026-01-02T12:00:00.000Z",
 		proposalStore: store,
 		settingsProvider: () => DEFAULT_SETTINGS,
@@ -174,6 +189,79 @@ async function runAsyncTests(): Promise<void> {
 		assert.match(content, /^---\nmneme_type: card_group\nmneme_concept_id: concept-encapsulation\nmneme_version: 1/m);
 		assert.match(content, /Related Concept: \[\[Mneme\/Concepts\/Encapsulation\/Concept\|Encapsulation\]\]/);
 		assert.equal((await store.getProposal(proposal.id))?.status, "written");
+	}
+
+	{
+		const proposal = createProposal("proposal-view", {
+			kind: "add_view",
+			payload: {
+				conceptId: "concept-encapsulation",
+				conceptTitle: "Encapsulation",
+				view: {
+					body: "A stable interface lets internal representation change independently.",
+					title: "Change boundary",
+				},
+			},
+			status: "approved",
+		});
+		const conceptPath = "Mneme/Concepts/Encapsulation/Concept.md";
+		const vault = new MemoryVaultAdapter({
+			[conceptPath]: "# Encapsulation\n\n## Views\n\n## Source Notes\n",
+		});
+		const { store, writer } = await createWriter({ [proposal.id]: proposal }, vault);
+		const result = await writer.writeApprovedProposal(proposal.id);
+
+		assert.equal(result.status, "written");
+		assert.deepEqual(result.targetPaths, [conceptPath]);
+		assert.match(await vault.read(conceptPath), /### Change boundary\n\nA stable interface/);
+		assert.equal((await store.getProposal(proposal.id))?.status, "written");
+	}
+
+	{
+		const proposal = createProposal("proposal-view-retry", {
+			kind: "add_view",
+			payload: {
+				conceptId: "concept-encapsulation",
+				view: {
+					body: "A stable interface lets internals change.",
+					title: "Change boundary",
+				},
+			},
+			status: "approved",
+		});
+		const conceptPath = "Mneme/Concepts/Encapsulation/Concept.md";
+		const original = "# Encapsulation\n\n## Views\n\n### Change boundary\n\nA stable interface lets internals change.\n";
+		const vault = new MemoryVaultAdapter({ [conceptPath]: original });
+		const { store, writer } = await createWriter({ [proposal.id]: proposal }, vault);
+		const result = await writer.writeApprovedProposal(proposal.id);
+
+		assert.equal(result.status, "written");
+		assert.equal(await vault.read(conceptPath), original);
+		assert.equal((await store.getProposal(proposal.id))?.status, "written");
+	}
+
+	{
+		const proposal = createProposal("proposal-view-conflict", {
+			kind: "add_view",
+			payload: {
+				conceptId: "concept-encapsulation",
+				view: {
+					body: "New body.",
+					title: "Change boundary",
+				},
+			},
+			status: "approved",
+		});
+		const conceptPath = "Mneme/Concepts/Encapsulation/Concept.md";
+		const original = "# Encapsulation\n\n## Views\n\n### Change boundary\n\nExisting body.\n";
+		const vault = new MemoryVaultAdapter({ [conceptPath]: original });
+		const { store, writer } = await createWriter({ [proposal.id]: proposal }, vault);
+		const result = await writer.writeApprovedProposal(proposal.id);
+
+		assert.equal(result.status, "failed");
+		assert.match(result.message, /already exists with different content/);
+		assert.equal(await vault.read(conceptPath), original);
+		assert.equal((await store.getProposal(proposal.id))?.status, "approved");
 	}
 
 	{

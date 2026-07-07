@@ -141,6 +141,10 @@ export function getAcceptanceKind(proposal: KnowledgeProposal): InboxAcceptanceK
 		return "concept";
 	}
 
+	if (proposal.kind === "add_view") {
+		return "concept";
+	}
+
 	if (proposal.kind === "new_card") {
 		return "card";
 	}
@@ -149,6 +153,10 @@ export function getAcceptanceKind(proposal: KnowledgeProposal): InboxAcceptanceK
 }
 
 export function formatAcceptActionLabel(proposal: KnowledgeProposal): string {
+	if (proposal.kind === "add_view") {
+		return "Accept View";
+	}
+
 	const kind = getAcceptanceKind(proposal);
 
 	if (kind === "concept") {

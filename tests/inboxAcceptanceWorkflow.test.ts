@@ -45,6 +45,14 @@ class MemoryVaultAdapter implements MnemeVaultAdapter {
 
 		return content;
 	}
+
+	async modify(path: string, content: string): Promise<void> {
+		if (!this.files.has(path)) {
+			throw new Error(`Missing file: ${path}`);
+		}
+
+		this.files.set(path, content);
+	}
 }
 
 function createWorkflow(proposals = {}, vault = new MemoryVaultAdapter()): {
@@ -55,6 +63,13 @@ function createWorkflow(proposals = {}, vault = new MemoryVaultAdapter()): {
 	const storage = new MemoryKnowledgeProposalStorage(createPluginData(proposals));
 	const store = new KnowledgeProposalStore(storage);
 	const writer = new ApprovedProposalWriter({
+		conceptScanner: {
+			scanConcepts: async () => [{
+				conceptId: "concept-encapsulation",
+				path: "Mneme/Concepts/Encapsulation/Concept.md",
+				title: "Encapsulation",
+			}],
+		},
 		now: () => "2026-01-02T12:00:00.000Z",
 		proposalStore: store,
 		settingsProvider: () => DEFAULT_SETTINGS,
@@ -134,6 +149,31 @@ async function runAsyncTests(): Promise<void> {
 		assert.deepEqual(result.errors, ["New concept title is required."]);
 		assert.equal((await store.getProposal(proposal.id))?.status, "suggested");
 		assert.equal(vault.files.size, 0);
+	}
+
+	{
+		const proposal = createProposal("view-proposal", {
+			kind: "add_view",
+			payload: {
+				conceptId: "concept-encapsulation",
+				view: {
+					body: "A stable interface isolates change.",
+					title: "Change boundary",
+				},
+			},
+			status: "suggested",
+		});
+		const conceptPath = "Mneme/Concepts/Encapsulation/Concept.md";
+		const vault = new MemoryVaultAdapter();
+		vault.files.set(conceptPath, "# Encapsulation\n\n## Views\n");
+		const { store, workflow } = createWorkflow({ [proposal.id]: proposal }, vault);
+		const result = await workflow.acceptProposal(proposal.id);
+
+		assert.equal(result.status, "accepted");
+		assert.equal(result.kind, "concept");
+		assert.equal(formatAcceptActionLabel(proposal), "Accept View");
+		assert.match(await vault.read(conceptPath), /### Change boundary\n\nA stable interface isolates change\./);
+		assert.equal((await store.getProposal(proposal.id))?.status, "written");
 	}
 
 	{
