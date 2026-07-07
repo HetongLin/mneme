@@ -18,6 +18,25 @@ const now = new Date("2026-01-10T12:00:00.000Z");
 }
 
 {
+	const concept = createConcept([createCard("new-card"), createCard("due-card")]);
+	concept.learningMode = "exploratory";
+	const state = createReviewState("due-card", "2026-01-09T12:00:00.000Z");
+	const queue = buildReviewQueue([concept], { "due-card": state }, now);
+	const queuedConcept = queue.concepts[0];
+
+	assert.equal(queuedConcept?.reviewableCount, 0);
+	assert.equal(queuedConcept?.dueCards.length, 0);
+	assert.equal(queuedConcept?.newCards.length, 0);
+	assert.equal(queuedConcept?.notDueCards.length, 2);
+	assert.deepEqual(
+		queuedConcept?.notDueCards.map((card) => card.eligibilityReason),
+		["exploratory-concept", "exploratory-concept"],
+	);
+	assert.equal(state.dueAt, "2026-01-09T12:00:00.000Z");
+	assert.equal(queue.summary.reviewableConcepts, 0);
+}
+
+{
 	const queue = buildReviewQueue(
 		[createConcept([createCard("past-card")])],
 		{ "past-card": createReviewState("past-card", "2026-01-09T12:00:00.000Z") },

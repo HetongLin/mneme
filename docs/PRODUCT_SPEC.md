@@ -120,6 +120,8 @@ Today’s Focus is a bounded view over the ranked review queue. User-configured 
 
 Concept `importance` contributes a small, explicit weight to Today’s Focus ranking so must-master knowledge wins ties and near-ties. It does not change Card eligibility, due dates, or FSRS scheduling parameters.
 
+Exploratory Concepts remain outside Today’s Focus even if a legacy or manually created Card file exists. Mneme keeps those Cards and any historical FSRS state intact, but treats them as diagnostic-only until the Concept is changed back to reviewable.
+
 User experience is the first requirement. Internal schemas can be strict and detailed, but primary user surfaces should stay concise. Concept notes should read like learning notes, not exported database records.
 
 ## v0.1 Goal

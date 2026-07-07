@@ -1,5 +1,5 @@
 import { LoadedMnemeCard } from "./card";
-import type { ConceptImportance } from "./conceptLibrary";
+import type { ConceptImportance, ConceptLearningMode } from "./conceptLibrary";
 
 export interface MnemeConcept {
 	cardPath?: string;
@@ -10,6 +10,7 @@ export interface MnemeConcept {
 	id: string;
 	importance?: ConceptImportance;
 	isReviewable: boolean;
+	learningMode?: ConceptLearningMode;
 	sourcePath?: string;
 	title: string;
 	warnings: string[];

@@ -582,3 +582,26 @@ Acceptance criteria:
 - Changing importance does not alter Card due dates or FSRS state
 - Primary Concept metadata avoids overdue-debt wording
 - Legacy Concepts without importance retain normal behavior
+
+## Task 042: Exploratory Concept Review Policy
+
+Goal:
+
+Guarantee that exploratory Concepts remain useful notes without creating FSRS review pressure.
+
+Requirements:
+
+- Load `learning_mode` from written Concept frontmatter into the Review Concept model
+- Mark exploratory Concepts non-reviewable even when Card.md exists
+- Exclude valid exploratory Cards from Today’s Focus as `exploratory-concept`
+- Keep their Cards visible in Advanced Diagnostics
+- Preserve Card Markdown and any existing FSRS state
+- Keep legacy and reviewable Concepts unchanged
+
+Acceptance criteria:
+
+- New and due Cards under an exploratory Concept never enter daily review
+- Invalid exploratory Cards remain visible as invalid diagnostics
+- Switching a Concept back to reviewable restores ordinary eligibility
+- No scheduler call or review-state write occurs during policy evaluation
+- Card generation remains unavailable for exploratory Concepts

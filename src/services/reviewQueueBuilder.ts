@@ -29,7 +29,13 @@ export function buildReviewQueueConcept(
 	reviewStates: Record<string, CardReviewState>,
 	now: Date,
 ): ReviewQueueConcept {
-	const cards = concept.cards.map((card) => buildReviewQueueCard(concept, card, reviewStates[card.cardId], now));
+	const cards = concept.cards.map((card) => {
+		const queueCard = buildReviewQueueCard(concept, card, reviewStates[card.cardId], now);
+
+		return concept.learningMode === "exploratory" && queueCard.dueStatus !== "invalid"
+			? excludeExploratoryCard(queueCard)
+			: queueCard;
+	});
 	const dueCards = cards.filter((card) => card.dueStatus === "due");
 	const newCards = cards.filter((card) => card.dueStatus === "new");
 	const notDueCards = cards.filter((card) => card.dueStatus === "not-due");
@@ -47,6 +53,18 @@ export function buildReviewQueueConcept(
 		reviewableCount,
 		title: concept.title,
 		totalValidCount,
+	};
+}
+
+function excludeExploratoryCard(card: ReviewQueueCard): ReviewQueueCard {
+	return {
+		...card,
+		dueStatus: "not-due",
+		eligibilityReason: "exploratory-concept",
+		includedInDailyReview: false,
+		isDue: false,
+		isNew: false,
+		isOverdue: false,
 	};
 }
 

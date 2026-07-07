@@ -138,6 +138,12 @@ Features:
 - No FSRS scheduling
 - No Today’s Focus push
 
+Current progress:
+
+- Concept generation and editing support `learning_mode: exploratory`.
+- Card generation is unavailable for exploratory Concepts.
+- Existing exploratory Cards are retained for diagnostics but excluded from Today’s Focus and FSRS review eligibility.
+
 ## v1.0: Stable Concept Review Plugin
 
 Goal:

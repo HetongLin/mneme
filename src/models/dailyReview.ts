@@ -4,7 +4,8 @@ export type DailyReviewEligibilityReason =
 	| "overdue"
 	| "not-due"
 	| "invalid"
-	| "missing-due-at";
+	| "missing-due-at"
+	| "exploratory-concept";
 
 export interface DailyReviewEligibility {
 	dueAt?: string;

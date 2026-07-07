@@ -1,7 +1,7 @@
 import { App, TFile } from "obsidian";
 import { LoadedMnemeCard } from "../models/card";
 import { LoadedMnemeConcepts, MnemeConcept } from "../models/concept";
-import type { ConceptImportance } from "../models/conceptLibrary";
+import type { ConceptImportance, ConceptLearningMode } from "../models/conceptLibrary";
 import { CardFileLoader } from "./cardFileLoader";
 import { readConceptEditableMetadata } from "./conceptMetadataUpdater";
 import {
@@ -12,6 +12,7 @@ import { extractFirstConceptSourcePath, parseObsidianLinkPath } from "./reviewNa
 
 interface ConceptMetadata {
 	importance?: ConceptImportance;
+	learningMode?: ConceptLearningMode;
 	sourcePath?: string;
 	title?: string;
 	warnings: string[];
@@ -67,7 +68,8 @@ export class ConceptLoader {
 			folderPath,
 			id: cardGroupMetadata.conceptId ?? (folderPath || cards[0]?.path || fallbackTitle),
 			importance: metadata.importance,
-			isReviewable: validCards.length > 0,
+			isReviewable: validCards.length > 0 && metadata.learningMode !== "exploratory",
+			learningMode: metadata.learningMode,
 			sourcePath: metadata.sourcePath,
 			title: metadata.title || fallbackTitle,
 			warnings: metadata.warnings,
@@ -128,6 +130,7 @@ export class ConceptLoader {
 
 			return {
 				importance: editableMetadata.importance,
+				learningMode: editableMetadata.learningMode,
 				sourcePath: frontmatter.source ?? extractFirstConceptSourcePath(content),
 				title: frontmatter.title || getFirstHeading(content),
 				warnings: [],
