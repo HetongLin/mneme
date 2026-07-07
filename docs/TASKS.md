@@ -490,3 +490,26 @@ Acceptance criteria:
 - Reviewed-today Cards are not selected again
 - Hidden Cards remain unchanged in review state
 - Primary summary uses low-pressure focus language rather than overdue debt language
+
+## Task 038: Review Later
+
+Goal:
+
+Let a student remove a Card from Today’s Focus without rating it or changing its memory schedule.
+
+Requirements:
+
+- Add `Review Later` before and after answer reveal
+- Persist a Card deferral separately from FSRS review state
+- Resume automatically at the next local-day boundary
+- Exclude active deferrals from Today’s Focus across refresh and plugin reload
+- Keep deferred Cards visible in Advanced Diagnostics
+- Clear a Card deferral if the Card is subsequently rated
+
+Acceptance criteria:
+
+- Review Later never invokes the scheduler
+- Due date, stability, difficulty, review count, and lapse count remain unchanged
+- The current review advances after a successful deferral
+- A failed persistence write leaves the current Card in place
+- The Card becomes eligible again when the deferral expires

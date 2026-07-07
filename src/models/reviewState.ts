@@ -25,9 +25,16 @@ export interface CardReviewState {
 	updatedAt: string;
 }
 
+export interface ReviewDeferral {
+	cardId: string;
+	deferredAt: string;
+	resumeAt: string;
+}
+
 export interface MnemePluginData {
 	[key: string]: unknown;
 	reviewStates: Record<string, CardReviewState>;
+	reviewDeferrals: Record<string, ReviewDeferral>;
 	schemaVersion: number;
 	settings: MnemeSettings;
 	sourceAnalysisRecords: Record<string, SourceAnalysisRecord>;

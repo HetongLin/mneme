@@ -3,14 +3,14 @@ import { ConceptMemorySummary } from "../models/conceptMemory";
 import { RankedReviewQueueConcept } from "../models/conceptQueue";
 import { ConceptLoadSummary, MnemeConcept } from "../models/concept";
 import { ReviewQueue, ReviewQueueCard, ReviewQueueConcept } from "../models/reviewQueue";
-import { CardReviewState, ReviewRating } from "../models/reviewState";
+import { CardReviewState, ReviewDeferral, ReviewRating } from "../models/reviewState";
 import { DEFAULT_SETTINGS, MnemeSettings } from "../models/settings";
 import { CardEditModal } from "../modals/cardEditModal";
 import { ConceptLoader } from "../services/conceptLoader";
 import { aggregateConceptMemoryById } from "../services/conceptMemoryAggregator";
 import { indexRankedConceptsById, rankReviewQueueConcepts } from "../services/conceptQueueRanker";
 import { buildReviewQueue } from "../services/reviewQueueBuilder";
-import { ReviewStateStore } from "../services/reviewStateStore";
+import { ReviewStateStore, startOfNextLocalDay } from "../services/reviewStateStore";
 import { formatReviewCompletion } from "../services/reviewNavigation";
 import {
 	buildTodaysFocusUsage,
@@ -31,6 +31,8 @@ const REVIEW_RATINGS: Array<{ label: ReviewRatingLabel; value: ReviewRating }> =
 ];
 
 export class MnemeReviewView extends ItemView {
+	private activeDeferrals: Record<string, ReviewDeferral> = {};
+	private deferredCardCount = 0;
 	private readonly loader: ConceptLoader;
 	private isAnswerShown = false;
 	private isReviewComplete = false;
@@ -41,9 +43,11 @@ export class MnemeReviewView extends ItemView {
 	private rankedReviewQueue: RankedReviewQueueConcept[] = [];
 	private reviewQueue: ReviewQueue = createEmptyReviewQueue();
 	private selectedCardIndex = 0;
+	private sessionCardCount = 0;
 	private selectedCards: ReviewQueueCard[] = [];
 	private selectedConcept: ReviewQueueConcept | null = null;
 	private skippedCardCount = 0;
+	private shouldRefreshQueueOnBack = false;
 	private statusMessage = "Ready to scan Card.md files.";
 
 	constructor(
@@ -85,6 +89,7 @@ export class MnemeReviewView extends ItemView {
 			const loadedConcepts = await this.loader.loadConcepts();
 			const reviewStates = this.reviewStateStore.getAllStates();
 			const now = new Date();
+			this.activeDeferrals = this.reviewStateStore.getActiveReviewDeferrals(now);
 
 			this.reviewQueue = buildReviewQueue(loadedConcepts.concepts, reviewStates, now);
 			this.memorySummaries = aggregateConceptMemoryById(this.reviewQueue.concepts, reviewStates, now);
@@ -94,7 +99,9 @@ export class MnemeReviewView extends ItemView {
 				cardsPerConcept: settings.cardsPerConceptLimit,
 				dailyCards: settings.dailyCardLimit,
 				dailyConcepts: settings.dailyConceptLimit,
-			}, buildTodaysFocusUsage(this.reviewQueue.concepts, reviewStates, now));
+			}, buildTodaysFocusUsage(this.reviewQueue.concepts, reviewStates, now), new Set(
+				Object.keys(this.activeDeferrals),
+			));
 			this.rankedReviewQueue = this.focusSelection.concepts;
 			this.rankedConceptsById = indexRankedConceptsById(rankReviewQueueConcepts(this.reviewQueue.concepts, this.memorySummaries, {
 				includeNonReviewable: true,
@@ -109,6 +116,7 @@ export class MnemeReviewView extends ItemView {
 			this.rankedConceptsById = {};
 			this.rankedReviewQueue = [];
 			this.focusSelection = createEmptyFocusSelection();
+			this.activeDeferrals = {};
 			this.statusMessage = "Failed to scan concepts. See console for details.";
 			this.render();
 			new Notice("Mneme: failed to scan concepts. See console for details.");
@@ -253,16 +261,12 @@ export class MnemeReviewView extends ItemView {
 
 		const reviewableCards = this.selectedCards;
 
-		if (reviewableCards.length === 0) {
-			cardEl.createEl("p", {
-				cls: "mneme-review-empty",
-				text: "No valid cards available for review.",
-			});
-			return;
-		}
-
 		if (this.isReviewComplete) {
-			const completion = formatReviewCompletion(reviewableCards.length, this.skippedCardCount);
+			const completion = formatReviewCompletion(
+				this.sessionCardCount,
+				this.skippedCardCount,
+				this.deferredCardCount,
+			);
 			cardEl.createEl("p", {
 				cls: "mneme-review-card-meta",
 				text: completion.label,
@@ -280,6 +284,14 @@ export class MnemeReviewView extends ItemView {
 				buttonEl.addEventListener("click", () => {
 					void this.openConceptSource(concept.concept);
 				});
+			});
+			return;
+		}
+
+		if (reviewableCards.length === 0) {
+			cardEl.createEl("p", {
+				cls: "mneme-review-empty",
+				text: "No valid cards available for review.",
 			});
 			return;
 		}
@@ -362,6 +374,11 @@ export class MnemeReviewView extends ItemView {
 		});
 		parentEl.createEl("button", { text: "Skip" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => this.skipCurrentCard());
+		});
+		parentEl.createEl("button", { text: "Review Later" }, (buttonEl) => {
+			buttonEl.addEventListener("click", () => {
+				void this.deferCurrentCard();
+			});
 		});
 	}
 
@@ -475,6 +492,10 @@ export class MnemeReviewView extends ItemView {
 		cardEl.createEl("p", { text: `Eligibility reason: ${queueCard.eligibilityReason}` });
 		cardEl.createEl("p", { text: `Review count: ${queueCard.reviewCount}` });
 		cardEl.createEl("p", { text: `Due: ${queueCard.dueAt ?? "(unset)"}` });
+		const deferral = this.activeDeferrals[queueCard.cardId];
+		if (deferral) {
+			cardEl.createEl("p", { text: `Review Later until: ${deferral.resumeAt}` });
+		}
 		cardEl.createEl("p", { text: `Risk: ${cardRisk ? formatPercent(cardRisk.risk) : "(unset)"}` });
 		cardEl.createEl("p", { text: `Risk source: ${cardRisk?.riskSource ?? "(unset)"}` });
 		cardEl.createEl("p", { text: `Retrievability: ${cardRisk?.retrievability === undefined ? "(unset)" : formatPercent(cardRisk.retrievability)}` });
@@ -594,15 +615,22 @@ export class MnemeReviewView extends ItemView {
 		this.mode = "flashcard";
 		this.selectedConcept = concept;
 		this.selectedCards = getQueuedReviewCards(concept);
+		this.sessionCardCount = this.selectedCards.length;
 		this.selectedCardIndex = 0;
 		this.isAnswerShown = false;
 		this.isReviewComplete = false;
 		this.skippedCardCount = 0;
+		this.deferredCardCount = 0;
 		this.statusMessage = "Flash card ready.";
 		this.render();
 	}
 
 	private backToConcepts(): void {
+		if (this.shouldRefreshQueueOnBack) {
+			void this.refreshCards();
+			return;
+		}
+
 		this.resetReviewState();
 		this.statusMessage = "Back to concepts.";
 		this.render();
@@ -626,6 +654,41 @@ export class MnemeReviewView extends ItemView {
 
 		this.skippedCardCount += 1;
 		this.advanceToNextCard(`Skipped ${card.cardId}. FSRS state unchanged.`);
+	}
+
+	private async deferCurrentCard(): Promise<void> {
+		const card = this.getCurrentReviewableCard();
+
+		if (!card) {
+			return;
+		}
+
+		try {
+			const now = new Date();
+			const deferral = await this.reviewStateStore.deferReviewUntil(
+				card.cardId,
+				startOfNextLocalDay(now),
+				now,
+			);
+			this.activeDeferrals[card.cardId] = deferral;
+			this.selectedCards.splice(this.selectedCardIndex, 1);
+			this.deferredCardCount += 1;
+			this.isAnswerShown = false;
+			this.shouldRefreshQueueOnBack = true;
+
+			if (this.selectedCardIndex >= this.selectedCards.length) {
+				this.isReviewComplete = true;
+			}
+
+			this.statusMessage = `Moved ${card.cardId} out of Today’s Focus until tomorrow.`;
+			this.render();
+		} catch (error) {
+			console.error("Mneme: failed to defer Card review", {
+				cardId: card.cardId,
+				error,
+			});
+			new Notice("Mneme: Card could not be moved to Review Later.");
+		}
 	}
 
 	private async rateCurrentCard(rating: ReviewRating, label: ReviewRatingLabel): Promise<void> {
@@ -782,9 +845,12 @@ export class MnemeReviewView extends ItemView {
 		this.selectedConcept = null;
 		this.selectedCards = [];
 		this.selectedCardIndex = 0;
+		this.sessionCardCount = 0;
 		this.isAnswerShown = false;
 		this.isReviewComplete = false;
 		this.skippedCardCount = 0;
+		this.deferredCardCount = 0;
+		this.shouldRefreshQueueOnBack = false;
 	}
 
 	private getCurrentReviewableCard(): ReviewQueueCard | undefined {

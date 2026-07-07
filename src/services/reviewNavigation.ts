@@ -1,6 +1,7 @@
 import { extractSection } from "./conceptMarkdownParser";
 
 export interface ReviewCompletionSummary {
+	deferredCount: number;
 	label: string;
 	reviewedCount: number;
 	skippedCount: number;
@@ -27,13 +28,25 @@ export function parseObsidianLinkPath(value: string): string | undefined {
 	return path || undefined;
 }
 
-export function formatReviewCompletion(totalCards: number, skippedCards: number): ReviewCompletionSummary {
+export function formatReviewCompletion(
+	totalCards: number,
+	skippedCards: number,
+	deferredCards = 0,
+): ReviewCompletionSummary {
 	const total = Math.max(0, Math.floor(totalCards));
 	const skippedCount = Math.min(total, Math.max(0, Math.floor(skippedCards)));
-	const reviewedCount = total - skippedCount;
-	const label = skippedCount === 0
+	const deferredCount = Math.min(
+		total - skippedCount,
+		Math.max(0, Math.floor(deferredCards)),
+	);
+	const reviewedCount = total - skippedCount - deferredCount;
+	const label = skippedCount === 0 && deferredCount === 0
 		? `${reviewedCount} ${reviewedCount === 1 ? "card" : "cards"} reviewed`
-		: `${reviewedCount} reviewed · ${skippedCount} skipped`;
+		: [
+			`${reviewedCount} reviewed`,
+			skippedCount > 0 ? `${skippedCount} skipped` : undefined,
+			deferredCount > 0 ? `${deferredCount} later` : undefined,
+		].filter((part): part is string => Boolean(part)).join(" · ");
 
-	return { label, reviewedCount, skippedCount };
+	return { deferredCount, label, reviewedCount, skippedCount };
 }

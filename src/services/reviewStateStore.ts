@@ -1,5 +1,10 @@
 import { ReviewScheduler } from "../models/reviewScheduler";
-import { CardReviewState, MnemePluginData, ReviewRating } from "../models/reviewState";
+import {
+	CardReviewState,
+	MnemePluginData,
+	ReviewDeferral,
+	ReviewRating,
+} from "../models/reviewState";
 import { DEFAULT_SETTINGS, MnemeSettings, normalizeSettings } from "../models/settings";
 import { SourceAnalysisRecord } from "../models/sourceAnalysis";
 import {
@@ -25,6 +30,7 @@ export interface ReviewStateStorage {
 export class ReviewStateStore {
 	private data: MnemePluginData = createDefaultPluginData();
 	private isLoaded = false;
+	private pendingSettings?: MnemeSettings;
 
 	constructor(
 		private readonly storage: ReviewStateStorage,
@@ -43,22 +49,25 @@ export class ReviewStateStore {
 
 	async recordReview(cardId: string, rating: ReviewRating): Promise<CardReviewState> {
 		await this.ensureLoaded();
+		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
 		const scheduleResult = this.scheduler.schedule({
 			cardId,
-			previousState: this.getState(cardId),
+			previousState: latestData.reviewStates[cardId],
 			rating,
 			reviewedAt: new Date().toISOString(),
 		});
 		const nextData = {
-			...this.data,
+			...latestData,
+			reviewDeferrals: omitKey(latestData.reviewDeferrals, cardId),
 			reviewStates: {
-				...this.data.reviewStates,
+				...latestData.reviewStates,
 				[cardId]: scheduleResult.nextState,
 			},
 		};
 
 		await this.storage.saveData(nextData);
 		this.data = nextData;
+		this.pendingSettings = undefined;
 
 		return scheduleResult.nextState;
 	}
@@ -71,23 +80,69 @@ export class ReviewStateStore {
 		return Object.keys(this.data.reviewStates).length;
 	}
 
-	setSettings(settings: MnemeSettings): void {
-		this.data = {
-			...this.data,
-			settings: normalizeSettings(settings),
-		};
+	getActiveReviewDeferrals(now = new Date()): Record<string, ReviewDeferral> {
+		const active: Record<string, ReviewDeferral> = {};
+
+		for (const [cardId, deferral] of Object.entries(this.data.reviewDeferrals)) {
+			if (Date.parse(deferral.resumeAt) > now.getTime()) {
+				active[cardId] = { ...deferral };
+			}
+		}
+
+		return active;
 	}
 
-	async clearReviewStates(): Promise<void> {
+	async deferReviewUntil(cardId: string, resumeAt: Date, now = new Date()): Promise<ReviewDeferral> {
 		await this.ensureLoaded();
+
+		if (!cardId.trim() || Number.isNaN(resumeAt.getTime()) || resumeAt.getTime() <= now.getTime()) {
+			throw new Error("Review deferral requires a Card id and a future resume time.");
+		}
+
+		const deferral: ReviewDeferral = {
+			cardId,
+			deferredAt: now.toISOString(),
+			resumeAt: resumeAt.toISOString(),
+		};
+		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
 		const nextData = {
-			...this.data,
-			reviewStates: {},
-			schemaVersion: this.data.schemaVersion,
+			...latestData,
+			reviewDeferrals: {
+				...latestData.reviewDeferrals,
+				[cardId]: deferral,
+			},
 		};
 
 		await this.storage.saveData(nextData);
 		this.data = nextData;
+		this.pendingSettings = undefined;
+
+		return deferral;
+	}
+
+	setSettings(settings: MnemeSettings): void {
+		const normalizedSettings = normalizeSettings(settings);
+
+		this.data = {
+			...this.data,
+			settings: normalizedSettings,
+		};
+		this.pendingSettings = normalizedSettings;
+	}
+
+	async clearReviewStates(): Promise<void> {
+		await this.ensureLoaded();
+		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+		const nextData = {
+			...latestData,
+			reviewDeferrals: {},
+			reviewStates: {},
+			schemaVersion: latestData.schemaVersion,
+		};
+
+		await this.storage.saveData(nextData);
+		this.data = nextData;
+		this.pendingSettings = undefined;
 	}
 
 	private async ensureLoaded(): Promise<void> {
@@ -97,6 +152,12 @@ export class ReviewStateStore {
 
 		await this.load();
 	}
+
+	private mergePendingSettings(data: MnemePluginData): MnemePluginData {
+		return this.pendingSettings
+			? { ...data, settings: this.pendingSettings }
+			: data;
+	}
 }
 
 export function createDefaultPluginData(): MnemePluginData {
@@ -104,6 +165,7 @@ export function createDefaultPluginData(): MnemePluginData {
 		conceptSourceLinks: {},
 		knowledgeProposals: {},
 		reviewStates: {},
+		reviewDeferrals: {},
 		schemaVersion: CURRENT_SCHEMA_VERSION,
 		settings: { ...DEFAULT_SETTINGS },
 		sourceAnalysisRecords: {},
@@ -117,6 +179,9 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 
 	const reviewStates = isObject(data.reviewStates)
 		? data.reviewStates
+		: {};
+	const reviewDeferrals = isObject(data.reviewDeferrals)
+		? data.reviewDeferrals
 		: {};
 	const sourceAnalysisRecords = isObject(data.sourceAnalysisRecords)
 		? data.sourceAnalysisRecords
@@ -133,10 +198,34 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 		conceptSourceLinks: normalizeConceptSourceLinks(conceptSourceLinks),
 		knowledgeProposals: normalizeKnowledgeProposals(knowledgeProposals),
 		reviewStates: normalizeReviewStates(reviewStates),
+		reviewDeferrals: normalizeReviewDeferrals(reviewDeferrals),
 		schemaVersion: CURRENT_SCHEMA_VERSION,
 		settings: normalizeSettings(data.settings),
 		sourceAnalysisRecords: normalizeSourceAnalysisRecords(sourceAnalysisRecords),
 	};
+}
+
+function normalizeReviewDeferrals(deferrals: Record<string, unknown>): Record<string, ReviewDeferral> {
+	const normalized: Record<string, ReviewDeferral> = {};
+
+	for (const deferral of Object.values(deferrals)) {
+		if (
+			isObject(deferral)
+			&& typeof deferral.cardId === "string"
+			&& typeof deferral.deferredAt === "string"
+			&& typeof deferral.resumeAt === "string"
+			&& !Number.isNaN(Date.parse(deferral.deferredAt))
+			&& !Number.isNaN(Date.parse(deferral.resumeAt))
+		) {
+			normalized[deferral.cardId] = {
+				cardId: deferral.cardId,
+				deferredAt: deferral.deferredAt,
+				resumeAt: deferral.resumeAt,
+			};
+		}
+	}
+
+	return normalized;
 }
 
 function normalizeReviewStates(states: Record<string, unknown>): Record<string, CardReviewState> {
@@ -291,4 +380,16 @@ function isConceptSourceLinkStatus(value: unknown): value is ConceptSourceLinkSt
 
 function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function omitKey<T>(record: Record<string, T>, key: string): Record<string, T> {
+	const result = { ...record };
+
+	delete result[key];
+
+	return result;
+}
+
+export function startOfNextLocalDay(now: Date): Date {
+	return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 }

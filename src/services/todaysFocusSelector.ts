@@ -25,6 +25,7 @@ export function selectTodaysFocus(
 	rankedConcepts: RankedReviewQueueConcept[],
 	limits: TodaysFocusLimits,
 	usage: TodaysFocusUsage = createEmptyUsage(),
+	deferredCardIds: Set<string> = new Set<string>(),
 ): TodaysFocusSelection {
 	const normalizedLimits = {
 		cardsPerConcept: normalizeLimit(limits.cardsPerConcept),
@@ -58,7 +59,7 @@ export function selectTodaysFocus(
 			normalizedLimits.cardsPerConcept - (usage.reviewedCardsByConcept[concept.conceptId] ?? 0),
 		);
 		const selected = [...concept.dueCards, ...concept.newCards]
-			.filter((card) => !usage.reviewedCardIds.has(card.cardId))
+			.filter((card) => !usage.reviewedCardIds.has(card.cardId) && !deferredCardIds.has(card.cardId))
 			.slice(0, Math.min(perConceptRemaining, remainingCards));
 
 		if (selected.length === 0) {
@@ -82,11 +83,11 @@ export function selectTodaysFocus(
 		remainingCards -= selected.length;
 	}
 
-	const eligibleConcepts = rankedConcepts.filter((ranked) => {
+	const candidateConcepts = rankedConcepts.filter((ranked) => {
 		return [...ranked.concept.dueCards, ...ranked.concept.newCards]
 			.some((card) => !usage.reviewedCardIds.has(card.cardId));
 	});
-	const totalReviewableCards = eligibleConcepts.reduce(
+	const totalReviewableCards = candidateConcepts.reduce(
 		(count, ranked) => count + [...ranked.concept.dueCards, ...ranked.concept.newCards]
 			.filter((card) => !usage.reviewedCardIds.has(card.cardId)).length,
 		0,
@@ -99,7 +100,7 @@ export function selectTodaysFocus(
 	return {
 		concepts,
 		hiddenCardCount: Math.max(0, totalReviewableCards - selectedCardCount),
-		hiddenConceptCount: Math.max(0, eligibleConcepts.length - concepts.length),
+		hiddenConceptCount: Math.max(0, candidateConcepts.length - concepts.length),
 		selectedCardCount,
 	};
 }

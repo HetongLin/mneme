@@ -7,6 +7,7 @@ import {
 	normalizePluginData,
 	ReviewStateStorage,
 	ReviewStateStore,
+	startOfNextLocalDay,
 } from "../src/services/reviewStateStore";
 
 {
@@ -16,6 +17,7 @@ import {
 	assert.deepEqual(data.conceptSourceLinks, {});
 	assert.deepEqual(data.knowledgeProposals, {});
 	assert.deepEqual(data.reviewStates, {});
+	assert.deepEqual(data.reviewDeferrals, {});
 	assert.deepEqual(data.settings, DEFAULT_SETTINGS);
 	assert.deepEqual(data.sourceAnalysisRecords, {});
 }
@@ -27,11 +29,83 @@ import {
 	assert.deepEqual(data.conceptSourceLinks, {});
 	assert.deepEqual(data.knowledgeProposals, {});
 	assert.deepEqual(data.reviewStates, {});
+	assert.deepEqual(data.reviewDeferrals, {});
 	assert.deepEqual(data.settings, DEFAULT_SETTINGS);
 	assert.deepEqual(data.sourceAnalysisRecords, {});
 }
 
+{
+	const now = new Date(2026, 6, 7, 23, 30, 0);
+	const tomorrow = startOfNextLocalDay(now);
+
+	assert.equal(tomorrow.getFullYear(), 2026);
+	assert.equal(tomorrow.getMonth(), 6);
+	assert.equal(tomorrow.getDate(), 8);
+	assert.equal(tomorrow.getHours(), 0);
+}
+
+{
+	const data = normalizePluginData({
+		reviewDeferrals: {
+			invalid: { cardId: "invalid", deferredAt: "bad", resumeAt: "bad" },
+			valid: {
+				cardId: "valid",
+				deferredAt: "2026-07-07T12:00:00.000Z",
+				resumeAt: "2026-07-08T00:00:00.000Z",
+			},
+		},
+	});
+
+	assert.deepEqual(Object.keys(data.reviewDeferrals), ["valid"]);
+}
+
 async function runAsyncTests(): Promise<void> {
+	{
+		const scheduler = new FakeReviewScheduler();
+		const store = new ReviewStateStore(new FailingReviewStateStorage(), scheduler);
+
+		await store.load();
+		await assert.rejects(
+			store.deferReviewUntil(
+				"encapsulation-basic",
+				new Date("2026-07-08T00:00:00.000Z"),
+				new Date("2026-07-07T12:00:00.000Z"),
+			),
+			/Persist failed/,
+		);
+		assert.deepEqual(store.getActiveReviewDeferrals(new Date("2026-07-07T13:00:00.000Z")), {});
+		assert.equal(scheduler.lastInput, undefined);
+	}
+
+	{
+		const existingState = createReviewState("encapsulation-basic", 2);
+		const storage = new MemoryReviewStateStorage({
+			reviewDeferrals: {},
+			reviewStates: { "encapsulation-basic": existingState },
+			schemaVersion: 1,
+			settings: DEFAULT_SETTINGS,
+		});
+		const store = new ReviewStateStore(storage, new FakeReviewScheduler());
+		const now = new Date("2026-07-07T12:00:00.000Z");
+		const resumeAt = new Date("2026-07-08T00:00:00.000Z");
+
+		await store.load();
+		await storage.saveData({
+			...normalizePluginData(await storage.loadData()),
+			lateExternalField: { preserved: true },
+		});
+		const deferral = await store.deferReviewUntil("encapsulation-basic", resumeAt, now);
+
+		assert.equal(deferral.resumeAt, resumeAt.toISOString());
+		assert.deepEqual(storage.savedData?.reviewStates["encapsulation-basic"], existingState);
+		assert.deepEqual(storage.savedData?.lateExternalField, { preserved: true });
+		assert.equal(store.getActiveReviewDeferrals(new Date("2026-07-07T18:00:00.000Z"))["encapsulation-basic"]?.cardId, "encapsulation-basic");
+		assert.deepEqual(store.getActiveReviewDeferrals(new Date("2026-07-08T00:00:00.000Z")), {});
+
+		await store.recordReview("encapsulation-basic", "good");
+		assert.equal(storage.savedData?.reviewDeferrals["encapsulation-basic"], undefined);
+	}
+
 	{
 		const storage = new MemoryReviewStateStorage();
 		const scheduler = new FakeReviewScheduler();
@@ -93,6 +167,7 @@ async function runAsyncTests(): Promise<void> {
 		assert.deepEqual(store.getAllStates(), {});
 		assert.equal(storage.savedData?.schemaVersion, 1);
 		assert.deepEqual(storage.savedData?.reviewStates, {});
+		assert.deepEqual(storage.savedData?.reviewDeferrals, {});
 	}
 
 	{
@@ -183,6 +258,16 @@ class MemoryReviewStateStorage implements ReviewStateStorage {
 	async saveData(data: MnemePluginData): Promise<void> {
 		this.savedData = data;
 		this.data = data;
+	}
+}
+
+class FailingReviewStateStorage implements ReviewStateStorage {
+	async loadData(): Promise<unknown> {
+		return undefined;
+	}
+
+	async saveData(): Promise<void> {
+		throw new Error("Persist failed");
 	}
 }
 
