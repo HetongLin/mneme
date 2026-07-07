@@ -26,10 +26,6 @@ export class OpenAiProvider implements AiProvider {
 			throw new Error("OpenAI API key is required to use the OpenAI provider.");
 		}
 
-		if (input.mode !== "concept_capture") {
-			throw new Error(`Unsupported AI proposal mode: ${input.mode}`);
-		}
-
 		if (!this.httpClient) {
 			throw new Error("OpenAI network transport is not configured.");
 		}

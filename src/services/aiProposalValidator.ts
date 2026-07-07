@@ -1,9 +1,11 @@
 import {
 	AI_CARD_STAGE_KINDS,
+	AI_CARD_GENERATION_KINDS,
 	AI_CONCEPT_CAPTURE_KINDS,
+	AI_PROPOSAL_MODE_CARD_GENERATION,
 	AI_PROPOSAL_MODE_CONCEPT_CAPTURE,
 	AI_PROPOSAL_SCHEMA_VERSION,
-	AiConceptProposalV1,
+	AiProposalV1,
 	AiStructuredProposalResponseV1,
 } from "./aiProposalSchema";
 
@@ -19,7 +21,10 @@ export function validateAiStructuredProposalResponse(raw: unknown): AiProposalVa
 	}
 
 	requireLiteral(raw.schemaVersion, AI_PROPOSAL_SCHEMA_VERSION, "schemaVersion", errors);
-	requireLiteral(raw.mode, AI_PROPOSAL_MODE_CONCEPT_CAPTURE, "mode", errors);
+	requireLiteralOneOf(raw.mode, [AI_PROPOSAL_MODE_CONCEPT_CAPTURE, AI_PROPOSAL_MODE_CARD_GENERATION], "mode", errors);
+	const mode = raw.mode === AI_PROPOSAL_MODE_CONCEPT_CAPTURE || raw.mode === AI_PROPOSAL_MODE_CARD_GENERATION
+		? raw.mode
+		: undefined;
 
 	const source = getRecord(raw, "source", errors);
 	if (source) {
@@ -34,7 +39,7 @@ export function validateAiStructuredProposalResponse(raw: unknown): AiProposalVa
 	if (!Array.isArray(raw.proposals)) {
 		errors.push("proposals must be an array.");
 	} else {
-		raw.proposals.forEach((proposal, index) => validateProposal(proposal, index, errors));
+		raw.proposals.forEach((proposal, index) => validateProposal(proposal, index, mode, errors));
 	}
 
 	if (errors.length > 0) {
@@ -48,7 +53,12 @@ export function validateAiStructuredProposalResponse(raw: unknown): AiProposalVa
 	};
 }
 
-function validateProposal(value: unknown, index: number, errors: string[]): void {
+function validateProposal(
+	value: unknown,
+	index: number,
+	mode: typeof AI_PROPOSAL_MODE_CONCEPT_CAPTURE | typeof AI_PROPOSAL_MODE_CARD_GENERATION | undefined,
+	errors: string[],
+): void {
 	const path = `proposals.${index}`;
 
 	if (!isRecord(value)) {
@@ -56,13 +66,22 @@ function validateProposal(value: unknown, index: number, errors: string[]): void
 		return;
 	}
 
-	if (typeof value.kind === "string" && (AI_CARD_STAGE_KINDS as readonly string[]).includes(value.kind)) {
+	if (mode === AI_PROPOSAL_MODE_CONCEPT_CAPTURE && typeof value.kind === "string" && (AI_CARD_STAGE_KINDS as readonly string[]).includes(value.kind)) {
 		errors.push(`Concept capture must not return ${value.kind} proposals.`);
 		return;
 	}
 
-	if (typeof value.kind !== "string" || !(AI_CONCEPT_CAPTURE_KINDS as readonly string[]).includes(value.kind)) {
-		errors.push(`${path}.kind must be a supported concept proposal kind.`);
+	if (mode === AI_PROPOSAL_MODE_CARD_GENERATION && typeof value.kind === "string" && !(AI_CARD_GENERATION_KINDS as readonly string[]).includes(value.kind)) {
+		errors.push(`Card generation must not return ${value.kind} proposals.`);
+		return;
+	}
+
+	const allowedKinds = mode === AI_PROPOSAL_MODE_CARD_GENERATION
+		? AI_CARD_GENERATION_KINDS
+		: AI_CONCEPT_CAPTURE_KINDS;
+
+	if (typeof value.kind !== "string" || !(allowedKinds as readonly string[]).includes(value.kind)) {
+		errors.push(`${path}.kind must be supported for ${mode ?? "the requested mode"}.`);
 		return;
 	}
 
@@ -76,7 +95,7 @@ function validateProposal(value: unknown, index: number, errors: string[]): void
 		return;
 	}
 
-	switch (value.kind as AiConceptProposalV1["kind"]) {
+	switch (value.kind as AiProposalV1["kind"]) {
 		case "new_concept":
 			validateNewConceptPayload(payload, path, errors);
 			break;
@@ -92,7 +111,29 @@ function validateProposal(value: unknown, index: number, errors: string[]): void
 		case "merge_concept":
 			validateMergeConceptPayload(payload, path, errors);
 			break;
+		case "new_card":
+			validateNewCardPayload(payload, path, errors);
+			break;
 	}
+}
+
+function validateNewCardPayload(payload: Record<string, unknown>, path: string, errors: string[]): void {
+	requireNonEmptyString(payload.conceptId, `${path}.payload.conceptId`, errors);
+	requireNonEmptyString(payload.conceptTitle, `${path}.payload.conceptTitle`, errors);
+	requireNonEmptyString(payload.front, `${path}.payload.front`, errors);
+	requireNonEmptyString(payload.back, `${path}.payload.back`, errors);
+	requireNonEmptyString(payload.rubric, `${path}.payload.rubric`, errors);
+	requireLiteralOneOf(payload.cardType, [
+		"definition",
+		"distinction",
+		"procedure",
+		"example",
+		"trap",
+		"proof",
+		"application",
+		"mastery",
+		"other",
+	], `${path}.payload.cardType`, errors);
 }
 
 function validateNewConceptPayload(payload: Record<string, unknown>, path: string, errors: string[]): void {

@@ -6,12 +6,12 @@ import type {
 } from "../models/knowledgeProposal";
 import {
 	AI_PROPOSAL_SCHEMA_VERSION,
-	AiConceptProposalV1,
+	AiProposalV1,
 	AiStructuredProposalResponseV1,
 } from "./aiProposalSchema";
 
 export interface AiProposalNormalizeOptions {
-	idFactory?: (proposal: AiConceptProposalV1, index: number) => string;
+	idFactory?: (proposal: AiProposalV1, index: number) => string;
 	now?: string;
 }
 
@@ -37,6 +37,7 @@ export function normalizeAiStructuredProposalResponse(
 			evidence: proposal.evidence.map(toSourceEvidence),
 			id,
 			kind: proposal.kind,
+			...(proposal.kind === "new_card" ? { conceptId: proposal.payload.conceptId } : {}),
 			payload: normalizePayload(proposal, response),
 			sourceHash: response.source.hash,
 			sourcePath: response.source.path,
@@ -47,7 +48,7 @@ export function normalizeAiStructuredProposalResponse(
 }
 
 function normalizePayload(
-	proposal: AiConceptProposalV1,
+	proposal: AiProposalV1,
 	response: AiStructuredProposalResponseV1,
 ): KnowledgeProposalPayload {
 	switch (proposal.kind) {
@@ -102,12 +103,25 @@ function normalizePayload(
 				sourceConceptId,
 				targetConceptId: targetConceptId ?? proposal.payload.proposedTitle,
 			};
+		case "new_card":
+			return {
+				card: {
+					back: proposal.payload.back,
+					cardType: proposal.payload.cardType,
+					evidence: proposal.evidence.map(toSourceEvidence),
+					front: proposal.payload.front,
+					rubric: proposal.payload.rubric,
+					sourcePath: response.source.path,
+				},
+				conceptId: proposal.payload.conceptId,
+				conceptTitle: proposal.payload.conceptTitle,
+			};
 	}
 }
 
 function createSourceLinkDraft(
 	response: AiStructuredProposalResponseV1,
-	proposal: AiConceptProposalV1,
+	proposal: AiProposalV1,
 ): ConceptSourceLinkDraft {
 	return {
 		evidence: proposal.evidence.map(toSourceEvidence),

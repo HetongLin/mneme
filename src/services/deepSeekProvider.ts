@@ -26,10 +26,6 @@ export class DeepSeekProvider implements AiProvider {
 			throw new Error("DeepSeek API key is required to use the DeepSeek provider.");
 		}
 
-		if (input.mode !== "concept_capture") {
-			throw new Error(`Unsupported AI proposal mode: ${input.mode}`);
-		}
-
 		if (!this.httpClient) {
 			throw new Error("DeepSeek network transport is not configured.");
 		}

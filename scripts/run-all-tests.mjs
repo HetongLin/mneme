@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 
 const testCommands = [
+	["npm", ["run", "test:ai-card-generation"]],
 	["npm", ["run", "test:ai-capture"]],
 	["npm", ["run", "test:ai-provider"]],
 	["npm", ["run", "test:ai-schema"]],

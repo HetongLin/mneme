@@ -1,5 +1,6 @@
 export const AI_PROPOSAL_SCHEMA_VERSION = "mneme.ai.proposals.v1" as const;
 export const AI_PROPOSAL_MODE_CONCEPT_CAPTURE = "concept_capture" as const;
+export const AI_PROPOSAL_MODE_CARD_GENERATION = "card_generation" as const;
 
 export const AI_CONCEPT_CAPTURE_KINDS = [
 	"new_concept",
@@ -18,6 +19,7 @@ export const AI_CARD_STAGE_KINDS = [
 ] as const;
 
 export type AiConceptProposalKindV1 = typeof AI_CONCEPT_CAPTURE_KINDS[number];
+export const AI_CARD_GENERATION_KINDS = ["new_card"] as const;
 
 export interface AiSourceEvidenceV1 {
 	explanation: string;
@@ -94,9 +96,22 @@ export type AiConceptProposalV1 =
 	| AiUpdateConceptProposalV1
 	| AiMergeConceptProposalV1;
 
-export interface AiStructuredProposalResponseV1 {
-	mode: typeof AI_PROPOSAL_MODE_CONCEPT_CAPTURE;
-	proposals: AiConceptProposalV1[];
+export interface AiNewCardProposalV1 extends AiConceptProposalBaseV1 {
+	kind: "new_card";
+	payload: {
+		back: string;
+		cardType: "definition" | "distinction" | "procedure" | "example" | "trap" | "proof" | "application" | "mastery" | "other";
+		conceptId: string;
+		conceptTitle: string;
+		front: string;
+		rubric: string;
+	};
+}
+
+export type AiProposalV1 = AiConceptProposalV1 | AiNewCardProposalV1;
+
+interface AiStructuredProposalResponseBaseV1 {
+	proposals: AiProposalV1[];
 	schemaVersion: typeof AI_PROPOSAL_SCHEMA_VERSION;
 	source: {
 		hash: string;
@@ -104,3 +119,15 @@ export interface AiStructuredProposalResponseV1 {
 	};
 	warnings: string[];
 }
+
+export interface AiConceptCaptureResponseV1 extends AiStructuredProposalResponseBaseV1 {
+	mode: typeof AI_PROPOSAL_MODE_CONCEPT_CAPTURE;
+	proposals: AiConceptProposalV1[];
+}
+
+export interface AiCardGenerationResponseV1 extends AiStructuredProposalResponseBaseV1 {
+	mode: typeof AI_PROPOSAL_MODE_CARD_GENERATION;
+	proposals: AiNewCardProposalV1[];
+}
+
+export type AiStructuredProposalResponseV1 = AiConceptCaptureResponseV1 | AiCardGenerationResponseV1;

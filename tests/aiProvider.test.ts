@@ -23,6 +23,15 @@ const request = {
 	sourcePath: "Notes/OOP.md",
 };
 
+const cardRequest = {
+	conceptId: "concept-encapsulation",
+	conceptTitle: "Encapsulation",
+	mode: "card_generation" as const,
+	sourceContent: "# Encapsulation\n\n## Core Meaning\n\nEncapsulation protects representation.",
+	sourceHash: "concept-hash",
+	sourcePath: "Mneme/Concepts/Encapsulation/Concept.md",
+};
+
 async function run(): Promise<void> {
 {
 	const provider = new MockAiProvider(DEFAULT_SETTINGS);
@@ -34,6 +43,22 @@ async function run(): Promise<void> {
 	assert.equal(first.structuredResponse.proposals[0]?.kind, "new_concept");
 	assert.equal(first.provider.provider, "mock");
 	assert.equal(validateAiStructuredProposalResponse(first.structuredResponse).valid, true);
+}
+
+{
+	const provider = new MockAiProvider(DEFAULT_SETTINGS);
+	const first = await provider.generateKnowledgeProposals(cardRequest);
+	const second = await provider.generateKnowledgeProposals(cardRequest);
+	const validated = validateAiStructuredProposalResponse(first.structuredResponse);
+
+	assert.deepEqual(first.structuredResponse, second.structuredResponse);
+	assert.equal(validated.valid, true);
+
+	if (validated.valid) {
+		assert.equal(validated.data.mode, "card_generation");
+		assert.equal(validated.data.proposals.length, 1);
+		assert.equal(validated.data.proposals[0]?.kind, "new_card");
+	}
 }
 
 {
@@ -115,6 +140,35 @@ async function run(): Promise<void> {
 	assert.equal(logSafe.deepseekApiKeyConfigured, true);
 	assert.equal(serialized.includes("sk-secret-value"), false);
 	assert.equal(serialized.includes("deepseek-secret-value"), false);
+}
+
+{
+	const settings = {
+		...DEFAULT_SETTINGS,
+		aiProvider: "openai" as const,
+		openaiApiKey: "sk-test-value",
+	};
+	const payload = buildOpenAiKnowledgeProposalPayload(cardRequest, settings);
+	const serialized = JSON.stringify(payload);
+
+	assert.equal(serialized.includes("card_generation"), true);
+	assert.equal(serialized.includes("new_card"), true);
+	assert.equal(serialized.includes("new_concept"), false);
+	assert.equal(serialized.includes("sk-test-value"), false);
+}
+
+{
+	const settings = {
+		...DEFAULT_SETTINGS,
+		aiProvider: "deepseek" as const,
+		deepseekApiKey: "deepseek-test-value",
+	};
+	const payload = buildDeepSeekKnowledgeProposalPayload(cardRequest, settings);
+	const serialized = JSON.stringify(payload);
+
+	assert.equal(serialized.includes("card_generation"), true);
+	assert.equal(serialized.includes("new_card"), true);
+	assert.equal(serialized.includes("deepseek-test-value"), false);
 }
 
 {

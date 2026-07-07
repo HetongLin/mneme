@@ -266,3 +266,26 @@ Acceptance criteria:
 - Unchanged captured notes make no provider call
 - Previously indexed but uncaptured notes can still run their first capture
 - Card-stage and source-mismatched responses are rejected
+
+## Task 028: Generate Card Proposals from Written Concept
+
+Goal:
+
+Complete the missing bridge from an approved `Concept.md` to reviewable Card proposals.
+
+Requirements:
+
+- Run only from a written Mneme Concept
+- Use the selected Mock, OpenAI, or DeepSeek provider
+- Accept only `new_card` output in the first Card-generation slice
+- Validate and normalize every response
+- Add Card proposals to Inbox without writing Markdown
+- Skip a repeated request while matching active Card proposals are already in Inbox
+
+Acceptance criteria:
+
+- Mock generation creates deterministic Card proposals
+- Concept-stage output is rejected in Card-generation mode
+- Invalid provider configuration creates no proposals
+- Accept Card remains the only action that writes `Card.md`
+- Review and FSRS behavior remain unchanged

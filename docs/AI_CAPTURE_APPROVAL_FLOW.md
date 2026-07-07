@@ -83,9 +83,9 @@ Accurate path:
 
 `Mneme: Analyze Current Note` indexes source note metadata and content hash. With AI Capture enabled, it also creates validated Concept-stage proposals in Inbox.
 
-It persists a `SourceAnalysisRecord` in plugin data through `SourceAnalysisStore`. This lets Mneme skip unchanged notes before any future AI call is made.
+It persists a `SourceAnalysisRecord` in plugin data through `SourceAnalysisStore`. This lets Mneme skip unchanged notes before an unnecessary AI call is made.
 
-This command does not extract Concepts, generate Cards, create Inbox proposals, or write Markdown yet.
+This command creates Concept proposals only. It does not generate Cards or write Markdown.
 
 ## Provider Boundary
 
@@ -95,18 +95,18 @@ Current provider pieces:
 
 - AI Capture settings in Mneme settings, disabled by default
 - a provider adapter interface for structured proposal generation
-- a strict `mneme.ai.proposals.v1` concept-capture schema
+- strict `mneme.ai.proposals.v1` schemas for Concept capture and Card generation
 - runtime validation and normalization into `KnowledgeProposal`
 - a deterministic Mock provider for tests and offline development
-- an OpenAI provider shell that can build a future Structured Outputs request payload
-- a DeepSeek provider shell modeled as an OpenAI-compatible provider with editable base URL and model
+- an OpenAI Responses API provider using Structured Outputs
+- a DeepSeek OpenAI-compatible provider using JSON output plus local validation
 - log-safe provider configuration diagnostics that do not include raw API keys
 
 The provider interface returns structured AI response data plus diagnostics and provider metadata. Analyze Current Note validates and normalizes the raw response before it can become `KnowledgeProposal` data, then places valid Concept proposals in Inbox. Acceptance, Markdown writers, FSRS, and Daily Review remain separate boundaries.
 
-OpenAI Structured Outputs is the intended provider-side enforcement layer for model output against JSON Schema. Mneme still treats provider output as untrusted until local runtime validation passes. The current OpenAI provider is a shell and does not perform production network execution.
+OpenAI Structured Outputs provides provider-side enforcement against JSON Schema. Mneme still treats provider output as untrusted until local runtime validation passes.
 
-DeepSeek support uses an OpenAI-compatible request boundary and Bearer-key configuration shape. DeepSeek JSON Output can request valid JSON, but Mneme still requires application-side schema validation and normalization. It is infrastructure only at this stage and does not perform production network execution.
+DeepSeek support uses an OpenAI-compatible request boundary and Bearer-key configuration shape. DeepSeek JSON Output requests valid JSON, while Mneme still requires application-side schema validation and normalization.
 
 ## Structured Output Contract
 
@@ -122,6 +122,8 @@ The concept-capture response uses:
 - `warnings`
 
 Proposal entries may include machine-oriented `confidence`, `rationale`, and source evidence. These fields support validation and internal review, but they must not automatically appear in `Concept.md`, `Card.md`, Inbox primary UI, or Concept Library primary UI.
+
+The Card-generation response uses the same schema version and source envelope with `mode: "card_generation"`. The current accepted kind is `new_card`, whose payload identifies the written Concept and provides front, back, rubric, and card type.
 
 In `concept_capture` mode, providers may return only Concept-stage proposal kinds:
 
@@ -140,6 +142,8 @@ In `concept_capture` mode, providers must not return Card-stage proposal kinds:
 - `retire_card`
 
 Cards are generated later from written `Concept.md`, then reviewed and accepted separately before any `Card.md` is written.
+
+Current implementation supports the first safe Card-generation slice: `Mneme: Generate Cards from Current Concept` accepts only `new_card` AI proposals. Revise, split, merge, and retire Card operations remain future work because their Markdown patch writers are not implemented yet.
 
 ## Inbox Shell
 

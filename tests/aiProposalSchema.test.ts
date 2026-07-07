@@ -20,6 +20,31 @@ const evidence = [{
 	sourcePath: "Notes/OOP.md",
 }];
 
+const cardGenerationResponse = {
+	mode: "card_generation",
+	proposals: [{
+		confidence: 0.9,
+		evidence,
+		kind: "new_card",
+		payload: {
+			back: "Encapsulation protects representation behind a stable interface.",
+			cardType: "definition",
+			conceptId: "concept-encapsulation",
+			conceptTitle: "Encapsulation",
+			front: "What does encapsulation protect?",
+			rubric: "Mentions representation and a stable interface.",
+		},
+		rationale: "Tests the Concept's core meaning.",
+		title: "Encapsulation core meaning",
+	}],
+	schemaVersion: "mneme.ai.proposals.v1",
+	source: {
+		hash: "concept-hash",
+		path: "Mneme/Concepts/Encapsulation/Concept.md",
+	},
+	warnings: [],
+};
+
 {
 	const result = validateAiStructuredProposalResponse({
 		...baseResponse,
@@ -139,7 +164,7 @@ const evidence = [{
 {
 	const result = validateAiStructuredProposalResponse({
 		...baseResponse,
-		mode: "card_generation",
+		mode: "unsupported_mode",
 	});
 
 	assert.equal(result.valid, false);
@@ -257,6 +282,38 @@ const evidence = [{
 		assert.equal(proposals[0].ai?.confidence, 0.91);
 		assert.equal(proposals[0].ai?.rationale, "The source note introduces a durable concept.");
 	}
+}
+
+{
+	const validated = validateAiStructuredProposalResponse(cardGenerationResponse);
+
+	assert.equal(validated.valid, true);
+
+	if (validated.valid) {
+		const proposals = normalizeAiStructuredProposalResponse(validated.data, {
+			idFactory: () => "proposal-card-1",
+			now: "2026-01-01T12:00:00.000Z",
+		});
+
+		assert.equal(proposals[0]?.kind, "new_card");
+		assert.equal(proposals[0]?.conceptId, "concept-encapsulation");
+		assert.equal(proposals[0]?.payload?.conceptId, "concept-encapsulation");
+		assert.equal(proposals[0]?.payload?.card.front, "What does encapsulation protect?");
+		assert.equal(proposals[0]?.sourcePath, "Mneme/Concepts/Encapsulation/Concept.md");
+	}
+}
+
+{
+	const result = validateAiStructuredProposalResponse({
+		...cardGenerationResponse,
+		proposals: [{
+			...cardGenerationResponse.proposals[0],
+			kind: "new_concept",
+		}],
+	});
+
+	assert.equal(result.valid, false);
+	assert.equal(result.errors[0], "Card generation must not return new_concept proposals.");
 }
 
 console.log("AI proposal schema tests passed.");

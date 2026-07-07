@@ -231,7 +231,7 @@ export class MnemeSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Max input characters")
-			.setDesc("Caps how much source-note text the future provider can receive.")
+			.setDesc("Caps how much Source Note or Concept text the provider can receive.")
 			.addText((text) => {
 				text.inputEl.type = "number";
 				text.inputEl.min = "1";

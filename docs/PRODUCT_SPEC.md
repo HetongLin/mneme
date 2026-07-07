@@ -100,14 +100,19 @@ Initial AI capture is concept-first. Source Note analysis may propose Concept-st
 6. Mneme validates JSON with a runtime schema.
 7. Suggestions appear in Inbox.
 8. User accepts, edits, rejects, merges, or updates.
-9. Mneme writes Concept.md and Card.md.
-10. FSRS schedules Cards.
-11. Review View groups due Cards by Concept.
-12. User reviews through Today’s Focus.
+9. Accept Concept writes Concept.md.
+10. User runs Generate Cards from Current Concept.
+11. AI returns Card proposals derived from the written Concept.
+12. User reviews and accepts Card proposals before Card.md is written.
+13. FSRS schedules Cards.
+14. Review View groups due Cards by Concept.
+15. User reviews through Today’s Focus.
 
 Current implementation note:
 
 Analyze Current Note indexes the Source Note and, when AI Capture is enabled, asks the selected Mock, OpenAI, or DeepSeek provider for Concept-stage proposals. DeepSeek uses its OpenAI-compatible chat-completions endpoint, while OpenAI uses the Responses API. Provider output remains untrusted until it passes Mneme's structured proposal validation and normalization into `KnowledgeProposal`. The command stores valid proposals in Inbox and never writes Markdown directly.
+
+Generate Cards from Current Concept works only from a written Mneme `Concept.md`. It sends that approved Concept to the selected provider in `card_generation` mode, accepts only `new_card` responses, and stores validated Card proposals in Inbox. `Card.md` is written only after the user accepts an individual Card proposal.
 
 User experience is the first requirement. Internal schemas can be strict and detailed, but primary user surfaces should stay concise. Concept notes should read like learning notes, not exported database records.
 

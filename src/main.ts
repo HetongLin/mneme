@@ -18,10 +18,13 @@ import {
 import { CardFileLoader } from "./services/cardFileLoader";
 import { FsrsReviewScheduler, FsrsSchedulerConfig } from "./services/fsrsReviewScheduler";
 import { ApprovedProposalWriter } from "./services/approvedProposalWriter";
+import { AiCardGenerationService } from "./services/aiCardGenerationService";
 import { AiConceptCaptureService } from "./services/aiConceptCaptureService";
 import { createAiProvider } from "./services/aiProviderFactory";
 import { ConceptSourceLinkStore } from "./services/conceptSourceLinkStore";
 import { ConceptScanner } from "./services/conceptScanner";
+import { getConceptIdFromFrontmatter } from "./services/conceptMarkdownIdentity";
+import { parseConceptTitle } from "./services/conceptMarkdownParser";
 import { KnowledgeProposalStore } from "./services/knowledgeProposalStore";
 import { ObsidianConceptVaultAdapter } from "./services/obsidianConceptVaultAdapter";
 import { ObsidianAiHttpClient } from "./services/obsidianAiHttpClient";
@@ -103,6 +106,14 @@ export default class MnemePlugin extends Plugin {
 			name: "Mneme: Analyze Current Note",
 			callback: () => {
 				void this.analyzeCurrentNote();
+			},
+		});
+
+		this.addCommand({
+			id: "mneme-generate-cards-from-current-concept",
+			name: "Mneme: Generate Cards from Current Concept",
+			callback: () => {
+				void this.generateCardsFromCurrentConcept();
 			},
 		});
 
@@ -315,6 +326,61 @@ export default class MnemePlugin extends Plugin {
 		}
 
 		return this.app.vault.cachedRead(abstractFile);
+	}
+
+	private async generateCardsFromCurrentConcept(): Promise<void> {
+		const activeFile = this.app.workspace.getActiveFile();
+
+		if (!activeFile || activeFile.extension !== "md") {
+			new Notice("Mneme: Open a written Concept before generating Cards.");
+			return;
+		}
+
+		const frontmatter = this.app.metadataCache.getFileCache(activeFile)?.frontmatter;
+		const conceptId = getConceptIdFromFrontmatter(frontmatter);
+
+		if (!conceptId) {
+			new Notice("Mneme: Current note is not a Mneme Concept.");
+			return;
+		}
+
+		const markdown = await this.app.vault.cachedRead(activeFile);
+		const conceptTitle = parseConceptTitle(markdown, activeFile.path);
+		const service = new AiCardGenerationService({
+			createProvider: (settings) => createAiProvider(settings, new ObsidianAiHttpClient()),
+			proposalStore: this.knowledgeProposalStore,
+			settingsProvider: () => this.settings,
+		});
+		const result = await service.generate({
+			conceptId,
+			conceptPath: activeFile.path,
+			conceptTitle,
+			markdown,
+		});
+
+		if (result.status === "failed") {
+			console.error("Mneme: Card proposal generation failed", {
+				conceptPath: activeFile.path,
+				message: result.message,
+			});
+			new Notice("Mneme: Card generation failed. See console.");
+			return;
+		}
+
+		if (result.status === "invalid_response") {
+			console.warn("Mneme: Card generation response rejected", {
+				conceptPath: activeFile.path,
+				message: result.message,
+			});
+			new Notice("Mneme: AI response was invalid. No Card proposals added.");
+			return;
+		}
+
+		new Notice(`Mneme: ${result.message}`);
+
+		if (result.status === "generated") {
+			await this.refreshOpenInboxViews();
+		}
 	}
 
 	private async logSourceAnalysisState(): Promise<void> {

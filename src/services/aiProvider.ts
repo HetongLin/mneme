@@ -1,6 +1,6 @@
 import type { KnowledgeProposal, KnowledgeProposalKind } from "../models/knowledgeProposal";
 import type { AiProviderName, MnemeSettings } from "../models/settings";
-export type AiProposalMode = "concept_capture";
+export type AiProposalMode = "concept_capture" | "card_generation";
 
 export interface ExistingConceptSummary {
 	conceptId: string;
@@ -8,13 +8,25 @@ export interface ExistingConceptSummary {
 	title: string;
 }
 
-export interface AiProposalRequest {
-	existingConceptSummaries: ExistingConceptSummary[];
+interface AiProposalRequestBase {
 	mode: AiProposalMode;
 	sourceContent: string;
 	sourceHash: string;
 	sourcePath: string;
 }
+
+export interface AiConceptCaptureRequest extends AiProposalRequestBase {
+	existingConceptSummaries: ExistingConceptSummary[];
+	mode: "concept_capture";
+}
+
+export interface AiCardGenerationRequest extends AiProposalRequestBase {
+	conceptId: string;
+	conceptTitle: string;
+	mode: "card_generation";
+}
+
+export type AiProposalRequest = AiConceptCaptureRequest | AiCardGenerationRequest;
 
 export interface AiProviderMetadata {
 	baseUrl?: string;
@@ -163,6 +175,18 @@ export function validateConceptCaptureResponse(proposals: KnowledgeProposal[]): 
 	const errors = proposals
 		.filter((proposal) => CARD_STAGE_PROPOSAL_KINDS.includes(proposal.kind))
 		.map((proposal) => `Concept capture must not return ${proposal.kind} proposals.`);
+
+	return {
+		errors,
+		valid: errors.length === 0,
+		warnings: [],
+	};
+}
+
+export function validateCardGenerationResponse(proposals: KnowledgeProposal[]): AiProposalValidationResult {
+	const errors = proposals
+		.filter((proposal) => proposal.kind !== "new_card")
+		.map((proposal) => `Card generation must not return ${proposal.kind} proposals.`);
 
 	return {
 		errors,

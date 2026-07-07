@@ -19,6 +19,8 @@ Features:
 - Hash-based skip
 - AI Capture settings and provider adapter infrastructure for Mock, OpenAI, and DeepSeek
 - Structured AI proposal schema validation
+- Generate Cards from Current Concept
+- Card proposals generated only from written Concepts
 - Concept Suggestions JSON
 - Runtime schema validation
 - Inbox approval

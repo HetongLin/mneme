@@ -85,7 +85,7 @@ export class SourceAnalysisService {
 			return {
 				contentHash,
 				message: previous
-					? "Source changed and is ready for future proposal generation."
+					? "Source changed and is ready for proposal generation."
 					: "Source note indexed.",
 				previousHash: previous?.contentHash,
 				sourcePath: snapshot.path,
