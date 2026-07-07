@@ -129,6 +129,38 @@ import { createProposal } from "./knowledgeProposalTestUtils";
 }
 
 {
+	const proposal = createProposal("proposal-empty-update", {
+		kind: "update_concept",
+		payload: {
+			conceptId: "concept-a",
+		},
+	});
+
+	const result = validateKnowledgeProposalPayload(proposal);
+
+	assert.equal(result.valid, false);
+	assert.deepEqual(result.errors, ["Concept update must include at least one proposed change."]);
+}
+
+{
+	const proposal = createProposal("proposal-invalid-update-view", {
+		kind: "update_concept",
+		payload: {
+			conceptId: "concept-a",
+			proposedViews: [{ body: "", title: "" }],
+		},
+	});
+
+	const result = validateKnowledgeProposalPayload(proposal);
+
+	assert.equal(result.valid, false);
+	assert.deepEqual(result.errors, [
+		"Concept view title is required.",
+		"Concept view body is required.",
+	]);
+}
+
+{
 	const proposal = createProposal("proposal-j", {
 		kind: "new_concept",
 		payload: undefined,

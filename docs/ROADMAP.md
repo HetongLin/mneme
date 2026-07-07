@@ -64,6 +64,12 @@ Features:
 - Invalid Card repair flow
 - Better Concept index
 
+Current progress:
+
+- Structured Inbox editing is available for new Concepts, new Cards, and targeted Concept updates.
+- Approved Concept updates safely replace only Core Meaning / Why It Matters and may append Views and Source Notes.
+- Duplicate detection and merge workflow remain unfinished.
+
 ## v0.3: Low-pressure Review
 
 Goal:

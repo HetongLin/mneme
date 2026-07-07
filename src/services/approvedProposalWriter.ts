@@ -5,6 +5,7 @@ import type { MnemeSettings } from "../models/settings";
 import { ensureUniquePath, normalizeVaultPath } from "../utils/markdownPath";
 import {
 	buildConceptSourceLinksFromNewConceptProposal,
+	buildConceptUpdateSourceLinks,
 	buildExistingConceptSourceLink,
 	buildViewSourceLink,
 	mergeLinkedConceptId,
@@ -16,6 +17,7 @@ import { renderMarkdownProposal } from "./markdownProposalRenderer";
 import { SourceAnalysisStore } from "./sourceAnalysisStore";
 import { appendConceptView } from "./conceptViewAppender";
 import { appendConceptSourceNote } from "./conceptSourceNoteAppender";
+import { updateConceptSections } from "./conceptSectionUpdater";
 import { validateKnowledgeProposalPayload } from "./knowledgeProposalValidation";
 
 export interface MnemeVaultAdapter {
@@ -73,6 +75,10 @@ export class ApprovedProposalWriter {
 			return this.writeExistingConceptLinkProposal(proposal);
 		}
 
+		if (proposal.kind === "update_concept") {
+			return this.writeConceptUpdateProposal(proposal);
+		}
+
 		if (proposal.kind === "add_view") {
 			return this.writeConceptViewProposal(proposal);
 		}
@@ -115,6 +121,90 @@ export class ApprovedProposalWriter {
 				status: "failed",
 				targetPaths,
 			};
+		}
+	}
+
+	private async writeConceptUpdateProposal(
+		proposal: Extract<KnowledgeProposal, { kind: "update_concept" }>,
+	): Promise<MarkdownWriteResult> {
+		const validation = validateKnowledgeProposalPayload(proposal);
+
+		if (!validation.valid || !proposal.payload) {
+			return this.failedResult(proposal.id, validation.errors.join(" ") || "Concept update is invalid.");
+		}
+
+		if (!this.options.conceptScanner) {
+			return {
+				message: "Concept lookup is unavailable.",
+				proposalId: proposal.id,
+				status: "skipped",
+				targetPaths: [],
+			};
+		}
+
+		const payload = proposal.payload;
+		const now = this.now();
+		const sourceLinks = buildConceptUpdateSourceLinks({ now, proposal });
+
+		if (sourceLinks.length > 0 && !this.options.conceptSourceLinkStore) {
+			return {
+				message: "Concept source linking is unavailable.",
+				proposalId: proposal.id,
+				status: "skipped",
+				targetPaths: [],
+			};
+		}
+
+		try {
+			const targetPath = await this.resolveConceptPath(payload.conceptId);
+			const originalMarkdown = await this.options.vaultAdapter.read(targetPath);
+			let updatedMarkdown = originalMarkdown;
+
+			if (payload.proposedCoreMeaning?.trim() || payload.proposedSummary?.trim()) {
+				updatedMarkdown = updateConceptSections(updatedMarkdown, {
+					coreMeaning: payload.proposedCoreMeaning,
+					whyItMatters: payload.proposedSummary,
+				}).markdown;
+			}
+
+			for (const view of payload.proposedViews ?? []) {
+				updatedMarkdown = appendConceptView(updatedMarkdown, view).markdown;
+			}
+
+			for (const sourceLink of sourceLinks) {
+				updatedMarkdown = appendConceptSourceNote(updatedMarkdown, sourceLink).markdown;
+			}
+
+			if (updatedMarkdown !== originalMarkdown) {
+				await this.options.vaultAdapter.modify(targetPath, updatedMarkdown);
+			}
+
+			for (const sourceLink of sourceLinks) {
+				await this.options.conceptSourceLinkStore?.upsertLink(sourceLink);
+				const sourceRecord = await this.options.sourceAnalysisStore?.getRecord(sourceLink.sourcePath);
+
+				if (sourceRecord) {
+					await this.options.sourceAnalysisStore?.upsertRecord(
+						mergeLinkedConceptId(sourceRecord, payload.conceptId),
+					);
+				}
+			}
+
+			await this.options.proposalStore.updateProposalStatus(proposal.id, "written", now);
+
+			return {
+				message: updatedMarkdown === originalMarkdown
+					? "Concept update already written."
+					: "Concept updated.",
+				proposalId: proposal.id,
+				status: "written",
+				targetPaths: [targetPath],
+			};
+		} catch (error) {
+			return this.failedResult(
+				proposal.id,
+				error instanceof Error ? error.message : "Concept update failed.",
+			);
 		}
 	}
 

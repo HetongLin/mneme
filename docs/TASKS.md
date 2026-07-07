@@ -421,3 +421,26 @@ Acceptance criteria:
 - The approved runtime link uses the target Concept id
 - Views without source metadata remain valid
 - No source reference is duplicated on retry
+
+## Task 035: Accept Existing Concept Updates
+
+Goal:
+
+Let students approve targeted AI improvements to a written Concept without replacing the whole note.
+
+Requirements:
+
+- Show `Accept Update` for valid `update_concept` proposals
+- Provide structured editing for proposed Core Meaning and Why It Matters
+- Resolve the target by stable Mneme concept id
+- Replace only the approved `## Core Meaning` and `## Why It Matters` sections
+- Append proposed Views and Source Notes through the existing safe writers
+- Persist approved provenance links and keep retries idempotent
+
+Acceptance criteria:
+
+- At least one proposed change is required
+- Unrelated Concept sections and custom Markdown remain intact
+- Invalid Views or Source Links are rejected before writing
+- Missing or duplicate target Concept ids fail safely
+- Successful proposals become `written` and leave the active Inbox queue

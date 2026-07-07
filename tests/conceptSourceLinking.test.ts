@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
 	buildConceptSourceLinksFromNewConceptProposal,
+	buildConceptUpdateSourceLinks,
 	buildExistingConceptSourceLink,
 	buildViewSourceLink,
 	createConceptSourceLinkId,
@@ -8,6 +9,27 @@ import {
 	normalizeConceptIdForWrittenConcept,
 } from "../src/services/conceptSourceLinking";
 import { createProposal, createSourceRecord } from "./knowledgeProposalTestUtils";
+
+{
+	const proposal = createProposal("proposal-update-source", {
+		evidence: [{ excerpt: "New evidence changes the interpretation." }],
+		kind: "update_concept",
+		payload: {
+			conceptId: "concept-encapsulation",
+			proposedSummary: "Updated summary.",
+		},
+		sourceHash: "update-hash",
+		sourcePath: "Notes/New Evidence.md",
+	});
+	const links = buildConceptUpdateSourceLinks({
+		now: "2026-01-02T12:00:00.000Z",
+		proposal,
+	});
+
+	assert.equal(links.length, 1);
+	assert.equal(links[0].relationType, "update");
+	assert.equal(links[0].sourcePath, "Notes/New Evidence.md");
+}
 
 {
 	const proposal = createProposal("proposal-view-source", {

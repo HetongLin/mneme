@@ -365,16 +365,46 @@ async function runAsyncTests(): Promise<void> {
 		const proposal = createProposal("proposal-a", {
 			kind: "update_concept",
 			payload: {
-				conceptId: "concept-a",
-				proposedSummary: "Updated summary",
+				conceptId: "concept-encapsulation",
+				proposedCoreMeaning: "Encapsulation hides representation behind a stable interface.",
+				proposedSourceLinks: [{
+					evidence: [{ excerpt: "Clients depend on the stable interface." }],
+					relationType: "update",
+					sourceHash: "update-hash",
+					sourcePath: "Notes/Interfaces.md",
+				}],
+				proposedSummary: "It lets implementations evolve without breaking clients.",
+				proposedViews: [{
+					body: "Treat the public API as a contract.",
+					title: "Contract view",
+				}],
 			},
 			status: "approved",
 		});
-		const { store, writer } = await createWriter({ [proposal.id]: proposal });
+		const conceptPath = "Mneme/Concepts/Encapsulation/Concept.md";
+		const sourceRecord = createSourceRecord("Notes/Interfaces.md");
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData(
+			{ [proposal.id]: proposal },
+			{ [sourceRecord.sourcePath]: sourceRecord },
+		));
+		const vault = new MemoryVaultAdapter({
+			[conceptPath]: "# Encapsulation\n\n## Core Meaning\n\nOld meaning.\n\n## Why It Matters\n\nOld reason.\n\n## Views\n\n## Common Traps\n\nKeep this trap.\n\n## Source Notes\n",
+		});
+		const { store, writer } = await createWriter({ [proposal.id]: proposal }, vault, storage);
 		const result = await writer.writeApprovedProposal(proposal.id);
+		const markdown = await vault.read(conceptPath);
 
-		assert.equal(result.status, "skipped");
-		assert.equal((await store.getProposal(proposal.id))?.status, "approved");
+		assert.equal(result.status, "written");
+		assert.match(markdown, /## Core Meaning\n\nEncapsulation hides representation/);
+		assert.match(markdown, /## Why It Matters\n\nIt lets implementations evolve/);
+		assert.match(markdown, /### Contract view\n\nTreat the public API as a contract\./);
+		assert.match(markdown, /\[\[Notes\/Interfaces\]\]/);
+		assert.match(markdown, /## Common Traps\n\nKeep this trap\./);
+		assert.equal(Object.values(storage.savedData?.conceptSourceLinks ?? {}).length, 1);
+		assert.deepEqual(storage.savedData?.sourceAnalysisRecords["Notes/Interfaces.md"].linkedConceptIds, [
+			"concept-encapsulation",
+		]);
+		assert.equal((await store.getProposal(proposal.id))?.status, "written");
 	}
 
 	{

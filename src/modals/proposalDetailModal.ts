@@ -130,6 +130,11 @@ export class ProposalDetailModal extends Modal {
 			return;
 		}
 
+		if (this.proposal.kind === "update_concept") {
+			this.renderConceptUpdateEditor(parentEl);
+			return;
+		}
+
 		parentEl.createEl("p", {
 			cls: "mneme-review-status",
 			text: "Structured editing for this proposal type is not available yet. Use Advanced / Raw JSON.",
@@ -176,6 +181,32 @@ export class ProposalDetailModal extends Modal {
 				front: frontInput.value,
 				rubric: rubricInput.value,
 			},
+		}));
+	}
+
+	private renderConceptUpdateEditor(parentEl: HTMLElement): void {
+		const payload: Record<string, unknown> = isRecord(this.proposal.payload) ? this.proposal.payload : {};
+		const coreMeaningInput = this.createTextareaInput(
+			parentEl,
+			"Proposed Core Meaning",
+			getString(payload, "proposedCoreMeaning"),
+		);
+		const summaryInput = this.createTextareaInput(
+			parentEl,
+			"Proposed Why It Matters",
+			getString(payload, "proposedSummary"),
+		);
+		const reasonInput = this.createTextareaInput(
+			parentEl,
+			"Update Reason",
+			getString(payload, "updateReason"),
+		);
+
+		this.createSaveEditsButton(parentEl, () => ({
+			...payload,
+			proposedCoreMeaning: coreMeaningInput.value,
+			proposedSummary: summaryInput.value,
+			updateReason: reasonInput.value,
 		}));
 	}
 

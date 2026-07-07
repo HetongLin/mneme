@@ -50,10 +50,48 @@ export function validateKnowledgeProposalPayload(proposal: KnowledgeProposal): K
 			break;
 		case "update_concept":
 			requireString(payload, "conceptId", "Concept id is required.", errors);
+			if (!hasConceptUpdate(payload)) {
+				errors.push("Concept update must include at least one proposed change.");
+			}
+			validateOptionalViews(payload.proposedViews, errors);
+			validateOptionalSourceLinks(payload.proposedSourceLinks, errors);
 			break;
 	}
 
 	return createResult(errors, warnings);
+}
+
+function validateOptionalViews(value: unknown, errors: string[]): void {
+	if (value === undefined) {
+		return;
+	}
+
+	if (!Array.isArray(value)) {
+		errors.push("Proposed views must be an array.");
+		return;
+	}
+
+	value.forEach((view) => validateView(isRecord(view) ? view : undefined, errors));
+}
+
+function validateOptionalSourceLinks(value: unknown, errors: string[]): void {
+	if (value === undefined) {
+		return;
+	}
+
+	if (!Array.isArray(value)) {
+		errors.push("Proposed source links must be an array.");
+		return;
+	}
+
+	value.forEach((link) => validateSourceLink(isRecord(link) ? link : undefined, errors));
+}
+
+function hasConceptUpdate(payload: Record<string, unknown>): boolean {
+	return [payload.proposedCoreMeaning, payload.proposedSummary]
+		.some((value) => typeof value === "string" && value.trim().length > 0)
+		|| (Array.isArray(payload.proposedViews) && payload.proposedViews.length > 0)
+		|| (Array.isArray(payload.proposedSourceLinks) && payload.proposedSourceLinks.length > 0);
 }
 
 function validateCard(

@@ -147,6 +147,7 @@ Current implementation supports two post-review write paths:
 
 - `add_view` appends an approved perspective to the resolved Concept's `## Views` section and preserves its Source Note provenance when supplied. Identical retries are idempotent, while same-title conflicts fail without overwriting Markdown.
 - `link_existing_concept` appends an approved Source Note reference to the resolved Concept and records the provenance link in plugin state.
+- `update_concept` applies approved Core Meaning and Why It Matters replacements at section boundaries, while preserving unrelated Markdown and recording supplied provenance.
 - `new_card` writes approved Card proposals generated from a written Concept.
 
 Other Concept updates and revise, split, merge, or retire Card operations remain future work because their safe Markdown patch writers are not implemented yet.

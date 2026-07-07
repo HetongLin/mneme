@@ -223,19 +223,25 @@ async function runAsyncTests(): Promise<void> {
 	}
 
 	{
-		const proposal = createProposal("unsupported", {
+		const proposal = createProposal("concept-update", {
 			kind: "update_concept",
 			payload: {
-				conceptId: "concept-a",
+				conceptId: "concept-encapsulation",
 				proposedSummary: "Updated summary",
 			},
 			status: "suggested",
 		});
-		const { store, workflow } = createWorkflow({ [proposal.id]: proposal });
+		const conceptPath = "Mneme/Concepts/Encapsulation/Concept.md";
+		const vault = new MemoryVaultAdapter();
+		vault.files.set(conceptPath, "# Encapsulation\n\n## Why It Matters\n\nOld summary.\n");
+		const { store, workflow } = createWorkflow({ [proposal.id]: proposal }, vault);
 		const result = await workflow.acceptProposal(proposal.id);
 
-		assert.equal(result.status, "unsupported");
-		assert.equal((await store.getProposal(proposal.id))?.status, "suggested");
+		assert.equal(result.status, "accepted");
+		assert.equal(result.kind, "concept");
+		assert.equal(formatAcceptActionLabel(proposal), "Accept Update");
+		assert.match(await vault.read(conceptPath), /## Why It Matters\n\nUpdated summary/);
+		assert.equal((await store.getProposal(proposal.id))?.status, "written");
 	}
 
 	{
