@@ -467,3 +467,26 @@ Acceptance criteria:
 - Unspecified learning mode or importance removes only that optional field
 - External changes to edited sections or metadata produce a conflict notice
 - Editing a Concept never changes Card or FSRS state
+
+## Task 037: Bounded Today’s Focus
+
+Goal:
+
+Make daily review feel like a chosen focus instead of an unlimited debt queue.
+
+Requirements:
+
+- Add configurable daily Concept, daily Card, and Cards-per-Concept limits
+- Apply limits after Concept priority ranking
+- Prefer due Cards before new Cards within a Concept
+- Count distinct Cards and Concepts already reviewed on the current local day
+- Keep cards outside the focus available later without changing FSRS state or due dates
+- Keep the complete queue visible only through Advanced Diagnostics
+
+Acceptance criteria:
+
+- Refreshing cannot reset the same day’s consumed limits
+- Today’s Focus never exceeds any configured limit
+- Reviewed-today Cards are not selected again
+- Hidden Cards remain unchanged in review state
+- Primary summary uses low-pressure focus language rather than overdue debt language

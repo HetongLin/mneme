@@ -116,6 +116,8 @@ Generate Cards from Current Concept works only from a written Mneme `Concept.md`
 
 Concept Library also exposes Generate Cards for reviewable Concepts. Exploratory Concepts intentionally omit this action and remain outside Card/FSRS review.
 
+Today’s Focus is a bounded view over the ranked review queue. User-configured Concept and Card limits apply after priority ranking and include Cards already reviewed that local day; items outside the focus keep their FSRS state unchanged and remain available through diagnostics rather than appearing as debt.
+
 User experience is the first requirement. Internal schemas can be strict and detailed, but primary user surfaces should stay concise. Concept notes should read like learning notes, not exported database records.
 
 ## v0.1 Goal

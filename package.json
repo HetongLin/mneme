@@ -30,6 +30,7 @@
     "test:card-editor": "node scripts/run-card-marker-editor-tests.mjs",
     "test:review-queue": "node scripts/run-review-queue-tests.mjs",
     "test:review-navigation": "node scripts/run-review-navigation-tests.mjs",
+    "test:todays-focus": "node scripts/run-todays-focus-selector-tests.mjs",
     "test:settings": "node scripts/run-settings-tests.mjs",
     "test:source-analysis": "node scripts/run-source-analysis-tests.mjs",
     "test:source-analysis-store": "node scripts/run-source-analysis-store-tests.mjs",

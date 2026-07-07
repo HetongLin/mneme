@@ -4,6 +4,7 @@ import { RankedReviewQueueConcept } from "../models/conceptQueue";
 import { ConceptLoadSummary, MnemeConcept } from "../models/concept";
 import { ReviewQueue, ReviewQueueCard, ReviewQueueConcept } from "../models/reviewQueue";
 import { CardReviewState, ReviewRating } from "../models/reviewState";
+import { DEFAULT_SETTINGS, MnemeSettings } from "../models/settings";
 import { CardEditModal } from "../modals/cardEditModal";
 import { ConceptLoader } from "../services/conceptLoader";
 import { aggregateConceptMemoryById } from "../services/conceptMemoryAggregator";
@@ -11,6 +12,11 @@ import { indexRankedConceptsById, rankReviewQueueConcepts } from "../services/co
 import { buildReviewQueue } from "../services/reviewQueueBuilder";
 import { ReviewStateStore } from "../services/reviewStateStore";
 import { formatReviewCompletion } from "../services/reviewNavigation";
+import {
+	buildTodaysFocusUsage,
+	selectTodaysFocus,
+	TodaysFocusSelection,
+} from "../services/todaysFocusSelector";
 
 export const REVIEW_VIEW_TYPE = "mneme-review-view";
 
@@ -28,6 +34,7 @@ export class MnemeReviewView extends ItemView {
 	private readonly loader: ConceptLoader;
 	private isAnswerShown = false;
 	private isReviewComplete = false;
+	private focusSelection: TodaysFocusSelection = createEmptyFocusSelection();
 	private memorySummaries: Record<string, ConceptMemorySummary> = {};
 	private mode: ReviewMode = "queue";
 	private rankedConceptsById: Record<string, RankedReviewQueueConcept> = {};
@@ -39,7 +46,11 @@ export class MnemeReviewView extends ItemView {
 	private skippedCardCount = 0;
 	private statusMessage = "Ready to scan Card.md files.";
 
-	constructor(leaf: WorkspaceLeaf, private readonly reviewStateStore: ReviewStateStore) {
+	constructor(
+		leaf: WorkspaceLeaf,
+		private readonly reviewStateStore: ReviewStateStore,
+		private readonly settingsProvider: () => MnemeSettings = () => DEFAULT_SETTINGS,
+	) {
 		super(leaf);
 		this.loader = new ConceptLoader(this.app);
 	}
@@ -77,11 +88,18 @@ export class MnemeReviewView extends ItemView {
 
 			this.reviewQueue = buildReviewQueue(loadedConcepts.concepts, reviewStates, now);
 			this.memorySummaries = aggregateConceptMemoryById(this.reviewQueue.concepts, reviewStates, now);
-			this.rankedReviewQueue = rankReviewQueueConcepts(this.reviewQueue.concepts, this.memorySummaries);
+			const rankedReviewQueue = rankReviewQueueConcepts(this.reviewQueue.concepts, this.memorySummaries);
+			const settings = this.settingsProvider();
+			this.focusSelection = selectTodaysFocus(rankedReviewQueue, {
+				cardsPerConcept: settings.cardsPerConceptLimit,
+				dailyCards: settings.dailyCardLimit,
+				dailyConcepts: settings.dailyConceptLimit,
+			}, buildTodaysFocusUsage(this.reviewQueue.concepts, reviewStates, now));
+			this.rankedReviewQueue = this.focusSelection.concepts;
 			this.rankedConceptsById = indexRankedConceptsById(rankReviewQueueConcepts(this.reviewQueue.concepts, this.memorySummaries, {
 				includeNonReviewable: true,
 			}));
-			this.statusMessage = formatSummary(loadedConcepts.summary, this.reviewQueue.summary);
+			this.statusMessage = formatSummary(loadedConcepts.summary);
 			this.render();
 			new Notice(`Mneme: scanned ${loadedConcepts.summary.scannedCards} card files, ${loadedConcepts.summary.validCards} valid, ${loadedConcepts.summary.invalidCards} invalid.`);
 		} catch (error) {
@@ -90,6 +108,7 @@ export class MnemeReviewView extends ItemView {
 			this.memorySummaries = {};
 			this.rankedConceptsById = {};
 			this.rankedReviewQueue = [];
+			this.focusSelection = createEmptyFocusSelection();
 			this.statusMessage = "Failed to scan concepts. See console for details.";
 			this.render();
 			new Notice("Mneme: failed to scan concepts. See console for details.");
@@ -151,14 +170,13 @@ export class MnemeReviewView extends ItemView {
 	}
 
 	private renderSummary(): void {
-		const summary = this.reviewQueue.summary;
 		const summaryEl = this.contentEl.createDiv({ cls: "mneme-review-summary" });
 
-		summaryEl.createEl("span", { text: `${summary.dueCards} due` });
-		summaryEl.createEl("span", { text: `${summary.newCards} new` });
-		summaryEl.createEl("span", { text: `${summary.notDueCards} later` });
-		summaryEl.createEl("span", { text: `${summary.invalidCards} invalid cards` });
-		summaryEl.createEl("span", { text: `${summary.reviewableConcepts} concepts` });
+		summaryEl.createEl("span", { text: `${this.focusSelection.selectedCardCount} cards in focus` });
+		summaryEl.createEl("span", { text: `${this.focusSelection.concepts.length} concepts` });
+		if (this.focusSelection.hiddenCardCount > 0) {
+			summaryEl.createEl("span", { text: `${this.focusSelection.hiddenCardCount} available later` });
+		}
 		this.renderStatus();
 	}
 
@@ -799,8 +817,17 @@ function createEmptyReviewQueue(): ReviewQueue {
 	};
 }
 
-function formatSummary(loadSummary: ConceptLoadSummary, queueSummary: ReviewQueue["summary"]): string {
-	return `Scanned ${loadSummary.scannedCards} cards across ${loadSummary.concepts} concepts. ${queueSummary.dueCards} due, ${queueSummary.newCards} new.`;
+function formatSummary(loadSummary: ConceptLoadSummary): string {
+	return `Scanned ${loadSummary.scannedCards} cards across ${loadSummary.concepts} concepts. Focus is based on priority and today’s limits.`;
+}
+
+function createEmptyFocusSelection(): TodaysFocusSelection {
+	return {
+		concepts: [],
+		hiddenCardCount: 0,
+		hiddenConceptCount: 0,
+		selectedCardCount: 0,
+	};
 }
 
 function getQueuedReviewCards(concept: ReviewQueueConcept): ReviewQueueCard[] {

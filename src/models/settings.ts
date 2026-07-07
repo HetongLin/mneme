@@ -3,8 +3,11 @@ export interface MnemeSettings {
 	aiMaxInputChars: number;
 	aiProvider: AiProviderName;
 	aiRequestTimeoutMs: number;
+	cardsPerConceptLimit: number;
 	cardsFolder: string;
 	conceptsFolder: string;
+	dailyCardLimit: number;
+	dailyConceptLimit: number;
 	deepseekApiKey: string;
 	deepseekBaseUrl: string;
 	deepseekModel: string;
@@ -24,8 +27,11 @@ export const DEFAULT_SETTINGS: MnemeSettings = {
 	aiMaxInputChars: 20000,
 	aiProvider: "mock",
 	aiRequestTimeoutMs: 30000,
+	cardsPerConceptLimit: 5,
 	cardsFolder: "Mneme/Cards",
 	conceptsFolder: "Mneme/Concepts",
+	dailyCardLimit: 20,
+	dailyConceptLimit: 5,
 	deepseekApiKey: "",
 	deepseekBaseUrl: "https://api.deepseek.com",
 	deepseekModel: "deepseek-v4-flash",
@@ -50,8 +56,11 @@ export function normalizeSettings(value: unknown): MnemeSettings {
 		aiMaxInputChars: normalizePositiveInteger(value.aiMaxInputChars, DEFAULT_SETTINGS.aiMaxInputChars),
 		aiProvider: normalizeAiProvider(value.aiProvider),
 		aiRequestTimeoutMs: normalizePositiveInteger(value.aiRequestTimeoutMs, DEFAULT_SETTINGS.aiRequestTimeoutMs),
+		cardsPerConceptLimit: normalizePositiveInteger(value.cardsPerConceptLimit, DEFAULT_SETTINGS.cardsPerConceptLimit),
 		cardsFolder: normalizeFolder(value.cardsFolder, DEFAULT_SETTINGS.cardsFolder),
 		conceptsFolder: normalizeFolder(value.conceptsFolder, DEFAULT_SETTINGS.conceptsFolder),
+		dailyCardLimit: normalizePositiveInteger(value.dailyCardLimit, DEFAULT_SETTINGS.dailyCardLimit),
+		dailyConceptLimit: normalizePositiveInteger(value.dailyConceptLimit, DEFAULT_SETTINGS.dailyConceptLimit),
 		deepseekApiKey: normalizeString(value.deepseekApiKey, DEFAULT_SETTINGS.deepseekApiKey),
 		deepseekBaseUrl: normalizeUrlString(value.deepseekBaseUrl, DEFAULT_SETTINGS.deepseekBaseUrl),
 		deepseekModel: normalizeRequiredString(value.deepseekModel, DEFAULT_SETTINGS.deepseekModel),

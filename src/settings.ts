@@ -65,6 +65,27 @@ export class MnemeSettingTab extends PluginSettingTab {
 				});
 			});
 
+		containerEl.createEl("h3", { text: "Today’s Focus" });
+
+		this.addPositiveIntegerSetting(
+			containerEl,
+			"Daily concept limit",
+			"Maximum Concepts shown in Today’s Focus.",
+			"dailyConceptLimit",
+		);
+		this.addPositiveIntegerSetting(
+			containerEl,
+			"Daily card limit",
+			"Maximum Cards selected across Today’s Focus.",
+			"dailyCardLimit",
+		);
+		this.addPositiveIntegerSetting(
+			containerEl,
+			"Cards per Concept",
+			"Maximum Cards selected from one Concept.",
+			"cardsPerConceptLimit",
+		);
+
 		containerEl.createEl("h3", { text: "FSRS Scheduling" });
 
 		new Setting(containerEl)
@@ -261,6 +282,28 @@ export class MnemeSettingTab extends PluginSettingTab {
 	private async persistSettings(): Promise<void> {
 		await this.plugin.saveSettings();
 		this.plugin.updateFsrsSchedulerConfig?.();
+	}
+
+	private addPositiveIntegerSetting(
+		containerEl: HTMLElement,
+		name: string,
+		description: string,
+		key: "dailyConceptLimit" | "dailyCardLimit" | "cardsPerConceptLimit",
+	): void {
+		new Setting(containerEl)
+			.setName(name)
+			.setDesc(description)
+			.addText((text) => {
+				text.inputEl.type = "number";
+				text.inputEl.min = "1";
+				text.inputEl.step = "1";
+				text.setValue(String(this.plugin.settings[key]));
+				text.onChange(async (value) => {
+					this.plugin.settings[key] = normalizePositiveInteger(Number(value), DEFAULT_SETTINGS[key]);
+					text.setValue(String(this.plugin.settings[key]));
+					await this.persistSettings();
+				});
+			});
 	}
 }
 

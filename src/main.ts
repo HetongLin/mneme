@@ -66,7 +66,11 @@ export default class MnemePlugin extends Plugin {
 		await this.reviewStateStore.load();
 
 		this.addSettingTab(new MnemeSettingTab(this.app, this));
-		this.registerView(REVIEW_VIEW_TYPE, (leaf) => new MnemeReviewView(leaf, this.reviewStateStore));
+		this.registerView(REVIEW_VIEW_TYPE, (leaf) => new MnemeReviewView(
+			leaf,
+			this.reviewStateStore,
+			() => this.settings,
+		));
 		this.registerView(INBOX_VIEW_TYPE, (leaf) => new MnemeInboxView(
 			leaf,
 			this.knowledgeProposalStore,
