@@ -29,6 +29,7 @@ export function createPluginData(
 	return {
 		conceptSourceLinks,
 		knowledgeProposals,
+		pausedConcepts: {},
 		reviewDeferrals: {},
 		reviewStates: {},
 		schemaVersion: 1,

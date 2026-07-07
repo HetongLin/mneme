@@ -513,3 +513,26 @@ Acceptance criteria:
 - The current review advances after a successful deferral
 - A failed persistence write leaves the current Card in place
 - The Card becomes eligible again when the deferral expires
+
+## Task 039: Pause Concept
+
+Goal:
+
+Let a student remove an entire Concept from daily review without altering or deleting its Cards.
+
+Requirements:
+
+- Add `Pause Concept` to Today’s Focus Concept actions
+- Persist pauses by stable Concept id outside FSRS state
+- Exclude paused Concepts before applying daily limits
+- Keep paused Concepts and their Cards visible in Advanced Diagnostics
+- Add `Resume Concept` in the paused Concept's diagnostics
+- Re-read latest plugin data before pause/resume writes
+
+Acceptance criteria:
+
+- Pausing or resuming never invokes the scheduler
+- All Card due dates, review counts, difficulty, stability, and lapse counts remain unchanged
+- Pause state survives refresh and plugin reload
+- Resuming makes eligible Cards available to ranking again
+- Pause/resume writes preserve unrelated Inbox, source, settings, and review data

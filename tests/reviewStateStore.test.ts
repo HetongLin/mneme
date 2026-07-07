@@ -16,6 +16,7 @@ import {
 	assert.equal(data.schemaVersion, 1);
 	assert.deepEqual(data.conceptSourceLinks, {});
 	assert.deepEqual(data.knowledgeProposals, {});
+	assert.deepEqual(data.pausedConcepts, {});
 	assert.deepEqual(data.reviewStates, {});
 	assert.deepEqual(data.reviewDeferrals, {});
 	assert.deepEqual(data.settings, DEFAULT_SETTINGS);
@@ -28,6 +29,7 @@ import {
 	assert.equal(data.schemaVersion, 1);
 	assert.deepEqual(data.conceptSourceLinks, {});
 	assert.deepEqual(data.knowledgeProposals, {});
+	assert.deepEqual(data.pausedConcepts, {});
 	assert.deepEqual(data.reviewStates, {});
 	assert.deepEqual(data.reviewDeferrals, {});
 	assert.deepEqual(data.settings, DEFAULT_SETTINGS);
@@ -60,6 +62,29 @@ import {
 }
 
 async function runAsyncTests(): Promise<void> {
+	{
+		const existingState = createReviewState("encapsulation-basic", 2);
+		const storage = new MemoryReviewStateStorage({
+			pausedConcepts: {},
+			reviewStates: { "encapsulation-basic": existingState },
+			schemaVersion: 1,
+			settings: DEFAULT_SETTINGS,
+		});
+		const scheduler = new FakeReviewScheduler();
+		const store = new ReviewStateStore(storage, scheduler);
+
+		await store.load();
+		await store.pauseConcept("concept-encapsulation", new Date("2026-07-07T12:00:00.000Z"));
+
+		assert.equal(store.getPausedConcepts()["concept-encapsulation"]?.conceptId, "concept-encapsulation");
+		assert.deepEqual(storage.savedData?.reviewStates["encapsulation-basic"], existingState);
+		assert.equal(scheduler.lastInput, undefined);
+
+		await store.resumeConcept("concept-encapsulation");
+		assert.deepEqual(store.getPausedConcepts(), {});
+		assert.deepEqual(storage.savedData?.reviewStates["encapsulation-basic"], existingState);
+	}
+
 	{
 		const scheduler = new FakeReviewScheduler();
 		const store = new ReviewStateStore(new FailingReviewStateStorage(), scheduler);

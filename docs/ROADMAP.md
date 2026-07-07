@@ -93,7 +93,8 @@ Current progress:
 - Today’s Focus applies configurable daily Concept, daily Card, and Cards-per-Concept limits after priority ranking.
 - Same-day review history is counted across refreshes, and cards outside the focus remain unchanged in Advanced Diagnostics.
 - Review Later persists a Card-level deferral until the next local day without changing FSRS state.
-- Pause Concept and Suspend Card remain unfinished.
+- Pause Concept is persisted separately from FSRS and can be resumed from Advanced Diagnostics.
+- Suspend Card remains unfinished.
 
 ## v0.4: Importance and Retention Policy
 

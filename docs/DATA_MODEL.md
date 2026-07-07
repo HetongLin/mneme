@@ -286,6 +286,7 @@ data.json may store:
 - pending suggestions
 - FSRS card state
 - temporary review deferrals (`reviewDeferrals`), stored separately from FSRS state
+- paused Concept controls (`pausedConcepts`), keyed by stable Concept id
 - review logs
 - weak targets
 - concept mastery cache
@@ -299,6 +300,8 @@ data.json must not store:
 - Card Rubric as source of truth
 
 `reviewDeferrals` maps a Card id to `deferredAt` and `resumeAt`. Review Later uses this state to hide a Card from Today’s Focus until the next local day. Creating a deferral does not modify the Card's FSRS due date, stability, difficulty, review count, or lapse count.
+
+`pausedConcepts` maps a Concept id to `pausedAt`. Pausing excludes that Concept from Today’s Focus until the user resumes it; its Markdown, Cards, and FSRS states are untouched.
 
 ## Markdown Writing Settings
 

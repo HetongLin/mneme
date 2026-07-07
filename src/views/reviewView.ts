@@ -32,6 +32,7 @@ const REVIEW_RATINGS: Array<{ label: ReviewRatingLabel; value: ReviewRating }> =
 
 export class MnemeReviewView extends ItemView {
 	private activeDeferrals: Record<string, ReviewDeferral> = {};
+	private pausedConceptIds = new Set<string>();
 	private deferredCardCount = 0;
 	private readonly loader: ConceptLoader;
 	private isAnswerShown = false;
@@ -90,6 +91,7 @@ export class MnemeReviewView extends ItemView {
 			const reviewStates = this.reviewStateStore.getAllStates();
 			const now = new Date();
 			this.activeDeferrals = this.reviewStateStore.getActiveReviewDeferrals(now);
+			this.pausedConceptIds = new Set(Object.keys(this.reviewStateStore.getPausedConcepts()));
 
 			this.reviewQueue = buildReviewQueue(loadedConcepts.concepts, reviewStates, now);
 			this.memorySummaries = aggregateConceptMemoryById(this.reviewQueue.concepts, reviewStates, now);
@@ -99,9 +101,10 @@ export class MnemeReviewView extends ItemView {
 				cardsPerConcept: settings.cardsPerConceptLimit,
 				dailyCards: settings.dailyCardLimit,
 				dailyConcepts: settings.dailyConceptLimit,
-			}, buildTodaysFocusUsage(this.reviewQueue.concepts, reviewStates, now), new Set(
-				Object.keys(this.activeDeferrals),
-			));
+			}, buildTodaysFocusUsage(this.reviewQueue.concepts, reviewStates, now), {
+				deferredCardIds: new Set(Object.keys(this.activeDeferrals)),
+				pausedConceptIds: this.pausedConceptIds,
+			});
 			this.rankedReviewQueue = this.focusSelection.concepts;
 			this.rankedConceptsById = indexRankedConceptsById(rankReviewQueueConcepts(this.reviewQueue.concepts, this.memorySummaries, {
 				includeNonReviewable: true,
@@ -117,6 +120,7 @@ export class MnemeReviewView extends ItemView {
 			this.rankedReviewQueue = [];
 			this.focusSelection = createEmptyFocusSelection();
 			this.activeDeferrals = {};
+			this.pausedConceptIds = new Set<string>();
 			this.statusMessage = "Failed to scan concepts. See console for details.";
 			this.render();
 			new Notice("Mneme: failed to scan concepts. See console for details.");
@@ -241,6 +245,11 @@ export class MnemeReviewView extends ItemView {
 		actionsEl.createEl("button", { text: "Open Concept" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
 				void this.openConceptSource(concept.concept);
+			});
+		});
+		actionsEl.createEl("button", { text: "Pause Concept" }, (buttonEl) => {
+			buttonEl.addEventListener("click", () => {
+				void this.pauseConcept(concept);
 			});
 		});
 
@@ -413,6 +422,15 @@ export class MnemeReviewView extends ItemView {
 
 		if (concept.concept.conceptPath) {
 			conceptEl.createEl("p", { text: `Concept: ${concept.concept.conceptPath}` });
+		}
+
+		if (this.pausedConceptIds.has(concept.conceptId)) {
+			conceptEl.createEl("p", { text: "Today’s Focus: Paused" });
+			conceptEl.createEl("button", { text: "Resume Concept" }, (buttonEl) => {
+				buttonEl.addEventListener("click", () => {
+					void this.resumeConcept(concept.conceptId);
+				});
+			});
 		}
 
 		if (concept.concept.errors.length > 0) {
@@ -688,6 +706,31 @@ export class MnemeReviewView extends ItemView {
 				error,
 			});
 			new Notice("Mneme: Card could not be moved to Review Later.");
+		}
+	}
+
+	private async pauseConcept(concept: ReviewQueueConcept): Promise<void> {
+		try {
+			await this.reviewStateStore.pauseConcept(concept.conceptId);
+			new Notice(`Mneme: Paused ${concept.title}.`);
+			await this.refreshCards();
+		} catch (error) {
+			console.error("Mneme: failed to pause Concept", {
+				conceptId: concept.conceptId,
+				error,
+			});
+			new Notice("Mneme: Concept could not be paused.");
+		}
+	}
+
+	private async resumeConcept(conceptId: string): Promise<void> {
+		try {
+			await this.reviewStateStore.resumeConcept(conceptId);
+			new Notice("Mneme: Concept resumed.");
+			await this.refreshCards();
+		} catch (error) {
+			console.error("Mneme: failed to resume Concept", { conceptId, error });
+			new Notice("Mneme: Concept could not be resumed.");
 		}
 	}
 

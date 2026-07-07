@@ -1,6 +1,7 @@
 import { ReviewScheduler } from "../models/reviewScheduler";
 import {
 	CardReviewState,
+	ConceptReviewPause,
 	MnemePluginData,
 	ReviewDeferral,
 	ReviewRating,
@@ -92,6 +93,56 @@ export class ReviewStateStore {
 		return active;
 	}
 
+	getPausedConcepts(): Record<string, ConceptReviewPause> {
+		const pauses: Record<string, ConceptReviewPause> = {};
+
+		for (const [conceptId, pause] of Object.entries(this.data.pausedConcepts)) {
+			pauses[conceptId] = { ...pause };
+		}
+
+		return pauses;
+	}
+
+	async pauseConcept(conceptId: string, now = new Date()): Promise<ConceptReviewPause> {
+		await this.ensureLoaded();
+
+		if (!conceptId.trim() || Number.isNaN(now.getTime())) {
+			throw new Error("Concept pause requires a Concept id and valid time.");
+		}
+
+		const pause: ConceptReviewPause = {
+			conceptId,
+			pausedAt: now.toISOString(),
+		};
+		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+		const nextData = {
+			...latestData,
+			pausedConcepts: {
+				...latestData.pausedConcepts,
+				[conceptId]: pause,
+			},
+		};
+
+		await this.storage.saveData(nextData);
+		this.data = nextData;
+		this.pendingSettings = undefined;
+
+		return pause;
+	}
+
+	async resumeConcept(conceptId: string): Promise<void> {
+		await this.ensureLoaded();
+		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+		const nextData = {
+			...latestData,
+			pausedConcepts: omitKey(latestData.pausedConcepts, conceptId),
+		};
+
+		await this.storage.saveData(nextData);
+		this.data = nextData;
+		this.pendingSettings = undefined;
+	}
+
 	async deferReviewUntil(cardId: string, resumeAt: Date, now = new Date()): Promise<ReviewDeferral> {
 		await this.ensureLoaded();
 
@@ -164,6 +215,7 @@ export function createDefaultPluginData(): MnemePluginData {
 	return {
 		conceptSourceLinks: {},
 		knowledgeProposals: {},
+		pausedConcepts: {},
 		reviewStates: {},
 		reviewDeferrals: {},
 		schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -179,6 +231,9 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 
 	const reviewStates = isObject(data.reviewStates)
 		? data.reviewStates
+		: {};
+	const pausedConcepts = isObject(data.pausedConcepts)
+		? data.pausedConcepts
 		: {};
 	const reviewDeferrals = isObject(data.reviewDeferrals)
 		? data.reviewDeferrals
@@ -197,12 +252,33 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 		...data,
 		conceptSourceLinks: normalizeConceptSourceLinks(conceptSourceLinks),
 		knowledgeProposals: normalizeKnowledgeProposals(knowledgeProposals),
+		pausedConcepts: normalizePausedConcepts(pausedConcepts),
 		reviewStates: normalizeReviewStates(reviewStates),
 		reviewDeferrals: normalizeReviewDeferrals(reviewDeferrals),
 		schemaVersion: CURRENT_SCHEMA_VERSION,
 		settings: normalizeSettings(data.settings),
 		sourceAnalysisRecords: normalizeSourceAnalysisRecords(sourceAnalysisRecords),
 	};
+}
+
+function normalizePausedConcepts(pauses: Record<string, unknown>): Record<string, ConceptReviewPause> {
+	const normalized: Record<string, ConceptReviewPause> = {};
+
+	for (const pause of Object.values(pauses)) {
+		if (
+			isObject(pause)
+			&& typeof pause.conceptId === "string"
+			&& typeof pause.pausedAt === "string"
+			&& !Number.isNaN(Date.parse(pause.pausedAt))
+		) {
+			normalized[pause.conceptId] = {
+				conceptId: pause.conceptId,
+				pausedAt: pause.pausedAt,
+			};
+		}
+	}
+
+	return normalized;
 }
 
 function normalizeReviewDeferrals(deferrals: Record<string, unknown>): Record<string, ReviewDeferral> {

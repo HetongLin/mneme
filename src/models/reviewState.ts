@@ -31,10 +31,16 @@ export interface ReviewDeferral {
 	resumeAt: string;
 }
 
+export interface ConceptReviewPause {
+	conceptId: string;
+	pausedAt: string;
+}
+
 export interface MnemePluginData {
 	[key: string]: unknown;
 	reviewStates: Record<string, CardReviewState>;
 	reviewDeferrals: Record<string, ReviewDeferral>;
+	pausedConcepts: Record<string, ConceptReviewPause>;
 	schemaVersion: number;
 	settings: MnemeSettings;
 	sourceAnalysisRecords: Record<string, SourceAnalysisRecord>;

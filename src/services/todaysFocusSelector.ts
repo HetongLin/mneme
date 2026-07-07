@@ -21,12 +21,19 @@ export interface TodaysFocusUsage {
 	reviewedConceptIds: Set<string>;
 }
 
+export interface TodaysFocusExclusions {
+	deferredCardIds?: Set<string>;
+	pausedConceptIds?: Set<string>;
+}
+
 export function selectTodaysFocus(
 	rankedConcepts: RankedReviewQueueConcept[],
 	limits: TodaysFocusLimits,
 	usage: TodaysFocusUsage = createEmptyUsage(),
-	deferredCardIds: Set<string> = new Set<string>(),
+	exclusions: TodaysFocusExclusions = {},
 ): TodaysFocusSelection {
+	const deferredCardIds = exclusions.deferredCardIds ?? new Set<string>();
+	const pausedConceptIds = exclusions.pausedConceptIds ?? new Set<string>();
 	const normalizedLimits = {
 		cardsPerConcept: normalizeLimit(limits.cardsPerConcept),
 		dailyCards: normalizeLimit(limits.dailyCards),
@@ -45,6 +52,9 @@ export function selectTodaysFocus(
 		}
 
 		const concept = ranked.concept;
+		if (pausedConceptIds.has(concept.conceptId)) {
+			continue;
+		}
 		const wasReviewedToday = usage.reviewedConceptIds.has(concept.conceptId);
 		const remainingConceptSlots = normalizedLimits.dailyConcepts
 			- usage.reviewedConceptIds.size
@@ -84,6 +94,10 @@ export function selectTodaysFocus(
 	}
 
 	const candidateConcepts = rankedConcepts.filter((ranked) => {
+		if (pausedConceptIds.has(ranked.concept.conceptId)) {
+			return false;
+		}
+
 		return [...ranked.concept.dueCards, ...ranked.concept.newCards]
 			.some((card) => !usage.reviewedCardIds.has(card.cardId));
 	});
