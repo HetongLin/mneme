@@ -559,3 +559,26 @@ Acceptance criteria:
 - Suspending advances the current review safely
 - Completion summary distinguishes suspended Cards from reviewed or skipped Cards
 - Resume restores normal eligibility without changing FSRS state
+
+## Task 041: Importance-aware Review Priority
+
+Goal:
+
+Make Concept importance influence which eligible Concepts enter Today’s Focus first.
+
+Requirements:
+
+- Load `importance` from written Concept frontmatter into the Review Concept model
+- Map low, normal, high, and critical to explicit priority weights
+- Use normal weight when importance is absent or invalid
+- Include importance as one explainable component of Concept review priority
+- Show importance in Today’s Focus details and Advanced Diagnostics
+- Keep FSRS Card scheduling independent from Concept importance
+
+Acceptance criteria:
+
+- With equal memory state, a critical Concept ranks above a low Concept
+- Importance never makes a non-reviewable Card eligible
+- Changing importance does not alter Card due dates or FSRS state
+- Primary Concept metadata avoids overdue-debt wording
+- Legacy Concepts without importance retain normal behavior

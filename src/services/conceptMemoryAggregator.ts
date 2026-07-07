@@ -5,9 +5,16 @@ import {
 } from "../models/conceptMemory";
 import { ReviewQueueCard, ReviewQueueConcept } from "../models/reviewQueue";
 import { CardReviewState } from "../models/reviewState";
+import type { ConceptImportance } from "../models/conceptLibrary";
 import { estimateFsrsRisk } from "./fsrsRetrievability";
 
 const DEFAULT_IMPORTANCE_WEIGHT = 0.5;
+const IMPORTANCE_WEIGHTS: Record<ConceptImportance, number> = {
+	critical: 1,
+	high: 0.8,
+	low: 0.15,
+	normal: 0.5,
+};
 const LAPSE_RISK_BOOST = 0.1;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -70,12 +77,14 @@ export function aggregateReviewQueueConcept(
 	const includedReviewCardIds = reviewCardRisks.map((cardRisk) => cardRisk.cardId);
 	const earliestDueAt = getEarliestDueAt(reviewCardRisks);
 	const nextDueAt = getEarliestDueAt(validCardRisks.filter((cardRisk) => !cardRisk.includedInDailyReview));
+	const importanceWeight = getImportanceWeight(concept.concept.importance);
 	const reviewPriorityScore = calculateReviewPriorityScore({
 		dueRatio,
 		lapseRatio,
 		newRatio,
 		overdueRatio: calculateRatio(overdueCardCount, reviewCardCount),
 		reviewCardCount,
+		importanceWeight,
 	});
 	const priorityScore = reviewPriorityScore;
 
@@ -87,6 +96,8 @@ export function aggregateReviewQueueConcept(
 		dueRatio,
 		earliestDueAt,
 		includedReviewCardIds,
+		importance: concept.concept.importance,
+		importanceWeight,
 		invalidCardCount,
 		lapseRatio,
 		newCardCount,
@@ -213,6 +224,7 @@ function calculateReviewPriorityScore(input: {
 	newRatio: number;
 	overdueRatio: number;
 	reviewCardCount: number;
+	importanceWeight: number;
 }): number {
 	if (input.reviewCardCount === 0) {
 		return 0;
@@ -223,8 +235,12 @@ function calculateReviewPriorityScore(input: {
 		+ 0.35 * input.dueRatio
 		+ 0.25 * input.newRatio
 		+ 0.10 * input.lapseRatio
-		+ 0.10 * DEFAULT_IMPORTANCE_WEIGHT,
+		+ 0.10 * input.importanceWeight,
 	);
+}
+
+export function getImportanceWeight(importance: ConceptImportance | undefined): number {
+	return importance ? IMPORTANCE_WEIGHTS[importance] : DEFAULT_IMPORTANCE_WEIGHT;
 }
 
 function getEarliestDueAt(cardRisks: CardMemoryRisk[]): string | undefined {

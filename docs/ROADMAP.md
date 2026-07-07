@@ -110,6 +110,12 @@ Features:
 - concept priority ranking
 - retention warning
 
+Current progress:
+
+- Written Concept importance now feeds an explicit low/normal/high/critical weight into Today’s Focus priority.
+- Importance is visible in review details and does not modify Card FSRS state or eligibility.
+- Per-importance desired retention, manual override, and retention warnings remain unfinished.
+
 Default mapping:
 
 - low: 0.80

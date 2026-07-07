@@ -475,6 +475,7 @@ export class MnemeReviewView extends ItemView {
 		parentEl.createEl("h5", { text: "Daily Review" });
 		parentEl.createEl("p", { text: `Rank: ${rankedConcept ? `#${rankedConcept.rank}` : "(unranked)"}` });
 		parentEl.createEl("p", { text: `Review priority: ${formatPriorityBand(memorySummary)} (${formatPercent(memorySummary.reviewPriorityScore)})` });
+		parentEl.createEl("p", { text: `Importance: ${memorySummary.importance ?? "normal (default)"}` });
 		parentEl.createEl("p", { text: `Review cards: ${memorySummary.reviewCardCount}` });
 		parentEl.createEl("p", { text: `Earliest due: ${memorySummary.earliestDueAt ?? "(unset)"}` });
 		parentEl.createEl("p", { text: `Next due: ${memorySummary.nextDueAt ?? "(unset)"}` });
@@ -591,6 +592,7 @@ export class MnemeReviewView extends ItemView {
 
 		detailsGridEl.createEl("span", { text: `Rank #${rankedConcept.rank}` });
 		detailsGridEl.createEl("span", { text: `Review priority ${formatPercent(memorySummary.reviewPriorityScore)}` });
+		detailsGridEl.createEl("span", { text: `Importance ${memorySummary.importance ?? "normal"}` });
 		detailsGridEl.createEl("span", { text: `${memorySummary.reviewCardCount} review cards` });
 		detailsGridEl.createEl("span", { text: `${memorySummary.overdueCardCount} overdue` });
 		detailsGridEl.createEl("span", { text: `Next due ${memorySummary.nextDueAt ?? "(unset)"}` });
@@ -1028,17 +1030,14 @@ function formatConceptMeta(
 ): string {
 	const metadata = rankedConcept ? [formatPriorityLabel(rankedConcept)] : [];
 
-	metadata.push(
-		`${concept.dueCards.length} due`,
-		`${concept.newCards.length} new`,
-	);
+	if (concept.concept.importance) {
+		metadata.push(`${formatTextLabel(concept.concept.importance)} importance`);
+	}
+
+	metadata.push(`${concept.reviewableCount} ${concept.reviewableCount === 1 ? "card" : "cards"}`);
 
 	if (reviewedCount > 0) {
 		metadata.push(`${reviewedCount} reviewed`);
-	}
-
-	if (concept.notDueCards.length > 0) {
-		metadata.push(`${concept.notDueCards.length} later`);
 	}
 
 	if (warningCount > 0) {
@@ -1047,6 +1046,10 @@ function formatConceptMeta(
 	}
 
 	return metadata.join(" · ");
+}
+
+function formatTextLabel(value: string): string {
+	return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function formatPriorityLabel(rankedConcept: RankedReviewQueueConcept): string {

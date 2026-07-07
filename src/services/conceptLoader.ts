@@ -1,7 +1,9 @@
 import { App, TFile } from "obsidian";
 import { LoadedMnemeCard } from "../models/card";
 import { LoadedMnemeConcepts, MnemeConcept } from "../models/concept";
+import type { ConceptImportance } from "../models/conceptLibrary";
 import { CardFileLoader } from "./cardFileLoader";
+import { readConceptEditableMetadata } from "./conceptMetadataUpdater";
 import {
 	getCardGroupConceptIdFromFrontmatter,
 	getConceptLinkFromCardGroupFrontmatter,
@@ -9,6 +11,7 @@ import {
 import { extractFirstConceptSourcePath, parseObsidianLinkPath } from "./reviewNavigation";
 
 interface ConceptMetadata {
+	importance?: ConceptImportance;
 	sourcePath?: string;
 	title?: string;
 	warnings: string[];
@@ -63,6 +66,7 @@ export class ConceptLoader {
 			errors: [],
 			folderPath,
 			id: cardGroupMetadata.conceptId ?? (folderPath || cards[0]?.path || fallbackTitle),
+			importance: metadata.importance,
 			isReviewable: validCards.length > 0,
 			sourcePath: metadata.sourcePath,
 			title: metadata.title || fallbackTitle,
@@ -120,8 +124,10 @@ export class ConceptLoader {
 		try {
 			const content = await this.app.vault.cachedRead(file);
 			const frontmatter = parseSimpleFrontmatter(content);
+			const editableMetadata = readConceptEditableMetadata(content);
 
 			return {
+				importance: editableMetadata.importance,
 				sourcePath: frontmatter.source ?? extractFirstConceptSourcePath(content),
 				title: frontmatter.title || getFirstHeading(content),
 				warnings: [],

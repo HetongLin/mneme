@@ -1,6 +1,7 @@
 import { CardDueStatus } from "./reviewQueue";
 import { ReviewRating } from "./reviewState";
 import type { DailyReviewEligibilityReason } from "./dailyReview";
+import type { ConceptImportance } from "./conceptLibrary";
 
 export type ConceptPriorityBand = "high" | "medium" | "low";
 export type CardMemoryRiskSource = "fsrs" | "placeholder";
@@ -30,6 +31,8 @@ export interface ConceptMemorySummary {
 	dueRatio: number;
 	earliestDueAt?: string;
 	includedReviewCardIds: string[];
+	importance?: ConceptImportance;
+	importanceWeight: number;
 	invalidCardCount: number;
 	lapseRatio: number;
 	newCardCount: number;

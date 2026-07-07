@@ -1,4 +1,5 @@
 import { LoadedMnemeCard } from "./card";
+import type { ConceptImportance } from "./conceptLibrary";
 
 export interface MnemeConcept {
 	cardPath?: string;
@@ -7,6 +8,7 @@ export interface MnemeConcept {
 	errors: string[];
 	folderPath: string;
 	id: string;
+	importance?: ConceptImportance;
 	isReviewable: boolean;
 	sourcePath?: string;
 	title: string;

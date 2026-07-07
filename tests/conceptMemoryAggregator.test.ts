@@ -6,6 +6,7 @@ import { CardReviewState } from "../src/models/reviewState";
 import {
 	aggregateReviewQueueConcept,
 	calculateTopK,
+	getImportanceWeight,
 	getPriorityBand,
 } from "../src/services/conceptMemoryAggregator";
 
@@ -21,6 +22,25 @@ const now = new Date("2026-01-10T12:00:00.000Z");
 	assert.equal(summary.reviewCardCount, 1);
 	assert.deepEqual(summary.includedReviewCardIds, ["new-card"]);
 	assert.equal(summary.priorityScore > 0, true);
+}
+
+{
+	const criticalConcept = createQueueConcept({
+		dueCards: [createQueueCard("critical-card", "due")],
+	});
+	criticalConcept.concept.importance = "critical";
+	const lowConcept = createQueueConcept({
+		dueCards: [createQueueCard("low-card", "due")],
+	});
+	lowConcept.concept.importance = "low";
+	const critical = aggregateReviewQueueConcept(criticalConcept, {}, now);
+	const low = aggregateReviewQueueConcept(lowConcept, {}, now);
+
+	assert.equal(critical.importance, "critical");
+	assert.equal(critical.importanceWeight, 1);
+	assert.equal(low.importanceWeight, 0.15);
+	assert.equal(critical.reviewPriorityScore > low.reviewPriorityScore, true);
+	assert.equal(getImportanceWeight(undefined), 0.5);
 }
 
 {
