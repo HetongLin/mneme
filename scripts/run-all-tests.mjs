@@ -7,6 +7,7 @@ const testCommands = [
 	["npm", ["run", "test:ai-schema"]],
 	["npm", ["run", "test:acceptance-fixture"]],
 	["npm", ["run", "test:parser"]],
+	["npm", ["run", "test:card-editor"]],
 	["npm", ["run", "test:review-state"]],
 	["npm", ["run", "test:review-queue"]],
 	["npm", ["run", "test:review-navigation"]],

@@ -311,3 +311,26 @@ Acceptance criteria:
 - View Source opens the Source Note when available
 - Missing Source Note navigation does not break the review
 - Existing rating behavior remains unchanged
+
+## Task 030: Edit Current Review Card
+
+Goal:
+
+Allow a student to repair or improve Card content while reviewing without changing its schedule.
+
+Requirements:
+
+- Edit Front, Back, and Rubric from Review View
+- Update only the selected Card block in a multi-Card file
+- Re-read the latest Card.md before saving
+- Validate marker structure before writing
+- Keep FSRS state unchanged
+- Refresh Review View after save
+
+Acceptance criteria:
+
+- Single-card and multi-card files update safely
+- Missing Rubric markers can be added
+- Empty Front or Back is rejected
+- Other Card blocks and surrounding Markdown remain unchanged
+- Saving never records a review rating

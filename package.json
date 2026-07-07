@@ -23,6 +23,7 @@
     "test:knowledge-proposals": "node scripts/run-knowledge-proposal-tests.mjs",
     "test:markdown-writer": "node scripts/run-markdown-writer-tests.mjs",
     "test:parser": "node scripts/run-card-marker-parser-tests.mjs",
+    "test:card-editor": "node scripts/run-card-marker-editor-tests.mjs",
     "test:review-queue": "node scripts/run-review-queue-tests.mjs",
     "test:review-navigation": "node scripts/run-review-navigation-tests.mjs",
     "test:settings": "node scripts/run-settings-tests.mjs",

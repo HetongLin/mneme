@@ -140,6 +140,7 @@ AI suggests Concepts and Cards
 - Show Answer
 - Again / Hard / Good / Easy
 - Edit Card
+- Edit the current Card without changing FSRS state
 - View Source
 - Skip without changing FSRS state
 - FSRS card scheduling

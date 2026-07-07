@@ -4,6 +4,7 @@ import { RankedReviewQueueConcept } from "../models/conceptQueue";
 import { ConceptLoadSummary, MnemeConcept } from "../models/concept";
 import { ReviewQueue, ReviewQueueCard, ReviewQueueConcept } from "../models/reviewQueue";
 import { CardReviewState, ReviewRating } from "../models/reviewState";
+import { CardEditModal } from "../modals/cardEditModal";
 import { ConceptLoader } from "../services/conceptLoader";
 import { aggregateConceptMemoryById } from "../services/conceptMemoryAggregator";
 import { indexRankedConceptsById, rankReviewQueueConcepts } from "../services/conceptQueueRanker";
@@ -294,7 +295,7 @@ export class MnemeReviewView extends ItemView {
 			actionsEl.createEl("button", { text: "Show Answer" }, (buttonEl) => {
 				buttonEl.addEventListener("click", () => this.showAnswer());
 			});
-			this.renderCardNavigationActions(actionsEl, concept);
+			this.renderCardNavigationActions(actionsEl, concept, currentQueueCard);
 			return;
 		}
 
@@ -320,10 +321,22 @@ export class MnemeReviewView extends ItemView {
 		}
 
 		const actionsEl = cardEl.createDiv({ cls: "mneme-review-actions" });
-		this.renderCardNavigationActions(actionsEl, concept);
+		this.renderCardNavigationActions(actionsEl, concept, currentQueueCard);
 	}
 
-	private renderCardNavigationActions(parentEl: HTMLElement, concept: ReviewQueueConcept): void {
+	private renderCardNavigationActions(
+		parentEl: HTMLElement,
+		concept: ReviewQueueConcept,
+		queueCard: ReviewQueueCard,
+	): void {
+		parentEl.createEl("button", { text: "Edit" }, (buttonEl) => {
+			buttonEl.addEventListener("click", () => {
+				new CardEditModal(this.app, {
+					card: queueCard.card,
+					onSaved: () => this.refreshCards(),
+				}).open();
+			});
+		});
 		parentEl.createEl("button", { text: "View Source" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
 				void this.openReviewSource(concept.concept);
