@@ -30,6 +30,14 @@ export interface ConceptScanResult {
 	concepts: ConceptSummary[];
 	duplicateCandidates: ConceptDuplicateCandidate[];
 	identityIssues: ConceptIdentityIssue[];
+	staleSourceIssues: ConceptStaleSourceIssue[];
+}
+
+export interface ConceptStaleSourceIssue {
+	conceptId: string;
+	conceptPath: string;
+	conceptTitle: string;
+	link: ConceptSourceLink;
 }
 
 export interface ConceptDuplicateCandidate {
@@ -47,3 +55,4 @@ export interface ConceptLibraryFilter {
 }
 
 export type ConceptLibrarySortMode = "title" | "updatedAt_desc" | "importance_desc";
+import type { ConceptSourceLink } from "./conceptSource";

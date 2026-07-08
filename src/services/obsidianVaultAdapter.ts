@@ -1,6 +1,7 @@
 import { TFile, Vault, normalizePath } from "obsidian";
 import type { MnemeVaultAdapter } from "./approvedProposalWriter";
 import type { VaultStateAdapter, VaultStateFile } from "./vaultStateReconciler";
+import type { SourceRelinkFileSnapshot } from "./sourceProvenanceRelinkService";
 
 export class ObsidianVaultAdapter implements MnemeVaultAdapter, VaultStateAdapter {
 	constructor(private readonly vault: Vault) {
@@ -34,6 +35,17 @@ export class ObsidianVaultAdapter implements MnemeVaultAdapter, VaultStateAdapte
 		const file = this.getFile(path);
 
 		return this.vault.cachedRead(file);
+	}
+
+	async readSnapshot(path: string): Promise<SourceRelinkFileSnapshot> {
+		const file = this.getFile(path);
+
+		return {
+			content: await this.vault.cachedRead(file),
+			mtime: file.stat.mtime,
+			path: file.path,
+			size: file.stat.size,
+		};
 	}
 
 	async modify(path: string, content: string): Promise<void> {

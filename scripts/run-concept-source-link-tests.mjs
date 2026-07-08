@@ -5,6 +5,8 @@ import path from "node:path";
 const tests = [
 	"tests/conceptSourceLinkStore.test.ts",
 	"tests/conceptSourceLinking.test.ts",
+	"tests/conceptSourceRelinker.test.ts",
+	"tests/sourceProvenanceRelinkService.test.ts",
 ];
 
 for (const test of tests) {

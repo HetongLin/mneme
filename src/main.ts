@@ -34,6 +34,7 @@ import { PreAiAcceptanceFixtureService } from "./services/preAiAcceptanceFixture
 import { ReviewStateStore } from "./services/reviewStateStore";
 import { SourceAnalysisService } from "./services/sourceAnalysisService";
 import { SourceAnalysisStore } from "./services/sourceAnalysisStore";
+import { SourceProvenanceRelinkService } from "./services/sourceProvenanceRelinkService";
 import { VaultStateReconciler } from "./services/vaultStateReconciler";
 import { buildCardPath, buildConceptPath } from "./utils/markdownPath";
 import { CONCEPT_LIBRARY_VIEW_TYPE, MnemeConceptLibraryView } from "./views/conceptLibraryView";
@@ -94,6 +95,10 @@ export default class MnemePlugin extends Plugin {
 			this.reviewStateStore,
 			{
 				conceptMergeService: new ConceptMergeService(
+					new ObsidianVaultAdapter(this.app.vault),
+					this,
+				),
+				sourceRelinkService: new SourceProvenanceRelinkService(
 					new ObsidianVaultAdapter(this.app.vault),
 					this,
 				),

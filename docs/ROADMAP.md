@@ -173,6 +173,8 @@ Current progress:
 - Possible Duplicate detection and dismissal never write Markdown.
 - Guided Merge requires survivor selection, editable final Markdown, every-file preview, and explicit confirmation.
 - Confirmed merges preserve Card IDs/FSRS history, migrate provenance and aggregate controls, leave Redirect Notes, and reserve merged Concept IDs.
+- Concept Library surfaces retained stale Source provenance and offers a reviewed Guided Relink.
+- Guided Relink preserves relation/evidence, updates readable Source Notes and indexes transactionally, and does not count as AI analysis.
 
 ## v1.0: Stable Concept Review Plugin
 

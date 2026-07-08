@@ -134,6 +134,10 @@ Possible Duplicate is a review signal, not merge permission. Each candidate show
 
 Guided Merge first asks which Concept survives and whether to preserve the other narrative as a View. It then shows an editable final survivor note plus Before/After previews for every other affected file, Card and Source migration counts, and a review-confirmation checkbox. Only `Confirm Guided Merge` writes. Any file or plugin-state change after preview requires rebuilding the preview.
 
+## Concept Library Stale Source Repair
+
+Stale Source Provenance is a review queue for approved relationships whose Source file is missing. Each item shows the Concept, last known Source path, relation, and evidence count. `Relink Source` asks for the replacement Markdown path, then previews the Concept.md Before/After and preserved provenance. Only `Confirm Relink`, enabled after the student checks the review acknowledgement, writes. A changed Concept, replacement Source, or plugin state invalidates the preview.
+
 ## Inbox View
 
 ### Purpose

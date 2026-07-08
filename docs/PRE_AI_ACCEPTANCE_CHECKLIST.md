@@ -82,6 +82,8 @@ Pass:
 - concept-source link is indexed after Concept write
 - Concept Library shows the Concept
 - deleted `Concept.md` files disappear from Concept Library after refresh
+- stale approved Source links appear in Concept Library and require a reviewed Guided Relink
+- Guided Relink preserves relation/evidence and does not mark the replacement as AI-captured
 - Review View behavior is unchanged
 
 Fail:

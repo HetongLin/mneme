@@ -874,3 +874,33 @@ Acceptance criteria:
 - Refresh removes the merged pair from Possible Duplicates
 - Concurrent edits abort without partial writes
 - Persistence failure restores every modified Markdown file
+
+## Task 053: Guided Stale Source Relink
+
+Goal:
+
+Let a student repair approved provenance after a Source Note moves without silently inventing a new relationship.
+
+Requirements:
+
+- Surface retained `stale` Concept-source links in Concept Library
+- Require the student to identify a replacement Markdown Source
+- Build a zero-write preview with the final Concept.md Before and After
+- Preserve relation type, evidence, and original `addedAt`
+- Recompute the replacement Source hash and refresh `lastSeenAt`
+- Update readable links only inside Concept.md `## Source Notes`
+- Migrate and deduplicate Source analysis and Concept-source indexes
+- Keep `lastAiCaptureHash` independent; relinking is not AI approval or AI analysis
+- Verify Concept identity, replacement Source content, and plugin state after preview
+- Reject self-linking and concurrent changes
+- Roll back Concept.md and plugin data when persistence fails
+
+Acceptance criteria:
+
+- Previewing performs no writes
+- The stale relationship becomes approved only after reviewed confirmation
+- Existing evidence and relation semantics survive the repair
+- An existing equivalent target relationship is deduplicated without losing evidence
+- Concept.md remains a readable note with no machine provenance fields added
+- Concurrent edits abort without partial writes
+- Persistence failure restores both Markdown and plugin data

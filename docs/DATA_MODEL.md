@@ -65,6 +65,8 @@ The product-facing Inbox does not present proposal lifecycle states as primary n
 
 Inbox Refresh and `Mneme: Resync Mneme Index` reconcile plugin data with the current vault. Transient stale proposals and caches may be pruned, but approved Concept-source provenance that points to a deleted Source is retained with `status: stale`. Reconciliation never deletes user Markdown or approved provenance; relinking or removing provenance requires an explicit student action.
 
+Guided Source Relink repairs a retained stale relationship in place at the semantic level. It preserves the relation type, evidence, and original `addedAt`; changes the Source path and content hash; refreshes `lastSeenAt`; and returns the relationship to `approved` only after the student reviews and confirms a zero-write preview. Equivalent target links are deduplicated by Concept, Source, and relation type with evidence union. The old and new `SourceAnalysisRecord.linkedConceptIds` indexes are updated in the same transaction. A pre-existing `lastAiCaptureHash` on the replacement Source remains untouched because relinking identifies provenance—it does not assert that AI has analyzed or approved the replacement content.
+
 `ConceptSourceLinkStore` persists approved Source Note to Concept links in plugin data. Successful `new_concept` writes can create approved `ConceptSourceLink` records and update `SourceAnalysisRecord.linkedConceptIds`. These links are runtime index metadata, not the main Concept body.
 
 Readable and identifiable Markdown principle:

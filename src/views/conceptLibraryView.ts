@@ -4,15 +4,18 @@ import type {
 	ConceptLibrarySortMode,
 	ConceptDuplicateCandidate,
 	ConceptIdentityIssue,
+	ConceptStaleSourceIssue,
 	ConceptSummary,
 } from "../models/conceptLibrary";
 import { ConceptEditModal } from "../modals/conceptEditModal";
 import { ConceptIdRepairModal } from "../modals/conceptIdRepairModal";
 import { ConceptMergeModal } from "../modals/conceptMergeModal";
+import { SourceProvenanceRelinkModal } from "../modals/sourceProvenanceRelinkModal";
 import { createConceptPreview } from "../services/conceptMarkdownParser";
 import { ConceptScanner } from "../services/conceptScanner";
 import { ReviewStateStore } from "../services/reviewStateStore";
 import type { ConceptMergeService } from "../services/conceptMergeService";
+import type { SourceProvenanceRelinkService } from "../services/sourceProvenanceRelinkService";
 import {
 	canGenerateCardsFromConcept,
 	filterConceptSummaries,
@@ -23,6 +26,7 @@ export const CONCEPT_LIBRARY_VIEW_TYPE = "mneme-concept-library-view";
 
 export interface ConceptLibraryActions {
 	conceptMergeService?: ConceptMergeService;
+	sourceRelinkService?: SourceProvenanceRelinkService;
 	generateCards?(concept: ConceptSummary): Promise<void> | void;
 }
 
@@ -30,6 +34,7 @@ export class MnemeConceptLibraryView extends ItemView {
 	private concepts: ConceptSummary[] = [];
 	private duplicateCandidates: ConceptDuplicateCandidate[] = [];
 	private identityIssues: ConceptIdentityIssue[] = [];
+	private staleSourceIssues: ConceptStaleSourceIssue[] = [];
 	private filter: ConceptLibraryFilter = {
 		importance: "all",
 		learningMode: "all",
@@ -75,12 +80,14 @@ export class MnemeConceptLibraryView extends ItemView {
 			this.concepts = result.concepts;
 			this.duplicateCandidates = result.duplicateCandidates;
 			this.identityIssues = result.identityIssues;
-			this.statusMessage = `${this.concepts.length} concepts found. ${this.identityIssues.length} identity issue(s). ${this.getActiveDuplicateCandidates().length} possible duplicate(s).`;
+			this.staleSourceIssues = result.staleSourceIssues;
+			this.statusMessage = `${this.concepts.length} concepts found. ${this.identityIssues.length} identity issue(s). ${this.staleSourceIssues.length} stale Source link(s). ${this.getActiveDuplicateCandidates().length} possible duplicate(s).`;
 		} catch (error) {
 			console.error("Mneme: failed to scan Concept Library", error);
 			this.concepts = [];
 			this.duplicateCandidates = [];
 			this.identityIssues = [];
+			this.staleSourceIssues = [];
 			this.statusMessage = "Failed to scan Concept Library. See console for details.";
 		}
 
@@ -96,8 +103,47 @@ export class MnemeConceptLibraryView extends ItemView {
 		this.renderControls();
 		this.renderStatus();
 		this.renderIdentityIssues();
+		this.renderStaleSourceIssues();
 		this.renderDuplicateCandidates();
 		this.renderConceptList();
+	}
+
+	private renderStaleSourceIssues(): void {
+		if (this.staleSourceIssues.length === 0) return;
+		const sectionEl = this.contentEl.createDiv({ cls: "mneme-review-queue" });
+		sectionEl.createEl("h3", { text: "Stale Source Provenance" });
+		sectionEl.createEl("p", {
+			cls: "mneme-review-status",
+			text: "The original Source Note is missing. Relink only when you have identified its replacement.",
+		});
+		for (const issue of this.staleSourceIssues) {
+			const itemEl = sectionEl.createDiv({ cls: "mneme-review-queue-item mneme-concept-library-item" });
+			const mainEl = itemEl.createDiv({ cls: "mneme-review-queue-main" });
+			mainEl.createEl("h3", { text: issue.conceptTitle });
+			mainEl.createEl("p", { cls: "mneme-review-status", text: `Missing Source: ${issue.link.sourcePath}` });
+			mainEl.createEl("p", {
+				cls: "mneme-review-queue-meta",
+				text: `${issue.link.relationType} · ${issue.link.evidence.length} evidence item(s)`,
+			});
+			const actionsEl = mainEl.createDiv({ cls: "mneme-review-actions" });
+			actionsEl.createEl("button", { text: "Open Concept" }, (buttonEl) => {
+				buttonEl.addEventListener("click", () => void this.openMarkdownPath(issue.conceptPath, "Concept"));
+			});
+			if (this.actions.sourceRelinkService) {
+				actionsEl.createEl("button", { text: "Relink Source" }, (buttonEl) => {
+					buttonEl.addEventListener("click", () => {
+						new SourceProvenanceRelinkModal(this.app, {
+							issue,
+							onRelinked: async () => {
+								await this.reviewStateStore.load();
+								await this.refresh();
+							},
+							service: this.actions.sourceRelinkService!,
+						}).open();
+					});
+				});
+			}
+		}
 	}
 
 	private renderDuplicateCandidates(): void {

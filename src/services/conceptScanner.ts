@@ -3,6 +3,7 @@ import type {
 	ConceptImportance,
 	ConceptLearningMode,
 	ConceptScanResult,
+	ConceptStaleSourceIssue,
 	ConceptSummary,
 } from "../models/conceptLibrary";
 import type { ConceptSourceLink } from "../models/conceptSource";
@@ -84,6 +85,7 @@ export class ConceptScanner {
 
 		const concepts: ConceptSummary[] = [];
 		const identityIssues: ConceptIdentityIssue[] = [];
+		const staleSourceIssues: ConceptStaleSourceIssue[] = [];
 		for (const candidate of candidates) {
 			const { cardsPath, conceptId, file, frontmatter, markdown, title } = candidate;
 			if (!conceptId || (idCounts.get(conceptId) ?? 0) > 1) {
@@ -98,7 +100,10 @@ export class ConceptScanner {
 				continue;
 			}
 
-			const sourceCount = await this.getSourceCount(conceptId);
+			const sourceLinks = await this.getSourceLinks(conceptId);
+			const sourceCount = sourceLinks
+				? sourceLinks.filter((link) => link.status === "approved").length
+				: undefined;
 			const summary: ConceptSummary = {
 				cardsPath,
 				conceptId,
@@ -113,6 +118,14 @@ export class ConceptScanner {
 			};
 
 			concepts.push(summary);
+			for (const link of sourceLinks?.filter((candidateLink) => candidateLink.status === "stale") ?? []) {
+				staleSourceIssues.push({
+					conceptId,
+					conceptPath: file.path,
+					conceptTitle: title,
+					link,
+				});
+			}
 		}
 
 		const sortedConcepts = concepts.sort(compareConceptSummariesByTitle);
@@ -120,18 +133,17 @@ export class ConceptScanner {
 			concepts: sortedConcepts,
 			duplicateCandidates: detectConceptDuplicates(sortedConcepts),
 			identityIssues: identityIssues.sort((first, second) => first.path.localeCompare(second.path)),
+			staleSourceIssues: staleSourceIssues.sort((first, second) => first.conceptTitle.localeCompare(second.conceptTitle)
+				|| first.link.sourcePath.localeCompare(second.link.sourcePath)),
 		};
 	}
 
-	private async getSourceCount(conceptId: string): Promise<number | undefined> {
+	private async getSourceLinks(conceptId: string): Promise<ConceptSourceLink[] | undefined> {
 		if (!this.options.conceptSourceLinkStore) {
 			return undefined;
 		}
 
-		const links = await this.options.conceptSourceLinkStore.listByConceptId(conceptId);
-		const approvedLinks = links.filter((link) => link.status === "approved");
-
-		return approvedLinks.length;
+		return this.options.conceptSourceLinkStore.listByConceptId(conceptId);
 	}
 }
 

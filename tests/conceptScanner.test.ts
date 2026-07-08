@@ -90,6 +90,7 @@ async function runAsyncTests(): Promise<void> {
 			conceptSourceLinkStore: new MemoryConceptSourceLinkReader([
 				createConceptSourceLink("link-a", { conceptId: "concept-a", status: "approved" }),
 				createConceptSourceLink("link-b", { conceptId: "concept-a", status: "suggested" }),
+				createConceptSourceLink("link-c", { conceptId: "concept-a", sourcePath: "Missing.md", status: "stale" }),
 			]),
 			vault: new MemoryConceptVaultAdapter({
 				"Mneme/Concepts/A/Concept.md": {
@@ -101,9 +102,13 @@ async function runAsyncTests(): Promise<void> {
 				},
 			}),
 		});
-		const concepts = await scanner.scanConcepts();
+		const result = await scanner.scan();
+		const concepts = result.concepts;
 
 		assert.equal(concepts[0].sourceCount, 1);
+		assert.equal(result.staleSourceIssues.length, 1);
+		assert.equal(result.staleSourceIssues[0].link.sourcePath, "Missing.md");
+		assert.equal(result.staleSourceIssues[0].conceptTitle, "A");
 	}
 
 	{
