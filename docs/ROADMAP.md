@@ -165,7 +165,9 @@ Current progress:
 - Only uniquely attributable Concept pause state is re-keyed; duplicate-ID aggregate state is not guessed.
 - Stable-ID Cards can be retired without changing Markdown or FSRS history, then restored from Advanced Diagnostics.
 - Retired Cards are excluded from Today’s Focus, Concept Learning State risk, and ranking.
-- Destructive Card deletion, tombstones, and explicit history erasure remain unfinished.
+- Confirmed Card deletion removes only the selected Markdown block and clears active scheduling controls.
+- Content-free review events and Card tombstones preserve statistical history and prevent ID reuse.
+- `Delete History Too` explicitly erases a deleted Card's events and tombstone; global history clearing retains identity tombstones but zeros their counts.
 
 ## v1.0: Stable Concept Review Plugin
 

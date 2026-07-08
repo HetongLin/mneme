@@ -3,6 +3,8 @@ import {
 	CardReviewState,
 	CardReviewSuspension,
 	CardRetirement,
+	CardReviewEvent,
+	CardTombstone,
 	ConceptReviewPause,
 	MnemePluginData,
 	ReviewDeferral,
@@ -53,14 +55,28 @@ export class ReviewStateStore {
 	async recordReview(cardId: string, rating: ReviewRating): Promise<CardReviewState> {
 		await this.ensureLoaded();
 		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+		if (latestData.cardTombstones[cardId]) {
+			throw new Error("Deleted Card IDs cannot receive reviews.");
+		}
+		const reviewedAt = new Date().toISOString();
 		const scheduleResult = this.scheduler.schedule({
 			cardId,
 			previousState: latestData.reviewStates[cardId],
 			rating,
-			reviewedAt: new Date().toISOString(),
+			reviewedAt,
 		});
+		const reviewEvent: CardReviewEvent = {
+			cardId,
+			eventId: createReviewEventId(cardId, reviewedAt, scheduleResult.nextState.reviewCount),
+			rating,
+			reviewedAt,
+		};
 		const nextData = {
 			...latestData,
+			reviewEvents: {
+				...latestData.reviewEvents,
+				[reviewEvent.eventId]: reviewEvent,
+			},
 			reviewDeferrals: omitKey(latestData.reviewDeferrals, cardId),
 			suspendedCards: omitKey(latestData.suspendedCards, cardId),
 			reviewStates: {
@@ -78,6 +94,76 @@ export class ReviewStateStore {
 
 	getAllStates(): Record<string, CardReviewState> {
 		return { ...this.data.reviewStates };
+	}
+
+	getReviewEvents(): CardReviewEvent[] {
+		return Object.values(this.data.reviewEvents).map((event) => ({ ...event }));
+	}
+
+	getCardTombstones(): Record<string, CardTombstone> {
+		const tombstones: Record<string, CardTombstone> = {};
+
+		for (const [cardId, tombstone] of Object.entries(this.data.cardTombstones)) {
+			tombstones[cardId] = { ...tombstone };
+		}
+
+		return tombstones;
+	}
+
+	async deleteCard(cardId: string, now = new Date()): Promise<CardTombstone> {
+		await this.ensureLoaded();
+		if (!cardId.trim() || Number.isNaN(now.getTime())) {
+			throw new Error("Card deletion requires a Card id and valid time.");
+		}
+
+		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+		if (latestData.cardTombstones[cardId]) {
+			throw new Error("This Card ID is already deleted.");
+		}
+
+		const reviewState = latestData.reviewStates[cardId];
+		const tombstone: CardTombstone = {
+			cardId,
+			deletedAt: now.toISOString(),
+			lapseCount: reviewState?.lapseCount ?? 0,
+			reviewCount: reviewState?.reviewCount ?? 0,
+		};
+		const nextData = {
+			...latestData,
+			cardTombstones: {
+				...latestData.cardTombstones,
+				[cardId]: tombstone,
+			},
+			retiredCards: omitKey(latestData.retiredCards, cardId),
+			reviewDeferrals: omitKey(latestData.reviewDeferrals, cardId),
+			reviewStates: omitKey(latestData.reviewStates, cardId),
+			suspendedCards: omitKey(latestData.suspendedCards, cardId),
+		};
+
+		await this.storage.saveData(nextData);
+		this.data = nextData;
+		this.pendingSettings = undefined;
+		return tombstone;
+	}
+
+	async eraseDeletedCardHistory(cardId: string): Promise<void> {
+		await this.ensureLoaded();
+		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+		if (!latestData.cardTombstones[cardId]) {
+			throw new Error("Card tombstone not found.");
+		}
+
+		const nextData = {
+			...latestData,
+			cardTombstones: omitKey(latestData.cardTombstones, cardId),
+			reviewEvents: Object.fromEntries(
+				Object.entries(latestData.reviewEvents).filter(([, event]) => event.cardId !== cardId),
+			),
+		};
+
+		await this.storage.saveData(nextData);
+		this.data = nextData;
+		this.pendingSettings = undefined;
 	}
 
 	getReviewStateCount(): number {
@@ -218,7 +304,8 @@ export class ReviewStateStore {
 
 		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
 		if (
-			latestData.reviewStates[newCardId]
+			latestData.cardTombstones[newCardId]
+			|| latestData.reviewStates[newCardId]
 			|| latestData.reviewDeferrals[newCardId]
 			|| latestData.retiredCards[newCardId]
 			|| latestData.suspendedCards[newCardId]
@@ -232,6 +319,10 @@ export class ReviewStateStore {
 		const suspension = latestData.suspendedCards[oldCardId];
 		const nextData = {
 			...latestData,
+			reviewEvents: Object.fromEntries(Object.entries(latestData.reviewEvents).map(([eventId, event]) => [
+				eventId,
+				event.cardId === oldCardId ? { ...event, cardId: newCardId } : event,
+			])),
 			reviewDeferrals: {
 				...omitKey(latestData.reviewDeferrals, oldCardId),
 				...(deferral ? { [newCardId]: { ...deferral, cardId: newCardId } } : {}),
@@ -364,7 +455,12 @@ export class ReviewStateStore {
 		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
 		const nextData = {
 			...latestData,
+			cardTombstones: Object.fromEntries(Object.entries(latestData.cardTombstones).map(([cardId, tombstone]) => [
+				cardId,
+				{ ...tombstone, lapseCount: 0, reviewCount: 0 },
+			])),
 			reviewDeferrals: {},
+			reviewEvents: {},
 			reviewStates: {},
 			schemaVersion: latestData.schemaVersion,
 		};
@@ -391,9 +487,11 @@ export class ReviewStateStore {
 
 export function createDefaultPluginData(): MnemePluginData {
 	return {
+		cardTombstones: {},
 		conceptSourceLinks: {},
 		knowledgeProposals: {},
 		pausedConcepts: {},
+		reviewEvents: {},
 		retiredCards: {},
 		reviewStates: {},
 		reviewDeferrals: {},
@@ -411,6 +509,12 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 
 	const reviewStates = isObject(data.reviewStates)
 		? data.reviewStates
+		: {};
+	const cardTombstones = isObject(data.cardTombstones)
+		? data.cardTombstones
+		: {};
+	const reviewEvents = isObject(data.reviewEvents)
+		? data.reviewEvents
 		: {};
 	const pausedConcepts = isObject(data.pausedConcepts)
 		? data.pausedConcepts
@@ -436,9 +540,11 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 
 	return {
 		...data,
+		cardTombstones: normalizeCardTombstones(cardTombstones),
 		conceptSourceLinks: normalizeConceptSourceLinks(conceptSourceLinks),
 		knowledgeProposals: normalizeKnowledgeProposals(knowledgeProposals),
 		pausedConcepts: normalizePausedConcepts(pausedConcepts),
+		reviewEvents: normalizeReviewEvents(reviewEvents),
 		reviewStates: normalizeReviewStates(reviewStates),
 		reviewDeferrals: normalizeReviewDeferrals(reviewDeferrals),
 		retiredCards: normalizeRetiredCards(retiredCards),
@@ -447,6 +553,50 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 		settings: normalizeSettings(data.settings),
 		sourceAnalysisRecords: normalizeSourceAnalysisRecords(sourceAnalysisRecords),
 	};
+}
+
+function normalizeCardTombstones(tombstones: Record<string, unknown>): Record<string, CardTombstone> {
+	const normalized: Record<string, CardTombstone> = {};
+	for (const tombstone of Object.values(tombstones)) {
+		if (
+			isObject(tombstone)
+			&& typeof tombstone.cardId === "string"
+			&& typeof tombstone.deletedAt === "string"
+			&& !Number.isNaN(Date.parse(tombstone.deletedAt))
+			&& isNonNegativeInteger(tombstone.lapseCount)
+			&& isNonNegativeInteger(tombstone.reviewCount)
+		) {
+			normalized[tombstone.cardId] = {
+				cardId: tombstone.cardId,
+				deletedAt: tombstone.deletedAt,
+				lapseCount: tombstone.lapseCount,
+				reviewCount: tombstone.reviewCount,
+			};
+		}
+	}
+	return normalized;
+}
+
+function normalizeReviewEvents(events: Record<string, unknown>): Record<string, CardReviewEvent> {
+	const normalized: Record<string, CardReviewEvent> = {};
+	for (const event of Object.values(events)) {
+		if (
+			isObject(event)
+			&& typeof event.cardId === "string"
+			&& typeof event.eventId === "string"
+			&& (event.rating === "again" || event.rating === "hard" || event.rating === "good" || event.rating === "easy")
+			&& typeof event.reviewedAt === "string"
+			&& !Number.isNaN(Date.parse(event.reviewedAt))
+		) {
+			normalized[event.eventId] = {
+				cardId: event.cardId,
+				eventId: event.eventId,
+				rating: event.rating,
+				reviewedAt: event.reviewedAt,
+			};
+		}
+	}
+	return normalized;
 }
 
 function normalizeRetiredCards(retirements: Record<string, unknown>): Record<string, CardRetirement> {
@@ -684,6 +834,14 @@ function isConceptSourceLinkStatus(value: unknown): value is ConceptSourceLinkSt
 
 function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+	return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+function createReviewEventId(cardId: string, reviewedAt: string, reviewCount: number): string {
+	return `${cardId}:${reviewedAt}:${reviewCount}`;
 }
 
 function omitKey<T>(record: Record<string, T>, key: string): Record<string, T> {

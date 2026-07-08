@@ -34,7 +34,7 @@ Mneme owns context and persistence fields around the FSRS state:
 - source navigation metadata
 - settings persistence
 - review state persistence
-- review log persistence
+- content-free review event persistence
 - diagnostics
 - concept grouping
 
@@ -74,6 +74,10 @@ Daily Review excludes:
 - reviewed FSRS Cards with `dueAt > now`
 - Cards promoted only by nonzero retrievability risk
 - invalid parsed Cards
+- suspended or retired Cards
+- deleted Cards represented only by tombstones
+
+Recording an FSRS rating also appends a Mneme-owned event containing only Card ID, rating, and review time. Deleting a Card clears its active FSRS state but does not rewrite past events. Event logs never drive FSRS scheduling transitions.
 
 ## Future Non-Daily Modes
 

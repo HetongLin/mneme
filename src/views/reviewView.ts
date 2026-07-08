@@ -13,6 +13,7 @@ import {
 } from "../models/reviewState";
 import { DEFAULT_SETTINGS, MnemeSettings } from "../models/settings";
 import { CardEditModal } from "../modals/cardEditModal";
+import { CardDeleteModal, CardHistoryDeleteModal } from "../modals/cardDeleteModal";
 import { CardIdRepairModal } from "../modals/cardIdRepairModal";
 import { ConceptLoader } from "../services/conceptLoader";
 import { aggregateConceptMemoryById } from "../services/conceptMemoryAggregator";
@@ -423,18 +424,24 @@ export class MnemeReviewView extends ItemView {
 					void this.retireCurrentCard();
 				});
 			});
+			parentEl.createEl("button", { text: "Delete Card" }, (buttonEl) => {
+				buttonEl.addEventListener("click", () => {
+					this.openCardDelete(queueCard.card);
+				});
+			});
 		}
 	}
 
 	private renderDiagnostics(): void {
 		const diagnostics = this.getDiagnosticConcepts();
+		const tombstones = Object.values(this.reviewStateStore.getCardTombstones());
 		const diagnosticsEl = this.contentEl.createEl("details", {
 			cls: "mneme-review-diagnostics",
 		});
 
 		diagnosticsEl.createEl("summary", { text: "Advanced Diagnostics" });
 
-		if (diagnostics.length === 0) {
+		if (diagnostics.length === 0 && tombstones.length === 0) {
 			diagnosticsEl.createEl("p", {
 				cls: "mneme-review-empty",
 				text: "No card diagnostics.",
@@ -444,6 +451,27 @@ export class MnemeReviewView extends ItemView {
 
 		for (const concept of diagnostics) {
 			this.renderDiagnosticConcept(diagnosticsEl, concept);
+		}
+
+		if (tombstones.length > 0) {
+			diagnosticsEl.createEl("h4", { text: "Deleted Cards" });
+			for (const tombstone of tombstones.sort((a, b) => b.deletedAt.localeCompare(a.deletedAt))) {
+				const tombstoneEl = diagnosticsEl.createDiv({ cls: "mneme-review-diagnostics-card" });
+				tombstoneEl.createEl("p", { text: `Card ID: ${tombstone.cardId}` });
+				tombstoneEl.createEl("p", { text: `Deleted at: ${tombstone.deletedAt}` });
+				tombstoneEl.createEl("p", { text: `Historical reviews: ${tombstone.reviewCount} · lapses: ${tombstone.lapseCount}` });
+				tombstoneEl.createEl("button", { text: "Delete History Too" }, (buttonEl) => {
+					buttonEl.addEventListener("click", () => {
+						new CardHistoryDeleteModal(this.app, {
+							cardId: tombstone.cardId,
+							onConfirmed: async (cardId) => {
+								await this.reviewStateStore.eraseDeletedCardHistory(cardId);
+								this.render();
+							},
+						}).open();
+					});
+				});
+			}
 		}
 	}
 
@@ -595,7 +623,10 @@ export class MnemeReviewView extends ItemView {
 				buttonEl.addEventListener("click", () => {
 					new CardIdRepairModal(this.app, {
 						card,
-						existingCardIds: getAllCardIds(this.reviewQueue),
+						existingCardIds: new Set([
+							...getAllCardIds(this.reviewQueue),
+							...Object.keys(this.reviewStateStore.getCardTombstones()),
+						]),
 						onSaved: async (oldCardId, newCardId, migrateState) => {
 							if (migrateState) {
 								await this.reviewStateStore.rekeyCard(oldCardId, newCardId);
@@ -604,6 +635,12 @@ export class MnemeReviewView extends ItemView {
 						},
 					}).open();
 				});
+			});
+		}
+
+		if (card.isValid && card.hasExplicitCardId) {
+			cardEl.createEl("button", { text: "Delete Card" }, (buttonEl) => {
+				buttonEl.addEventListener("click", () => this.openCardDelete(card));
 			});
 		}
 
@@ -886,6 +923,16 @@ export class MnemeReviewView extends ItemView {
 			console.error("Mneme: failed to restore retired Card", { cardId, error });
 			new Notice("Mneme: Card could not be restored.");
 		}
+	}
+
+	private openCardDelete(card: LoadedMnemeCard): void {
+		new CardDeleteModal(this.app, {
+			card,
+			onDeleted: async (cardId) => {
+				await this.reviewStateStore.deleteCard(cardId);
+				void this.refreshCards();
+			},
+		}).open();
 	}
 
 	private async resumeConcept(conceptId: string): Promise<void> {

@@ -14,12 +14,14 @@ import {
 	const data = createDefaultPluginData();
 
 	assert.equal(data.schemaVersion, 1);
+	assert.deepEqual(data.cardTombstones, {});
 	assert.deepEqual(data.conceptSourceLinks, {});
 	assert.deepEqual(data.knowledgeProposals, {});
 	assert.deepEqual(data.pausedConcepts, {});
 	assert.deepEqual(data.retiredCards, {});
 	assert.deepEqual(data.reviewStates, {});
 	assert.deepEqual(data.reviewDeferrals, {});
+	assert.deepEqual(data.reviewEvents, {});
 	assert.deepEqual(data.settings, DEFAULT_SETTINGS);
 	assert.deepEqual(data.sourceAnalysisRecords, {});
 	assert.deepEqual(data.suspendedCards, {});
@@ -29,12 +31,14 @@ import {
 	const data = normalizePluginData(undefined);
 
 	assert.equal(data.schemaVersion, 1);
+	assert.deepEqual(data.cardTombstones, {});
 	assert.deepEqual(data.conceptSourceLinks, {});
 	assert.deepEqual(data.knowledgeProposals, {});
 	assert.deepEqual(data.pausedConcepts, {});
 	assert.deepEqual(data.retiredCards, {});
 	assert.deepEqual(data.reviewStates, {});
 	assert.deepEqual(data.reviewDeferrals, {});
+	assert.deepEqual(data.reviewEvents, {});
 	assert.deepEqual(data.settings, DEFAULT_SETTINGS);
 	assert.deepEqual(data.sourceAnalysisRecords, {});
 	assert.deepEqual(data.suspendedCards, {});
@@ -236,6 +240,32 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(updatedState.reviewCount, 1);
 		assert.deepEqual(storage.savedData?.reviewStates["encapsulation-basic"], updatedState);
 		assert.deepEqual(store.getState("encapsulation-basic"), updatedState);
+		assert.equal(store.getReviewEvents().length, 1);
+		assert.equal(store.getReviewEvents()[0]?.cardId, "encapsulation-basic");
+		assert.equal(store.getReviewEvents()[0]?.rating, "good");
+	}
+
+	{
+		const storage = new MemoryReviewStateStorage();
+		const scheduler = new FakeReviewScheduler();
+		const store = new ReviewStateStore(storage, scheduler);
+
+		await store.load();
+		await store.recordReview("delete-me", "again");
+		await store.retireCard("delete-me", new Date("2026-07-07T11:00:00.000Z"));
+		const tombstone = await store.deleteCard("delete-me", new Date("2026-07-07T12:00:00.000Z"));
+
+		assert.equal(tombstone.reviewCount, 1);
+		assert.equal(tombstone.lapseCount, 1);
+		assert.equal(store.getState("delete-me"), undefined);
+		assert.equal(store.getRetiredCards()["delete-me"], undefined);
+		assert.equal(store.getReviewEvents().filter((event) => event.cardId === "delete-me").length, 1);
+		assert.equal(store.getCardTombstones()["delete-me"]?.deletedAt, "2026-07-07T12:00:00.000Z");
+		await assert.rejects(store.recordReview("delete-me", "good"), /Deleted Card IDs/);
+
+		await store.eraseDeletedCardHistory("delete-me");
+		assert.equal(store.getCardTombstones()["delete-me"], undefined);
+		assert.equal(store.getReviewEvents().filter((event) => event.cardId === "delete-me").length, 0);
 	}
 
 	{
@@ -246,6 +276,14 @@ async function runAsyncTests(): Promise<void> {
 				[oldCardId]: {
 					cardId: oldCardId,
 					retiredAt: "2026-07-07T09:00:00.000Z",
+				},
+			},
+			reviewEvents: {
+				event: {
+					cardId: oldCardId,
+					eventId: "event",
+					rating: "good",
+					reviewedAt: "2026-07-07T08:00:00.000Z",
 				},
 			},
 			reviewDeferrals: {
@@ -275,10 +313,31 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(storage.savedData?.reviewStates[newCardId]?.cardId, newCardId);
 		assert.equal(storage.savedData?.reviewStates[newCardId]?.reviewCount, 2);
 		assert.equal(storage.savedData?.reviewDeferrals[newCardId]?.cardId, newCardId);
+		assert.equal(storage.savedData?.reviewEvents.event?.cardId, newCardId);
 		assert.equal(storage.savedData?.retiredCards[newCardId]?.cardId, newCardId);
 		assert.equal(storage.savedData?.retiredCards[oldCardId], undefined);
 		assert.equal(storage.savedData?.suspendedCards[newCardId]?.cardId, newCardId);
 		assert.equal(scheduler.lastInput, undefined);
+	}
+
+	{
+		const storage = new MemoryReviewStateStorage({
+			cardTombstones: {
+				deleted: {
+					cardId: "deleted",
+					deletedAt: "2026-07-07T12:00:00.000Z",
+					lapseCount: 0,
+					reviewCount: 0,
+				},
+			},
+			schemaVersion: 1,
+			settings: DEFAULT_SETTINGS,
+		});
+		const store = new ReviewStateStore(storage, new FakeReviewScheduler());
+
+		await store.load();
+		await assert.rejects(store.rekeyCard("old", "deleted"), /already has review state/);
+		assert.equal(storage.savedData, undefined);
 	}
 
 	{
@@ -321,6 +380,22 @@ async function runAsyncTests(): Promise<void> {
 
 	{
 		const storage = new MemoryReviewStateStorage({
+			cardTombstones: {
+				deleted: {
+					cardId: "deleted",
+					deletedAt: "2026-07-07T12:00:00.000Z",
+					lapseCount: 2,
+					reviewCount: 5,
+				},
+			},
+			reviewEvents: {
+				event: {
+					cardId: "deleted",
+					eventId: "event",
+					rating: "again",
+					reviewedAt: "2026-07-07T10:00:00.000Z",
+				},
+			},
 			reviewStates: {
 				"encapsulation-basic": createReviewState("encapsulation-basic", 2),
 				"polymorphism-basic": createReviewState("polymorphism-basic", 1),
@@ -342,6 +417,9 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(storage.savedData?.schemaVersion, 1);
 		assert.deepEqual(storage.savedData?.reviewStates, {});
 		assert.deepEqual(storage.savedData?.reviewDeferrals, {});
+		assert.deepEqual(storage.savedData?.reviewEvents, {});
+		assert.equal(storage.savedData?.cardTombstones.deleted?.reviewCount, 0);
+		assert.equal(storage.savedData?.cardTombstones.deleted?.lapseCount, 0);
 	}
 
 	{

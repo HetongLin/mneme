@@ -27,9 +27,11 @@ export function createPluginData(
 	conceptSourceLinks: Record<string, ConceptSourceLink> = {},
 ): MnemePluginData {
 	return {
+		cardTombstones: {},
 		conceptSourceLinks,
 		knowledgeProposals,
 		pausedConcepts: {},
+		reviewEvents: {},
 		retiredCards: {},
 		reviewDeferrals: {},
 		reviewStates: {},

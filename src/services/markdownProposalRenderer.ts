@@ -196,7 +196,7 @@ function renderNewCardDraft(
 export function createTemporaryWriterCardId(
 	conceptTitleOrId: string,
 	front: string,
-	_proposalId: string,
+	proposalId: string,
 ): string {
 	const base = slugifyForFilename(`${conceptTitleOrId} ${front}`)
 		.toLowerCase()
@@ -204,7 +204,20 @@ export function createTemporaryWriterCardId(
 		.replace(/-+/g, "-")
 		.replace(/^-|-$/g, "");
 
-	return (base || "mneme-card").slice(0, 96);
+	const proposalSuffix = `p${stableStringHash(proposalId)}`;
+	const readableBase = (base || "mneme-card").slice(0, Math.max(1, 95 - proposalSuffix.length));
+
+	return `${readableBase}-${proposalSuffix}`;
+}
+
+function stableStringHash(value: string): string {
+	let hash = 2166136261;
+	for (let index = 0; index < value.length; index += 1) {
+		hash ^= value.charCodeAt(index);
+		hash = Math.imul(hash, 16777619);
+	}
+
+	return (hash >>> 0).toString(36);
 }
 
 function truncateSingleLine(value: string, maxLength: number): string {

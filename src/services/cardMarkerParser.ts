@@ -77,6 +77,9 @@ export function parseMnemeCards(markdown: string): ParsedCardMarkers[] {
 	const hasCardMarkers = startCount > 0 || endCount > 0;
 
 	if (!hasCardMarkers) {
+		if (isEmptyCardGroup(markdown)) {
+			return [];
+		}
 		return [addCardIdentityMetadata(parseCardMarkers(markdown), 0)];
 	}
 
@@ -93,6 +96,13 @@ export function parseMnemeCards(markdown: string): ParsedCardMarkers[] {
 		...parsedCards,
 		createInvalidCardBlockResult(malformedErrors),
 	];
+}
+
+function isEmptyCardGroup(markdown: string): boolean {
+	const isCardGroup = /^---\r?\n[\s\S]*?^mneme_type\s*:\s*["']?card_group["']?\s*(?:#.*)?$[\s\S]*?^---(?:\r?\n|$)/m.test(markdown);
+	const hasSectionMarker = /<!--\s*MNEME:(?:FRONT|BACK|RUBRIC):(start|end)\s*-->/.test(markdown);
+
+	return isCardGroup && !hasSectionMarker;
 }
 
 function parseSection(

@@ -171,9 +171,13 @@ function getFirstDraftContent(result: ReturnType<typeof renderMarkdownProposal>)
 }
 
 {
-	assert.equal(
+	assert.notEqual(
 		createTemporaryWriterCardId("Concept", "What is x?", "proposal-a"),
 		createTemporaryWriterCardId("Concept", "What is x?", "proposal-b"),
+	);
+	assert.equal(
+		createTemporaryWriterCardId("Concept", "What is x?", "proposal-a"),
+		"concept-what-is-x-p11dko39",
 	);
 }
 

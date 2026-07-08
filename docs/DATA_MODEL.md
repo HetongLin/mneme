@@ -287,6 +287,7 @@ Answer 2
 - Missing FRONT or BACK makes the card invalid.
 - Invalid cards must not crash Review View.
 - Invalid cards should be shown with a repair option.
+- A `card_group` file with no CARD or section markers is a valid empty Card Group, not a malformed legacy Card.
 
 The safe automatic repair path is intentionally narrow. If a FRONT or BACK section is entirely absent, Mneme may add the missing canonical section after the student supplies its content, while preserving all surrounding Markdown and leaving FSRS state unchanged. Duplicate markers, unclosed markers, malformed CARD wrappers, and duplicate IDs require manual or future guided repair rather than destructive canonicalization.
 
@@ -304,7 +305,7 @@ data.json may store:
 - paused Concept controls (`pausedConcepts`), keyed by stable Concept id
 - suspended Card controls (`suspendedCards`), keyed by stable Card id
 - retired Card controls (`retiredCards`), keyed by stable Card id
-- review logs
+- content-free review events (`reviewEvents`), keyed by event id
 - Needs Work Signals
 - Concept Learning State cache
 - Exam Attempts
@@ -327,6 +328,8 @@ data.json must not store:
 `retiredCards` maps a stable Card id to `retiredAt`. Retirement clears temporary deferral and suspension controls, preserves Markdown and FSRS state, and removes the Card from Today’s Focus and Concept Learning State aggregation until explicit restore.
 
 Retired Cards preserve Markdown and history but are excluded from active review. Deleting a Card removes its exact Markdown block and active FSRS/control state after confirmation, then records a content-free tombstone so the Card ID cannot be reused and anonymous review history remains statistically valid. `Delete History Too` explicitly removes the tombstone and review events.
+
+Each `reviewEvents` record contains only `eventId`, stable `cardId`, `rating`, and `reviewedAt`; it stores no Card content. A `cardTombstones` record contains only `cardId`, `deletedAt`, `reviewCount`, and `lapseCount`. Existing Cards created before event logging may have aggregate counts without reconstructable per-review events. Global Clear Review History removes events and zeros tombstone counts while retaining tombstones for identity safety.
 
 ## Courses And Exam Contexts
 

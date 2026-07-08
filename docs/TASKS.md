@@ -777,3 +777,33 @@ Acceptance criteria:
 - Advanced Diagnostics shows retirement time and `Restore Card`
 - Restore removes only the retirement control and preserves review history
 - Suspension, deferral, Markdown, and scheduler history have clear non-overlapping semantics
+
+## Task 050: Card Deletion, Tombstones, and History Erasure
+
+Goal:
+
+Delete Card content without silently destroying statistical history or allowing immutable identity reuse.
+
+Requirements:
+
+- Require a valid explicit Card ID and a complete CARD wrapper
+- Show a destructive confirmation before changing Markdown
+- Re-read the latest Card.md and verify expected Front, Back, and unique ID
+- Remove only the exact selected CARD block
+- Roll back Markdown if state persistence fails
+- Clear active FSRS, deferral, suspension, and retirement state
+- Record a content-free tombstone with deletion time and historical counts
+- Preserve content-free review events by default
+- Reject review or ID repair against a tombstoned Card ID
+- Offer separately confirmed `Delete History Too` from Advanced Diagnostics
+- Clear review events and tombstone counts when global Review History is cleared
+
+Acceptance criteria:
+
+- Other Card blocks, frontmatter, headings, and user Markdown remain byte-for-byte unchanged
+- Concurrent edits and duplicate IDs stop deletion
+- Deleted Cards disappear from Concept learning state and Today’s Focus
+- Deleted IDs cannot be reused while a tombstone exists
+- Default deletion leaves no Front, Back, Rubric, or rationale in plugin data
+- `Delete History Too` removes both events and the tombstone, after which the ID may be reused
+- New generated Card IDs differ across proposal identities without exposing internal proposal IDs

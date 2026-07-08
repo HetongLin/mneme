@@ -46,13 +46,29 @@ export interface CardRetirement {
 	retiredAt: string;
 }
 
+export interface CardReviewEvent {
+	cardId: string;
+	eventId: string;
+	rating: ReviewRating;
+	reviewedAt: string;
+}
+
+export interface CardTombstone {
+	cardId: string;
+	deletedAt: string;
+	lapseCount: number;
+	reviewCount: number;
+}
+
 export interface MnemePluginData {
 	[key: string]: unknown;
 	reviewStates: Record<string, CardReviewState>;
 	reviewDeferrals: Record<string, ReviewDeferral>;
 	pausedConcepts: Record<string, ConceptReviewPause>;
+	reviewEvents: Record<string, CardReviewEvent>;
 	retiredCards: Record<string, CardRetirement>;
 	suspendedCards: Record<string, CardReviewSuspension>;
+	cardTombstones: Record<string, CardTombstone>;
 	schemaVersion: number;
 	settings: MnemeSettings;
 	sourceAnalysisRecords: Record<string, SourceAnalysisRecord>;
