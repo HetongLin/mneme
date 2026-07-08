@@ -1,4 +1,5 @@
 import type { AiProposalRequest } from "./aiProvider";
+import { AI_CARD_GENERATION_MAX_PROPOSALS } from "./aiProposalSchema";
 
 export interface OpenAiCompatibleProviderConfig {
 	baseUrl: string;
@@ -46,7 +47,8 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 	const systemPrompt = input.mode === "card_generation"
 		? [
 			"Return one JSON object with schemaVersion 'mneme.ai.proposals.v1', mode 'card_generation', the exact source path/hash, proposals, and string warnings.",
-			"Generate only new_card proposals from the approved written Concept. Do not propose Concepts or write Markdown.",
+			"Generate at most five non-duplicative new_card proposals from the approved written Concept. Do not propose Concepts or write Markdown.",
+			"Every Card must test one independently rateable outcome and include at least one exact quote from the written Concept as grounding evidence.",
 			"Every proposal requires kind 'new_card', title, rationale, confidence from 0 to 1, evidence entries with sourcePath/quote/explanation, and payload.",
 			"The payload requires conceptId, conceptTitle, front, back, rubric, and cardType.",
 			"Use focused recall questions that test understanding, distinctions, procedures, examples, traps, proofs, applications, or mastery. Avoid trivia and duplicate questions.",
@@ -155,7 +157,7 @@ function createCardGenerationResponseJsonSchema(): Record<string, unknown> {
 		additionalProperties: false,
 		properties: {
 			mode: { const: "card_generation", type: "string" },
-			proposals: { items: cardProposal, type: "array" },
+			proposals: { items: cardProposal, maxItems: AI_CARD_GENERATION_MAX_PROPOSALS, type: "array" },
 			schemaVersion: { const: "mneme.ai.proposals.v1", type: "string" },
 			source: {
 				additionalProperties: false,

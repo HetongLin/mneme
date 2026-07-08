@@ -67,7 +67,11 @@ async function run(): Promise<void> {
 			mode: "card_generation",
 			proposals: [{
 				confidence: 0.9,
-				evidence: [],
+				evidence: [{
+					explanation: "The target test still uses valid Concept grounding.",
+					quote: "Encapsulation protects representation behind a stable interface.",
+					sourcePath: concept.conceptPath,
+				}],
 				kind: "new_concept",
 				payload: {},
 				rationale: "Invalid in card generation.",
@@ -91,7 +95,11 @@ async function run(): Promise<void> {
 			mode: "card_generation",
 			proposals: [{
 				confidence: 0.9,
-				evidence: [],
+				evidence: [{
+					explanation: "The target test still uses valid Concept grounding.",
+					quote: "Encapsulation protects representation behind a stable interface.",
+					sourcePath: concept.conceptPath,
+				}],
 				kind: "new_card",
 				payload: {
 					back: "Wrong target.",
@@ -114,6 +122,102 @@ async function run(): Promise<void> {
 		assert.equal(result.message, "AI Card proposals do not match the current Concept.");
 		assert.deepEqual(await fixture.proposalStore.listProposals(), []);
 	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		const conceptHash = await computeContentHash(concept.markdown);
+		fixture.provider.response = {
+			mode: "card_generation",
+			proposals: Array.from({ length: 6 }, (_, index) => createCardProposal(index)),
+			schemaVersion: "mneme.ai.proposals.v1",
+			source: { hash: conceptHash, path: concept.conceptPath },
+			warnings: [],
+		};
+		const result = await fixture.service.generate(concept);
+
+		assert.equal(result.status, "invalid_response");
+		assert.equal(result.message, "Card generation must return at most 5 proposals.");
+		assert.deepEqual(await fixture.proposalStore.listProposals(), []);
+	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		const conceptHash = await computeContentHash(concept.markdown);
+		const proposal = createCardProposal(0);
+		proposal.evidence[0]!.quote = "This quote is not in the approved Concept.";
+		fixture.provider.response = {
+			mode: "card_generation",
+			proposals: [proposal],
+			schemaVersion: "mneme.ai.proposals.v1",
+			source: { hash: conceptHash, path: concept.conceptPath },
+			warnings: [],
+		};
+		const result = await fixture.service.generate(concept);
+
+		assert.equal(result.status, "invalid_response");
+		assert.equal(result.message, "Every Card proposal must quote grounding from the current approved Concept.");
+		assert.deepEqual(await fixture.proposalStore.listProposals(), []);
+	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		const conceptHash = await computeContentHash(concept.markdown);
+		const proposal = createCardProposal(0);
+		proposal.evidence = [];
+		fixture.provider.response = {
+			mode: "card_generation",
+			proposals: [proposal],
+			schemaVersion: "mneme.ai.proposals.v1",
+			source: { hash: conceptHash, path: concept.conceptPath },
+			warnings: [],
+		};
+		const result = await fixture.service.generate(concept);
+
+		assert.equal(result.status, "invalid_response");
+		assert.equal(result.message, "proposals.0.evidence must identify approved Concept grounding.");
+		assert.deepEqual(await fixture.proposalStore.listProposals(), []);
+	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		const conceptHash = await computeContentHash(concept.markdown);
+		const proposal = createCardProposal(0);
+		proposal.evidence[0]!.sourcePath = "Mneme/Concepts/Other/Concept.md";
+		fixture.provider.response = {
+			mode: "card_generation",
+			proposals: [proposal],
+			schemaVersion: "mneme.ai.proposals.v1",
+			source: { hash: conceptHash, path: concept.conceptPath },
+			warnings: [],
+		};
+		const result = await fixture.service.generate(concept);
+
+		assert.equal(result.status, "invalid_response");
+		assert.equal(result.message, "Every Card proposal must quote grounding from the current approved Concept.");
+		assert.deepEqual(await fixture.proposalStore.listProposals(), []);
+	}
+}
+
+function createCardProposal(index: number) {
+	return {
+		confidence: 0.9,
+		evidence: [{
+			explanation: "Grounded in the approved Core Meaning.",
+			quote: "Encapsulation protects representation behind a stable interface.",
+			sourcePath: concept.conceptPath,
+		}],
+		kind: "new_card" as const,
+		payload: {
+			back: "It protects representation behind a stable interface.",
+			cardType: "definition" as const,
+			conceptId: concept.conceptId,
+			conceptTitle: concept.conceptTitle,
+			front: `What is encapsulation? (${index + 1})`,
+			rubric: "Mentions protected representation and a stable interface.",
+		},
+		rationale: "Tests the approved Core Meaning.",
+		title: `Encapsulation Card ${index + 1}`,
+	};
 }
 
 function createFixture(settingsOverrides: Partial<typeof DEFAULT_SETTINGS>) {

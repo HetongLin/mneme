@@ -89,6 +89,20 @@ export class AiCardGenerationService {
 				return this.result("invalid_response", "AI response source does not match the written Concept.");
 			}
 
+			const hasInvalidGrounding = validation.data.proposals.some((proposal) => (
+				proposal.evidence.some((evidence) => (
+					evidence.sourcePath !== input.conceptPath
+						|| !input.markdown.includes(evidence.quote)
+				))
+			));
+
+			if (hasInvalidGrounding) {
+				return this.result(
+					"invalid_response",
+					"Every Card proposal must quote grounding from the current approved Concept.",
+				);
+			}
+
 			const proposals = normalizeAiStructuredProposalResponse(validation.data, {
 				now: this.options.timestampProvider?.() ?? new Date().toISOString(),
 			});

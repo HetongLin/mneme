@@ -1,6 +1,7 @@
 export const AI_PROPOSAL_SCHEMA_VERSION = "mneme.ai.proposals.v1" as const;
 export const AI_PROPOSAL_MODE_CONCEPT_CAPTURE = "concept_capture" as const;
 export const AI_PROPOSAL_MODE_CARD_GENERATION = "card_generation" as const;
+export const AI_CARD_GENERATION_MAX_PROPOSALS = 5;
 
 export const AI_CONCEPT_CAPTURE_KINDS = [
 	"new_concept",

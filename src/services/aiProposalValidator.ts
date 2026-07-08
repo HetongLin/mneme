@@ -1,4 +1,5 @@
 import {
+	AI_CARD_GENERATION_MAX_PROPOSALS,
 	AI_CARD_STAGE_KINDS,
 	AI_CARD_GENERATION_KINDS,
 	AI_CONCEPT_CAPTURE_KINDS,
@@ -39,6 +40,9 @@ export function validateAiStructuredProposalResponse(raw: unknown): AiProposalVa
 	if (!Array.isArray(raw.proposals)) {
 		errors.push("proposals must be an array.");
 	} else {
+		if (mode === AI_PROPOSAL_MODE_CARD_GENERATION && raw.proposals.length > AI_CARD_GENERATION_MAX_PROPOSALS) {
+			errors.push(`Card generation must return at most ${AI_CARD_GENERATION_MAX_PROPOSALS} proposals.`);
+		}
 		raw.proposals.forEach((proposal, index) => validateProposal(proposal, index, mode, errors));
 	}
 
@@ -89,6 +93,9 @@ function validateProposal(
 	requireNonEmptyString(value.rationale, `${path}.rationale`, errors);
 	validateConfidence(value.confidence, `${path}.confidence`, errors);
 	validateEvidenceArray(value.evidence, `${path}.evidence`, errors);
+	if (mode === AI_PROPOSAL_MODE_CARD_GENERATION && Array.isArray(value.evidence) && value.evidence.length === 0) {
+		errors.push(`${path}.evidence must identify approved Concept grounding.`);
+	}
 
 	const payload = getRecord(value, "payload", errors, `${path}.payload`);
 	if (!payload) {
