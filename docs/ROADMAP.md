@@ -175,6 +175,7 @@ Current progress:
 - Confirmed merges preserve Card IDs/FSRS history, migrate provenance and aggregate controls, leave Redirect Notes, and reserve merged Concept IDs.
 - Concept Library surfaces retained stale Source provenance and offers a reviewed Guided Relink.
 - Guided Relink preserves relation/evidence, updates readable Source Notes and indexes transactionally, and does not count as AI analysis.
+- Reviewed Removal lets the student permanently discard one stale relationship, while preserving readable/index associations still used by other relations.
 
 ## v1.0: Stable Concept Review Plugin
 

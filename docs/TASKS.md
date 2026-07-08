@@ -904,3 +904,29 @@ Acceptance criteria:
 - Concept.md remains a readable note with no machine provenance fields added
 - Concurrent edits abort without partial writes
 - Persistence failure restores both Markdown and plugin data
+
+## Task 054: Reviewed Stale Provenance Removal
+
+Goal:
+
+Let a student explicitly discard a stale approved relationship when no replacement Source exists.
+
+Requirements:
+
+- Start only from a retained `stale` relationship in Concept Library
+- Build a zero-write Concept.md Before/After preview
+- Show the relation and retained evidence being permanently removed
+- Require an explicit reviewed confirmation
+- Remove only the selected Concept-source record
+- Remove the readable Source entry only when no other relationship uses that Concept and Source pair
+- Remove the Concept association from the Source analysis index only when no relationship remains
+- Verify Concept identity, Markdown, and plugin state after preview
+- Roll back Markdown and plugin data after a persistence failure
+
+Acceptance criteria:
+
+- No removal occurs before confirmation
+- Other relationships to the same Source preserve the readable note and index association
+- Unrelated links and Source entries remain untouched
+- Concurrent edits abort without partial writes
+- Persistence failure restores Markdown and plugin data

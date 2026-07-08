@@ -11,11 +11,13 @@ import { ConceptEditModal } from "../modals/conceptEditModal";
 import { ConceptIdRepairModal } from "../modals/conceptIdRepairModal";
 import { ConceptMergeModal } from "../modals/conceptMergeModal";
 import { SourceProvenanceRelinkModal } from "../modals/sourceProvenanceRelinkModal";
+import { SourceProvenanceRemovalModal } from "../modals/sourceProvenanceRemovalModal";
 import { createConceptPreview } from "../services/conceptMarkdownParser";
 import { ConceptScanner } from "../services/conceptScanner";
 import { ReviewStateStore } from "../services/reviewStateStore";
 import type { ConceptMergeService } from "../services/conceptMergeService";
 import type { SourceProvenanceRelinkService } from "../services/sourceProvenanceRelinkService";
+import type { SourceProvenanceRemovalService } from "../services/sourceProvenanceRemovalService";
 import {
 	canGenerateCardsFromConcept,
 	filterConceptSummaries,
@@ -27,6 +29,7 @@ export const CONCEPT_LIBRARY_VIEW_TYPE = "mneme-concept-library-view";
 export interface ConceptLibraryActions {
 	conceptMergeService?: ConceptMergeService;
 	sourceRelinkService?: SourceProvenanceRelinkService;
+	sourceRemovalService?: SourceProvenanceRemovalService;
 	generateCards?(concept: ConceptSummary): Promise<void> | void;
 }
 
@@ -139,6 +142,20 @@ export class MnemeConceptLibraryView extends ItemView {
 								await this.refresh();
 							},
 							service: this.actions.sourceRelinkService!,
+						}).open();
+					});
+				});
+			}
+			if (this.actions.sourceRemovalService) {
+				actionsEl.createEl("button", { text: "Remove Provenance" }, (buttonEl) => {
+					buttonEl.addEventListener("click", () => {
+						new SourceProvenanceRemovalModal(this.app, {
+							issue,
+							onRemoved: async () => {
+								await this.reviewStateStore.load();
+								await this.refresh();
+							},
+							service: this.actions.sourceRemovalService!,
 						}).open();
 					});
 				});

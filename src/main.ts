@@ -35,6 +35,7 @@ import { ReviewStateStore } from "./services/reviewStateStore";
 import { SourceAnalysisService } from "./services/sourceAnalysisService";
 import { SourceAnalysisStore } from "./services/sourceAnalysisStore";
 import { SourceProvenanceRelinkService } from "./services/sourceProvenanceRelinkService";
+import { SourceProvenanceRemovalService } from "./services/sourceProvenanceRemovalService";
 import { VaultStateReconciler } from "./services/vaultStateReconciler";
 import { buildCardPath, buildConceptPath } from "./utils/markdownPath";
 import { CONCEPT_LIBRARY_VIEW_TYPE, MnemeConceptLibraryView } from "./views/conceptLibraryView";
@@ -99,6 +100,10 @@ export default class MnemePlugin extends Plugin {
 					this,
 				),
 				sourceRelinkService: new SourceProvenanceRelinkService(
+					new ObsidianVaultAdapter(this.app.vault),
+					this,
+				),
+				sourceRemovalService: new SourceProvenanceRemovalService(
 					new ObsidianVaultAdapter(this.app.vault),
 					this,
 				),

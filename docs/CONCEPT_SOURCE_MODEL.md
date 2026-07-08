@@ -115,6 +115,8 @@ Inbox Refresh and `Mneme: Resync Mneme Index` reconcile plugin data with the cur
 
 Concept Library presents each retained stale relationship as a repair item. Guided Relink requires a replacement Markdown path, verifies the Concept's stable identity, and previews the final readable Concept.md before confirmation. It preserves approved relation/evidence history, updates Source path/hash/last-seen metadata, and migrates Source analysis indexes transactionally. It only rewrites exact links inside `## Source Notes`; unrelated links elsewhere in the Concept remain unchanged. If that readable entry is absent, Mneme appends the replacement through the normal Source Notes renderer. Relink is a provenance repair, not an AI capture event.
 
+Reviewed Removal is the explicit alternative when the relationship should no longer exist. It previews the readable note change and retained evidence before confirmation. Removing one relation does not remove the shared readable Source entry or Source-analysis association while another relation still connects the same Concept and Source.
+
 ## Concept-First Capture
 
 Source Note analysis is Concept-first. It may suggest new Concepts, links to existing Concepts, merges, updates, or additional views, but it must not create Card proposals in the same initial step.

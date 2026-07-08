@@ -138,6 +138,8 @@ Guided Merge first asks which Concept survives and whether to preserve the other
 
 Stale Source Provenance is a review queue for approved relationships whose Source file is missing. Each item shows the Concept, last known Source path, relation, and evidence count. `Relink Source` asks for the replacement Markdown path, then previews the Concept.md Before/After and preserved provenance. Only `Confirm Relink`, enabled after the student checks the review acknowledgement, writes. A changed Concept, replacement Source, or plugin state invalidates the preview.
 
+`Remove Provenance` is a destructive but scoped alternative. Its preview shows the exact relation/evidence and Concept.md Before/After, explains when a readable Source entry must remain for another relation, and requires a separate acknowledgement before `Confirm Removal` is enabled.
+
 ## Inbox View
 
 ### Purpose

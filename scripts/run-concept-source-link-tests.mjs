@@ -6,7 +6,9 @@ const tests = [
 	"tests/conceptSourceLinkStore.test.ts",
 	"tests/conceptSourceLinking.test.ts",
 	"tests/conceptSourceRelinker.test.ts",
+	"tests/conceptSourceRemover.test.ts",
 	"tests/sourceProvenanceRelinkService.test.ts",
+	"tests/sourceProvenanceRemovalService.test.ts",
 ];
 
 for (const test of tests) {
