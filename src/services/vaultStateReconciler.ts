@@ -21,6 +21,7 @@ export interface VaultStateReconciliationResult {
 	removedConceptSourceLinkIds: string[];
 	removedProposalIds: string[];
 	removedSourcePaths: string[];
+	staleConceptSourceLinkIds: string[];
 }
 
 export interface VaultStateReconcilerOptions {
@@ -42,15 +43,17 @@ export class VaultStateReconciler {
 		const removedCount = proposalResult.removedProposalIds.length
 			+ sourceResult.removedSourcePaths.length
 			+ linkResult.removedConceptSourceLinkIds.length;
+		const reconciledCount = removedCount + linkResult.staleConceptSourceLinkIds.length;
 
 		return {
-			message: removedCount > 0
-				? `Removed ${removedCount} stale index items.`
+			message: reconciledCount > 0
+				? `Reconciled ${reconciledCount} stale index items.`
 				: "Mneme indexes already match the current vault state.",
 			missingConceptIds: linkResult.missingConceptIds,
 			removedConceptSourceLinkIds: linkResult.removedConceptSourceLinkIds,
 			removedProposalIds: proposalResult.removedProposalIds,
 			removedSourcePaths: sourceResult.removedSourcePaths,
+			staleConceptSourceLinkIds: linkResult.staleConceptSourceLinkIds,
 		};
 	}
 
@@ -110,20 +113,28 @@ export class VaultStateReconciler {
 	private async reconcileConceptSourceLinks(): Promise<{
 		missingConceptIds: string[];
 		removedConceptSourceLinkIds: string[];
+		staleConceptSourceLinkIds: string[];
 	}> {
 		const links = await this.options.conceptSourceLinkStore.loadLinks();
 		const concepts = await this.scanConceptsSafely();
 		const knownConceptIds = concepts ? new Set(concepts.map((concept) => concept.conceptId)) : undefined;
 		const activeLinks: Record<string, ConceptSourceLink> = {};
 		const removedConceptSourceLinkIds: string[] = [];
+		const staleConceptSourceLinkIds: string[] = [];
 		const missingConceptIds = new Set<string>();
 
 		for (const [id, link] of Object.entries(links)) {
 			const sourceExists = await this.options.vault.exists(link.sourcePath);
 			const conceptExists = !knownConceptIds || knownConceptIds.has(link.conceptId);
 
-			if (sourceExists && conceptExists) {
+			if (conceptExists && (sourceExists || link.status === "stale")) {
 				activeLinks[id] = link;
+				continue;
+			}
+
+			if (conceptExists && link.status === "approved") {
+				activeLinks[id] = { ...link, status: "stale" };
+				staleConceptSourceLinkIds.push(id);
 				continue;
 			}
 
@@ -134,13 +145,14 @@ export class VaultStateReconciler {
 			}
 		}
 
-		if (removedConceptSourceLinkIds.length > 0) {
+		if (removedConceptSourceLinkIds.length > 0 || staleConceptSourceLinkIds.length > 0) {
 			await this.options.conceptSourceLinkStore.replaceLinks(activeLinks);
 		}
 
 		return {
 			missingConceptIds: [...missingConceptIds],
 			removedConceptSourceLinkIds,
+			staleConceptSourceLinkIds,
 		};
 	}
 

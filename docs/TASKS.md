@@ -652,3 +652,25 @@ Acceptance criteria:
 - Empty evidence produces an invalid response
 - Evidence from another path or text absent from the approved Concept produces an invalid response
 - Valid grounded proposals retain the existing Inbox approval flow
+
+## Task 045: Preserve Stale Source Provenance
+
+Goal:
+
+Keep approved Concept origins intact when a Source Note disappears.
+
+Requirements:
+
+- Mark approved Concept-source links `stale` when their Source path is missing
+- Preserve relation type, Source hash, evidence, timestamps, and Concept association
+- Keep stale links idempotently on later Resync runs
+- Continue pruning unactioned proposals, transient Source analysis records, and links whose Concept no longer exists
+- Report marked-stale links separately from removed index items
+
+Acceptance criteria:
+
+- Deleting a Source does not erase approved provenance
+- A second Resync does not rewrite or remove an already-stale link
+- Missing Concepts still remove orphaned links and remain diagnostic
+- Resync notices distinguish reconciliation from deletion
+- Unrelated settings and review state remain unchanged

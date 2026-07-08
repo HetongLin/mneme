@@ -161,14 +161,22 @@ async function runAsyncTests(): Promise<void> {
 		}]).reconcile();
 		const links = storage.savedData?.conceptSourceLinks ?? {};
 
-		assert.deepEqual(result.removedConceptSourceLinkIds.sort(), [
-			"missing-concept-link",
-			"missing-source-link",
-		]);
+		assert.deepEqual(result.removedConceptSourceLinkIds, ["missing-concept-link"]);
+		assert.deepEqual(result.staleConceptSourceLinkIds, ["missing-source-link"]);
 		assert.deepEqual(result.missingConceptIds, ["concept-missing"]);
 		assert.equal(typeof links["valid-link"], "object");
-		assert.equal(links["missing-source-link"], undefined);
+		assert.equal(links["missing-source-link"]?.status, "stale");
+		assert.equal(links["missing-source-link"]?.sourceHash, "source-hash");
 		assert.equal(links["missing-concept-link"], undefined);
+
+		const second = await createReconciler(storage, vault, [{
+			conceptId: "concept-existing",
+			path: "Mneme/Concepts/Existing/Concept.md",
+			title: "Existing",
+		}]).reconcile();
+
+		assert.deepEqual(second.staleConceptSourceLinkIds, []);
+		assert.equal(storage.savedData?.conceptSourceLinks["missing-source-link"]?.status, "stale");
 	}
 
 	{
@@ -208,6 +216,7 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(result.removedProposalIds.length, 1);
 		assert.equal(result.removedSourcePaths.length, 1);
 		assert.equal(result.removedConceptSourceLinkIds.length, 1);
+		assert.equal(result.staleConceptSourceLinkIds.length, 0);
 		assert.equal(storage.savedData?.settings.fsrsRequestRetention, 0.85);
 		assert.equal(typeof storage.savedData?.reviewStates["encapsulation-basic"], "object");
 		assert.deepEqual(vault.deletedFiles, []);

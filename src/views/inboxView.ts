@@ -72,15 +72,15 @@ export class MnemeInboxView extends ItemView {
 			const reconciliationResult = await this.vaultStateReconciler?.reconcile();
 			this.proposals = await this.proposalStore.listProposals();
 			const activeCount = filterActiveInboxProposals(this.proposals).length;
-			const removedCount = countRemovedItems(reconciliationResult);
+			const reconciledCount = countReconciledItems(reconciliationResult);
 
-			this.statusMessage = removedCount > 0
-				? `${activeCount} items ready for review. Cleaned ${removedCount} stale items.`
+			this.statusMessage = reconciledCount > 0
+				? `${activeCount} items ready for review. Reconciled ${reconciledCount} stale items.`
 				: `${activeCount} items ready for review.`;
 
 			if (options.showNotice) {
-				new Notice(removedCount > 0
-					? `Mneme: Inbox refreshed. Cleaned ${removedCount} stale items.`
+				new Notice(reconciledCount > 0
+					? `Mneme: Inbox refreshed. Reconciled ${reconciledCount} stale items.`
 					: "Mneme: Inbox refreshed.");
 			}
 		} catch (error) {
@@ -349,7 +349,7 @@ function hasSourceLinkData(proposal: KnowledgeProposal): boolean {
 		|| (Array.isArray(proposedSourceLinks) && proposedSourceLinks.length > 0);
 }
 
-function countRemovedItems(
+function countReconciledItems(
 	result: Awaited<ReturnType<VaultStateReconciler["reconcile"]>> | undefined,
 ): number {
 	if (!result) {
@@ -358,7 +358,8 @@ function countRemovedItems(
 
 	return result.removedProposalIds.length
 		+ result.removedSourcePaths.length
-		+ result.removedConceptSourceLinkIds.length;
+		+ result.removedConceptSourceLinkIds.length
+		+ result.staleConceptSourceLinkIds.length;
 }
 
 function sortProposals(proposals: KnowledgeProposal[]): KnowledgeProposal[] {

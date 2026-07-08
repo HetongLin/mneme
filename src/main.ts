@@ -438,12 +438,8 @@ export default class MnemePlugin extends Plugin {
 	private async resyncMnemeIndex(): Promise<void> {
 		try {
 			const result = await this.createVaultStateReconciler().reconcile();
-			const removedCount = result.removedProposalIds.length
-				+ result.removedSourcePaths.length
-				+ result.removedConceptSourceLinkIds.length;
-
 			console.info("Mneme: index resync result", result);
-			new Notice(`Mneme: Index resynced. Removed ${removedCount} stale items.`);
+			new Notice(`Mneme: ${result.message}`);
 			await this.refreshOpenInboxViews();
 		} catch (error) {
 			console.error("Mneme: failed to resync index", error);
