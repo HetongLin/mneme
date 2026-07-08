@@ -16,6 +16,7 @@ import {
 	extractWhyItMatters,
 	parseConceptTitle,
 } from "./conceptMarkdownParser";
+import { detectConceptDuplicates } from "./conceptDuplicateDetector";
 
 export interface ConceptVaultFile {
 	mtime?: number;
@@ -114,8 +115,10 @@ export class ConceptScanner {
 			concepts.push(summary);
 		}
 
+		const sortedConcepts = concepts.sort(compareConceptSummariesByTitle);
 		return {
-			concepts: concepts.sort(compareConceptSummariesByTitle),
+			concepts: sortedConcepts,
+			duplicateCandidates: detectConceptDuplicates(sortedConcepts),
 			identityIssues: identityIssues.sort((first, second) => first.path.localeCompare(second.path)),
 		};
 	}

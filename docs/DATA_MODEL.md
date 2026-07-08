@@ -310,6 +310,7 @@ data.json may store:
 - Concept Learning State cache
 - Exam Attempts
 - deleted Card tombstones
+- dismissed Possible Duplicate pairs (`conceptDuplicateDismissals`), keyed by an ordered stable-ID pair
 - card validity cache
 
 data.json must not store:
@@ -330,6 +331,8 @@ data.json must not store:
 Retired Cards preserve Markdown and history but are excluded from active review. Deleting a Card removes its exact Markdown block and active FSRS/control state after confirmation, then records a content-free tombstone so the Card ID cannot be reused and anonymous review history remains statistically valid. `Delete History Too` explicitly removes the tombstone and review events.
 
 Each `reviewEvents` record contains only `eventId`, stable `cardId`, `rating`, and `reviewedAt`; it stores no Card content. A `cardTombstones` record contains only `cardId`, `deletedAt`, `reviewCount`, and `lapseCount`. Existing Cards created before event logging may have aggregate counts without reconstructable per-review events. Global Clear Review History removes events and zeros tombstone counts while retaining tombstones for identity safety.
+
+Possible Duplicate candidates are derived from current Concept titles and Core Meaning text and are not persisted as knowledge. Only a student's `Not a duplicate` decision is stored, as `pairKey`, two stable Concept IDs, and `dismissedAt`. Dismissal does not create a relationship between the Concepts and may be reconsidered.
 
 ## Courses And Exam Contexts
 

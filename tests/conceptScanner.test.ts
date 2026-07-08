@@ -182,6 +182,25 @@ async function runAsyncTests(): Promise<void> {
 	}
 
 	{
+		const scanner = new ConceptScanner({
+			vault: new MemoryConceptVaultAdapter({
+				"Mneme/Concepts/A/Concept.md": {
+					frontmatter: { mneme_id: "concept-a", mneme_type: "concept" },
+					markdown: "# Information Gain\n\n## Core Meaning\n\nEntropy reduction after a split.",
+				},
+				"Mneme/Concepts/B/Concept.md": {
+					frontmatter: { mneme_id: "concept-b", mneme_type: "concept" },
+					markdown: "# information-gain\n\n## Core Meaning\n\nAnother explanation.",
+				},
+			}),
+		});
+		const result = await scanner.scan();
+
+		assert.equal(result.duplicateCandidates.length, 1);
+		assert.equal(result.duplicateCandidates[0]?.pairKey, '["concept-a","concept-b"]');
+	}
+
+	{
 		const files: Record<string, {
 			frontmatter?: unknown;
 			markdown: string;

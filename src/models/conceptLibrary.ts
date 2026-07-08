@@ -28,7 +28,16 @@ export interface ConceptIdentityIssue {
 
 export interface ConceptScanResult {
 	concepts: ConceptSummary[];
+	duplicateCandidates: ConceptDuplicateCandidate[];
 	identityIssues: ConceptIdentityIssue[];
+}
+
+export interface ConceptDuplicateCandidate {
+	first: ConceptSummary;
+	pairKey: string;
+	reasons: string[];
+	score: number;
+	second: ConceptSummary;
 }
 
 export interface ConceptLibraryFilter {

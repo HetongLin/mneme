@@ -807,3 +807,32 @@ Acceptance criteria:
 - Default deletion leaves no Front, Back, Rubric, or rationale in plugin data
 - `Delete History Too` removes both events and the tombstone, after which the ID may be reused
 - New generated Card IDs differ across proposal identities without exposing internal proposal IDs
+
+## Task 051: Explainable Possible Duplicate Detection
+
+Goal:
+
+Surface likely duplicate Concepts for student review without treating similarity as permission to merge knowledge.
+
+Requirements:
+
+- Compare only valid Concepts with unique stable IDs
+- Use deterministic normalized title and Core Meaning signals
+- Support word-token and CJK bigram comparison
+- Keep thresholds conservative and report the exact triggering reasons
+- Precompute text fingerprints once per scan
+- Emit each unordered Concept pair at most once
+- Sort stronger candidates first with deterministic tie-breaking
+- Show both Core Meanings and direct links in Concept Library
+- Persist `Not a duplicate` decisions by stable pair identity
+- Allow dismissed pairs to be shown and reconsidered
+- Do not modify Concept Markdown, source links, Cards, or learning state
+
+Acceptance criteria:
+
+- Same normalized titles are surfaced
+- Highly overlapping Core Meanings can be surfaced despite different titles
+- Merely related Concepts with weak overlap are not surfaced
+- Pair keys cannot collide when IDs contain delimiters
+- Refresh preserves dismissal decisions
+- The UI explicitly states that a reviewed Guided Merge is still required

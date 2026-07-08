@@ -2,6 +2,7 @@ import { ItemView, MarkdownView, Notice, TFile, WorkspaceLeaf } from "obsidian";
 import type {
 	ConceptLibraryFilter,
 	ConceptLibrarySortMode,
+	ConceptDuplicateCandidate,
 	ConceptIdentityIssue,
 	ConceptSummary,
 } from "../models/conceptLibrary";
@@ -24,6 +25,7 @@ export interface ConceptLibraryActions {
 
 export class MnemeConceptLibraryView extends ItemView {
 	private concepts: ConceptSummary[] = [];
+	private duplicateCandidates: ConceptDuplicateCandidate[] = [];
 	private identityIssues: ConceptIdentityIssue[] = [];
 	private filter: ConceptLibraryFilter = {
 		importance: "all",
@@ -32,6 +34,7 @@ export class MnemeConceptLibraryView extends ItemView {
 	};
 	private sortMode: ConceptLibrarySortMode = "title";
 	private statusMessage = "Loading Concepts...";
+	private showDismissedDuplicates = false;
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -67,11 +70,13 @@ export class MnemeConceptLibraryView extends ItemView {
 		try {
 			const result = await this.scanner.scan();
 			this.concepts = result.concepts;
+			this.duplicateCandidates = result.duplicateCandidates;
 			this.identityIssues = result.identityIssues;
-			this.statusMessage = `${this.concepts.length} concepts found. ${this.identityIssues.length} identity issue(s).`;
+			this.statusMessage = `${this.concepts.length} concepts found. ${this.identityIssues.length} identity issue(s). ${this.getActiveDuplicateCandidates().length} possible duplicate(s).`;
 		} catch (error) {
 			console.error("Mneme: failed to scan Concept Library", error);
 			this.concepts = [];
+			this.duplicateCandidates = [];
 			this.identityIssues = [];
 			this.statusMessage = "Failed to scan Concept Library. See console for details.";
 		}
@@ -88,7 +93,103 @@ export class MnemeConceptLibraryView extends ItemView {
 		this.renderControls();
 		this.renderStatus();
 		this.renderIdentityIssues();
+		this.renderDuplicateCandidates();
 		this.renderConceptList();
+	}
+
+	private renderDuplicateCandidates(): void {
+		const dismissals = this.reviewStateStore.getConceptDuplicateDismissals();
+		const active = this.duplicateCandidates.filter((candidate) => !dismissals[candidate.pairKey]);
+		const dismissed = this.duplicateCandidates.filter((candidate) => !!dismissals[candidate.pairKey]);
+		if (active.length === 0 && dismissed.length === 0) {
+			return;
+		}
+
+		const sectionEl = this.contentEl.createDiv({ cls: "mneme-review-queue" });
+		sectionEl.createEl("h3", { text: "Possible Duplicates" });
+		sectionEl.createEl("p", {
+			cls: "mneme-review-status",
+			text: "Candidates are diagnostic only. Mneme will not merge Concepts without a reviewed Guided Merge.",
+		});
+		for (const candidate of active) {
+			this.renderDuplicateCandidate(sectionEl, candidate, false);
+		}
+
+		if (dismissed.length > 0) {
+			sectionEl.createEl("button", {
+				text: this.showDismissedDuplicates
+					? "Hide dismissed"
+					: `Show dismissed (${dismissed.length})`,
+			}, (buttonEl) => {
+				buttonEl.addEventListener("click", () => {
+					this.showDismissedDuplicates = !this.showDismissedDuplicates;
+					this.render();
+				});
+			});
+			if (this.showDismissedDuplicates) {
+				for (const candidate of dismissed) {
+					this.renderDuplicateCandidate(sectionEl, candidate, true);
+				}
+			}
+		}
+	}
+
+	private renderDuplicateCandidate(
+		parentEl: HTMLElement,
+		candidate: ConceptDuplicateCandidate,
+		dismissed: boolean,
+	): void {
+		const itemEl = parentEl.createDiv({ cls: "mneme-review-queue-item mneme-concept-library-item" });
+		const mainEl = itemEl.createDiv({ cls: "mneme-review-queue-main" });
+		const textEl = mainEl.createDiv();
+		textEl.createEl("h3", { text: `${candidate.first.title} ↔ ${candidate.second.title}` });
+		textEl.createEl("p", {
+			cls: "mneme-review-status",
+			text: candidate.reasons.join(" · "),
+		});
+		textEl.createEl("p", { text: `${candidate.first.title}: ${formatDuplicateCore(candidate.first.coreMeaning)}` });
+		textEl.createEl("p", { text: `${candidate.second.title}: ${formatDuplicateCore(candidate.second.coreMeaning)}` });
+		const actionsEl = mainEl.createDiv({ cls: "mneme-review-actions" });
+		actionsEl.createEl("button", { text: `Open ${candidate.first.title}` }, (buttonEl) => {
+			buttonEl.addEventListener("click", () => void this.openMarkdownPath(candidate.first.path, "Concept"));
+		});
+		actionsEl.createEl("button", { text: `Open ${candidate.second.title}` }, (buttonEl) => {
+			buttonEl.addEventListener("click", () => void this.openMarkdownPath(candidate.second.path, "Concept"));
+		});
+		actionsEl.createEl("button", { text: dismissed ? "Reconsider" : "Not a duplicate" }, (buttonEl) => {
+			buttonEl.addEventListener("click", () => {
+				void this.setDuplicateDismissal(candidate, dismissed);
+			});
+		});
+	}
+
+	private async setDuplicateDismissal(
+		candidate: ConceptDuplicateCandidate,
+		currentlyDismissed: boolean,
+	): Promise<void> {
+		try {
+			if (currentlyDismissed) {
+				await this.reviewStateStore.reconsiderConceptDuplicate(candidate.pairKey);
+			} else {
+				await this.reviewStateStore.dismissConceptDuplicate(
+					candidate.first.conceptId,
+					candidate.second.conceptId,
+				);
+			}
+			this.statusMessage = currentlyDismissed
+				? "Possible duplicate restored for review."
+				: "Pair marked as not duplicate.";
+			this.render();
+		} catch (error) {
+			console.error("Mneme: failed to update duplicate dismissal", error);
+			new Notice("Mneme: duplicate decision could not be saved.");
+		}
+	}
+
+	private getActiveDuplicateCandidates(): ConceptDuplicateCandidate[] {
+		const dismissals = this.reviewStateStore.getConceptDuplicateDismissals();
+
+		return this.duplicateCandidates.filter((candidate) => !dismissals[candidate.pairKey]);
 	}
 
 	private renderIdentityIssues(): void {
@@ -387,4 +488,13 @@ function formatCount(count: number | undefined, noun: string): string {
 
 function formatLabel(value: string): string {
 	return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function formatDuplicateCore(value: string | undefined): string {
+	if (!value) {
+		return "No Core Meaning.";
+	}
+	const normalized = value.replace(/\s+/g, " ").trim();
+
+	return normalized.length <= 320 ? normalized : `${normalized.slice(0, 319).trim()}…`;
 }

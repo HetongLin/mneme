@@ -168,6 +168,9 @@ Current progress:
 - Confirmed Card deletion removes only the selected Markdown block and clears active scheduling controls.
 - Content-free review events and Card tombstones preserve statistical history and prevent ID reuse.
 - `Delete History Too` explicitly erases a deleted Card's events and tombstone; global history clearing retains identity tombstones but zeros their counts.
+- Concept Library reports conservative Possible Duplicate pairs with explainable title/Core Meaning signals.
+- `Not a duplicate` decisions persist by stable Concept pair and remain reversible.
+- Possible Duplicate detection never writes Markdown; the actual Guided Merge transaction remains unfinished.
 
 ## v1.0: Stable Concept Review Plugin
 

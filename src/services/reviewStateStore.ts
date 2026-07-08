@@ -5,6 +5,7 @@ import {
 	CardRetirement,
 	CardReviewEvent,
 	CardTombstone,
+	ConceptDuplicateDismissal,
 	ConceptReviewPause,
 	MnemePluginData,
 	ReviewDeferral,
@@ -24,6 +25,7 @@ import {
 	KnowledgeProposalKind,
 	KnowledgeProposalStatus,
 } from "../models/knowledgeProposal";
+import { createConceptDuplicatePairKey } from "./conceptDuplicateDetector";
 
 const CURRENT_SCHEMA_VERSION = 1;
 
@@ -108,6 +110,55 @@ export class ReviewStateStore {
 		}
 
 		return tombstones;
+	}
+
+	getConceptDuplicateDismissals(): Record<string, ConceptDuplicateDismissal> {
+		const dismissals: Record<string, ConceptDuplicateDismissal> = {};
+		for (const [pairKey, dismissal] of Object.entries(this.data.conceptDuplicateDismissals)) {
+			dismissals[pairKey] = { ...dismissal, conceptIds: [...dismissal.conceptIds] };
+		}
+		return dismissals;
+	}
+
+	async dismissConceptDuplicate(
+		firstConceptId: string,
+		secondConceptId: string,
+		now = new Date(),
+	): Promise<ConceptDuplicateDismissal> {
+		await this.ensureLoaded();
+		const pairKey = createConceptDuplicatePairKey(firstConceptId, secondConceptId);
+		if (!firstConceptId.trim() || !secondConceptId.trim() || firstConceptId === secondConceptId || Number.isNaN(now.getTime())) {
+			throw new Error("Duplicate dismissal requires two different Concept IDs and a valid time.");
+		}
+		const dismissal: ConceptDuplicateDismissal = {
+			conceptIds: [firstConceptId, secondConceptId].sort() as [string, string],
+			dismissedAt: now.toISOString(),
+			pairKey,
+		};
+		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+		const nextData = {
+			...latestData,
+			conceptDuplicateDismissals: {
+				...latestData.conceptDuplicateDismissals,
+				[pairKey]: dismissal,
+			},
+		};
+		await this.storage.saveData(nextData);
+		this.data = nextData;
+		this.pendingSettings = undefined;
+		return dismissal;
+	}
+
+	async reconsiderConceptDuplicate(pairKey: string): Promise<void> {
+		await this.ensureLoaded();
+		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+		const nextData = {
+			...latestData,
+			conceptDuplicateDismissals: omitKey(latestData.conceptDuplicateDismissals, pairKey),
+		};
+		await this.storage.saveData(nextData);
+		this.data = nextData;
+		this.pendingSettings = undefined;
 	}
 
 	async deleteCard(cardId: string, now = new Date()): Promise<CardTombstone> {
@@ -488,6 +539,7 @@ export class ReviewStateStore {
 export function createDefaultPluginData(): MnemePluginData {
 	return {
 		cardTombstones: {},
+		conceptDuplicateDismissals: {},
 		conceptSourceLinks: {},
 		knowledgeProposals: {},
 		pausedConcepts: {},
@@ -512,6 +564,9 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 		: {};
 	const cardTombstones = isObject(data.cardTombstones)
 		? data.cardTombstones
+		: {};
+	const conceptDuplicateDismissals = isObject(data.conceptDuplicateDismissals)
+		? data.conceptDuplicateDismissals
 		: {};
 	const reviewEvents = isObject(data.reviewEvents)
 		? data.reviewEvents
@@ -541,6 +596,7 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 	return {
 		...data,
 		cardTombstones: normalizeCardTombstones(cardTombstones),
+		conceptDuplicateDismissals: normalizeConceptDuplicateDismissals(conceptDuplicateDismissals),
 		conceptSourceLinks: normalizeConceptSourceLinks(conceptSourceLinks),
 		knowledgeProposals: normalizeKnowledgeProposals(knowledgeProposals),
 		pausedConcepts: normalizePausedConcepts(pausedConcepts),
@@ -553,6 +609,32 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 		settings: normalizeSettings(data.settings),
 		sourceAnalysisRecords: normalizeSourceAnalysisRecords(sourceAnalysisRecords),
 	};
+}
+
+function normalizeConceptDuplicateDismissals(
+	dismissals: Record<string, unknown>,
+): Record<string, ConceptDuplicateDismissal> {
+	const normalized: Record<string, ConceptDuplicateDismissal> = {};
+	for (const dismissal of Object.values(dismissals)) {
+		if (
+			isObject(dismissal)
+			&& Array.isArray(dismissal.conceptIds)
+			&& dismissal.conceptIds.length === 2
+			&& dismissal.conceptIds.every((conceptId) => typeof conceptId === "string" && conceptId.trim())
+			&& dismissal.conceptIds[0] !== dismissal.conceptIds[1]
+			&& typeof dismissal.dismissedAt === "string"
+			&& !Number.isNaN(Date.parse(dismissal.dismissedAt))
+			&& typeof dismissal.pairKey === "string"
+			&& dismissal.pairKey === createConceptDuplicatePairKey(dismissal.conceptIds[0], dismissal.conceptIds[1])
+		) {
+			normalized[dismissal.pairKey] = {
+				conceptIds: [...dismissal.conceptIds].sort() as [string, string],
+				dismissedAt: dismissal.dismissedAt,
+				pairKey: dismissal.pairKey,
+			};
+		}
+	}
+	return normalized;
 }
 
 function normalizeCardTombstones(tombstones: Record<string, unknown>): Record<string, CardTombstone> {

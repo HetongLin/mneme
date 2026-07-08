@@ -60,6 +60,12 @@ export interface CardTombstone {
 	reviewCount: number;
 }
 
+export interface ConceptDuplicateDismissal {
+	conceptIds: [string, string];
+	dismissedAt: string;
+	pairKey: string;
+}
+
 export interface MnemePluginData {
 	[key: string]: unknown;
 	reviewStates: Record<string, CardReviewState>;
@@ -69,6 +75,7 @@ export interface MnemePluginData {
 	retiredCards: Record<string, CardRetirement>;
 	suspendedCards: Record<string, CardReviewSuspension>;
 	cardTombstones: Record<string, CardTombstone>;
+	conceptDuplicateDismissals: Record<string, ConceptDuplicateDismissal>;
 	schemaVersion: number;
 	settings: MnemeSettings;
 	sourceAnalysisRecords: Record<string, SourceAnalysisRecord>;

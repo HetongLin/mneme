@@ -28,6 +28,7 @@ export function createPluginData(
 ): MnemePluginData {
 	return {
 		cardTombstones: {},
+		conceptDuplicateDismissals: {},
 		conceptSourceLinks,
 		knowledgeProposals,
 		pausedConcepts: {},

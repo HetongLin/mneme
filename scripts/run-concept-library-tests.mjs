@@ -6,6 +6,7 @@ const tests = [
 	"tests/conceptMarkdownParser.test.ts",
 	"tests/conceptScanner.test.ts",
 	"tests/conceptIdEditor.test.ts",
+	"tests/conceptDuplicateDetector.test.ts",
 	"tests/conceptLibrarySearch.test.ts",
 ];
 

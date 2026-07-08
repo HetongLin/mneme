@@ -15,6 +15,7 @@ import {
 
 	assert.equal(data.schemaVersion, 1);
 	assert.deepEqual(data.cardTombstones, {});
+	assert.deepEqual(data.conceptDuplicateDismissals, {});
 	assert.deepEqual(data.conceptSourceLinks, {});
 	assert.deepEqual(data.knowledgeProposals, {});
 	assert.deepEqual(data.pausedConcepts, {});
@@ -32,6 +33,7 @@ import {
 
 	assert.equal(data.schemaVersion, 1);
 	assert.deepEqual(data.cardTombstones, {});
+	assert.deepEqual(data.conceptDuplicateDismissals, {});
 	assert.deepEqual(data.conceptSourceLinks, {});
 	assert.deepEqual(data.knowledgeProposals, {});
 	assert.deepEqual(data.pausedConcepts, {});
@@ -70,6 +72,25 @@ import {
 }
 
 async function runAsyncTests(): Promise<void> {
+	{
+		const storage = new MemoryReviewStateStorage();
+		const store = new ReviewStateStore(storage, new FakeReviewScheduler());
+
+		await store.load();
+		const dismissal = await store.dismissConceptDuplicate(
+			"concept-b",
+			"concept-a",
+			new Date("2026-07-08T10:00:00.000Z"),
+		);
+
+		assert.equal(dismissal.pairKey, '["concept-a","concept-b"]');
+		assert.deepEqual(dismissal.conceptIds, ["concept-a", "concept-b"]);
+		assert.equal(store.getConceptDuplicateDismissals()[dismissal.pairKey]?.dismissedAt, "2026-07-08T10:00:00.000Z");
+
+		await store.reconsiderConceptDuplicate(dismissal.pairKey);
+		assert.deepEqual(store.getConceptDuplicateDismissals(), {});
+	}
+
 	{
 		const existingState = createReviewState("encapsulation-basic", 2);
 		const storage = new MemoryReviewStateStorage({
