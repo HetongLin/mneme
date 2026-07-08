@@ -1,4 +1,10 @@
-import type { ConceptImportance, ConceptLearningMode, ConceptSummary } from "../models/conceptLibrary";
+import type {
+	ConceptIdentityIssue,
+	ConceptImportance,
+	ConceptLearningMode,
+	ConceptScanResult,
+	ConceptSummary,
+} from "../models/conceptLibrary";
 import type { ConceptSourceLink } from "../models/conceptSource";
 import {
 	getCardGroupLinkFromConceptFrontmatter,
@@ -36,8 +42,19 @@ export class ConceptScanner {
 	}
 
 	async scanConcepts(): Promise<ConceptSummary[]> {
+		return (await this.scan()).concepts;
+	}
+
+	async scan(): Promise<ConceptScanResult> {
 		const files = await this.options.vault.listMarkdownFiles();
-		const concepts: ConceptSummary[] = [];
+		const candidates: Array<{
+			cardsPath?: string;
+			conceptId?: string;
+			file: ConceptVaultFile;
+			frontmatter: Record<string, unknown>;
+			markdown: string;
+			title: string;
+		}> = [];
 
 		for (const file of files) {
 			const frontmatter = await this.options.vault.getFrontmatter(file.path);
@@ -46,23 +63,50 @@ export class ConceptScanner {
 				continue;
 			}
 
-			const conceptId = getConceptIdFromFrontmatter(frontmatter);
+			const markdown = await this.options.vault.readMarkdown(file.path);
+			candidates.push({
+				cardsPath: parseCardsPath(getCardGroupLinkFromConceptFrontmatter(frontmatter)),
+				conceptId: getConceptIdFromFrontmatter(frontmatter),
+				file,
+				frontmatter,
+				markdown,
+				title: parseConceptTitle(markdown, file.path),
+			});
+		}
 
-			if (!conceptId) {
+		const idCounts = new Map<string, number>();
+		for (const candidate of candidates) {
+			if (candidate.conceptId) {
+				idCounts.set(candidate.conceptId, (idCounts.get(candidate.conceptId) ?? 0) + 1);
+			}
+		}
+
+		const concepts: ConceptSummary[] = [];
+		const identityIssues: ConceptIdentityIssue[] = [];
+		for (const candidate of candidates) {
+			const { cardsPath, conceptId, file, frontmatter, markdown, title } = candidate;
+			if (!conceptId || (idCounts.get(conceptId) ?? 0) > 1) {
+				identityIssues.push({
+					cardsPath,
+					conceptId,
+					kind: conceptId ? "duplicate_id" : "missing_id",
+					path: file.path,
+					title,
+					updatedAt: file.mtime,
+				});
 				continue;
 			}
 
-			const markdown = await this.options.vault.readMarkdown(file.path);
 			const sourceCount = await this.getSourceCount(conceptId);
 			const summary: ConceptSummary = {
-				cardsPath: parseCardsPath(getCardGroupLinkFromConceptFrontmatter(frontmatter)),
+				cardsPath,
 				conceptId,
 				coreMeaning: extractCoreMeaning(markdown),
 				importance: getImportance(frontmatter),
 				learningMode: getLearningMode(frontmatter),
 				path: file.path,
 				sourceCount,
-				title: parseConceptTitle(markdown, file.path),
+				title,
 				updatedAt: file.mtime,
 				whyItMatters: extractWhyItMatters(markdown),
 			};
@@ -70,7 +114,10 @@ export class ConceptScanner {
 			concepts.push(summary);
 		}
 
-		return concepts.sort(compareConceptSummariesByTitle);
+		return {
+			concepts: concepts.sort(compareConceptSummariesByTitle),
+			identityIssues: identityIssues.sort((first, second) => first.path.localeCompare(second.path)),
+		};
 	}
 
 	private async getSourceCount(conceptId: string): Promise<number | undefined> {

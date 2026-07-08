@@ -96,6 +96,26 @@ async function runAsyncTests(): Promise<void> {
 	}
 
 	{
+		const storage = new MemoryReviewStateStorage({
+			pausedConcepts: {
+				"concept-old": {
+					conceptId: "concept-old",
+					pausedAt: "2026-07-07T12:00:00.000Z",
+				},
+			},
+			schemaVersion: 1,
+			settings: DEFAULT_SETTINGS,
+		});
+		const store = new ReviewStateStore(storage, new FakeReviewScheduler());
+
+		await store.load();
+		await store.rekeyConcept("concept-old", "concept-new");
+
+		assert.equal(store.getPausedConcepts()["concept-old"], undefined);
+		assert.equal(store.getPausedConcepts()["concept-new"]?.conceptId, "concept-new");
+	}
+
+	{
 		const existingState = createReviewState("encapsulation-basic", 2);
 		const storage = new MemoryReviewStateStorage({
 			pausedConcepts: {},

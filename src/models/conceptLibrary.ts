@@ -15,6 +15,22 @@ export interface ConceptSummary {
 	whyItMatters?: string;
 }
 
+export type ConceptIdentityIssueKind = "missing_id" | "duplicate_id";
+
+export interface ConceptIdentityIssue {
+	cardsPath?: string;
+	conceptId?: string;
+	kind: ConceptIdentityIssueKind;
+	path: string;
+	title: string;
+	updatedAt?: number;
+}
+
+export interface ConceptScanResult {
+	concepts: ConceptSummary[];
+	identityIssues: ConceptIdentityIssue[];
+}
+
 export interface ConceptLibraryFilter {
 	importance?: "all" | ConceptImportance;
 	learningMode?: "all" | ConceptLearningMode;

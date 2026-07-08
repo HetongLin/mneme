@@ -724,3 +724,29 @@ Acceptance criteria:
 - Duplicate repair leaves the original shared state with the unchanged ID
 - Concurrent Card content or ID changes stop the write
 - Stable IDs use a validated portable character set and are never reused within the known vault
+
+## Task 048: Guided Stable Concept ID Repair
+
+Goal:
+
+Keep missing and duplicate Concept identities out of normal learning surfaces until the student repairs them safely.
+
+Requirements:
+
+- Report missing and duplicate Concept IDs instead of silently skipping or accepting them
+- Exclude every ambiguous Concept from the normal Concept Library result
+- Offer `Assign Stable ID` and `Replace Duplicate ID` in an Identity Repair section
+- Rewrite only identity frontmatter in Concept.md and its explicitly linked Card.md
+- Re-read both files and verify their current types and IDs before writing
+- Reject invalid or vault-known target IDs
+- Roll back both Markdown files if a write or unambiguous aggregate-state migration fails
+- Migrate only a uniquely attributable Concept pause; never migrate state shared by a duplicate ID
+
+Acceptance criteria:
+
+- Missing and duplicate IDs produce actionable diagnostics
+- Repair preserves headings, note content, and unrelated frontmatter
+- Concept.md and its linked Card Group finish with the same Concept ID
+- Duplicate repair leaves shared aggregate state with the unchanged original ID
+- A concurrent identity edit stops the transaction
+- Normal Concept consumers see only unique stable identities

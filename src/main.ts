@@ -80,6 +80,7 @@ export default class MnemePlugin extends Plugin {
 		this.registerView(CONCEPT_LIBRARY_VIEW_TYPE, (leaf) => new MnemeConceptLibraryView(
 			leaf,
 			this.createConceptScanner(),
+			this.reviewStateStore,
 			{
 				generateCards: (concept) => this.generateCardsFromConceptPath(concept.path),
 			},

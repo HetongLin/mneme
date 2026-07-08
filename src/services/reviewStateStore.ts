@@ -223,6 +223,32 @@ export class ReviewStateStore {
 		return pause;
 	}
 
+	async rekeyConcept(oldConceptId: string, newConceptId: string): Promise<void> {
+		await this.ensureLoaded();
+
+		if (!oldConceptId.trim() || !newConceptId.trim() || oldConceptId === newConceptId) {
+			throw new Error("Concept ID migration requires two different non-empty IDs.");
+		}
+
+		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+		if (latestData.pausedConcepts[newConceptId]) {
+			throw new Error("The new Concept ID already has review state.");
+		}
+
+		const pause = latestData.pausedConcepts[oldConceptId];
+		const nextData = {
+			...latestData,
+			pausedConcepts: {
+				...omitKey(latestData.pausedConcepts, oldConceptId),
+				...(pause ? { [newConceptId]: { ...pause, conceptId: newConceptId } } : {}),
+			},
+		};
+
+		await this.storage.saveData(nextData);
+		this.data = nextData;
+		this.pendingSettings = undefined;
+	}
+
 	async resumeConcept(conceptId: string): Promise<void> {
 		await this.ensureLoaded();
 		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));

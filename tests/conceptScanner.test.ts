@@ -121,9 +121,40 @@ async function runAsyncTests(): Promise<void> {
 				},
 			}),
 		});
-		const concepts = await scanner.scanConcepts();
+		const result = await scanner.scan();
 
-		assert.deepEqual(concepts, []);
+		assert.deepEqual(result.concepts, []);
+		assert.equal(result.identityIssues.length, 1);
+		assert.equal(result.identityIssues[0].kind, "missing_id");
+		assert.equal(result.identityIssues[0].path, "Mneme/Concepts/B/Concept.md");
+	}
+
+	{
+		const scanner = new ConceptScanner({
+			vault: new MemoryConceptVaultAdapter({
+				"Mneme/Concepts/A/Concept.md": {
+					frontmatter: {
+						cards: "[[Mneme/Cards/A/Card]]",
+						mneme_id: "concept-duplicate",
+						mneme_type: "concept",
+					},
+					markdown: "# Alpha",
+				},
+				"Mneme/Concepts/B/Concept.md": {
+					frontmatter: {
+						mneme_id: "concept-duplicate",
+						mneme_type: "concept",
+					},
+					markdown: "# Beta",
+				},
+			}),
+		});
+		const result = await scanner.scan();
+
+		assert.deepEqual(result.concepts, []);
+		assert.deepEqual(result.identityIssues.map((issue) => issue.kind), ["duplicate_id", "duplicate_id"]);
+		assert.equal(result.identityIssues[0].cardsPath, "Mneme/Cards/A/Card.md");
+		assert.equal(result.identityIssues[1].conceptId, "concept-duplicate");
 	}
 
 	{

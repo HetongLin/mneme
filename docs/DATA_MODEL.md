@@ -89,6 +89,8 @@ Stable identity principle:
 
 Card ID repair re-reads the latest Markdown and verifies the expected block content and current ID before writing. Assigning an ID to a legacy fallback Card migrates that unambiguous Card's FSRS state, Review Later deferral, and suspension atomically. Replacing one duplicate ID does not migrate the shared old-ID state because Mneme cannot prove which duplicate owned it; the unchanged duplicate retains that state and the repaired Card starts fresh.
 
+Concept ID repair follows the same ownership boundary. The Concept scanner excludes missing and duplicate IDs from normal Concept results and reports them as repair diagnostics. A guided repair updates Concept.md together with its explicitly linked Card Group. A missing-ID repair may re-key a uniquely attributable Concept pause; duplicate-ID repair leaves shared aggregate state on the unchanged original identity.
+
 ## File Layout
 
 Recommended vault layout:

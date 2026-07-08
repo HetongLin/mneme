@@ -5,6 +5,7 @@ import path from "node:path";
 const tests = [
 	"tests/conceptMarkdownParser.test.ts",
 	"tests/conceptScanner.test.ts",
+	"tests/conceptIdEditor.test.ts",
 	"tests/conceptLibrarySearch.test.ts",
 ];
 

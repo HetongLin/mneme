@@ -2,11 +2,14 @@ import { ItemView, MarkdownView, Notice, TFile, WorkspaceLeaf } from "obsidian";
 import type {
 	ConceptLibraryFilter,
 	ConceptLibrarySortMode,
+	ConceptIdentityIssue,
 	ConceptSummary,
 } from "../models/conceptLibrary";
 import { ConceptEditModal } from "../modals/conceptEditModal";
+import { ConceptIdRepairModal } from "../modals/conceptIdRepairModal";
 import { createConceptPreview } from "../services/conceptMarkdownParser";
 import { ConceptScanner } from "../services/conceptScanner";
+import { ReviewStateStore } from "../services/reviewStateStore";
 import {
 	canGenerateCardsFromConcept,
 	filterConceptSummaries,
@@ -21,6 +24,7 @@ export interface ConceptLibraryActions {
 
 export class MnemeConceptLibraryView extends ItemView {
 	private concepts: ConceptSummary[] = [];
+	private identityIssues: ConceptIdentityIssue[] = [];
 	private filter: ConceptLibraryFilter = {
 		importance: "all",
 		learningMode: "all",
@@ -32,6 +36,7 @@ export class MnemeConceptLibraryView extends ItemView {
 	constructor(
 		leaf: WorkspaceLeaf,
 		private readonly scanner: ConceptScanner,
+		private readonly reviewStateStore: ReviewStateStore,
 		private readonly actions: ConceptLibraryActions = {},
 	) {
 		super(leaf);
@@ -60,11 +65,14 @@ export class MnemeConceptLibraryView extends ItemView {
 
 	async refresh(): Promise<void> {
 		try {
-			this.concepts = await this.scanner.scanConcepts();
-			this.statusMessage = `${this.concepts.length} concepts found.`;
+			const result = await this.scanner.scan();
+			this.concepts = result.concepts;
+			this.identityIssues = result.identityIssues;
+			this.statusMessage = `${this.concepts.length} concepts found. ${this.identityIssues.length} identity issue(s).`;
 		} catch (error) {
 			console.error("Mneme: failed to scan Concept Library", error);
 			this.concepts = [];
+			this.identityIssues = [];
 			this.statusMessage = "Failed to scan Concept Library. See console for details.";
 		}
 
@@ -79,7 +87,52 @@ export class MnemeConceptLibraryView extends ItemView {
 		this.renderHeader();
 		this.renderControls();
 		this.renderStatus();
+		this.renderIdentityIssues();
 		this.renderConceptList();
+	}
+
+	private renderIdentityIssues(): void {
+		if (this.identityIssues.length === 0) {
+			return;
+		}
+
+		const sectionEl = this.contentEl.createDiv({ cls: "mneme-review-queue" });
+		sectionEl.createEl("h3", { text: "Identity Repair" });
+		for (const issue of this.identityIssues) {
+			const itemEl = sectionEl.createDiv({ cls: "mneme-review-queue-item mneme-concept-library-item" });
+			const mainEl = itemEl.createDiv({ cls: "mneme-review-queue-main" });
+			const textEl = mainEl.createDiv();
+			textEl.createEl("h3", { text: issue.title });
+			textEl.createEl("p", {
+				cls: "mneme-review-status",
+				text: issue.kind === "missing_id"
+					? "Concept ID is missing. This file is excluded from learning state until repaired."
+					: `Concept ID is duplicated: ${issue.conceptId}`,
+			});
+			textEl.createEl("p", { cls: "mneme-review-queue-meta", text: issue.path });
+			const actionsEl = mainEl.createDiv({ cls: "mneme-review-actions" });
+			actionsEl.createEl("button", {
+				text: issue.kind === "missing_id" ? "Assign Stable ID" : "Replace Duplicate ID",
+			}, (buttonEl) => {
+				buttonEl.addEventListener("click", () => this.openIdentityRepair(issue));
+			});
+		}
+	}
+
+	private openIdentityRepair(issue: ConceptIdentityIssue): void {
+		new ConceptIdRepairModal(this.app, {
+			existingConceptIds: new Set([
+				...this.concepts.map((concept) => concept.conceptId),
+				...this.identityIssues.flatMap((candidate) => candidate.conceptId ? [candidate.conceptId] : []),
+			]),
+			issue,
+			onSaved: async (oldConceptId, newConceptId, migrateState) => {
+				if (migrateState && oldConceptId) {
+					await this.reviewStateStore.rekeyConcept(oldConceptId, newConceptId);
+				}
+				void this.refresh();
+			},
+		}).open();
 	}
 
 	private renderHeader(): void {

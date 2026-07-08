@@ -160,7 +160,9 @@ Current progress:
 - Advanced Diagnostics can assign stable IDs to valid legacy Cards without wrappers and to Card blocks missing an ID.
 - Fallback review state, Review Later, and suspension move to the new ID when ownership is unambiguous.
 - Duplicate IDs can be replaced one block at a time; ambiguous shared history remains with the original ID instead of being guessed.
-- Missing or duplicate Concept ID repair remains unfinished.
+- Concept Library isolates missing and duplicate Concept IDs in an Identity Repair queue.
+- Guided Concept repair synchronizes Concept.md and its explicitly linked Card.md, with rollback on conflict or persistence failure.
+- Only uniquely attributable Concept pause state is re-keyed; duplicate-ID aggregate state is not guessed.
 
 ## v1.0: Stable Concept Review Plugin
 
