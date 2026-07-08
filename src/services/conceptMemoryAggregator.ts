@@ -22,8 +22,9 @@ export function aggregateConceptMemoryById(
 	concepts: ReviewQueueConcept[],
 	reviewStates: Record<string, CardReviewState>,
 	now: Date,
+	excludedCardIds: Set<string> = new Set<string>(),
 ): Record<string, ConceptMemorySummary> {
-	const summaries = aggregateConceptMemory(concepts, reviewStates, now);
+	const summaries = aggregateConceptMemory(concepts, reviewStates, now, excludedCardIds);
 	const summariesById: Record<string, ConceptMemorySummary> = {};
 
 	for (const summary of summaries) {
@@ -37,30 +38,32 @@ export function aggregateConceptMemory(
 	concepts: ReviewQueueConcept[],
 	reviewStates: Record<string, CardReviewState>,
 	now: Date,
+	excludedCardIds: Set<string> = new Set<string>(),
 ): ConceptMemorySummary[] {
-	return concepts.map((concept) => aggregateReviewQueueConcept(concept, reviewStates, now));
+	return concepts.map((concept) => aggregateReviewQueueConcept(concept, reviewStates, now, excludedCardIds));
 }
 
 export function aggregateReviewQueueConcept(
 	concept: ReviewQueueConcept,
 	reviewStates: Record<string, CardReviewState>,
 	now: Date,
+	excludedCardIds: Set<string> = new Set<string>(),
 ): ConceptMemorySummary {
 	const cards = [
 		...concept.dueCards,
 		...concept.newCards,
 		...concept.notDueCards,
 		...concept.invalidCards,
-	];
+	].filter((card) => !excludedCardIds.has(card.cardId));
 	const cardRisks = cards.map((card) => calculateCardMemoryRisk(card, reviewStates[card.cardId], now));
 	const validCardRisks = cardRisks.filter((cardRisk) => cardRisk.dueStatus !== "invalid");
 	const reviewCardRisks = validCardRisks.filter((cardRisk) => cardRisk.includedInDailyReview);
 	const validCardCount = validCardRisks.length;
 	const reviewCardCount = reviewCardRisks.length;
-	const newCardCount = concept.newCards.length;
-	const dueCardCount = concept.dueCards.length;
-	const notDueCardCount = concept.notDueCards.length;
-	const invalidCardCount = concept.invalidCards.length;
+	const newCardCount = cardRisks.filter((card) => card.dueStatus === "new").length;
+	const dueCardCount = cardRisks.filter((card) => card.dueStatus === "due").length;
+	const notDueCardCount = cardRisks.filter((card) => card.dueStatus === "not-due").length;
+	const invalidCardCount = cardRisks.filter((card) => card.dueStatus === "invalid").length;
 	const overdueCardCount = reviewCardRisks.filter((cardRisk) => cardRisk.isOverdue).length;
 	const topK = calculateTopK(validCardCount);
 	const sortedRisks = validCardRisks.map((cardRisk) => cardRisk.risk).sort((a, b) => b - a);

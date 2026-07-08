@@ -21,8 +21,8 @@ import { rankReviewQueueConcepts } from "../src/services/conceptQueueRanker";
 		createConcept("one-due", "One Due", { dueCards: 1 }),
 		createConcept("two-due", "Two Due", { dueCards: 2 }),
 	], {
-		"one-due": createMemorySummary("one-due", 0.5),
-		"two-due": createMemorySummary("two-due", 0.5),
+		"one-due": createMemorySummary("one-due", 0.5, 1, 1),
+		"two-due": createMemorySummary("two-due", 0.5, 2, 2),
 	});
 
 	assert.deepEqual(ranked.map((concept) => concept.concept.conceptId), ["two-due", "one-due"]);
@@ -33,8 +33,8 @@ import { rankReviewQueueConcepts } from "../src/services/conceptQueueRanker";
 		createConcept("one-new", "One New", { newCards: 1 }),
 		createConcept("two-new", "Two New", { newCards: 2 }),
 	], {
-		"one-new": createMemorySummary("one-new", 0.5),
-		"two-new": createMemorySummary("two-new", 0.5),
+		"one-new": createMemorySummary("one-new", 0.5, 1, 0, 1),
+		"two-new": createMemorySummary("two-new", 0.5, 2, 0, 2),
 	});
 
 	assert.deepEqual(ranked.map((concept) => concept.concept.conceptId), ["two-new", "one-new"]);
@@ -171,18 +171,24 @@ function createCard(cardId: string): LoadedMnemeCard {
 	};
 }
 
-function createMemorySummary(conceptId: string, priorityScore: number, reviewCardCount = 1): ConceptMemorySummary {
+function createMemorySummary(
+	conceptId: string,
+	priorityScore: number,
+	reviewCardCount = 1,
+	dueCardCount = 0,
+	newCardCount = 0,
+): ConceptMemorySummary {
 	return {
 		averageRisk: priorityScore,
 		cardRisks: [],
 		conceptId,
-		dueCardCount: 0,
+		dueCardCount,
 		dueRatio: 0,
 		earliestDueAt: undefined,
 		includedReviewCardIds: [],
 		invalidCardCount: 0,
 		lapseRatio: 0,
-		newCardCount: 0,
+		newCardCount,
 		newRatio: 0,
 		nextDueAt: undefined,
 		notDueCardCount: 0,

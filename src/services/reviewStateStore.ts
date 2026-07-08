@@ -2,6 +2,7 @@ import { ReviewScheduler } from "../models/reviewScheduler";
 import {
 	CardReviewState,
 	CardReviewSuspension,
+	CardRetirement,
 	ConceptReviewPause,
 	MnemePluginData,
 	ReviewDeferral,
@@ -115,6 +116,58 @@ export class ReviewStateStore {
 		return suspensions;
 	}
 
+	getRetiredCards(): Record<string, CardRetirement> {
+		const retirements: Record<string, CardRetirement> = {};
+
+		for (const [cardId, retirement] of Object.entries(this.data.retiredCards)) {
+			retirements[cardId] = { ...retirement };
+		}
+
+		return retirements;
+	}
+
+	async retireCard(cardId: string, now = new Date()): Promise<CardRetirement> {
+		await this.ensureLoaded();
+
+		if (!cardId.trim() || Number.isNaN(now.getTime())) {
+			throw new Error("Card retirement requires a Card id and valid time.");
+		}
+
+		const retirement: CardRetirement = {
+			cardId,
+			retiredAt: now.toISOString(),
+		};
+		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+		const nextData = {
+			...latestData,
+			retiredCards: {
+				...latestData.retiredCards,
+				[cardId]: retirement,
+			},
+			reviewDeferrals: omitKey(latestData.reviewDeferrals, cardId),
+			suspendedCards: omitKey(latestData.suspendedCards, cardId),
+		};
+
+		await this.storage.saveData(nextData);
+		this.data = nextData;
+		this.pendingSettings = undefined;
+
+		return retirement;
+	}
+
+	async restoreRetiredCard(cardId: string): Promise<void> {
+		await this.ensureLoaded();
+		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+		const nextData = {
+			...latestData,
+			retiredCards: omitKey(latestData.retiredCards, cardId),
+		};
+
+		await this.storage.saveData(nextData);
+		this.data = nextData;
+		this.pendingSettings = undefined;
+	}
+
 	async suspendCard(cardId: string, now = new Date()): Promise<CardReviewSuspension> {
 		await this.ensureLoaded();
 
@@ -167,6 +220,7 @@ export class ReviewStateStore {
 		if (
 			latestData.reviewStates[newCardId]
 			|| latestData.reviewDeferrals[newCardId]
+			|| latestData.retiredCards[newCardId]
 			|| latestData.suspendedCards[newCardId]
 		) {
 			throw new Error("The new Card ID already has review state.");
@@ -174,6 +228,7 @@ export class ReviewStateStore {
 
 		const reviewState = latestData.reviewStates[oldCardId];
 		const deferral = latestData.reviewDeferrals[oldCardId];
+		const retirement = latestData.retiredCards[oldCardId];
 		const suspension = latestData.suspendedCards[oldCardId];
 		const nextData = {
 			...latestData,
@@ -184,6 +239,10 @@ export class ReviewStateStore {
 			reviewStates: {
 				...omitKey(latestData.reviewStates, oldCardId),
 				...(reviewState ? { [newCardId]: { ...reviewState, cardId: newCardId } } : {}),
+			},
+			retiredCards: {
+				...omitKey(latestData.retiredCards, oldCardId),
+				...(retirement ? { [newCardId]: { ...retirement, cardId: newCardId } } : {}),
 			},
 			suspendedCards: {
 				...omitKey(latestData.suspendedCards, oldCardId),
@@ -335,6 +394,7 @@ export function createDefaultPluginData(): MnemePluginData {
 		conceptSourceLinks: {},
 		knowledgeProposals: {},
 		pausedConcepts: {},
+		retiredCards: {},
 		reviewStates: {},
 		reviewDeferrals: {},
 		suspendedCards: {},
@@ -358,6 +418,9 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 	const reviewDeferrals = isObject(data.reviewDeferrals)
 		? data.reviewDeferrals
 		: {};
+	const retiredCards = isObject(data.retiredCards)
+		? data.retiredCards
+		: {};
 	const suspendedCards = isObject(data.suspendedCards)
 		? data.suspendedCards
 		: {};
@@ -378,11 +441,32 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 		pausedConcepts: normalizePausedConcepts(pausedConcepts),
 		reviewStates: normalizeReviewStates(reviewStates),
 		reviewDeferrals: normalizeReviewDeferrals(reviewDeferrals),
+		retiredCards: normalizeRetiredCards(retiredCards),
 		suspendedCards: normalizeSuspendedCards(suspendedCards),
 		schemaVersion: CURRENT_SCHEMA_VERSION,
 		settings: normalizeSettings(data.settings),
 		sourceAnalysisRecords: normalizeSourceAnalysisRecords(sourceAnalysisRecords),
 	};
+}
+
+function normalizeRetiredCards(retirements: Record<string, unknown>): Record<string, CardRetirement> {
+	const normalized: Record<string, CardRetirement> = {};
+
+	for (const retirement of Object.values(retirements)) {
+		if (
+			isObject(retirement)
+			&& typeof retirement.cardId === "string"
+			&& typeof retirement.retiredAt === "string"
+			&& !Number.isNaN(Date.parse(retirement.retiredAt))
+		) {
+			normalized[retirement.cardId] = {
+				cardId: retirement.cardId,
+				retiredAt: retirement.retiredAt,
+			};
+		}
+	}
+
+	return normalized;
 }
 
 function normalizeSuspendedCards(suspensions: Record<string, unknown>): Record<string, CardReviewSuspension> {

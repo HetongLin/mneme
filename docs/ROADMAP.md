@@ -163,6 +163,9 @@ Current progress:
 - Concept Library isolates missing and duplicate Concept IDs in an Identity Repair queue.
 - Guided Concept repair synchronizes Concept.md and its explicitly linked Card.md, with rollback on conflict or persistence failure.
 - Only uniquely attributable Concept pause state is re-keyed; duplicate-ID aggregate state is not guessed.
+- Stable-ID Cards can be retired without changing Markdown or FSRS history, then restored from Advanced Diagnostics.
+- Retired Cards are excluded from Today’s Focus, Concept Learning State risk, and ranking.
+- Destructive Card deletion, tombstones, and explicit history erasure remain unfinished.
 
 ## v1.0: Stable Concept Review Plugin
 

@@ -24,6 +24,7 @@ export interface TodaysFocusUsage {
 export interface TodaysFocusExclusions {
 	deferredCardIds?: Set<string>;
 	pausedConceptIds?: Set<string>;
+	retiredCardIds?: Set<string>;
 	suspendedCardIds?: Set<string>;
 }
 
@@ -35,6 +36,7 @@ export function selectTodaysFocus(
 ): TodaysFocusSelection {
 	const deferredCardIds = exclusions.deferredCardIds ?? new Set<string>();
 	const pausedConceptIds = exclusions.pausedConceptIds ?? new Set<string>();
+	const retiredCardIds = exclusions.retiredCardIds ?? new Set<string>();
 	const suspendedCardIds = exclusions.suspendedCardIds ?? new Set<string>();
 	const normalizedLimits = {
 		cardsPerConcept: normalizeLimit(limits.cardsPerConcept),
@@ -74,6 +76,7 @@ export function selectTodaysFocus(
 			.filter((card) => {
 				return !usage.reviewedCardIds.has(card.cardId)
 					&& !deferredCardIds.has(card.cardId)
+					&& !retiredCardIds.has(card.cardId)
 					&& !suspendedCardIds.has(card.cardId);
 			})
 			.slice(0, Math.min(perConceptRemaining, remainingCards));
@@ -105,11 +108,15 @@ export function selectTodaysFocus(
 		}
 
 		return [...ranked.concept.dueCards, ...ranked.concept.newCards]
-			.some((card) => !usage.reviewedCardIds.has(card.cardId) && !suspendedCardIds.has(card.cardId));
+			.some((card) => !usage.reviewedCardIds.has(card.cardId)
+				&& !retiredCardIds.has(card.cardId)
+				&& !suspendedCardIds.has(card.cardId));
 	});
 	const totalReviewableCards = candidateConcepts.reduce(
 		(count, ranked) => count + [...ranked.concept.dueCards, ...ranked.concept.newCards]
-			.filter((card) => !usage.reviewedCardIds.has(card.cardId) && !suspendedCardIds.has(card.cardId)).length,
+			.filter((card) => !usage.reviewedCardIds.has(card.cardId)
+				&& !retiredCardIds.has(card.cardId)
+				&& !suspendedCardIds.has(card.cardId)).length,
 		0,
 	);
 	const selectedCardCount = concepts.reduce(

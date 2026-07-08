@@ -25,6 +25,16 @@ const now = new Date("2026-01-10T12:00:00.000Z");
 }
 
 {
+	const summary = aggregateReviewQueueConcept(createQueueConcept({
+		dueCards: [createQueueCard("active", "due"), createQueueCard("retired", "due")],
+	}), {}, now, new Set(["retired"]));
+
+	assert.equal(summary.totalCardCount, 1);
+	assert.equal(summary.dueCardCount, 1);
+	assert.deepEqual(summary.cardRisks.map((card) => card.cardId), ["active"]);
+}
+
+{
 	const criticalConcept = createQueueConcept({
 		dueCards: [createQueueCard("critical-card", "due")],
 	});

@@ -7,6 +7,7 @@ import { ReviewQueue, ReviewQueueCard, ReviewQueueConcept } from "../models/revi
 import {
 	CardReviewState,
 	CardReviewSuspension,
+	CardRetirement,
 	ReviewDeferral,
 	ReviewRating,
 } from "../models/reviewState";
@@ -39,6 +40,7 @@ const REVIEW_RATINGS: Array<{ label: ReviewRatingLabel; value: ReviewRating }> =
 
 export class MnemeReviewView extends ItemView {
 	private activeDeferrals: Record<string, ReviewDeferral> = {};
+	private activeRetirements: Record<string, CardRetirement> = {};
 	private activeSuspensions: Record<string, CardReviewSuspension> = {};
 	private pausedConceptIds = new Set<string>();
 	private deferredCardCount = 0;
@@ -100,11 +102,17 @@ export class MnemeReviewView extends ItemView {
 			const reviewStates = this.reviewStateStore.getAllStates();
 			const now = new Date();
 			this.activeDeferrals = this.reviewStateStore.getActiveReviewDeferrals(now);
+			this.activeRetirements = this.reviewStateStore.getRetiredCards();
 			this.activeSuspensions = this.reviewStateStore.getSuspendedCards();
 			this.pausedConceptIds = new Set(Object.keys(this.reviewStateStore.getPausedConcepts()));
 
 			this.reviewQueue = buildReviewQueue(loadedConcepts.concepts, reviewStates, now);
-			this.memorySummaries = aggregateConceptMemoryById(this.reviewQueue.concepts, reviewStates, now);
+			this.memorySummaries = aggregateConceptMemoryById(
+				this.reviewQueue.concepts,
+				reviewStates,
+				now,
+				new Set(Object.keys(this.activeRetirements)),
+			);
 			const rankedReviewQueue = rankReviewQueueConcepts(this.reviewQueue.concepts, this.memorySummaries);
 			const settings = this.settingsProvider();
 			this.focusSelection = selectTodaysFocus(rankedReviewQueue, {
@@ -114,6 +122,7 @@ export class MnemeReviewView extends ItemView {
 			}, buildTodaysFocusUsage(this.reviewQueue.concepts, reviewStates, now), {
 				deferredCardIds: new Set(Object.keys(this.activeDeferrals)),
 				pausedConceptIds: this.pausedConceptIds,
+				retiredCardIds: new Set(Object.keys(this.activeRetirements)),
 				suspendedCardIds: new Set(Object.keys(this.activeSuspensions)),
 			});
 			this.rankedReviewQueue = this.focusSelection.concepts;
@@ -131,6 +140,7 @@ export class MnemeReviewView extends ItemView {
 			this.rankedReviewQueue = [];
 			this.focusSelection = createEmptyFocusSelection();
 			this.activeDeferrals = {};
+			this.activeRetirements = {};
 			this.activeSuspensions = {};
 			this.pausedConceptIds = new Set<string>();
 			this.statusMessage = "Failed to scan concepts. See console for details.";
@@ -407,6 +417,13 @@ export class MnemeReviewView extends ItemView {
 				void this.suspendCurrentCard();
 			});
 		});
+		if (queueCard.card.hasExplicitCardId) {
+			parentEl.createEl("button", { text: "Retire Card" }, (buttonEl) => {
+				buttonEl.addEventListener("click", () => {
+					void this.retireCurrentCard();
+				});
+			});
+		}
 	}
 
 	private renderDiagnostics(): void {
@@ -539,6 +556,15 @@ export class MnemeReviewView extends ItemView {
 			cardEl.createEl("button", { text: "Resume Card" }, (buttonEl) => {
 				buttonEl.addEventListener("click", () => {
 					void this.resumeCard(queueCard.cardId);
+				});
+			});
+		}
+		const retirement = this.activeRetirements[queueCard.cardId];
+		if (retirement) {
+			cardEl.createEl("p", { text: `Retired at: ${retirement.retiredAt}` });
+			cardEl.createEl("button", { text: "Restore Card" }, (buttonEl) => {
+				buttonEl.addEventListener("click", () => {
+					void this.restoreRetiredCard(queueCard.cardId);
 				});
 			});
 		}
@@ -819,6 +845,46 @@ export class MnemeReviewView extends ItemView {
 		} catch (error) {
 			console.error("Mneme: failed to resume Card", { cardId, error });
 			new Notice("Mneme: Card could not be resumed.");
+		}
+	}
+
+	private async retireCurrentCard(): Promise<void> {
+		const card = this.getCurrentReviewableCard();
+
+		if (!card || !card.card.hasExplicitCardId) {
+			new Notice("Mneme: assign a stable Card ID before retiring this Card.");
+			return;
+		}
+
+		try {
+			const retirement = await this.reviewStateStore.retireCard(card.cardId);
+			this.activeRetirements[card.cardId] = retirement;
+			delete this.activeDeferrals[card.cardId];
+			delete this.activeSuspensions[card.cardId];
+			this.selectedCards.splice(this.selectedCardIndex, 1);
+			this.isAnswerShown = false;
+			this.shouldRefreshQueueOnBack = true;
+
+			if (this.selectedCardIndex >= this.selectedCards.length) {
+				this.isReviewComplete = true;
+			}
+
+			this.statusMessage = `Retired ${card.cardId}. Markdown and FSRS history preserved.`;
+			this.render();
+		} catch (error) {
+			console.error("Mneme: failed to retire Card", { cardId: card.cardId, error });
+			new Notice("Mneme: Card could not be retired.");
+		}
+	}
+
+	private async restoreRetiredCard(cardId: string): Promise<void> {
+		try {
+			await this.reviewStateStore.restoreRetiredCard(cardId);
+			new Notice("Mneme: Card restored with its existing FSRS history.");
+			await this.refreshCards();
+		} catch (error) {
+			console.error("Mneme: failed to restore retired Card", { cardId, error });
+			new Notice("Mneme: Card could not be restored.");
 		}
 	}
 

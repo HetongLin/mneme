@@ -17,6 +17,7 @@ import {
 	assert.deepEqual(data.conceptSourceLinks, {});
 	assert.deepEqual(data.knowledgeProposals, {});
 	assert.deepEqual(data.pausedConcepts, {});
+	assert.deepEqual(data.retiredCards, {});
 	assert.deepEqual(data.reviewStates, {});
 	assert.deepEqual(data.reviewDeferrals, {});
 	assert.deepEqual(data.settings, DEFAULT_SETTINGS);
@@ -31,6 +32,7 @@ import {
 	assert.deepEqual(data.conceptSourceLinks, {});
 	assert.deepEqual(data.knowledgeProposals, {});
 	assert.deepEqual(data.pausedConcepts, {});
+	assert.deepEqual(data.retiredCards, {});
 	assert.deepEqual(data.reviewStates, {});
 	assert.deepEqual(data.reviewDeferrals, {});
 	assert.deepEqual(data.settings, DEFAULT_SETTINGS);
@@ -93,6 +95,41 @@ async function runAsyncTests(): Promise<void> {
 		await store.resumeCard("encapsulation-basic");
 		assert.deepEqual(store.getSuspendedCards(), {});
 		assert.deepEqual(storage.savedData?.reviewStates["encapsulation-basic"], existingState);
+	}
+
+	{
+		const existingState = createReviewState("retire-me", 3);
+		const storage = new MemoryReviewStateStorage({
+			reviewDeferrals: {
+				"retire-me": {
+					cardId: "retire-me",
+					deferredAt: "2026-07-07T10:00:00.000Z",
+					resumeAt: "2026-07-08T00:00:00.000Z",
+				},
+			},
+			reviewStates: { "retire-me": existingState },
+			schemaVersion: 1,
+			settings: DEFAULT_SETTINGS,
+			suspendedCards: {
+				"retire-me": {
+					cardId: "retire-me",
+					suspendedAt: "2026-07-07T11:00:00.000Z",
+				},
+			},
+		});
+		const store = new ReviewStateStore(storage, new FakeReviewScheduler());
+
+		await store.load();
+		await store.retireCard("retire-me", new Date("2026-07-07T12:00:00.000Z"));
+
+		assert.equal(store.getRetiredCards()["retire-me"]?.retiredAt, "2026-07-07T12:00:00.000Z");
+		assert.equal(storage.savedData?.reviewDeferrals["retire-me"], undefined);
+		assert.equal(storage.savedData?.suspendedCards["retire-me"], undefined);
+		assert.deepEqual(storage.savedData?.reviewStates["retire-me"], existingState);
+
+		await store.restoreRetiredCard("retire-me");
+		assert.deepEqual(store.getRetiredCards(), {});
+		assert.deepEqual(storage.savedData?.reviewStates["retire-me"], existingState);
 	}
 
 	{
@@ -205,6 +242,12 @@ async function runAsyncTests(): Promise<void> {
 		const oldCardId = "Mneme/Cards/Encapsulation/Card.md#0";
 		const newCardId = "card-encapsulation-stable";
 		const storage = new MemoryReviewStateStorage({
+			retiredCards: {
+				[oldCardId]: {
+					cardId: oldCardId,
+					retiredAt: "2026-07-07T09:00:00.000Z",
+				},
+			},
 			reviewDeferrals: {
 				[oldCardId]: {
 					cardId: oldCardId,
@@ -232,6 +275,8 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(storage.savedData?.reviewStates[newCardId]?.cardId, newCardId);
 		assert.equal(storage.savedData?.reviewStates[newCardId]?.reviewCount, 2);
 		assert.equal(storage.savedData?.reviewDeferrals[newCardId]?.cardId, newCardId);
+		assert.equal(storage.savedData?.retiredCards[newCardId]?.cardId, newCardId);
+		assert.equal(storage.savedData?.retiredCards[oldCardId], undefined);
 		assert.equal(storage.savedData?.suspendedCards[newCardId]?.cardId, newCardId);
 		assert.equal(scheduler.lastInput, undefined);
 	}

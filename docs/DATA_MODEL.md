@@ -303,6 +303,7 @@ data.json may store:
 - temporary review deferrals (`reviewDeferrals`), stored separately from FSRS state
 - paused Concept controls (`pausedConcepts`), keyed by stable Concept id
 - suspended Card controls (`suspendedCards`), keyed by stable Card id
+- retired Card controls (`retiredCards`), keyed by stable Card id
 - review logs
 - Needs Work Signals
 - Concept Learning State cache
@@ -322,6 +323,8 @@ data.json must not store:
 `pausedConcepts` maps a Concept id to `pausedAt`. Pausing excludes that Concept from Today’s Focus until the user resumes it; its Markdown, Cards, and FSRS states are untouched.
 
 `suspendedCards` maps a Card id to `suspendedAt`. Suspension removes only that Card from Today’s Focus until explicit resume and clears any temporary Review Later deferral; Card Markdown and FSRS state remain unchanged.
+
+`retiredCards` maps a stable Card id to `retiredAt`. Retirement clears temporary deferral and suspension controls, preserves Markdown and FSRS state, and removes the Card from Today’s Focus and Concept Learning State aggregation until explicit restore.
 
 Retired Cards preserve Markdown and history but are excluded from active review. Deleting a Card removes its exact Markdown block and active FSRS/control state after confirmation, then records a content-free tombstone so the Card ID cannot be reused and anonymous review history remains statistically valid. `Delete History Too` explicitly removes the tombstone and review events.
 

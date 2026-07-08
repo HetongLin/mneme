@@ -26,6 +26,18 @@ import { buildTodaysFocusUsage } from "../src/services/todaysFocusSelector";
 }
 
 {
+	const selection = selectTodaysFocus([
+		createRanked("alpha", 2, 0, 1),
+	], { cardsPerConcept: 3, dailyCards: 3, dailyConcepts: 3 }, undefined, {
+		retiredCardIds: new Set(["alpha-due-0"]),
+	});
+
+	assert.deepEqual(selection.concepts[0]?.concept.dueCards.map((card) => card.cardId), ["alpha-due-1"]);
+	assert.equal(selection.selectedCardCount, 1);
+	assert.equal(selection.hiddenCardCount, 0);
+}
+
+{
 	const selection = selectTodaysFocus([createRanked("alpha", 3, 0, 1)], {
 		cardsPerConcept: 3,
 		dailyCards: 3,

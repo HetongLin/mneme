@@ -60,12 +60,14 @@ function compareReviewQueueConcepts(
 		return overdueDifference;
 	}
 
-	const dueDifference = right.dueCards.length - left.dueCards.length;
+	const dueDifference = (rightSummary?.dueCardCount ?? right.dueCards.length)
+		- (leftSummary?.dueCardCount ?? left.dueCards.length);
 	if (dueDifference !== 0) {
 		return dueDifference;
 	}
 
-	const newDifference = right.newCards.length - left.newCards.length;
+	const newDifference = (rightSummary?.newCardCount ?? right.newCards.length)
+		- (leftSummary?.newCardCount ?? left.newCards.length);
 	if (newDifference !== 0) {
 		return newDifference;
 	}

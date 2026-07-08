@@ -750,3 +750,30 @@ Acceptance criteria:
 - Duplicate repair leaves shared aggregate state with the unchanged original ID
 - A concurrent identity edit stops the transaction
 - Normal Concept consumers see only unique stable identities
+
+## Task 049: Reversible Card Retirement
+
+Goal:
+
+Let a student permanently remove an obsolete Card from active learning without deleting its content or FSRS history.
+
+Requirements:
+
+- Require an explicit stable Card ID before retirement
+- Persist retirement separately from suspension and FSRS state
+- Clear temporary Review Later and suspension controls on retirement
+- Exclude retired Cards from Today’s Focus and focus counts
+- Exclude retired Cards from Concept Learning State risk and ranking
+- Preserve Card Markdown and all FSRS history
+- Keep retired Cards visible in Advanced Diagnostics
+- Restore a retired Card with its existing FSRS schedule
+- Move retirement state when an unambiguous Card ID is repaired
+
+Acceptance criteria:
+
+- Retiring a Card immediately removes it from the active session
+- Refresh does not return it to Today’s Focus
+- Its Concept statistics no longer count the retired Card
+- Advanced Diagnostics shows retirement time and `Restore Card`
+- Restore removes only the retirement control and preserves review history
+- Suspension, deferral, Markdown, and scheduler history have clear non-overlapping semantics

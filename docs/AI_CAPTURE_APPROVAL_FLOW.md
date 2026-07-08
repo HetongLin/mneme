@@ -150,7 +150,7 @@ Current implementation supports two post-review write paths:
 - `update_concept` applies approved Core Meaning and Why It Matters replacements at section boundaries, while preserving unrelated Markdown and recording supplied provenance.
 - `new_card` writes approved Card proposals generated from a written Concept.
 
-Other Concept updates and revise, split, merge, or retire Card operations remain future work because their safe Markdown patch writers are not implemented yet.
+Other Concept updates and AI-proposed revise, split, merge, or retire Card operations remain future work because their safe approval writers are not implemented yet. Manual stable-ID Card retirement is available from Review and preserves Markdown and FSRS history.
 
 ## Inbox Shell
 
