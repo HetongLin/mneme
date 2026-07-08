@@ -87,6 +87,8 @@ Stable identity principle:
 - Durable plugin state must never use a path fallback as its long-term key.
 - Legacy Markdown with missing or duplicate IDs remains readable but enters a Repair Flow before new durable state is created.
 
+Card ID repair re-reads the latest Markdown and verifies the expected block content and current ID before writing. Assigning an ID to a legacy fallback Card migrates that unambiguous Card's FSRS state, Review Later deferral, and suspension atomically. Replacing one duplicate ID does not migrate the shared old-ID state because Mneme cannot prove which duplicate owned it; the unchanged duplicate retains that state and the repaired Card starts fresh.
+
 ## File Layout
 
 Recommended vault layout:

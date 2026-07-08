@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { assignCardId, createStableCardId } from "../src/services/cardIdEditor";
 import { parseMnemeCards } from "../src/services/cardMarkerParser";
 import { repairCardMarkers, updateCardMarkers } from "../src/services/cardMarkerEditor";
 
@@ -184,6 +185,96 @@ const multiCard = [
 	if (result.status !== "updated") {
 		assert.equal(result.message, "Card marker structure is invalid.");
 	}
+}
+
+{
+	const missingId = multiCard.replace(" id=card-one", "");
+	const result = assignCardId(missingId, {
+		cardBlockIndex: 0,
+		newCardId: "card-repaired-one",
+	});
+
+	assert.equal(result.status, "updated");
+	if (result.status === "updated") {
+		const cards = parseMnemeCards(result.markdown);
+		assert.equal(cards[0]?.explicitCardId, "card-repaired-one");
+		assert.equal(cards[1]?.explicitCardId, "card-two");
+		assert.equal(result.markdown.startsWith("# Cards"), true);
+	}
+}
+
+{
+	const duplicateIds = multiCard.replace("id=card-two", "id=card-one");
+	const result = assignCardId(duplicateIds, {
+		cardBlockIndex: 1,
+		expectedCardId: "card-one",
+		newCardId: "card-repaired-two",
+	});
+
+	assert.equal(result.status, "updated");
+	if (result.status === "updated") {
+		const cards = parseMnemeCards(result.markdown);
+		assert.equal(cards[0]?.explicitCardId, "card-one");
+		assert.equal(cards[1]?.explicitCardId, "card-repaired-two");
+	}
+}
+
+{
+	const legacy = [
+		"---",
+		"mneme_type: card_group",
+		"---",
+		"# Legacy Card",
+		"",
+		"<!-- MNEME:FRONT:start -->",
+		"Question",
+		"<!-- MNEME:FRONT:end -->",
+		"<!-- MNEME:BACK:start -->",
+		"Answer",
+		"<!-- MNEME:BACK:end -->",
+	].join("\n");
+	const result = assignCardId(legacy, {
+		cardBlockIndex: 0,
+		newCardId: "card-legacy-stable",
+	});
+
+	assert.equal(result.status, "updated");
+	if (result.status === "updated") {
+		assert.equal(result.markdown.startsWith("---\nmneme_type: card_group\n---\n# Legacy Card"), true);
+		assert.equal(parseMnemeCards(result.markdown)[0]?.explicitCardId, "card-legacy-stable");
+	}
+}
+
+{
+	const result = assignCardId(multiCard, {
+		cardBlockIndex: 0,
+		expectedFront: "Changed question",
+		expectedCardId: "card-one",
+		newCardId: "card-concurrent-id",
+	});
+
+	assert.equal(result.status, "conflict");
+}
+
+{
+	const result = assignCardId(multiCard, {
+		cardBlockIndex: 0,
+		expectedCardId: "changed-elsewhere",
+		newCardId: "card-new-id",
+	});
+
+	assert.equal(result.status, "conflict");
+}
+
+{
+	const result = assignCardId(multiCard, {
+		cardBlockIndex: 0,
+		expectedCardId: "card-one",
+		newCardId: "bad id",
+	});
+
+	assert.equal(result.status, "invalid");
+	assert.equal(createStableCardId(1_000, 0.5), "card_rs_0zik0zk");
 }
 
 console.log("Card marker editor tests passed.");

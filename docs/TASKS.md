@@ -698,3 +698,29 @@ Acceptance criteria:
 - Multi-Card repair changes only the selected Card block
 - Legacy single-Card Markdown keeps surrounding user content
 - Unsafe marker structures return an error without a write
+
+## Task 047: Guided Stable Card ID Repair
+
+Goal:
+
+Replace path/index fallbacks and duplicate Card IDs without corrupting Markdown or guessing state ownership.
+
+Requirements:
+
+- Offer `Assign Stable ID` for valid Cards without an explicit ID
+- Offer `Replace Duplicate ID` for a selected duplicate block
+- Wrap only the marker span of a valid legacy single Card
+- Rewrite only the selected CARD start marker in a Card Group
+- Re-read the latest file and verify expected Card content and ID before writing
+- Reject invalid, in-file duplicate, and vault-known duplicate target IDs
+- Migrate fallback FSRS state, Review Later, and suspension to an assigned stable ID
+- Do not migrate ambiguous state when replacing a duplicate ID
+- Roll back the Markdown write if unambiguous state migration fails
+
+Acceptance criteria:
+
+- Frontmatter, headings, unrelated Card blocks, and user Markdown remain unchanged
+- Missing-ID Card state moves to the new key without invoking the scheduler
+- Duplicate repair leaves the original shared state with the unchanged ID
+- Concurrent Card content or ID changes stop the write
+- Stable IDs use a validated portable character set and are never reused within the known vault

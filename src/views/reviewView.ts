@@ -12,6 +12,7 @@ import {
 } from "../models/reviewState";
 import { DEFAULT_SETTINGS, MnemeSettings } from "../models/settings";
 import { CardEditModal } from "../modals/cardEditModal";
+import { CardIdRepairModal } from "../modals/cardIdRepairModal";
 import { ConceptLoader } from "../services/conceptLoader";
 import { aggregateConceptMemoryById } from "../services/conceptMemoryAggregator";
 import { indexRankedConceptsById, rankReviewQueueConcepts } from "../services/conceptQueueRanker";
@@ -556,6 +557,25 @@ export class MnemeReviewView extends ItemView {
 						card,
 						mode: "repair",
 						onSaved: () => this.refreshCards(),
+					}).open();
+				});
+			});
+		}
+
+		if (canRepairCardId(card)) {
+			cardEl.createEl("button", {
+				text: card.hasExplicitCardId ? "Replace Duplicate ID" : "Assign Stable ID",
+			}, (buttonEl) => {
+				buttonEl.addEventListener("click", () => {
+					new CardIdRepairModal(this.app, {
+						card,
+						existingCardIds: getAllCardIds(this.reviewQueue),
+						onSaved: async (oldCardId, newCardId, migrateState) => {
+							if (migrateState) {
+								await this.reviewStateStore.rekeyCard(oldCardId, newCardId);
+							}
+							await this.refreshCards();
+						},
 					}).open();
 				});
 			});
@@ -1130,6 +1150,23 @@ function canRepairMissingCardSections(card: LoadedMnemeCard): boolean {
 	return !card.isValid
 		&& card.errors.length > 0
 		&& card.errors.every((error) => repairableErrors.has(error));
+}
+
+function canRepairCardId(card: LoadedMnemeCard): boolean {
+	return (card.isValid && !card.hasExplicitCardId)
+		|| card.errors.some((error) => error.startsWith("Duplicate card id:"));
+}
+
+function getAllCardIds(queue: ReviewQueue): Set<string> {
+	const cardIds = new Set<string>();
+
+	for (const concept of queue.concepts) {
+		for (const card of getAllQueueCards(concept)) {
+			cardIds.add(card.cardId);
+		}
+	}
+
+	return cardIds;
 }
 
 function getReviewedCardCount(concept: ReviewQueueConcept): number {

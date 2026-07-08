@@ -156,6 +156,46 @@ export class ReviewStateStore {
 		this.pendingSettings = undefined;
 	}
 
+	async rekeyCard(oldCardId: string, newCardId: string): Promise<void> {
+		await this.ensureLoaded();
+
+		if (!oldCardId.trim() || !newCardId.trim() || oldCardId === newCardId) {
+			throw new Error("Card ID migration requires two different non-empty IDs.");
+		}
+
+		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+		if (
+			latestData.reviewStates[newCardId]
+			|| latestData.reviewDeferrals[newCardId]
+			|| latestData.suspendedCards[newCardId]
+		) {
+			throw new Error("The new Card ID already has review state.");
+		}
+
+		const reviewState = latestData.reviewStates[oldCardId];
+		const deferral = latestData.reviewDeferrals[oldCardId];
+		const suspension = latestData.suspendedCards[oldCardId];
+		const nextData = {
+			...latestData,
+			reviewDeferrals: {
+				...omitKey(latestData.reviewDeferrals, oldCardId),
+				...(deferral ? { [newCardId]: { ...deferral, cardId: newCardId } } : {}),
+			},
+			reviewStates: {
+				...omitKey(latestData.reviewStates, oldCardId),
+				...(reviewState ? { [newCardId]: { ...reviewState, cardId: newCardId } } : {}),
+			},
+			suspendedCards: {
+				...omitKey(latestData.suspendedCards, oldCardId),
+				...(suspension ? { [newCardId]: { ...suspension, cardId: newCardId } } : {}),
+			},
+		};
+
+		await this.storage.saveData(nextData);
+		this.data = nextData;
+		this.pendingSettings = undefined;
+	}
+
 	async pauseConcept(conceptId: string, now = new Date()): Promise<ConceptReviewPause> {
 		await this.ensureLoaded();
 

@@ -182,6 +182,57 @@ async function runAsyncTests(): Promise<void> {
 	}
 
 	{
+		const oldCardId = "Mneme/Cards/Encapsulation/Card.md#0";
+		const newCardId = "card-encapsulation-stable";
+		const storage = new MemoryReviewStateStorage({
+			reviewDeferrals: {
+				[oldCardId]: {
+					cardId: oldCardId,
+					deferredAt: "2026-07-07T10:00:00.000Z",
+					resumeAt: "2026-07-08T00:00:00.000Z",
+				},
+			},
+			reviewStates: { [oldCardId]: createReviewState(oldCardId, 2) },
+			schemaVersion: 1,
+			settings: DEFAULT_SETTINGS,
+			suspendedCards: {
+				[oldCardId]: {
+					cardId: oldCardId,
+					suspendedAt: "2026-07-07T12:00:00.000Z",
+				},
+			},
+		});
+		const scheduler = new FakeReviewScheduler();
+		const store = new ReviewStateStore(storage, scheduler);
+
+		await store.load();
+		await store.rekeyCard(oldCardId, newCardId);
+
+		assert.equal(storage.savedData?.reviewStates[oldCardId], undefined);
+		assert.equal(storage.savedData?.reviewStates[newCardId]?.cardId, newCardId);
+		assert.equal(storage.savedData?.reviewStates[newCardId]?.reviewCount, 2);
+		assert.equal(storage.savedData?.reviewDeferrals[newCardId]?.cardId, newCardId);
+		assert.equal(storage.savedData?.suspendedCards[newCardId]?.cardId, newCardId);
+		assert.equal(scheduler.lastInput, undefined);
+	}
+
+	{
+		const storage = new MemoryReviewStateStorage({
+			reviewStates: {
+				new: createReviewState("new", 1),
+				old: createReviewState("old", 2),
+			},
+			schemaVersion: 1,
+			settings: DEFAULT_SETTINGS,
+		});
+		const store = new ReviewStateStore(storage, new FakeReviewScheduler());
+
+		await store.load();
+		await assert.rejects(store.rekeyCard("old", "new"), /already has review state/);
+		assert.equal(storage.savedData, undefined);
+	}
+
+	{
 		const previousState = createReviewState("encapsulation-basic", 2);
 		const storage = new MemoryReviewStateStorage({
 			reviewStates: {

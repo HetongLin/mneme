@@ -155,6 +155,13 @@ Features:
 - Card Retire, Delete, tombstone, and history erasure semantics
 - Possible Duplicate detection and Guided Merge foundation
 
+Current progress:
+
+- Advanced Diagnostics can assign stable IDs to valid legacy Cards without wrappers and to Card blocks missing an ID.
+- Fallback review state, Review Later, and suspension move to the new ID when ownership is unambiguous.
+- Duplicate IDs can be replaced one block at a time; ambiguous shared history remains with the original ID instead of being guessed.
+- Missing or duplicate Concept ID repair remains unfinished.
+
 ## v1.0: Stable Concept Review Plugin
 
 Goal:
