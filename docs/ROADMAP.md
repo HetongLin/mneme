@@ -70,7 +70,7 @@ Current progress:
 - Approved Concept updates safely replace only Core Meaning / Why It Matters and may append Views and Source Notes.
 - Concept Library provides a conflict-aware editor for Core Meaning, Why It Matters, learning mode, and importance.
 - Advanced Diagnostics can repair Cards whose FRONT or BACK section is entirely missing while preserving surrounding Markdown and FSRS state.
-- Duplicate detection and Guided Merge remain unfinished. AI may flag Possible Duplicates, but written Concepts cannot be merged through one-click Inbox acceptance.
+- Possible Duplicate detection and transactional Guided Merge are available from Concept Library; one-click Inbox merge remains forbidden.
 - Duplicate markers, malformed wrappers, and stable-ID conflicts still require the broader Repair Flow.
 
 ## v0.3: Low-pressure Review
@@ -170,7 +170,9 @@ Current progress:
 - `Delete History Too` explicitly erases a deleted Card's events and tombstone; global history clearing retains identity tombstones but zeros their counts.
 - Concept Library reports conservative Possible Duplicate pairs with explainable title/Core Meaning signals.
 - `Not a duplicate` decisions persist by stable Concept pair and remain reversible.
-- Possible Duplicate detection never writes Markdown; the actual Guided Merge transaction remains unfinished.
+- Possible Duplicate detection and dismissal never write Markdown.
+- Guided Merge requires survivor selection, editable final Markdown, every-file preview, and explicit confirmation.
+- Confirmed merges preserve Card IDs/FSRS history, migrate provenance and aggregate controls, leave Redirect Notes, and reserve merged Concept IDs.
 
 ## v1.0: Stable Concept Review Plugin
 

@@ -557,6 +557,27 @@ async function runAsyncTests(): Promise<void> {
 	}
 
 	{
+		const proposal = createProposal("proposal-reserved-concept", {
+			kind: "new_concept",
+			payload: { title: "Encapsulation" },
+			status: "approved",
+		});
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData({ [proposal.id]: proposal }));
+		const vault = new MemoryVaultAdapter();
+		const writer = new ApprovedProposalWriter({
+			isConceptIdReserved: async (conceptId) => conceptId === "concept-encapsulation",
+			proposalStore: new KnowledgeProposalStore(storage),
+			settingsProvider: () => DEFAULT_SETTINGS,
+			vaultAdapter: vault,
+		});
+		const result = await writer.writeApprovedProposal(proposal.id);
+
+		assert.equal(result.status, "failed");
+		assert.match(result.message, /already active or reserved/);
+		assert.equal(vault.files.size, 0);
+	}
+
+	{
 		const proposal = createApprovedCardProposal("proposal-card-unchanged");
 		const storage = new MemoryKnowledgeProposalStorage(createPluginData({ [proposal.id]: proposal }));
 		const { writer } = await createWriter({ [proposal.id]: proposal }, new MemoryVaultAdapter(), storage);

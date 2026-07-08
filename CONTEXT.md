@@ -60,6 +60,10 @@ _Avoid_: Inbox Accept, automatic merge, silent deduplication
 A minimal non-Concept Markdown note left at a merged Concept's former path that points to the surviving Concept. It preserves existing vault links without remaining eligible for Concept browsing or review.
 _Avoid_: Duplicate Concept, archived Concept, active Concept
 
+**Concept Merge Record**:
+A content-free identity record that maps a permanently retired Concept ID and former path to the surviving Concept ID and path. It prevents merged identities from being reused and is not a source of Concept content.
+_Avoid_: Redirect Note content, Concept alias, duplicate Concept
+
 **Card**:
 A review probe that tests one independently rateable learning outcome belonging to a Concept. A Card may require several reasoning steps, but outcomes that can be answered correctly or forgotten separately belong on separate Cards.
 _Avoid_: Concept, multi-outcome quiz, content summary

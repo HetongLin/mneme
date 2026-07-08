@@ -23,6 +23,7 @@ import { AiConceptCaptureService } from "./services/aiConceptCaptureService";
 import { createAiProvider } from "./services/aiProviderFactory";
 import { ConceptSourceLinkStore } from "./services/conceptSourceLinkStore";
 import { ConceptScanner } from "./services/conceptScanner";
+import { ConceptMergeService } from "./services/conceptMergeService";
 import { getConceptIdFromFrontmatter } from "./services/conceptMarkdownIdentity";
 import { parseConceptTitle } from "./services/conceptMarkdownParser";
 import { KnowledgeProposalStore } from "./services/knowledgeProposalStore";
@@ -58,6 +59,16 @@ export default class MnemePlugin extends Plugin {
 		this.approvedProposalWriter = new ApprovedProposalWriter({
 			conceptSourceLinkStore: this.conceptSourceLinkStore,
 			conceptScanner: this.createConceptScanner(),
+			isConceptIdReserved: async (conceptId) => {
+				if (this.reviewStateStore.getConceptMergeRecords()[conceptId]) {
+					return true;
+				}
+
+				const result = await this.createConceptScanner().scan();
+
+				return result.concepts.some((concept) => concept.conceptId === conceptId)
+					|| result.identityIssues.some((issue) => issue.conceptId === conceptId);
+			},
 			proposalStore: this.knowledgeProposalStore,
 			settingsProvider: () => this.settings,
 			sourceAnalysisStore: this.sourceAnalysisStore,
@@ -82,6 +93,10 @@ export default class MnemePlugin extends Plugin {
 			this.createConceptScanner(),
 			this.reviewStateStore,
 			{
+				conceptMergeService: new ConceptMergeService(
+					new ObsidianVaultAdapter(this.app.vault),
+					this,
+				),
 				generateCards: (concept) => this.generateCardsFromConceptPath(concept.path),
 			},
 		));

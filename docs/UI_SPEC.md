@@ -130,7 +130,9 @@ Do not display a scary overdue queue by default.
 
 ## Concept Library Duplicate Diagnostics
 
-Possible Duplicate is a review signal, not a merge action. Each candidate shows both Concept titles, concise Core Meaning previews, and human-readable triggering reasons. Internal similarity scores may order candidates but are not presented as confidence or merge permission. The student can open either note or mark the pair `Not a duplicate`. Dismissed pairs remain available behind `Show dismissed` and can be reconsidered. No candidate action writes Markdown; merging requires the separate Guided Merge flow and final diff.
+Possible Duplicate is a review signal, not merge permission. Each candidate shows both Concept titles, concise Core Meaning previews, and human-readable triggering reasons. Internal similarity scores may order candidates but are not presented as confidence. The student can open either note, mark the pair `Not a duplicate`, or enter Guided Merge. Detection and dismissal never write Markdown.
+
+Guided Merge first asks which Concept survives and whether to preserve the other narrative as a View. It then shows an editable final survivor note plus Before/After previews for every other affected file, Card and Source migration counts, and a review-confirmation checkbox. Only `Confirm Guided Merge` writes. Any file or plugin-state change after preview requires rebuilding the preview.
 
 ## Inbox View
 

@@ -7,6 +7,7 @@ const tests = [
 	"tests/conceptScanner.test.ts",
 	"tests/conceptIdEditor.test.ts",
 	"tests/conceptDuplicateDetector.test.ts",
+	"tests/conceptMergeService.test.ts",
 	"tests/conceptLibrarySearch.test.ts",
 ];
 

@@ -836,3 +836,41 @@ Acceptance criteria:
 - Pair keys cannot collide when IDs contain delimiters
 - Refresh preserves dismissal decisions
 - The UI explicitly states that a reviewed Guided Merge is still required
+
+## Task 052: Transactional Guided Concept Merge
+
+Goal:
+
+Let a student reconcile a Possible Duplicate without losing Markdown, provenance, Card identity, or review history.
+
+Requirements:
+
+- Require the student to choose the surviving Concept identity and path
+- Build a zero-write preview before confirmation
+- Preserve the merged note's narrative as an editable View by default
+- Let the student edit the final surviving Concept.md
+- Preview every affected Markdown file with Before and After content
+- Require explicit confirmation that all affected Markdown was reviewed
+- Keep the survivor's `mneme_id` and validate its final Card Group link
+- Move complete stable-ID Card blocks without changing Card IDs or FSRS state
+- Adopt the merged Card Group when the survivor has none
+- Replace a vacated Card Group with a valid empty redirect
+- Replace the merged Concept with a non-Concept Redirect Note
+- Migrate and deduplicate Concept-source links and Source analysis associations
+- Migrate Concept pause and duplicate-dismissal state when ownership is clear
+- Block while actionable Inbox proposals still target the merged Concept
+- Reject shared Card Groups, malformed Cards, missing Card IDs, duplicate Card IDs, or changed associations
+- Detect file or plugin-data changes after preview
+- Roll back all written Markdown if any write or data persistence step fails
+- Record a permanent Concept Merge Record so the old ID cannot be reused
+
+Acceptance criteria:
+
+- Previewing performs no writes
+- Successful merge leaves one active Concept and one Redirect Note
+- Every moved Card keeps its stable ID and all Card-keyed FSRS/control/history state
+- Source relationships are deduplicated by Concept, Source, and relation type
+- The old Concept ID is reserved and plugin-generated Concepts cannot reuse it
+- Refresh removes the merged pair from Possible Duplicates
+- Concurrent edits abort without partial writes
+- Persistence failure restores every modified Markdown file

@@ -36,6 +36,7 @@ export interface ConceptSummaryScanner {
 export interface ApprovedProposalWriterOptions {
 	conceptSourceLinkStore?: ConceptSourceLinkStore;
 	conceptScanner?: ConceptSummaryScanner;
+	isConceptIdReserved?(conceptId: string): Promise<boolean>;
 	now?: () => string;
 	proposalStore: KnowledgeProposalStore;
 	settingsProvider: () => MnemeSettings;
@@ -81,6 +82,20 @@ export class ApprovedProposalWriter {
 
 		if (proposal.kind === "add_view") {
 			return this.writeConceptViewProposal(proposal);
+		}
+
+		if (proposal.kind === "new_concept" && this.options.isConceptIdReserved) {
+			const conceptId = normalizeConceptIdForWrittenConcept({ proposal, targetPaths: [] });
+			try {
+				if (await this.options.isConceptIdReserved(conceptId)) {
+					return this.failedResult(proposal.id, `Concept ID is already active or reserved: ${conceptId}`);
+				}
+			} catch (error) {
+				return this.failedResult(
+					proposal.id,
+					error instanceof Error ? error.message : "Concept identity lookup failed.",
+				);
+			}
 		}
 
 		const renderResult = renderMarkdownProposal(proposal, this.options.settingsProvider());

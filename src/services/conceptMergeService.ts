@@ -1,0 +1,717 @@
+import type { ConceptSummary } from "../models/conceptLibrary";
+import type { ConceptSourceLink, SourceEvidence } from "../models/conceptSource";
+import type { KnowledgeProposal } from "../models/knowledgeProposal";
+import type {
+	ConceptDuplicateDismissal,
+	MnemePluginData,
+} from "../models/reviewState";
+import { toObsidianInternalLink } from "../utils/markdownPath";
+import { parseMnemeCards } from "./cardMarkerParser";
+import { appendConceptSourceNote } from "./conceptSourceNoteAppender";
+import { createConceptDuplicatePairKey } from "./conceptDuplicateDetector";
+import { createConceptSourceLinkId } from "./conceptSourceLinking";
+import { appendConceptView } from "./conceptViewAppender";
+import { normalizePluginData } from "./reviewStateStore";
+
+export interface ConceptMergeVaultAdapter {
+	modify(path: string, content: string): Promise<void>;
+	read(path: string): Promise<string>;
+}
+
+export interface ConceptMergeStorage {
+	loadData(): Promise<unknown>;
+	saveData(data: MnemePluginData): Promise<void>;
+}
+
+export interface PrepareConceptMergeInput {
+	merged: ConceptSummary;
+	preserveMergedAsView: boolean;
+	survivor: ConceptSummary;
+}
+
+export interface ConceptMergeWrite {
+	after: string;
+	before: string;
+	label: string;
+	path: string;
+}
+
+export interface ConceptMergePlan {
+	cardsMoved: number;
+	dataSnapshot: string;
+	duplicateDismissalsMigrated: number;
+	merged: ConceptSummary;
+	nextData: MnemePluginData;
+	pauseMigrated: boolean;
+	sourceLinkChanges: Array<{
+		relationType: ConceptSourceLink["relationType"];
+		sourcePath: string;
+		status: ConceptSourceLink["status"];
+	}>;
+	sourceLinksMigrated: number;
+	survivor: ConceptSummary;
+	targetCardsPath?: string;
+	writes: ConceptMergeWrite[];
+}
+
+export type PrepareConceptMergeResult =
+	| { message: string; status: "blocked" }
+	| { plan: ConceptMergePlan; status: "ready" };
+
+export type ExecuteConceptMergeResult =
+	| { status: "merged" }
+	| { message: string; status: "conflict" | "failed" | "invalid" };
+
+export class ConceptMergeService {
+	private readonly now: () => string;
+
+	constructor(
+		private readonly vault: ConceptMergeVaultAdapter,
+		private readonly storage: ConceptMergeStorage,
+		now: () => string = () => new Date().toISOString(),
+	) {
+		this.now = now;
+	}
+
+	async prepare(input: PrepareConceptMergeInput): Promise<PrepareConceptMergeResult> {
+		if (input.survivor.conceptId === input.merged.conceptId || input.survivor.path === input.merged.path) {
+			return { message: "Guided Merge requires two different Concepts.", status: "blocked" };
+		}
+
+		try {
+			const data = normalizePluginData(await this.storage.loadData());
+			if (data.conceptMergeRecords[input.survivor.conceptId] || data.conceptMergeRecords[input.merged.conceptId]) {
+				return { message: "A selected Concept ID is already reserved by an earlier merge.", status: "blocked" };
+			}
+			const blockingProposal = Object.values(data.knowledgeProposals).find((proposal) => {
+				return isActionableProposal(proposal) && proposalReferencesConcept(proposal, input.merged.conceptId);
+			});
+			if (blockingProposal) {
+				return {
+					message: `Resolve Inbox proposal ${blockingProposal.id} before merging this Concept.`,
+					status: "blocked",
+				};
+			}
+
+			const survivorMarkdown = await this.vault.read(input.survivor.path);
+			const mergedMarkdown = await this.vault.read(input.merged.path);
+			if (!hasConceptIdentity(survivorMarkdown, input.survivor.conceptId)
+				|| !hasConceptIdentity(mergedMarkdown, input.merged.conceptId)) {
+				return { message: "Concept identity changed. Refresh Concept Library before merging.", status: "blocked" };
+			}
+
+			const cardPlanResult = await this.prepareCards(input, survivorMarkdown, mergedMarkdown);
+			if (cardPlanResult.status === "blocked") {
+				return cardPlanResult;
+			}
+
+			const migratedLinks = migrateConceptSourceLinks(
+				data.conceptSourceLinks,
+				input.merged.conceptId,
+				input.survivor.conceptId,
+			);
+			let finalSurvivorMarkdown = cardPlanResult.survivorMarkdown;
+			for (const link of migratedLinks.linksForSurvivor) {
+				if (link.status === "approved" || link.status === "stale") {
+					finalSurvivorMarkdown = appendConceptSourceNote(finalSurvivorMarkdown, link).markdown;
+				}
+			}
+			if (input.preserveMergedAsView) {
+				const perspective = extractMergedPerspective(mergedMarkdown);
+				if (perspective) {
+					finalSurvivorMarkdown = appendConceptView(finalSurvivorMarkdown, {
+						body: perspective,
+						title: `Merged from ${input.merged.title} (${input.merged.conceptId})`,
+					}).markdown;
+				}
+			}
+
+			const mergedAt = this.now();
+			const nextData = migratePluginDataForConceptMerge(
+				data,
+				input.survivor,
+				input.merged,
+				migratedLinks.links,
+				mergedAt,
+			);
+			const writes = upsertWrite(cardPlanResult.writes, {
+				after: finalSurvivorMarkdown,
+				before: survivorMarkdown,
+				label: "Surviving Concept",
+				path: input.survivor.path,
+			});
+			writes.push({
+				after: renderConceptRedirect(input.survivor, input.merged, mergedAt),
+				before: mergedMarkdown,
+				label: "Redirect Note",
+				path: input.merged.path,
+			});
+
+			return {
+				plan: {
+					cardsMoved: cardPlanResult.cardsMoved,
+					dataSnapshot: JSON.stringify(data),
+					duplicateDismissalsMigrated: Object.values(data.conceptDuplicateDismissals)
+						.filter((dismissal) => dismissal.conceptIds.includes(input.merged.conceptId)).length,
+					merged: input.merged,
+					nextData,
+					pauseMigrated: !!data.pausedConcepts[input.merged.conceptId],
+					sourceLinkChanges: Object.values(data.conceptSourceLinks)
+						.filter((link) => link.conceptId === input.merged.conceptId)
+						.map((link) => ({
+							relationType: link.relationType,
+							sourcePath: link.sourcePath,
+							status: link.status,
+						})),
+					sourceLinksMigrated: migratedLinks.migratedCount,
+					survivor: input.survivor,
+					targetCardsPath: cardPlanResult.targetCardsPath,
+					writes,
+				},
+				status: "ready",
+			};
+		} catch (error) {
+			return {
+				message: error instanceof Error ? error.message : "Could not prepare Guided Merge.",
+				status: "blocked",
+			};
+		}
+	}
+
+	async execute(plan: ConceptMergePlan, finalSurvivorMarkdown: string): Promise<ExecuteConceptMergeResult> {
+		const validationMessage = validateFinalSurvivorMarkdown(
+			finalSurvivorMarkdown,
+			plan.survivor,
+			plan.targetCardsPath,
+		);
+		if (validationMessage) {
+			return { message: validationMessage, status: "invalid" };
+		}
+
+		const writes = plan.writes.map((write) => write.path === plan.survivor.path
+			? { ...write, after: finalSurvivorMarkdown }
+			: write);
+		try {
+			for (const write of writes) {
+				if (await this.vault.read(write.path) !== write.before) {
+					return { message: `${write.path} changed after preview.`, status: "conflict" };
+				}
+			}
+			const latestData = normalizePluginData(await this.storage.loadData());
+			if (JSON.stringify(latestData) !== plan.dataSnapshot) {
+				return { message: "Mneme state changed after preview. Rebuild the merge preview.", status: "conflict" };
+			}
+
+			const written: ConceptMergeWrite[] = [];
+			let dataWriteAttempted = false;
+			try {
+				for (const write of writes) {
+					if (write.after !== write.before) {
+						await this.vault.modify(write.path, write.after);
+						written.push(write);
+					}
+				}
+				dataWriteAttempted = true;
+				await this.storage.saveData(plan.nextData);
+			} catch (error) {
+				const rollbackErrors: string[] = [];
+				for (const write of [...written].reverse()) {
+					try {
+						await this.vault.modify(write.path, write.before);
+					} catch (rollbackError) {
+						rollbackErrors.push(`${write.path}: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`);
+					}
+				}
+				if (dataWriteAttempted) {
+					try {
+						await this.storage.saveData(latestData);
+					} catch (rollbackError) {
+						rollbackErrors.push(`plugin data: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`);
+					}
+				}
+				if (rollbackErrors.length > 0) {
+					throw new Error(`${error instanceof Error ? error.message : String(error)} Rollback also failed: ${rollbackErrors.join("; ")}`);
+				}
+				throw error;
+			}
+
+			return { status: "merged" };
+		} catch (error) {
+			return {
+				message: error instanceof Error ? error.message : "Guided Merge failed.",
+				status: "failed",
+			};
+		}
+	}
+
+	private async prepareCards(
+		input: PrepareConceptMergeInput,
+		survivorMarkdown: string,
+		mergedMarkdown: string,
+	): Promise<
+		| { message: string; status: "blocked" }
+		| {
+			cardsMoved: number;
+			status: "ready";
+			survivorMarkdown: string;
+			targetCardsPath?: string;
+			writes: ConceptMergeWrite[];
+		}
+	> {
+		if (input.survivor.cardsPath && input.survivor.cardsPath === input.merged.cardsPath) {
+			return { message: "Both Concepts reference the same Card Group. Repair that association first.", status: "blocked" };
+		}
+
+		const targetCardsPath = input.survivor.cardsPath ?? input.merged.cardsPath;
+		const survivorCardsBefore = input.survivor.cardsPath
+			? await this.vault.read(input.survivor.cardsPath)
+			: undefined;
+		const mergedCardsBefore = input.merged.cardsPath
+			? await this.vault.read(input.merged.cardsPath)
+			: undefined;
+		if (survivorCardsBefore && !hasCardGroupIdentity(survivorCardsBefore, input.survivor.conceptId)) {
+			return { message: "The surviving Card Group association changed. Repair it first.", status: "blocked" };
+		}
+		if (mergedCardsBefore && !hasCardGroupIdentity(mergedCardsBefore, input.merged.conceptId)) {
+			return { message: "The merged Card Group association changed. Repair it first.", status: "blocked" };
+		}
+		const targetBefore = survivorCardsBefore ?? mergedCardsBefore;
+		const targetBlocks = targetBefore ? inspectCardGroup(targetBefore, targetCardsPath ?? "Card.md") : [];
+		const sourceBlocks = survivorCardsBefore && mergedCardsBefore
+			? inspectCardGroup(mergedCardsBefore, input.merged.cardsPath ?? "Card.md")
+			: [];
+		const targetIds = new Set(targetBlocks.map((block) => block.cardId));
+		const duplicateId = sourceBlocks.find((block) => targetIds.has(block.cardId));
+		if (duplicateId) {
+			return { message: `Card ID ${duplicateId.cardId} exists in both Card Groups. Repair it first.`, status: "blocked" };
+		}
+
+		let nextSurvivorMarkdown = survivorMarkdown;
+		const writes: ConceptMergeWrite[] = [];
+		if (targetCardsPath) {
+			nextSurvivorMarkdown = setFrontmatterScalar(
+				nextSurvivorMarkdown,
+				"cards",
+				quoteYaml(toObsidianInternalLink(targetCardsPath, `${input.survivor.title} Cards`)),
+			);
+			if (!targetBefore) {
+				return { message: `Card Group not found: ${targetCardsPath}`, status: "blocked" };
+			}
+			let targetAfter = updateCardGroupAssociation(targetBefore, input.survivor);
+			if (sourceBlocks.length > 0) {
+				targetAfter = `${targetAfter.trimEnd()}\n\n${sourceBlocks.map((block) => block.raw).join("\n\n")}\n`;
+			}
+			writes.push({
+				after: targetAfter,
+				before: targetBefore,
+				label: "Surviving Card Group",
+				path: targetCardsPath,
+			});
+		}
+
+		if (survivorCardsBefore && mergedCardsBefore && input.merged.cardsPath) {
+			writes.push({
+				after: renderEmptyCardRedirect(input.survivor, input.merged, targetCardsPath as string),
+				before: mergedCardsBefore,
+				label: "Former Card Group Redirect",
+				path: input.merged.cardsPath,
+			});
+		}
+
+		return {
+			cardsMoved: mergedCardsBefore
+				? (survivorCardsBefore ? sourceBlocks.length : targetBlocks.length)
+				: 0,
+			status: "ready",
+			survivorMarkdown: nextSurvivorMarkdown,
+			targetCardsPath,
+			writes,
+		};
+	}
+}
+
+interface RawCardBlock {
+	cardId: string;
+	raw: string;
+}
+
+function inspectCardGroup(markdown: string, path: string): RawCardBlock[] {
+	const parsed = parseMnemeCards(markdown);
+	if (parsed.some((card) => !card.isValid || !card.explicitCardId)) {
+		throw new Error(`Repair every Card ID and marker error before merging: ${path}`);
+	}
+	const blocks = Array.from(markdown.matchAll(/<!--\s*MNEME:CARD:start\b([^>]*)-->([\s\S]*?)<!--\s*MNEME:CARD:end\s*-->/g));
+	if (blocks.length !== parsed.length) {
+		throw new Error(`Card Group contains legacy or malformed blocks: ${path}`);
+	}
+
+	return blocks.map((match, index) => ({
+		cardId: parsed[index]?.explicitCardId as string,
+		raw: match[0] ?? "",
+	}));
+}
+
+function updateCardGroupAssociation(markdown: string, survivor: ConceptSummary): string {
+	let updated = setFrontmatterScalar(markdown, "mneme_concept_id", survivor.conceptId);
+	updated = setFrontmatterScalar(
+		updated,
+		"concept",
+		quoteYaml(toObsidianInternalLink(survivor.path, survivor.title)),
+	);
+	return updated;
+}
+
+function migratePluginDataForConceptMerge(
+	data: MnemePluginData,
+	survivor: ConceptSummary,
+	merged: ConceptSummary,
+	conceptSourceLinks: MnemePluginData["conceptSourceLinks"],
+	mergedAt: string,
+): MnemePluginData {
+	const sourcePause = data.pausedConcepts[merged.conceptId];
+	const survivorPause = data.pausedConcepts[survivor.conceptId];
+	const pausedAt = [sourcePause?.pausedAt, survivorPause?.pausedAt].filter((value): value is string => !!value).sort()[0];
+	const pausedConcepts = { ...data.pausedConcepts };
+	delete pausedConcepts[merged.conceptId];
+	if (pausedAt) {
+		pausedConcepts[survivor.conceptId] = { conceptId: survivor.conceptId, pausedAt };
+	}
+
+	const sourceAnalysisRecords = Object.fromEntries(Object.entries(data.sourceAnalysisRecords).map(([path, record]) => [
+		path,
+		{
+			...record,
+			linkedConceptIds: [...new Set(record.linkedConceptIds.map((id) => id === merged.conceptId ? survivor.conceptId : id))],
+		},
+	]));
+	const conceptDuplicateDismissals = migrateDuplicateDismissals(
+		data.conceptDuplicateDismissals,
+		merged.conceptId,
+		survivor.conceptId,
+	);
+	const conceptMergeRecords = Object.fromEntries(Object.entries(data.conceptMergeRecords).map(([conceptId, record]) => [
+		conceptId,
+		record.survivorConceptId === merged.conceptId
+			? { ...record, survivorConceptId: survivor.conceptId, survivorPath: survivor.path }
+			: record,
+	]));
+
+	return {
+		...data,
+		conceptDuplicateDismissals,
+		conceptMergeRecords: {
+			...conceptMergeRecords,
+			[merged.conceptId]: {
+				mergedAt,
+				mergedConceptId: merged.conceptId,
+				mergedPath: merged.path,
+				survivorConceptId: survivor.conceptId,
+				survivorPath: survivor.path,
+			},
+		},
+		conceptSourceLinks,
+		pausedConcepts,
+		sourceAnalysisRecords,
+	};
+}
+
+function migrateDuplicateDismissals(
+	dismissals: Record<string, ConceptDuplicateDismissal>,
+	mergedId: string,
+	survivorId: string,
+): Record<string, ConceptDuplicateDismissal> {
+	const migrated: Record<string, ConceptDuplicateDismissal> = {};
+	for (const dismissal of Object.values(dismissals)) {
+		const ids = dismissal.conceptIds.map((id) => id === mergedId ? survivorId : id) as [string, string];
+		if (ids[0] === ids[1]) {
+			continue;
+		}
+		const conceptIds = [...ids].sort() as [string, string];
+		const pairKey = createConceptDuplicatePairKey(conceptIds[0], conceptIds[1]);
+		const existing = migrated[pairKey];
+		if (!existing || dismissal.dismissedAt > existing.dismissedAt) {
+			migrated[pairKey] = { ...dismissal, conceptIds, pairKey };
+		}
+	}
+	return migrated;
+}
+
+function migrateConceptSourceLinks(
+	links: Record<string, ConceptSourceLink>,
+	mergedId: string,
+	survivorId: string,
+): { links: Record<string, ConceptSourceLink>; linksForSurvivor: ConceptSourceLink[]; migratedCount: number } {
+	const migrated: Record<string, ConceptSourceLink> = {};
+	const idsBySignature = new Map<string, string>();
+	const affectedSignatures = new Set<string>();
+	let migratedCount = 0;
+	const unchanged = Object.values(links).filter((link) => link.conceptId !== mergedId);
+	const moving = Object.values(links).filter((link) => link.conceptId === mergedId);
+	for (const link of unchanged) {
+		if (link.conceptId !== survivorId) {
+			migrated[link.id] = link;
+			continue;
+		}
+		const signature = JSON.stringify([link.conceptId, link.sourcePath, link.relationType]);
+		const existingId = idsBySignature.get(signature);
+		if (existingId && migrated[existingId]) {
+			migrated[existingId] = mergeSourceLinks(migrated[existingId] as ConceptSourceLink, { ...link, id: existingId });
+		} else {
+			idsBySignature.set(signature, link.id);
+			migrated[link.id] = link;
+		}
+	}
+	for (const link of moving) {
+		migratedCount += 1;
+		const conceptId = survivorId;
+		const proposedId = conceptId === link.conceptId
+			? link.id
+			: createConceptSourceLinkId(conceptId, link.sourcePath, link.relationType);
+		const next = { ...link, conceptId, id: proposedId };
+		const signature = JSON.stringify([conceptId, link.sourcePath, link.relationType]);
+		affectedSignatures.add(signature);
+		const existingId = idsBySignature.get(signature);
+		if (existingId) {
+			const existing = migrated[existingId];
+			if (existing) {
+				migrated[existingId] = mergeSourceLinks(existing, { ...next, id: existingId });
+			}
+		} else {
+			const id = createUniqueRecordId(proposedId, migrated);
+			idsBySignature.set(signature, id);
+			migrated[id] = { ...next, id };
+		}
+	}
+
+	return {
+		links: migrated,
+		linksForSurvivor: Object.values(migrated).filter((link) => {
+			return link.conceptId === survivorId
+				&& affectedSignatures.has(JSON.stringify([link.conceptId, link.sourcePath, link.relationType]));
+		}),
+		migratedCount,
+	};
+}
+
+function createUniqueRecordId(baseId: string, records: Record<string, unknown>): string {
+	if (!records[baseId]) {
+		return baseId;
+	}
+	let suffix = 2;
+	while (records[`${baseId}:${suffix}`]) {
+		suffix += 1;
+	}
+	return `${baseId}:${suffix}`;
+}
+
+function mergeSourceLinks(first: ConceptSourceLink, second: ConceptSourceLink): ConceptSourceLink {
+	const evidence = dedupeEvidence([...first.evidence, ...second.evidence]);
+	const latest = first.lastSeenAt >= second.lastSeenAt ? first : second;
+	return {
+		...latest,
+		addedAt: first.addedAt <= second.addedAt ? first.addedAt : second.addedAt,
+		evidence,
+		id: first.id,
+		lastSeenAt: first.lastSeenAt >= second.lastSeenAt ? first.lastSeenAt : second.lastSeenAt,
+		status: strongerSourceStatus(first.status, second.status),
+	};
+}
+
+function dedupeEvidence(evidence: SourceEvidence[]): SourceEvidence[] {
+	const seen = new Set<string>();
+	return evidence.filter((item) => {
+		const key = JSON.stringify(item);
+		if (seen.has(key)) {
+			return false;
+		}
+		seen.add(key);
+		return true;
+	});
+}
+
+function strongerSourceStatus(
+	first: ConceptSourceLink["status"],
+	second: ConceptSourceLink["status"],
+): ConceptSourceLink["status"] {
+	const rank: Record<ConceptSourceLink["status"], number> = { approved: 4, stale: 3, suggested: 2, rejected: 1 };
+	return rank[first] >= rank[second] ? first : second;
+}
+
+function proposalReferencesConcept(proposal: KnowledgeProposal, conceptId: string): boolean {
+	if (proposal.conceptId === conceptId) {
+		return true;
+	}
+	return containsExactString(proposal.payload, conceptId);
+}
+
+function containsExactString(value: unknown, target: string): boolean {
+	if (value === target) {
+		return true;
+	}
+	if (Array.isArray(value)) {
+		return value.some((item) => containsExactString(item, target));
+	}
+	if (typeof value === "object" && value !== null) {
+		return Object.values(value).some((item) => containsExactString(item, target));
+	}
+	return false;
+}
+
+function isActionableProposal(proposal: KnowledgeProposal): boolean {
+	return proposal.status === "suggested"
+		|| proposal.status === "opened"
+		|| proposal.status === "edited"
+		|| proposal.status === "approved";
+}
+
+function renderConceptRedirect(survivor: ConceptSummary, merged: ConceptSummary, mergedAt: string): string {
+	const link = toObsidianInternalLink(survivor.path, survivor.title);
+	return [
+		"---",
+		"mneme_type: concept_redirect",
+		"mneme_version: 1",
+		`former_mneme_id: ${merged.conceptId}`,
+		`merged_into: ${survivor.conceptId}`,
+		`merged_at: ${mergedAt}`,
+		`redirect_to: ${quoteYaml(link)}`,
+		"---",
+		"",
+		`# ${merged.title}`,
+		"",
+		"> [!info] Merged Concept",
+		`> This Concept was merged into ${link}.`,
+		"",
+	].join("\n");
+}
+
+function renderEmptyCardRedirect(
+	survivor: ConceptSummary,
+	merged: ConceptSummary,
+	targetCardsPath: string,
+): string {
+	return [
+		"---",
+		"mneme_type: card_group",
+		`mneme_concept_id: ${survivor.conceptId}`,
+		"mneme_version: 1",
+		`concept: ${quoteYaml(toObsidianInternalLink(survivor.path, survivor.title))}`,
+		`redirect_cards_to: ${quoteYaml(toObsidianInternalLink(targetCardsPath, `${survivor.title} Cards`))}`,
+		"---",
+		"",
+		`# ${merged.title} Cards`,
+		"",
+		`Cards moved to ${toObsidianInternalLink(targetCardsPath, `${survivor.title} Cards`)}.`,
+		"",
+	].join("\n");
+}
+
+function extractMergedPerspective(markdown: string): string | undefined {
+	const body = markdown.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, "");
+	const lines = body.split(/\r?\n/);
+	const kept: string[] = [];
+	let fence: string | undefined;
+	for (const line of lines) {
+		const fenceMarker = line.trim().match(/^(```+|~~~+)/)?.[1]?.[0];
+		if (fenceMarker) {
+			fence = fence ? undefined : fenceMarker;
+			kept.push(line);
+			continue;
+		}
+		if (!fence) {
+			const heading = /^(#{1,6})\s+(.+?)\s*$/.exec(line);
+			if (heading) {
+				const level = heading[1]?.length ?? 1;
+				if (level === 1) {
+					continue;
+				}
+				kept.push(`${"#".repeat(Math.min(6, level + 2))} ${heading[2]}`);
+				continue;
+			}
+		}
+		kept.push(line);
+	}
+	const result = kept.join("\n").trim();
+	return result || undefined;
+}
+
+function validateFinalSurvivorMarkdown(
+	markdown: string,
+	survivor: ConceptSummary,
+	targetCardsPath: string | undefined,
+): string | undefined {
+	if (!hasConceptIdentity(markdown, survivor.conceptId)) {
+		return "Final Markdown must keep the surviving Concept ID and mneme_type: concept.";
+	}
+	if (targetCardsPath) {
+		const cards = readFrontmatterScalar(markdown, "cards");
+		if (!cards || normalizeLinkedMarkdownPath(cards) !== normalizeLinkedMarkdownPath(targetCardsPath)) {
+			return "Final Markdown must keep the surviving Card Group link.";
+		}
+	}
+	return undefined;
+}
+
+function normalizeLinkedMarkdownPath(value: string): string {
+	const linkMatch = /^\s*\[\[([^\]|]+)(?:\|[^\]]*)?\]\]\s*$/.exec(value);
+	const path = (linkMatch?.[1] ?? value).trim().replace(/\\/g, "/").replace(/\/+/g, "/").replace(/^\/+/, "");
+
+	return /\.md$/i.test(path) ? path : `${path}.md`;
+}
+
+function hasConceptIdentity(markdown: string, conceptId: string): boolean {
+	return readFrontmatterScalar(markdown, "mneme_type") === "concept"
+		&& readFrontmatterScalar(markdown, "mneme_id") === conceptId;
+}
+
+function hasCardGroupIdentity(markdown: string, conceptId: string): boolean {
+	return readFrontmatterScalar(markdown, "mneme_type") === "card_group"
+		&& readFrontmatterScalar(markdown, "mneme_concept_id") === conceptId;
+}
+
+function readFrontmatterScalar(markdown: string, key: string): string | undefined {
+	const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(markdown);
+	if (!match) {
+		return undefined;
+	}
+	const lines = (match[1] ?? "").split(/\r?\n/)
+		.filter((candidate) => new RegExp(`^${key}\\s*:`).test(candidate));
+	if (lines.length !== 1) {
+		return undefined;
+	}
+	const line = lines[0];
+	return line?.slice(line.indexOf(":") + 1).trim().replace(/^['"]|['"]$/g, "") || undefined;
+}
+
+function setFrontmatterScalar(markdown: string, key: string, value: string): string {
+	const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(markdown);
+	if (!match) {
+		throw new Error("Markdown frontmatter is required for Guided Merge.");
+	}
+	const lines = (match[1] ?? "").split(/\r?\n/);
+	const indexes = lines.flatMap((line, index) => new RegExp(`^${key}\\s*:`).test(line) ? [index] : []);
+	if (indexes.length > 1) {
+		throw new Error(`Frontmatter field appears more than once: ${key}`);
+	}
+	if (indexes[0] === undefined) {
+		lines.push(`${key}: ${value}`);
+	} else {
+		lines[indexes[0]] = `${key}: ${value}`;
+	}
+	const fullFrontmatter = match[0] ?? "";
+	return `---\n${lines.join("\n")}\n---\n${markdown.slice(fullFrontmatter.length)}`;
+}
+
+function quoteYaml(value: string): string {
+	return JSON.stringify(value);
+}
+
+function upsertWrite(writes: ConceptMergeWrite[], write: ConceptMergeWrite): ConceptMergeWrite[] {
+	const result = [...writes];
+	const index = result.findIndex((candidate) => candidate.path === write.path);
+	if (index >= 0) {
+		result[index] = write;
+	} else {
+		result.push(write);
+	}
+	return result;
+}

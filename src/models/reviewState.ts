@@ -66,6 +66,14 @@ export interface ConceptDuplicateDismissal {
 	pairKey: string;
 }
 
+export interface ConceptMergeRecord {
+	mergedAt: string;
+	mergedConceptId: string;
+	mergedPath: string;
+	survivorConceptId: string;
+	survivorPath: string;
+}
+
 export interface MnemePluginData {
 	[key: string]: unknown;
 	reviewStates: Record<string, CardReviewState>;
@@ -76,6 +84,7 @@ export interface MnemePluginData {
 	suspendedCards: Record<string, CardReviewSuspension>;
 	cardTombstones: Record<string, CardTombstone>;
 	conceptDuplicateDismissals: Record<string, ConceptDuplicateDismissal>;
+	conceptMergeRecords: Record<string, ConceptMergeRecord>;
 	schemaVersion: number;
 	settings: MnemeSettings;
 	sourceAnalysisRecords: Record<string, SourceAnalysisRecord>;

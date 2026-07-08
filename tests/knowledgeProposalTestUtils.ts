@@ -29,6 +29,7 @@ export function createPluginData(
 	return {
 		cardTombstones: {},
 		conceptDuplicateDismissals: {},
+		conceptMergeRecords: {},
 		conceptSourceLinks,
 		knowledgeProposals,
 		pausedConcepts: {},

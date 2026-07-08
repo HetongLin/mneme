@@ -8,9 +8,11 @@ import type {
 } from "../models/conceptLibrary";
 import { ConceptEditModal } from "../modals/conceptEditModal";
 import { ConceptIdRepairModal } from "../modals/conceptIdRepairModal";
+import { ConceptMergeModal } from "../modals/conceptMergeModal";
 import { createConceptPreview } from "../services/conceptMarkdownParser";
 import { ConceptScanner } from "../services/conceptScanner";
 import { ReviewStateStore } from "../services/reviewStateStore";
+import type { ConceptMergeService } from "../services/conceptMergeService";
 import {
 	canGenerateCardsFromConcept,
 	filterConceptSummaries,
@@ -20,6 +22,7 @@ import {
 export const CONCEPT_LIBRARY_VIEW_TYPE = "mneme-concept-library-view";
 
 export interface ConceptLibraryActions {
+	conceptMergeService?: ConceptMergeService;
 	generateCards?(concept: ConceptSummary): Promise<void> | void;
 }
 
@@ -150,6 +153,7 @@ export class MnemeConceptLibraryView extends ItemView {
 		textEl.createEl("p", { text: `${candidate.first.title}: ${formatDuplicateCore(candidate.first.coreMeaning)}` });
 		textEl.createEl("p", { text: `${candidate.second.title}: ${formatDuplicateCore(candidate.second.coreMeaning)}` });
 		const actionsEl = mainEl.createDiv({ cls: "mneme-review-actions" });
+		const mergeService = this.actions.conceptMergeService;
 		actionsEl.createEl("button", { text: `Open ${candidate.first.title}` }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => void this.openMarkdownPath(candidate.first.path, "Concept"));
 		});
@@ -161,6 +165,20 @@ export class MnemeConceptLibraryView extends ItemView {
 				void this.setDuplicateDismissal(candidate, dismissed);
 			});
 		});
+		if (!dismissed && mergeService) {
+			actionsEl.createEl("button", { text: "Guided Merge" }, (buttonEl) => {
+				buttonEl.addEventListener("click", () => {
+					new ConceptMergeModal(this.app, {
+						candidate,
+						onMerged: async () => {
+							await this.reviewStateStore.load();
+							await this.refresh();
+						},
+						service: mergeService,
+					}).open();
+				});
+			});
+		}
 	}
 
 	private async setDuplicateDismissal(
@@ -225,6 +243,7 @@ export class MnemeConceptLibraryView extends ItemView {
 			existingConceptIds: new Set([
 				...this.concepts.map((concept) => concept.conceptId),
 				...this.identityIssues.flatMap((candidate) => candidate.conceptId ? [candidate.conceptId] : []),
+				...Object.keys(this.reviewStateStore.getConceptMergeRecords()),
 			]),
 			issue,
 			onSaved: async (oldConceptId, newConceptId, migrateState) => {

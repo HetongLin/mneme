@@ -16,6 +16,7 @@ import {
 	assert.equal(data.schemaVersion, 1);
 	assert.deepEqual(data.cardTombstones, {});
 	assert.deepEqual(data.conceptDuplicateDismissals, {});
+	assert.deepEqual(data.conceptMergeRecords, {});
 	assert.deepEqual(data.conceptSourceLinks, {});
 	assert.deepEqual(data.knowledgeProposals, {});
 	assert.deepEqual(data.pausedConcepts, {});
@@ -34,6 +35,7 @@ import {
 	assert.equal(data.schemaVersion, 1);
 	assert.deepEqual(data.cardTombstones, {});
 	assert.deepEqual(data.conceptDuplicateDismissals, {});
+	assert.deepEqual(data.conceptMergeRecords, {});
 	assert.deepEqual(data.conceptSourceLinks, {});
 	assert.deepEqual(data.knowledgeProposals, {});
 	assert.deepEqual(data.pausedConcepts, {});

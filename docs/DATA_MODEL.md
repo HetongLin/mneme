@@ -311,6 +311,7 @@ data.json may store:
 - Exam Attempts
 - deleted Card tombstones
 - dismissed Possible Duplicate pairs (`conceptDuplicateDismissals`), keyed by an ordered stable-ID pair
+- Concept Merge Records (`conceptMergeRecords`), keyed by the permanently retired Concept ID
 - card validity cache
 
 data.json must not store:
@@ -333,6 +334,10 @@ Retired Cards preserve Markdown and history but are excluded from active review.
 Each `reviewEvents` record contains only `eventId`, stable `cardId`, `rating`, and `reviewedAt`; it stores no Card content. A `cardTombstones` record contains only `cardId`, `deletedAt`, `reviewCount`, and `lapseCount`. Existing Cards created before event logging may have aggregate counts without reconstructable per-review events. Global Clear Review History removes events and zeros tombstone counts while retaining tombstones for identity safety.
 
 Possible Duplicate candidates are derived from current Concept titles and Core Meaning text and are not persisted as knowledge. Only a student's `Not a duplicate` decision is stored, as `pairKey`, two stable Concept IDs, and `dismissedAt`. Dismissal does not create a relationship between the Concepts and may be reconsidered.
+
+A `conceptMergeRecords` entry stores `mergedConceptId`, `survivorConceptId`, `mergedPath`, `survivorPath`, and `mergedAt`. It contains no learning content. The merged ID remains reserved after the old Concept becomes a `concept_redirect`, preventing a later generated Concept from reusing that identity.
+
+Guided Merge moves complete stable-ID Card blocks into the surviving Card Group without rewriting their IDs or Card-keyed FSRS state. If the survivor has no Card Group, it adopts the merged Concept's group and updates that group's association. A vacated Card.md remains as an empty `card_group` redirect so old vault links resolve without creating a phantom Card.
 
 ## Courses And Exam Contexts
 

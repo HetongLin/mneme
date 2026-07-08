@@ -6,6 +6,7 @@ import {
 	CardReviewEvent,
 	CardTombstone,
 	ConceptDuplicateDismissal,
+	ConceptMergeRecord,
 	ConceptReviewPause,
 	MnemePluginData,
 	ReviewDeferral,
@@ -118,6 +119,14 @@ export class ReviewStateStore {
 			dismissals[pairKey] = { ...dismissal, conceptIds: [...dismissal.conceptIds] };
 		}
 		return dismissals;
+	}
+
+	getConceptMergeRecords(): Record<string, ConceptMergeRecord> {
+		const records: Record<string, ConceptMergeRecord> = {};
+		for (const [conceptId, record] of Object.entries(this.data.conceptMergeRecords)) {
+			records[conceptId] = { ...record };
+		}
+		return records;
 	}
 
 	async dismissConceptDuplicate(
@@ -540,6 +549,7 @@ export function createDefaultPluginData(): MnemePluginData {
 	return {
 		cardTombstones: {},
 		conceptDuplicateDismissals: {},
+		conceptMergeRecords: {},
 		conceptSourceLinks: {},
 		knowledgeProposals: {},
 		pausedConcepts: {},
@@ -567,6 +577,9 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 		: {};
 	const conceptDuplicateDismissals = isObject(data.conceptDuplicateDismissals)
 		? data.conceptDuplicateDismissals
+		: {};
+	const conceptMergeRecords = isObject(data.conceptMergeRecords)
+		? data.conceptMergeRecords
 		: {};
 	const reviewEvents = isObject(data.reviewEvents)
 		? data.reviewEvents
@@ -597,6 +610,7 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 		...data,
 		cardTombstones: normalizeCardTombstones(cardTombstones),
 		conceptDuplicateDismissals: normalizeConceptDuplicateDismissals(conceptDuplicateDismissals),
+		conceptMergeRecords: normalizeConceptMergeRecords(conceptMergeRecords),
 		conceptSourceLinks: normalizeConceptSourceLinks(conceptSourceLinks),
 		knowledgeProposals: normalizeKnowledgeProposals(knowledgeProposals),
 		pausedConcepts: normalizePausedConcepts(pausedConcepts),
@@ -609,6 +623,35 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 		settings: normalizeSettings(data.settings),
 		sourceAnalysisRecords: normalizeSourceAnalysisRecords(sourceAnalysisRecords),
 	};
+}
+
+function normalizeConceptMergeRecords(records: Record<string, unknown>): Record<string, ConceptMergeRecord> {
+	const normalized: Record<string, ConceptMergeRecord> = {};
+	for (const record of Object.values(records)) {
+		if (
+			isObject(record)
+			&& typeof record.mergedAt === "string"
+			&& !Number.isNaN(Date.parse(record.mergedAt))
+			&& typeof record.mergedConceptId === "string"
+			&& !!record.mergedConceptId.trim()
+			&& typeof record.mergedPath === "string"
+			&& !!record.mergedPath.trim()
+			&& typeof record.survivorConceptId === "string"
+			&& !!record.survivorConceptId.trim()
+			&& record.mergedConceptId !== record.survivorConceptId
+			&& typeof record.survivorPath === "string"
+			&& !!record.survivorPath.trim()
+		) {
+			normalized[record.mergedConceptId] = {
+				mergedAt: record.mergedAt,
+				mergedConceptId: record.mergedConceptId,
+				mergedPath: record.mergedPath,
+				survivorConceptId: record.survivorConceptId,
+				survivorPath: record.survivorPath,
+			};
+		}
+	}
+	return normalized;
 }
 
 function normalizeConceptDuplicateDismissals(
