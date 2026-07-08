@@ -674,3 +674,27 @@ Acceptance criteria:
 - Missing Concepts still remove orphaned links and remain diagnostic
 - Resync notices distinguish reconciliation from deletion
 - Unrelated settings and review state remain unchanged
+
+## Task 046: Repair Missing Card Sections
+
+Goal:
+
+Let students recover a common Invalid Card without rewriting unrelated Markdown or review history.
+
+Requirements:
+
+- Show `Repair Card` in Advanced Diagnostics when FRONT or BACK is entirely missing
+- Reuse the Card editor fields with explicit repair language
+- Add absent canonical marker sections while replacing valid existing sections
+- Preserve Markdown outside the repaired marker sections
+- Re-read the latest Card file before saving
+- Leave FSRS and queue-control state untouched
+- Refuse automatic repair for duplicate, unclosed, orphaned, or malformed marker structures
+
+Acceptance criteria:
+
+- Missing FRONT or BACK can be repaired into a valid Card
+- Missing RUBRIC is added during repair
+- Multi-Card repair changes only the selected Card block
+- Legacy single-Card Markdown keeps surrounding user content
+- Unsafe marker structures return an error without a write

@@ -284,6 +284,8 @@ Answer 2
 - Invalid cards must not crash Review View.
 - Invalid cards should be shown with a repair option.
 
+The safe automatic repair path is intentionally narrow. If a FRONT or BACK section is entirely absent, Mneme may add the missing canonical section after the student supplies its content, while preserving all surrounding Markdown and leaving FSRS state unchanged. Duplicate markers, unclosed markers, malformed CARD wrappers, and duplicate IDs require manual or future guided repair rather than destructive canonicalization.
+
 ## data.json
 
 data.json may store:

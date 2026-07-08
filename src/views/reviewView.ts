@@ -1,5 +1,6 @@
 import { ItemView, MarkdownView, Notice, TFile, WorkspaceLeaf } from "obsidian";
 import { ConceptMemorySummary } from "../models/conceptMemory";
+import { LoadedMnemeCard } from "../models/card";
 import { RankedReviewQueueConcept } from "../models/conceptQueue";
 import { ConceptLoadSummary, MnemeConcept } from "../models/concept";
 import { ReviewQueue, ReviewQueueCard, ReviewQueueConcept } from "../models/reviewQueue";
@@ -546,6 +547,18 @@ export class MnemeReviewView extends ItemView {
 		if (queueCard.reviewCount > 0) {
 			const reviewState = this.reviewStateStore.getState(card.cardId);
 			this.renderReviewStateDetails(cardEl, reviewState);
+		}
+
+		if (canRepairMissingCardSections(card)) {
+			cardEl.createEl("button", { text: "Repair Card" }, (buttonEl) => {
+				buttonEl.addEventListener("click", () => {
+					new CardEditModal(this.app, {
+						card,
+						mode: "repair",
+						onSaved: () => this.refreshCards(),
+					}).open();
+				});
+			});
 		}
 
 		if (card.errors.length > 0) {
@@ -1106,6 +1119,17 @@ function getConceptIssueCount(concept: MnemeConcept): number {
 	return concept.errors.length
 		+ concept.warnings.length
 		+ concept.cards.reduce((count, card) => count + card.errors.length + card.warnings.length, 0);
+}
+
+function canRepairMissingCardSections(card: LoadedMnemeCard): boolean {
+	const repairableErrors = new Set([
+		"FRONT marker section is required.",
+		"BACK marker section is required.",
+	]);
+
+	return !card.isValid
+		&& card.errors.length > 0
+		&& card.errors.every((error) => repairableErrors.has(error));
 }
 
 function getReviewedCardCount(concept: ReviewQueueConcept): number {

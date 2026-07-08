@@ -1,9 +1,10 @@
 import { App, Modal, Notice, TFile } from "obsidian";
 import type { LoadedMnemeCard } from "../models/card";
-import { updateCardMarkers } from "../services/cardMarkerEditor";
+import { repairCardMarkers, updateCardMarkers } from "../services/cardMarkerEditor";
 
 export interface CardEditModalOptions {
 	card: LoadedMnemeCard;
+	mode?: "edit" | "repair";
 	onSaved(): Promise<void> | void;
 }
 
@@ -15,7 +16,7 @@ export class CardEditModal extends Modal {
 	}
 
 	onOpen(): void {
-		this.titleEl.setText("Edit Card");
+		this.titleEl.setText(this.options.mode === "repair" ? "Repair Card" : "Edit Card");
 		this.renderContent();
 	}
 
@@ -38,7 +39,9 @@ export class CardEditModal extends Modal {
 		const rubricInput = this.createTextarea(contentEl, "Rubric", card.rubric ?? "");
 		const actionsEl = contentEl.createDiv({ cls: "mneme-proposal-detail-modal-actions" });
 		const cancelButton = actionsEl.createEl("button", { text: "Cancel" });
-		const saveButton = actionsEl.createEl("button", { text: "Save Card" });
+		const saveButton = actionsEl.createEl("button", {
+			text: this.options.mode === "repair" ? "Repair Card" : "Save Card",
+		});
 
 		cancelButton.addEventListener("click", () => this.close());
 		saveButton.addEventListener("click", () => {
@@ -81,7 +84,8 @@ export class CardEditModal extends Modal {
 			}
 
 			const currentMarkdown = await this.app.vault.cachedRead(abstractFile);
-			const result = updateCardMarkers(currentMarkdown, {
+			const writeMarkers = this.options.mode === "repair" ? repairCardMarkers : updateCardMarkers;
+			const result = writeMarkers(currentMarkdown, {
 				back,
 				cardBlockIndex: card.cardIndex,
 				explicitCardId: card.hasExplicitCardId ? card.cardId : undefined,
@@ -96,7 +100,9 @@ export class CardEditModal extends Modal {
 
 			await this.app.vault.modify(abstractFile, result.markdown);
 			await this.options.onSaved();
-			new Notice("Mneme: Card updated. Review schedule unchanged.");
+			new Notice(this.options.mode === "repair"
+				? "Mneme: Card markers repaired. Review schedule unchanged."
+				: "Mneme: Card updated. Review schedule unchanged.");
 			this.close();
 		} catch (error) {
 			console.error("Mneme: failed to edit Card", {

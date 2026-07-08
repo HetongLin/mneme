@@ -20,6 +20,18 @@ interface CardBlockRange {
 }
 
 export function updateCardMarkers(markdown: string, input: CardMarkerUpdateInput): CardMarkerUpdateResult {
+	return writeCardMarkers(markdown, input, updateCardBlock);
+}
+
+export function repairCardMarkers(markdown: string, input: CardMarkerUpdateInput): CardMarkerUpdateResult {
+	return writeCardMarkers(markdown, input, repairCardBlock);
+}
+
+function writeCardMarkers(
+	markdown: string,
+	input: CardMarkerUpdateInput,
+	writeBlock: (markdown: string, front: string, back: string, rubric: string) => string | undefined,
+): CardMarkerUpdateResult {
 	const front = input.front.trim();
 	const back = input.back.trim();
 	const rubric = input.rubric.trim();
@@ -36,7 +48,7 @@ export function updateCardMarkers(markdown: string, input: CardMarkerUpdateInput
 			return { message: "Card markers were not found.", status: "not_found" };
 		}
 
-		const updated = updateCardBlock(markdown, front, back, rubric);
+		const updated = writeBlock(markdown, front, back, rubric);
 		if (!updated) {
 			return { message: "Card marker structure is invalid.", status: "invalid" };
 		}
@@ -51,7 +63,7 @@ export function updateCardMarkers(markdown: string, input: CardMarkerUpdateInput
 		}
 
 		const content = markdown.slice(target.contentStart, target.contentEnd);
-		const updated = updateCardBlock(content, front, back, rubric);
+		const updated = writeBlock(content, front, back, rubric);
 		if (!updated) {
 			return { message: "Card marker structure is invalid.", status: "invalid" };
 		}
@@ -74,6 +86,38 @@ export function updateCardMarkers(markdown: string, input: CardMarkerUpdateInput
 	}
 
 	return { markdown: updatedMarkdown, status: "updated" };
+}
+
+function repairCardBlock(markdown: string, front: string, back: string, rubric: string): string | undefined {
+	let repaired = markdown;
+
+	for (const [section, value] of [
+		["FRONT", front],
+		["BACK", back],
+		["RUBRIC", rubric],
+	] as const) {
+		const start = `<!-- MNEME:${section}:start -->`;
+		const end = `<!-- MNEME:${section}:end -->`;
+		const startCount = countOccurrences(repaired, start);
+		const endCount = countOccurrences(repaired, end);
+
+		if (startCount === 1 && endCount === 1) {
+			const replaced = replaceSection(repaired, section, value);
+			if (!replaced) {
+				return undefined;
+			}
+			repaired = replaced;
+			continue;
+		}
+
+		if (startCount !== 0 || endCount !== 0) {
+			return undefined;
+		}
+
+		repaired = appendSection(repaired, section, value);
+	}
+
+	return repaired;
 }
 
 function updateCardBlock(markdown: string, front: string, back: string, rubric: string): string | undefined {
@@ -120,6 +164,17 @@ function insertRubricAfterBack(markdown: string, rubric: string): string | undef
 	return `${markdown.slice(0, insertAt)}${section}${markdown.slice(insertAt)}`;
 }
 
+function appendSection(markdown: string, section: "FRONT" | "BACK" | "RUBRIC", value: string): string {
+	const prefix = markdown.length > 0 && !markdown.endsWith("\n") ? "\n" : "";
+	const block = [
+		`<!-- MNEME:${section}:start -->`,
+		value,
+		`<!-- MNEME:${section}:end -->`,
+	].join("\n");
+
+	return `${markdown}${prefix}${block}\n`;
+}
+
 function getCardBlockRanges(markdown: string): CardBlockRange[] {
 	const pattern = /<!--\s*MNEME:CARD:start\b([^>]*)-->([\s\S]*?)<!--\s*MNEME:CARD:end\s*-->/g;
 
@@ -148,4 +203,8 @@ function parseCardIdAttribute(attributes: string): string | undefined {
 
 function escapeRegExp(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function countOccurrences(markdown: string, needle: string): number {
+	return markdown.split(needle).length - 1;
 }

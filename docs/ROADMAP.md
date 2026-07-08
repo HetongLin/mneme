@@ -69,7 +69,9 @@ Current progress:
 - Structured Inbox editing is available for new Concepts, new Cards, and targeted Concept updates.
 - Approved Concept updates safely replace only Core Meaning / Why It Matters and may append Views and Source Notes.
 - Concept Library provides a conflict-aware editor for Core Meaning, Why It Matters, learning mode, and importance.
+- Advanced Diagnostics can repair Cards whose FRONT or BACK section is entirely missing while preserving surrounding Markdown and FSRS state.
 - Duplicate detection and Guided Merge remain unfinished. AI may flag Possible Duplicates, but written Concepts cannot be merged through one-click Inbox acceptance.
+- Duplicate markers, malformed wrappers, and stable-ID conflicts still require the broader Repair Flow.
 
 ## v0.3: Low-pressure Review
 
