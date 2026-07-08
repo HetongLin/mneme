@@ -605,3 +605,50 @@ Acceptance criteria:
 - Switching a Concept back to reviewable restores ordinary eligibility
 - No scheduler call or review-state write occurs during policy evaluation
 - Card generation remains unavailable for exploratory Concepts
+
+## Task 043: Domain Contracts And Architecture Decisions
+
+Goal:
+
+Turn the product design review into one consistent domain language and implementation boundary.
+
+Requirements:
+
+- Define canonical Mneme terms in root `CONTEXT.md`
+- Record hard-to-reverse trade-offs as concise ADRs
+- Make Concept and Card atomicity explicit
+- Keep FSRS Card-level and Concept Learning State aggregate-only
+- Separate Importance from Retention Target
+- Define Guided Merge, stable identity, stale provenance, AI Review Gate, Card Grounding, and deletion semantics
+- Define isolated Anki export and project-based Use Mode through a neutral Knowledge Context Pack
+- Reconcile PRODUCT_SPEC, DATA_MODEL, and ROADMAP with the accepted decisions
+
+Acceptance criteria:
+
+- Existing design documents no longer describe per-importance retention mapping
+- Existing design documents no longer use Concept mastery as a product claim
+- The canonical Card layout is one Card Group file per Concept
+- Deleted Sources retain approved provenance as stale
+- New modes cannot silently mutate FSRS
+- AI knowledge changes remain individually reviewed
+
+## Task 044: Bounded Grounded Card Generation
+
+Goal:
+
+Prevent Card generation from producing bulk or ungrounded review content.
+
+Requirements:
+
+- Limit each Card generation response to at most five proposals
+- Encode the limit in provider prompts, structured output schema, and runtime validation
+- Require at least one grounding evidence item for every Card proposal
+- Require grounding evidence to quote the current approved Concept
+- Reject the complete response before Inbox persistence when the contract is violated
+
+Acceptance criteria:
+
+- Six or more Card proposals produce an invalid response and write nothing
+- Empty evidence produces an invalid response
+- Evidence from another path or text absent from the approved Concept produces an invalid response
+- Valid grounded proposals retain the existing Inbox approval flow

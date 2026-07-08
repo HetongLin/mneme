@@ -60,7 +60,7 @@ Features:
 - Basic Concept Edit Modal
 - Update Existing Concept
 - Possible Duplicate detection
-- Simple merge/update workflow
+- Guided merge/update workflow
 - Invalid Card repair flow
 - Better Concept index
 
@@ -69,7 +69,7 @@ Current progress:
 - Structured Inbox editing is available for new Concepts, new Cards, and targeted Concept updates.
 - Approved Concept updates safely replace only Core Meaning / Why It Matters and may append Views and Source Notes.
 - Concept Library provides a conflict-aware editor for Core Meaning, Why It Matters, learning mode, and importance.
-- Duplicate detection and merge workflow remain unfinished.
+- Duplicate detection and Guided Merge remain unfinished. AI may flag Possible Duplicates, but written Concepts cannot be merged through one-click Inbox acceptance.
 
 ## v0.3: Low-pressure Review
 
@@ -100,13 +100,13 @@ Current progress:
 
 Goal:
 
-Use Concept importance to control review priority and desired retention.
+Keep long-term Concept importance and FSRS retention policy explicit and independent.
 
 Features:
 
 - importance field
-- desired retention by importance
-- manual retention override
+- global retention target
+- explicit manual retention override
 - concept priority ranking
 - retention warning
 
@@ -114,14 +114,8 @@ Current progress:
 
 - Written Concept importance now feeds an explicit low/normal/high/critical weight into Today’s Focus priority.
 - Importance is visible in review details and does not modify Card FSRS state or eligibility.
-- Per-importance desired retention, manual override, and retention warnings remain unfinished.
-
-Default mapping:
-
-- low: 0.80
-- normal: 0.85
-- high: 0.90
-- critical: 0.92
+- Global retention settings already affect future FSRS reviews. An explicit Concept override and workload warning remain unfinished.
+- Importance must never silently change desired retention.
 
 ## v0.5: Exploratory Concepts
 
@@ -143,6 +137,21 @@ Current progress:
 - Concept generation and editing support `learning_mode: exploratory`.
 - Card generation is unavailable for exploratory Concepts.
 - Existing exploratory Cards are retained for diagnostics but excluded from Today’s Focus and FSRS review eligibility.
+
+## v0.6: Identity, Provenance, and Repair
+
+Goal:
+
+Make Markdown movement, deletion, and repair safe before expanding into new modes.
+
+Features:
+
+- Stable Concept and Card IDs as the only durable state keys
+- Missing and duplicate ID Repair Flow
+- Invalid Card repair
+- Stale Source provenance retention and relinking
+- Card Retire, Delete, tombstone, and history erasure semantics
+- Possible Duplicate detection and Guided Merge foundation
 
 ## v1.0: Stable Concept Review Plugin
 
@@ -176,24 +185,24 @@ Features:
 - Show Concept
 - View Source
 - Mark as Known
-- Mark as Weak
+- Mark as Needs Work
 - Promote to Review
 - Generate Cards
 
-## v1.2: Course Draw
+## v1.2: Course and Exam Mode
 
 Goal:
 
-Support university final exam review by course folder.
+Support university final exam review through Course contexts over vault-global Concepts.
 
 Features:
 
-- Select Course Folder
-- Build Course Concept Pool
+- Define a Course context
+- Build a Course-Concept pool over vault-global Concepts
 - Draw Concept
-- Importance-weighted draw
-- Weak concept priority
-- Exam Review Mode
+- Course Priority and Exam Focus
+- Needs Work Signal priority
+- Exam Attempts isolated from FSRS
 
 ## v1.3: AI Answer Grading
 
@@ -207,7 +216,23 @@ Features:
 - AI Grade with Rubric
 - Missing Points
 - Suggested Rating
-- Update Weak Targets
+- User-confirmed final FSRS rating
+- Update Needs Work Signals
+
+## v1.4: Interoperability and Use Mode
+
+Goal:
+
+Activate approved knowledge outside Mneme without introducing sync complexity.
+
+Features:
+
+- One-way Anki UTF-8 TSV export
+- Knowledge Context Pack export
+- All approved Concepts by default
+- Optional Course or manual Concept filtering
+- External-agent project discovery
+- Use Projects built from coherent Concept Sets
 
 ## v2.0: AI-native Learning System
 

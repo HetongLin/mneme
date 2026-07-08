@@ -190,7 +190,7 @@ Successful `new_concept` writes can also index approved Concept-source links. Mn
 
 Active Inbox shows actionable proposals only: `suggested`, `opened`, `edited`, and `stale`. Written and rejected proposals are not a user-facing history archive; they should disappear from the active Inbox.
 
-Inbox Refresh and `Mneme: Resync Mneme Index` reconcile plugin data against the current vault. If a proposal's source note no longer exists, Mneme removes that stale proposal from plugin data. If a Source Analysis record or Concept-source link points to a missing source note or missing Concept, Mneme prunes the stale index entry.
+Inbox Refresh and `Mneme: Resync Mneme Index` reconcile plugin data against the current vault. If a proposal's source note no longer exists, Mneme may remove that unactioned stale proposal from plugin data. Approved Concept-source provenance is different: a missing Source marks the relationship stale while retaining its last known path, hash, relation, and evidence until the student explicitly relinks or removes it.
 
 Reconciliation never deletes user Markdown. It only cleans plugin index/cache/proposal state so `data.json` follows the current vault instead of acting as a second content source of truth.
 

@@ -110,7 +110,7 @@ AI output should be validated and shown in Inbox before committing.
 
 FSRS state belongs to Cards.
 
-Concept mastery should be derived from Cards and review logs, not directly scheduled as if it were a Card.
+Concept Learning State should aggregate Card evidence, assessment coverage, and explicit student signals without claiming mastery or scheduling a Concept as if it were a Card.
 
 ### UI Language
 
@@ -317,7 +317,7 @@ This is not required for v0.1.
 
 Mneme may later support Course Draw.
 
-Course Draw lets students select a course folder and randomly review concepts derived from that folder.
+Course Draw lets students select a Course context and review from its many-to-many pool of vault-global Concepts.
 
 This is intended for university final exam review.
 

@@ -63,7 +63,7 @@ Inbox acceptance is explicit. `Accept Concept` and `Accept Card` validate suppor
 
 The product-facing Inbox does not present proposal lifecycle states as primary navigation. Its main counters are To Review, Concept Proposals, Card Proposals, and Invalid items. Developer and diagnostic commands are hidden unless Developer Tools is enabled in settings.
 
-Inbox Refresh and `Mneme: Resync Mneme Index` reconcile plugin data with the current vault. Stale proposals, source analysis records, and Concept-source links that point to deleted vault files are pruned from `data.json`. Reconciliation never deletes user Markdown files; it only cleans index/cache/proposal state.
+Inbox Refresh and `Mneme: Resync Mneme Index` reconcile plugin data with the current vault. Transient stale proposals and caches may be pruned, but approved Concept-source provenance that points to a deleted Source is retained with `status: stale`. Reconciliation never deletes user Markdown or approved provenance; relinking or removing provenance requires an explicit student action.
 
 `ConceptSourceLinkStore` persists approved Source Note to Concept links in plugin data. Successful `new_concept` writes can create approved `ConceptSourceLink` records and update `SourceAnalysisRecord.linkedConceptIds`. These links are runtime index metadata, not the main Concept body.
 
@@ -79,6 +79,14 @@ Readable and identifiable Markdown principle:
 - Source evidence is optional and should use progressive disclosure.
 - Cards should not be dumped into `Concept.md` by default.
 
+Stable identity principle:
+
+- `mneme_id` is the immutable Concept identity.
+- Explicit `MNEME:CARD` ids are immutable Card identities.
+- Titles, paths, folders, and Card indexes are mutable locators or presentation details.
+- Durable plugin state must never use a path fallback as its long-term key.
+- Legacy Markdown with missing or duplicate IDs remains readable but enters a Repair Flow before new durable state is created.
+
 ## File Layout
 
 Recommended vault layout:
@@ -90,8 +98,7 @@ Mneme/
 
   Cards/
     Information Gain/
-      card_001.md
-      card_002.md
+      Card.md
 
 Plugin internal data:
 
@@ -170,7 +177,7 @@ Add common traps here.
 
 ### importance
 
-Controls review priority, desired retention, and random draw weight.
+Controls long-term review priority among already eligible Concepts. It does not change desired retention, Card eligibility, or FSRS parameters.
 
 Recommended mapping:
 
@@ -206,9 +213,11 @@ Recommended marker sections:
 
 - MNEME:RUBRIC
 
-Optional multi-card wrapper markers:
+Required wrapper markers for newly generated Cards:
 
 - MNEME:CARD
+
+Legacy single-card files without a CARD wrapper remain readable but should be offered stable-ID repair.
 
 Example structure:
 
@@ -289,8 +298,10 @@ data.json may store:
 - paused Concept controls (`pausedConcepts`), keyed by stable Concept id
 - suspended Card controls (`suspendedCards`), keyed by stable Card id
 - review logs
-- weak targets
-- concept mastery cache
+- Needs Work Signals
+- Concept Learning State cache
+- Exam Attempts
+- deleted Card tombstones
 - card validity cache
 
 data.json must not store:
@@ -305,6 +316,20 @@ data.json must not store:
 `pausedConcepts` maps a Concept id to `pausedAt`. Pausing excludes that Concept from Today’s Focus until the user resumes it; its Markdown, Cards, and FSRS states are untouched.
 
 `suspendedCards` maps a Card id to `suspendedAt`. Suspension removes only that Card from Today’s Focus until explicit resume and clears any temporary Review Later deferral; Card Markdown and FSRS state remain unchanged.
+
+Retired Cards preserve Markdown and history but are excluded from active review. Deleting a Card removes its exact Markdown block and active FSRS/control state after confirmation, then records a content-free tombstone so the Card ID cannot be reused and anonymous review history remains statistically valid. `Delete History Too` explicitly removes the tombstone and review events.
+
+## Courses And Exam Contexts
+
+Concepts are vault-global. A Course relates to Concepts many-to-many and may contribute Sources, Views, and a Course Priority without owning a duplicate Concept. Exam Focus is temporary to a specific exam and does not mutate global Concept importance.
+
+Exam Attempts are stored separately from review logs. They may produce Needs Work Signals, but they do not update Card Memory State or FSRS history.
+
+## External Exports
+
+Anki export is a one-way UTF-8 TSV snapshot of approved Cards. The exported copies have independent content and scheduling state; Mneme performs no Anki synchronization.
+
+A Knowledge Context Pack exports a neutral index plus selected clean Concept Markdown. It includes all approved Concepts by default, with optional Course or manual filters, and excludes Source Notes, Cards, credentials, scheduler state, and diagnostics. Its README states that approved knowledge is not a mastery claim.
 
 ## Markdown Writing Settings
 
@@ -332,7 +357,7 @@ Skip the AI call only when `contentHash` matches `lastAiCaptureHash`. This lets 
 
 FSRS state belongs to Cards, not Concepts.
 
-Concept mastery is derived from the FSRS state and review logs of its Cards.
+Concept Learning State is a reasoned aggregate of Card Memory States, assessment coverage, and explicit student signals. It is diagnostic and must not be presented as a mastery percentage or used as a Concept scheduler.
 
 ## Concept-first Extraction
 
@@ -393,6 +418,8 @@ Not-due-only Concepts are hidden from the main queue but visible in diagnostics.
 
 Future modes may intentionally bypass `dueAt` for Cram, Exam Mode, Random Concept Draw, or Concept Activation. Daily Review must remain due-card driven.
 
+Exam Attempts and Use activity never write FSRS history or change due dates. A due Card may be explicitly sent into normal Review Mode, where only the student's confirmed final rating updates FSRS.
+
 ## Concept Library
 
 The Concept Library scans readable, identifiable `Concept.md` files and builds lightweight `ConceptSummary` records at runtime.
@@ -411,6 +438,8 @@ This scanner also prepares future AI Capture: existing Concept summaries can hel
 Source Note analysis and future vault scanning are Concept-first. They may create Concept-stage proposals, but they must not create Card proposals during the initial source-analysis step.
 
 Card proposals are created later from written Concepts. They remain Inbox proposals until reviewed, approved, and explicitly written to `Card.md`.
+
+Each generation run returns at most five non-duplicative Card proposals and a Coverage Map. Every proposed Card identifies its Card Grounding in approved Concept content. Missing knowledge must become a reviewed Concept proposal before a dependent Card can be written.
 
 This preserves the product model:
 

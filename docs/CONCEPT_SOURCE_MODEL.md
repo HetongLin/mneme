@@ -111,7 +111,7 @@ Active Inbox contains actionable proposals that still need review. Rejected and 
 
 Developer validation utilities, sample proposal commands, and diagnostic logging are hidden unless Developer Tools is enabled in Mneme settings.
 
-Inbox Refresh and `Mneme: Resync Mneme Index` reconcile plugin data with the current vault. If a source note, Concept, or linked Markdown file was deleted, Mneme prunes stale proposal, source analysis, or Concept-source link records from plugin data. This never deletes user Markdown; it only removes stale index/cache state.
+Inbox Refresh and `Mneme: Resync Mneme Index` reconcile plugin data with the current vault. Unactioned stale proposals and transient caches may be pruned, but approved Concept-source provenance survives a deleted Source with `status: stale`. This never deletes user Markdown or approved provenance; the student may later relink or explicitly remove the stale relationship.
 
 ## Concept-First Capture
 

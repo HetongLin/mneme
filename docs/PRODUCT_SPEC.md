@@ -64,7 +64,7 @@ Examples:
 
 A durable learning object extracted from Source Notes.
 
-A Concept represents something the student should understand, recall, or revisit.
+A Concept is a vault-global knowledge model or principle that can be explained, applied, and assessed independently. Courses reference Concepts many-to-many instead of owning separate copies.
 
 Examples:
 
@@ -78,7 +78,7 @@ Examples:
 
 A test item for a Concept.
 
-A Card is not the primary object. It is a tool for checking whether the Concept is remembered.
+A Card tests one independently rateable learning outcome grounded in an approved Concept. It may test transfer into a new scenario, but it cannot introduce unapproved knowledge through its answer or rubric.
 
 ### Concept Suggestion
 
@@ -99,7 +99,7 @@ Initial AI capture is concept-first. Source Note analysis may propose Concept-st
 5. AI returns Concept Suggestions as JSON.
 6. Mneme validates JSON with a runtime schema.
 7. Suggestions appear in Inbox.
-8. User accepts, edits, rejects, merges, or updates.
+8. User accepts, edits, rejects, links, or updates each reviewed proposal.
 9. Accept Concept writes Concept.md.
 10. User runs Generate Cards from Current Concept.
 11. AI returns Card proposals derived from the written Concept.
@@ -114,6 +114,8 @@ Analyze Current Note indexes the Source Note and, when AI Capture is enabled, as
 
 Generate Cards from Current Concept works only from a written Mneme `Concept.md`. It sends that approved Concept to the selected provider in `card_generation` mode, accepts only `new_card` responses, and stores validated Card proposals in Inbox. `Card.md` is written only after the user accepts an individual Card proposal.
 
+Card generation is coverage-driven and bounded to at most five proposals per run. Each proposal identifies the approved Concept claim or section it tests. If generation reveals missing knowledge, Mneme proposes a Concept update first rather than inserting new knowledge into a Card.
+
 Concept Library also exposes Generate Cards for reviewable Concepts. Exploratory Concepts intentionally omit this action and remain outside Card/FSRS review.
 
 Today’s Focus is a bounded view over the ranked review queue. User-configured Concept and Card limits apply after priority ranking and include Cards already reviewed that local day; items outside the focus keep their FSRS state unchanged and remain available through diagnostics rather than appearing as debt.
@@ -123,6 +125,18 @@ Concept `importance` contributes a small, explicit weight to Today’s Focus ran
 Exploratory Concepts remain outside Today’s Focus even if a legacy or manually created Card file exists. Mneme keeps those Cards and any historical FSRS state intact, but treats them as diagnostic-only until the Concept is changed back to reviewable.
 
 User experience is the first requirement. Internal schemas can be strict and detailed, but primary user surfaces should stay concise. Concept notes should read like learning notes, not exported database records.
+
+## Product Contracts
+
+- Concept and Card state is keyed only by immutable IDs; file paths are mutable locators.
+- AI knowledge changes must pass an individual Review Gate. Unseen proposals cannot be bulk accepted.
+- Concept Learning State is a reasoned aggregate of Card evidence, coverage, and student input. Mneme does not claim a mastery percentage.
+- FSRS owns Card scheduling only. Exam Attempts, Use activity, Concept ranking, and AI Rating Suggestions cannot update FSRS without an explicit normal Card review and user-confirmed rating.
+- Importance expresses long-term knowledge value and is independent of the global FSRS Retention Target.
+- Source provenance survives Source deletion as stale evidence until the student explicitly relinks or removes it.
+- Possible Duplicates require a Guided Merge with a final diff; the merged path becomes a Redirect Note.
+- Anki interoperability is a one-way UTF-8 TSV export. Exported cards are independent copies with no sync.
+- Use Mode is project-based. Its first increment is a neutral Knowledge Context Pack containing approved Concepts for an external agent; approved does not mean mastered.
 
 ## v0.1 Goal
 
@@ -177,7 +191,7 @@ Future directions:
 - Course-scoped Concept Draw
 - Exploratory Concepts
 - AI answer grading
-- Weak concept tracking
+- Needs Work Signal tracking
 - Exam review mode
 - PPT/PDF ingestion
 - Mistake diagnosis
