@@ -11,7 +11,6 @@ import {
 	filterActiveInboxProposals,
 } from "../services/inboxProposalFilters";
 import {
-	formatAcceptActionLabel,
 	getAcceptanceKind,
 	InboxAcceptanceWorkflow,
 } from "../services/inboxAcceptanceWorkflow";
@@ -245,7 +244,7 @@ export class MnemeInboxView extends ItemView {
 
 		const actionsEl = mainEl.createDiv({ cls: "mneme-review-actions" });
 
-		actionsEl.createEl("button", { text: "Review" }, (buttonEl) => {
+		actionsEl.createEl("button", { text: "Edit" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => this.openProposalDetail(proposal));
 		});
 		if (filterActiveInboxProposals([proposal]).length > 0) {
@@ -293,7 +292,7 @@ export class MnemeInboxView extends ItemView {
 			return;
 		}
 
-		parentEl.createEl("button", { text: formatAcceptActionLabel(proposal) }, (buttonEl) => {
+		parentEl.createEl("button", { text: "Accept" }, (buttonEl) => {
 			buttonEl.disabled = !this.proposalWriter;
 			buttonEl.addEventListener("click", () => {
 				void this.acceptProposal(proposal);
