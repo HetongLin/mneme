@@ -345,6 +345,37 @@ const cardGenerationResponse = {
 }
 
 {
+	const validated = validateAiStructuredProposalResponse({
+		...cardGenerationResponse,
+		proposals: [{
+			...cardGenerationResponse.proposals[0],
+			payload: {
+				...cardGenerationResponse.proposals[0].payload,
+				cardType: "basic recall",
+			},
+		}, {
+			...cardGenerationResponse.proposals[0],
+			payload: {
+				...cardGenerationResponse.proposals[0].payload,
+				cardType: "worked problem",
+			},
+		}],
+	});
+
+	assert.equal(validated.valid, true);
+
+	if (validated.valid) {
+		assert.equal(validated.data.proposals[0]?.kind, "new_card");
+		assert.equal(validated.data.proposals[1]?.kind, "new_card");
+
+		if (validated.data.proposals[0]?.kind === "new_card" && validated.data.proposals[1]?.kind === "new_card") {
+			assert.equal(validated.data.proposals[0].payload.cardType, "definition");
+			assert.equal(validated.data.proposals[1].payload.cardType, "other");
+		}
+	}
+}
+
+{
 	const result = validateAiStructuredProposalResponse({
 		...cardGenerationResponse,
 		proposals: [{

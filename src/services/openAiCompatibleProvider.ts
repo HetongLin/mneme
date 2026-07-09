@@ -53,6 +53,7 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 			"Every Card must test one independently rateable outcome and include at least one exact quote from the written Concept as grounding evidence.",
 			"Every proposal requires kind 'new_card', title, rationale, confidence from 0 to 1, evidence entries with sourcePath/quote/explanation, and payload.",
 			"The payload requires conceptId, conceptTitle, front, back, rubric, and cardType.",
+			"cardType must be exactly one of: definition, distinction, procedure, example, trap, proof, application, mastery, other. Use 'other' when unsure.",
 			"Use focused recall questions that test understanding, distinctions, procedures, examples, traps, proofs, applications, or mastery. Avoid trivia and duplicate questions.",
 		].join("\n")
 		: [

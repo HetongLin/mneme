@@ -65,7 +65,29 @@ function repairCommonAiEnumDrift(value: unknown): unknown {
 
 	let changed = false;
 	const proposals = value.proposals.map((proposal) => {
-		if (!isRecord(proposal) || proposal.kind !== "new_concept" || !isRecord(proposal.payload)) {
+		if (!isRecord(proposal) || !isRecord(proposal.payload)) {
+			return proposal;
+		}
+
+		if (proposal.kind === "new_card") {
+			const cardType = coerceCardType(proposal.payload.cardType);
+
+			if (cardType === proposal.payload.cardType) {
+				return proposal;
+			}
+
+			changed = true;
+
+			return {
+				...proposal,
+				payload: {
+					...proposal.payload,
+					cardType,
+				},
+			};
+		}
+
+		if (proposal.kind !== "new_concept") {
 			return proposal;
 		}
 
@@ -150,6 +172,94 @@ function coerceSuggestedImportance(value: unknown): "low" | "normal" | "high" | 
 	}
 
 	return "normal";
+}
+
+function coerceCardType(value: unknown): "definition" | "distinction" | "procedure" | "example" | "trap" | "proof" | "application" | "mastery" | "other" {
+	if (typeof value !== "string") {
+		return "other";
+	}
+
+	const normalized = normalizeEnumToken(value);
+
+	if (
+		normalized === "definition"
+		|| normalized === "basic"
+		|| normalized === "basic_recall"
+		|| normalized === "concept"
+		|| normalized === "conceptual"
+		|| normalized === "meaning"
+		|| normalized === "recall"
+		|| normalized === "what_is"
+	) {
+		return "definition";
+	}
+
+	if (
+		normalized === "distinction"
+		|| normalized === "compare"
+		|| normalized === "comparison"
+		|| normalized === "contrast"
+		|| normalized === "difference"
+	) {
+		return "distinction";
+	}
+
+	if (
+		normalized === "procedure"
+		|| normalized === "calculation"
+		|| normalized === "how_to"
+		|| normalized === "method"
+		|| normalized === "process"
+		|| normalized === "steps"
+	) {
+		return "procedure";
+	}
+
+	if (normalized === "example" || normalized === "case" || normalized === "scenario") {
+		return "example";
+	}
+
+	if (
+		normalized === "trap"
+		|| normalized === "common_trap"
+		|| normalized === "misconception"
+		|| normalized === "pitfall"
+	) {
+		return "trap";
+	}
+
+	if (
+		normalized === "proof"
+		|| normalized === "derivation"
+		|| normalized === "explanation"
+		|| normalized === "theorem"
+	) {
+		return "proof";
+	}
+
+	if (
+		normalized === "application"
+		|| normalized === "applied"
+		|| normalized === "use"
+		|| normalized === "use_case"
+	) {
+		return "application";
+	}
+
+	if (
+		normalized === "mastery"
+		|| normalized === "synthesis"
+		|| normalized === "integration"
+		|| normalized === "comprehensive"
+	) {
+		return "mastery";
+	}
+
+	if (normalized === "other") {
+		return "other";
+	}
+
+	return "other";
 }
 
 function normalizeEnumToken(value: string): string {
