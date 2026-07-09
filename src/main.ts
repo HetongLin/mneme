@@ -1,4 +1,4 @@
-import { Notice, Plugin, TFile, TFolder } from "obsidian";
+import { Notice, Plugin, TAbstractFile, TFile, TFolder } from "obsidian";
 import {
 	ACCEPTANCE_CARD_PROPOSAL_ID,
 	ACCEPTANCE_CONCEPT_ID,
@@ -25,7 +25,10 @@ import { createAiProvider } from "./services/aiProviderFactory";
 import { ConceptSourceLinkStore } from "./services/conceptSourceLinkStore";
 import { ConceptScanner } from "./services/conceptScanner";
 import { ConceptMergeService } from "./services/conceptMergeService";
-import { getConceptIdFromFrontmatter } from "./services/conceptMarkdownIdentity";
+import {
+	getCardGroupLinkFromConceptFrontmatter,
+	getConceptIdFromFrontmatter,
+} from "./services/conceptMarkdownIdentity";
 import { parseConceptTitle } from "./services/conceptMarkdownParser";
 import { KnowledgeProposalStore } from "./services/knowledgeProposalStore";
 import { createKnowledgeContextPack } from "./services/knowledgeContextPackExporter";
@@ -39,7 +42,7 @@ import { SourceAnalysisStore } from "./services/sourceAnalysisStore";
 import { SourceProvenanceRelinkService } from "./services/sourceProvenanceRelinkService";
 import { SourceProvenanceRemovalService } from "./services/sourceProvenanceRemovalService";
 import { VaultStateReconciler } from "./services/vaultStateReconciler";
-import { buildCardPath, buildConceptPath } from "./utils/markdownPath";
+import { buildCardPath, buildConceptPath, normalizeVaultPath, slugifyForFilename } from "./utils/markdownPath";
 import { CONCEPT_LIBRARY_VIEW_TYPE, MnemeConceptLibraryView } from "./views/conceptLibraryView";
 import { MnemeInboxView, INBOX_VIEW_TYPE, type InboxTab } from "./views/inboxView";
 import { MnemeReviewView, REVIEW_VIEW_TYPE } from "./views/reviewView";
@@ -150,6 +153,14 @@ export default class MnemePlugin extends Plugin {
 			name: "Generate Cards from Current Concept",
 			callback: () => {
 				void this.generateCardsFromCurrentConcept();
+			},
+		});
+
+		this.addCommand({
+			id: "mneme-open-cards-for-current-concept",
+			name: "Open Cards for Current Concept",
+			callback: () => {
+				void this.openCardsForCurrentConcept();
 			},
 		});
 
@@ -400,6 +411,51 @@ export default class MnemePlugin extends Plugin {
 		}
 
 		await this.generateCardsFromConceptFile(abstractFile);
+	}
+
+	private async openCardsForCurrentConcept(): Promise<void> {
+		const activeFile = this.app.workspace.getActiveFile();
+
+		if (!activeFile || activeFile.extension !== "md") {
+			new Notice("Mneme: Open a written Concept before opening its Cards.");
+			return;
+		}
+
+		const frontmatter = this.app.metadataCache.getFileCache(activeFile)?.frontmatter;
+		const conceptId = getConceptIdFromFrontmatter(frontmatter);
+
+		if (!conceptId) {
+			new Notice("Mneme: Current note is not a Mneme Concept.");
+			return;
+		}
+
+		const cardsTarget = parseCardsTargetPath(getCardGroupLinkFromConceptFrontmatter(frontmatter))
+			?? await this.getDefaultCardFolderForConcept(activeFile);
+
+		await this.openCardTarget(cardsTarget);
+	}
+
+	private async getDefaultCardFolderForConcept(conceptFile: TFile): Promise<string> {
+		const markdown = await this.app.vault.cachedRead(conceptFile);
+		const conceptTitle = parseConceptTitle(markdown, conceptFile.path);
+
+		return normalizeVaultPath(`${this.settings.cardsFolder}/${slugifyForFilename(conceptTitle)}`);
+	}
+
+	private async openCardTarget(path: string): Promise<void> {
+		const abstractFile = this.app.vault.getAbstractFileByPath(path);
+
+		if (abstractFile instanceof TFile) {
+			await this.app.workspace.getLeaf("tab").openFile(abstractFile);
+			return;
+		}
+
+		if (abstractFile instanceof TFolder) {
+			await this.revealInFileExplorer(abstractFile);
+			return;
+		}
+
+		new Notice("Mneme: Card folder not found. Generate and accept Cards first.");
 	}
 
 	private async generateCardsFromConceptFile(conceptFile: TFile): Promise<void> {
@@ -832,6 +888,29 @@ export default class MnemePlugin extends Plugin {
 		await this.app.workspace.revealLeaf(leaf);
 	}
 
+	private async revealInFileExplorer(target: TAbstractFile): Promise<void> {
+		const leaf = this.app.workspace.getLeavesOfType("file-explorer")[0]
+			?? this.app.workspace.getLeftLeaf(false);
+
+		if (!leaf) {
+			new Notice("Mneme: could not open the file explorer.");
+			return;
+		}
+
+		if (leaf.view.getViewType() !== "file-explorer") {
+			await leaf.setViewState({ active: true, type: "file-explorer" });
+		}
+
+		await this.app.workspace.revealLeaf(leaf);
+		const view = leaf.view as unknown as {
+			revealInFolder?: (file: TAbstractFile) => void;
+		};
+
+		if (typeof view.revealInFolder === "function") {
+			view.revealInFolder(target);
+		}
+	}
+
 	private async openConceptLibraryView(): Promise<void> {
 		const existingLeaf = this.app.workspace.getLeavesOfType(CONCEPT_LIBRARY_VIEW_TYPE)[0];
 
@@ -891,4 +970,30 @@ function formatNoticeDetail(message: string): string {
 	}
 
 	return `${normalized.slice(0, 137).trim()}...`;
+}
+
+function parseCardsTargetPath(value: string | undefined): string | undefined {
+	if (!value) {
+		return undefined;
+	}
+
+	const internalLinkMatch = value.match(/^\s*\[\[([^\]|]+)(?:\|[^\]]*)?\]\]\s*$/);
+	const rawPath = internalLinkMatch?.[1] ?? value;
+	const path = normalizeVaultPath(rawPath);
+
+	if (!path) {
+		return undefined;
+	}
+
+	if (/\.md$/i.test(path)) {
+		return path;
+	}
+
+	return getPathBasename(path).toLocaleLowerCase() === "card" ? `${path}.md` : path;
+}
+
+function getPathBasename(path: string): string {
+	const parts = path.split("/").filter((part) => part.length > 0);
+
+	return parts[parts.length - 1] ?? "";
 }
