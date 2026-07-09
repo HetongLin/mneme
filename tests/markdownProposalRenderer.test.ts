@@ -27,9 +27,9 @@ function getFirstDraftContent(result: ReturnType<typeof renderMarkdownProposal>)
 	const content = getFirstDraftContent(result);
 
 	assert.equal(result.status, "rendered");
-	assert.equal(result.status === "rendered" ? result.drafts[0].targetPath : "", "Mneme/Concepts/Encapsulation/Concept.md");
+	assert.equal(result.status === "rendered" ? result.drafts[0].targetPath : "", "Mneme/Concepts/Encapsulation.md");
 	assert.match(content, /^---\nmneme_type: concept\nmneme_id: concept-encapsulation\nmneme_version: 1/m);
-	assert.match(content, /cards: "\[\[Mneme\/Cards\/Encapsulation\/Card\|Encapsulation Cards\]\]"/);
+	assert.match(content, /cards: "\[\[Mneme\/Cards\/Encapsulation\|Encapsulation Cards\]\]"/);
 	assert.match(content, /learning_mode: reviewable/);
 	assert.match(content, /importance: normal/);
 	assert.match(content, /tags: \[object-oriented-programming, design\]/);
@@ -113,6 +113,7 @@ function getFirstDraftContent(result: ReturnType<typeof renderMarkdownProposal>)
 		payload: {
 			card: {
 				back: "Encapsulation bundles data and operations while hiding representation.",
+				cardType: "definition",
 				front: "What is encapsulation?",
 				rubric: "Mention bundling and hidden representation.",
 			},
@@ -126,9 +127,12 @@ function getFirstDraftContent(result: ReturnType<typeof renderMarkdownProposal>)
 	const parsedCards = parseMnemeCards(content);
 
 	assert.equal(result.status, "rendered");
-	assert.match(content, /^---\nmneme_type: card_group\nmneme_concept_id: concept-encapsulation\nmneme_version: 1/m);
-	assert.match(content, /concept: "\[\[Mneme\/Concepts\/Encapsulation\/Concept\|Encapsulation\]\]"/);
-	assert.match(content, /Related Concept: \[\[Mneme\/Concepts\/Encapsulation\/Concept\|Encapsulation\]\]/);
+	assert.equal(result.status === "rendered" ? result.drafts[0].targetPath : "", "Mneme/Cards/Encapsulation/Encapsulation - Definition.md");
+	assert.match(content, /^---\nmneme_type: card\nmneme_card_id: encapsulation-what-is-encapsulation-p/m);
+	assert.match(content, /mneme_concept_id: concept-encapsulation/);
+	assert.match(content, /card_type: definition/);
+	assert.match(content, /concept: "\[\[Mneme\/Concepts\/Encapsulation\|Encapsulation\]\]"/);
+	assert.match(content, /Related Concept: \[\[Mneme\/Concepts\/Encapsulation\|Encapsulation\]\]/);
 	assert.equal(parsedCards.length, 1);
 	assert.equal(parsedCards[0].isValid, true);
 	assert.equal(parsedCards[0].hasExplicitCardId, true);

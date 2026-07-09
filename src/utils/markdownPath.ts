@@ -20,11 +20,17 @@ export function slugifyForFilename(title: string): string {
 }
 
 export function buildConceptPath(conceptsFolder: string, title: string): string {
-	return normalizeVaultPath(`${conceptsFolder}/${slugifyForFilename(title)}/Concept.md`);
+	return normalizeVaultPath(`${conceptsFolder}/${slugifyForFilename(title)}.md`);
 }
 
-export function buildCardPath(cardsFolder: string, conceptTitleOrId: string): string {
-	return normalizeVaultPath(`${cardsFolder}/${slugifyForFilename(conceptTitleOrId)}/Card.md`);
+export function buildCardPath(cardsFolder: string, conceptTitleOrId: string, cardTitleOrType = "Card"): string {
+	const conceptSlug = slugifyForFilename(conceptTitleOrId);
+	const cardSlug = slugifyForFilename(cardTitleOrType);
+	const filename = cardSlug.toLocaleLowerCase().startsWith(conceptSlug.toLocaleLowerCase())
+		? cardSlug
+		: `${conceptSlug} - ${cardSlug}`;
+
+	return normalizeVaultPath(`${cardsFolder}/${conceptSlug}/${filename}.md`);
 }
 
 export function ensureUniquePath(existingPaths: Set<string>, desiredPath: string): string {

@@ -98,7 +98,7 @@ Rules:
 
 - Suggested proposals cannot become permanent Markdown without approval.
 - Accepted Concept proposals explicitly write `Concept.md`.
-- Accepted Card proposals explicitly write `Card.md`.
+- Accepted Card proposals explicitly write Card Markdown files.
 - Only written Cards enter FSRS.
 - Future AI edits also go through proposal approval.
 - Acceptance is the explicit user action that validates and writes supported proposal kinds.
@@ -121,7 +121,7 @@ Reviewed Removal is the explicit alternative when the relationship should no lon
 
 Source Note analysis is Concept-first. It may suggest new Concepts, links to existing Concepts, merges, updates, or additional views, but it must not create Card proposals in the same initial step.
 
-Cards are generated in a separate stage after a Concept exists as approved/written Markdown. Card proposals then enter the same Inbox approval lifecycle before any `Card.md` write occurs.
+Cards are generated in a separate stage after a Concept exists as approved/written Markdown. Card proposals then enter the same Inbox approval lifecycle before any Card Markdown write occurs.
 
 This keeps Concepts and Cards separately reviewable and editable, and prevents raw Source Note analysis from becoming a direct Card dump.
 
@@ -129,9 +129,9 @@ This keeps Concepts and Cards separately reviewable and editable, and prevents r
 
 `Concept.md` is a clean learning note plus a thin identity layer. Generated Concept notes include minimal frontmatter such as `mneme_type: concept`, `mneme_id`, and `mneme_version`, then present Core Meaning, Views, Review Cards, Source Notes, and Related Concepts as editable reading sections.
 
-`Card.md` is the concept's review-card file. Generated Card groups include minimal frontmatter such as `mneme_type: card_group`, `mneme_concept_id`, and a Concept link, then use Mneme's existing card marker syntax.
+Each Card Markdown file is one reviewable Card under the Concept's card folder. Generated Cards include minimal frontmatter such as `mneme_type: card`, `mneme_card_id`, `mneme_concept_id`, and a Concept link, then use Mneme's existing card marker syntax.
 
-Concept notes link to their Card file, and Card files link back to their Concept. Machine metadata stays in plugin data, not in the main Markdown body.
+Concept notes link to their card folder, and Card files link back to their Concept. Machine metadata stays in plugin data, not in the main Markdown body.
 
 ## Concept Library
 

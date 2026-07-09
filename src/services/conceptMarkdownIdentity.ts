@@ -3,7 +3,7 @@ export function isMnemeConceptFrontmatter(frontmatter: unknown): frontmatter is 
 }
 
 export function isMnemeCardGroupFrontmatter(frontmatter: unknown): frontmatter is Record<string, unknown> {
-	return isRecord(frontmatter) && frontmatter.mneme_type === "card_group";
+	return isRecord(frontmatter) && (frontmatter.mneme_type === "card_group" || frontmatter.mneme_type === "card");
 }
 
 export function getConceptIdFromFrontmatter(frontmatter: unknown): string | undefined {

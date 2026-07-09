@@ -180,11 +180,11 @@ Review proposal -> Accept Concept / Accept Card -> Markdown write
 
 `Accept Concept` validates the proposal, writes `Concept.md`, and marks the proposal `written` only after a successful vault write.
 
-`Accept Card` validates the proposal, writes parser-compatible `Card.md`, and marks the proposal `written` only after a successful vault write.
+`Accept Card` validates the proposal, writes one parser-compatible Card Markdown file, and marks the proposal `written` only after a successful vault write.
 
 The initial writer supports `new_concept` and `new_card` proposals only. Unsupported proposal kinds stay in Inbox until future structured editors and diff/patch writers exist.
 
-Written `new_concept` proposals create editable `Concept.md` files in the configured Concepts folder. Written `new_card` proposals create parseable `Card.md` files using Mneme's existing card marker syntax in the configured Cards folder.
+Written `new_concept` proposals create editable Concept Markdown files directly in the configured Concepts folder. Written `new_card` proposals create one parseable Card Markdown file inside the Concept's card folder using Mneme's existing card marker syntax.
 
 Written Cards do not receive FSRS state during writing; they enter the normal parser/review pipeline after the vault is refreshed or reloaded.
 
@@ -204,9 +204,9 @@ Acceptance fixtures, sample proposals, and diagnostic logging commands are devel
 
 ## Readable And Identifiable Markdown
 
-Generated `Concept.md` is a human-facing learning note with minimal Mneme frontmatter for identification. It links to its review `Card.md`, uses concise collapsible Source Notes, and keeps machine metadata in plugin data.
+Generated `Concept.md` is a human-facing learning note with minimal Mneme frontmatter for identification. It links to its review card folder, uses concise Source Notes, and keeps machine metadata in plugin data.
 
-Generated `Card.md` is the concept's review-card file. It includes minimal card-group frontmatter, links back to the Concept, and keeps the existing parser-compatible card marker syntax.
+Each generated Card Markdown file is one reviewable Card. It includes minimal card frontmatter, links back to the Concept, and keeps the existing parser-compatible card marker syntax.
 
 Cards are not dumped into `Concept.md` by default. `sourceHash`, proposal ids, review state, FSRS state, due dates, stability, difficulty, and raw JSON remain outside the main Markdown reading flow.
 

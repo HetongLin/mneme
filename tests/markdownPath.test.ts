@@ -17,31 +17,34 @@ import {
 }
 
 {
-	assert.equal(buildConceptPath("Mneme//Concepts/", "Encapsulation"), "Mneme/Concepts/Encapsulation/Concept.md");
+	assert.equal(buildConceptPath("Mneme//Concepts/", "Encapsulation"), "Mneme/Concepts/Encapsulation.md");
 }
 
 {
-	assert.equal(buildCardPath("/Mneme\\Cards", "Encapsulation"), "Mneme/Cards/Encapsulation/Card.md");
-}
-
-{
-	assert.equal(ensureUniquePath(new Set(), "Mneme/Concepts/Encapsulation/Concept.md"), "Mneme/Concepts/Encapsulation/Concept.md");
-}
-
-{
-	const existingPaths = new Set([
-		"Mneme/Concepts/Encapsulation/Concept.md",
-		"Mneme/Concepts/Encapsulation/Concept-2.md",
-	]);
-
 	assert.equal(
-		ensureUniquePath(existingPaths, "Mneme/Concepts/Encapsulation/Concept.md"),
-		"Mneme/Concepts/Encapsulation/Concept-3.md",
+		buildCardPath("/Mneme\\Cards", "Encapsulation", "Definition"),
+		"Mneme/Cards/Encapsulation/Encapsulation - Definition.md",
 	);
 }
 
 {
-	assert.equal(toObsidianInternalLink("Mneme/Concepts/Information Gain/Concept.md"), "[[Mneme/Concepts/Information Gain/Concept]]");
+	assert.equal(ensureUniquePath(new Set(), "Mneme/Concepts/Encapsulation.md"), "Mneme/Concepts/Encapsulation.md");
+}
+
+{
+	const existingPaths = new Set([
+		"Mneme/Concepts/Encapsulation.md",
+		"Mneme/Concepts/Encapsulation-2.md",
+	]);
+
+	assert.equal(
+		ensureUniquePath(existingPaths, "Mneme/Concepts/Encapsulation.md"),
+		"Mneme/Concepts/Encapsulation-3.md",
+	);
+}
+
+{
+	assert.equal(toObsidianInternalLink("Mneme/Concepts/Information Gain.md"), "[[Mneme/Concepts/Information Gain]]");
 }
 
 {

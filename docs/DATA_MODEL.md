@@ -14,7 +14,7 @@ Core knowledge model:
 Source Note <-> Concept -> Card -> FSRS
 ```
 
-Markdown stores approved `Concept.md` and `Card.md` content. `data.json` stores settings, review states, later review logs, source analysis records, proposal metadata, indexes, and other plugin state.
+Markdown stores approved Concept and Card content. `data.json` stores settings, review states, later review logs, source analysis records, proposal metadata, indexes, and other plugin state.
 
 `SourceAnalysisStore` persists `SourceAnalysisRecord` entries in plugin data. `Mneme: Analyze Current Note` always updates source path, metadata, and content hash. When AI Capture is enabled, it may also add validated Concept proposals to Inbox; it never generates Cards or writes Markdown directly.
 
@@ -56,10 +56,10 @@ Knowledge proposals may include typed payloads for proposed Concept and Card cha
 User-facing Markdown must stay concise:
 
 - `Concept.md` is a readable learning note, not a database export.
-- `Card.md` is review content, not a provider trace.
+- Card Markdown is review content, not a provider trace.
 - AI schema fields, provider metadata, prompt text, diagnostics, confidence scores, raw evidence arrays, source hashes, proposal ids, lifecycle metadata, and FSRS state stay in plugin data, proposal internals, diagnostics, or Advanced / Raw JSON.
 
-Inbox acceptance is explicit. `Accept Concept` and `Accept Card` validate supported proposal payloads, write clean editable `Concept.md` / `Card.md`, and mark proposals `written` only after a successful vault write. Rejected and written proposals are not active Inbox work.
+Inbox acceptance is explicit. `Accept Concept` and `Accept Card` validate supported proposal payloads, write clean editable Concept / Card Markdown, and mark proposals `written` only after a successful vault write. Rejected and written proposals are not active Inbox work.
 
 The product-facing Inbox does not present proposal lifecycle states as primary navigation. Its main counters are To Review, Concept Proposals, Card Proposals, and Invalid items. Developer and diagnostic commands are hidden unless Developer Tools is enabled in settings.
 
@@ -75,10 +75,10 @@ Readable and identifiable Markdown principle:
 
 - `Concept.md` is a human-facing learning note.
 - `Concept.md` includes minimal Mneme frontmatter for stable identification.
-- `Card.md` is the Concept's review-card file.
-- `Card.md` includes minimal Mneme frontmatter for Concept association.
-- `Concept.md` links to `Card.md`.
-- `Card.md` links back to `Concept.md`.
+- Card Markdown files are the Concept's review-card files.
+- Card Markdown includes minimal Mneme frontmatter for Concept association.
+- `Concept.md` links to the Concept's card folder.
+- Card Markdown links back to `Concept.md`.
 - Machine metadata remains in plugin data.
 - Source evidence is optional and should use progressive disclosure.
 - Cards should not be dumped into `Concept.md` by default.
@@ -107,23 +107,24 @@ Mneme/
 
   Cards/
     Information Gain/
-      Card.md
+      Information Gain - Definition.md
+      Information Gain - Trap.md
 
 Plugin internal data:
 
 .obsidian/plugins/mneme/
   data.json
 
-## Concept.md
+## Concept files
 
-Concept.md is the source of truth for Concept content.
+A Concept Markdown file is the source of truth for Concept content. New Concepts are written directly under the configured Concepts folder, for example `Mneme/Concepts/Information Gain.md`.
 
 Minimal generated frontmatter fields:
 
 - mneme_type: concept
 - mneme_id: string
 - mneme_version: 1
-- cards: optional Obsidian link to Card.md
+- cards: optional Obsidian link to the Concept's card folder
 - learning_mode: optional reviewable | exploratory
 - importance: optional low | normal | high | critical
 - tags: optional user-approved organization tags for Concept Library filtering
@@ -144,7 +145,7 @@ Example structure:
 mneme_type: concept
 mneme_id: concept-information-gain
 mneme_version: 1
-cards: "[[Mneme/Cards/Information Gain/Card|Information Gain Cards]]"
+cards: "[[Mneme/Cards/Information Gain|Information Gain Cards]]"
 importance: normal
 learning_mode: reviewable
 tags: [machine-learning, decision-trees]
@@ -171,7 +172,7 @@ Add common traps here.
 ## Review
 
 > [!note]- Review Cards
-> [[Mneme/Cards/Information Gain/Card|Information Gain Cards]]
+> [[Mneme/Cards/Information Gain|Information Gain Cards]]
 
 ## Source Notes
 
@@ -210,16 +211,18 @@ Tags are user-approved organization labels for browsing and filtering Concepts. 
 
 Mneme may help edit or recommend tags later, but accepted `Concept.md` files should only contain tags the user has approved.
 
-## Card.md
+## Card files
 
-Card.md is the source of truth for review UI content.
+Each Card Markdown file is the source of truth for one independently reviewable Card. New Cards are grouped by Concept folder, for example `Mneme/Cards/Information Gain/Information Gain - Definition.md`.
 
 Minimal generated frontmatter fields:
 
-- mneme_type: card_group
+- mneme_type: card
+- mneme_card_id: string
 - mneme_concept_id: string
 - mneme_version: 1
-- concept: Obsidian link to Concept.md
+- concept: Obsidian link to the Concept file
+- card_type: optional definition | distinction | procedure | example | trap | proof | application | mastery | other
 
 Required marker sections:
 
@@ -234,23 +237,26 @@ Required wrapper markers for newly generated Cards:
 
 - MNEME:CARD
 
-Legacy single-card files without a CARD wrapper remain readable but should be offered stable-ID repair.
+Legacy `card_group` files and legacy single-card files without a CARD wrapper remain readable but should be offered stable-ID repair when needed.
 
 Example structure:
 
 ---
-mneme_type: card_group
+mneme_type: card
+mneme_card_id: information-gain-definition-pexample
 mneme_concept_id: concept-information-gain
 mneme_version: 1
-concept: "[[Mneme/Concepts/Information Gain/Concept|Information Gain]]"
+concept: "[[Mneme/Concepts/Information Gain|Information Gain]]"
+card_type: definition
 ---
 
-# Information Gain Cards
+# Definition
 
-Related Concept: [[Mneme/Concepts/Information Gain/Concept|Information Gain]]
+Related Concept: [[Mneme/Concepts/Information Gain|Information Gain]]
 
 <!-- Mneme cards below -->
 
+<!-- MNEME:CARD:start id="information-gain-definition-pexample" -->
 <!-- MNEME:FRONT:start -->
 Why does information gain tend to favor attributes with many values?
 <!-- MNEME:FRONT:end -->
@@ -264,8 +270,9 @@ Because attributes with many values can split samples into smaller and purer sub
 - Mentions smaller or purer subsets
 - Mentions entropy reduction
 <!-- MNEME:RUBRIC:end -->
+<!-- MNEME:CARD:end -->
 
-Multi-card Card.md files may wrap repeated card sections. Explicit CARD ids are preferred because future review state needs stable card identity:
+Legacy multi-card Card.md files may wrap repeated card sections. Explicit CARD ids are preferred because future review state needs stable card identity:
 
 <!-- MNEME:CARD:start id="card_information_gain_definition" -->
 <!-- MNEME:FRONT:start -->
@@ -470,14 +477,14 @@ This scanner also prepares future AI Capture: existing Concept summaries can hel
 
 Source Note analysis and future vault scanning are Concept-first. They may create Concept-stage proposals, but they must not create Card proposals during the initial source-analysis step.
 
-Card proposals are created later from written Concepts. They remain Inbox proposals until reviewed, approved, and explicitly written to `Card.md`.
+Card proposals are created later from written Concepts. They remain Inbox proposals until reviewed, approved, and explicitly written to Card Markdown.
 
 Each generation run returns at most five non-duplicative Card proposals and a Coverage Map. Every proposed Card identifies its Card Grounding in approved Concept content. Missing knowledge must become a reviewed Concept proposal before a dependent Card can be written.
 
 This preserves the product model:
 
 ```text
-Source Note -> Concept proposal -> Concept.md -> Card proposal -> Card.md -> FSRS
+Source Note -> Concept proposal -> Concept.md -> Card proposal -> Card Markdown -> FSRS
 ```
 
 See also: [Pre-FSRS Architecture Checkpoint](PRE_FSRS_CHECKPOINT.md).

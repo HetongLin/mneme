@@ -107,7 +107,7 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(result.kind, "concept");
 		assert.equal((await store.getProposal(proposal.id))?.status, "written");
 		assert.deepEqual(filterActiveInboxProposals(await store.listProposals()), []);
-		assert.equal(vault.files.has("Mneme/Concepts/Encapsulation/Concept.md"), true);
+		assert.equal(vault.files.has("Mneme/Concepts/Encapsulation.md"), true);
 		assert.equal(formatAcceptActionLabel(proposal), "Accept Concept");
 	}
 
@@ -117,6 +117,7 @@ async function runAsyncTests(): Promise<void> {
 			payload: {
 				card: {
 					back: "Encapsulation hides representation behind a stable interface.",
+					cardType: "application",
 					front: "Why does encapsulation help maintainability?",
 					rubric: "Mention hidden representation and stable interface.",
 				},
@@ -127,7 +128,7 @@ async function runAsyncTests(): Promise<void> {
 		});
 		const { store, vault, workflow } = createWorkflow({ [proposal.id]: proposal });
 		const result = await workflow.acceptProposal(proposal.id);
-		const content = await vault.read("Mneme/Cards/Encapsulation/Card.md");
+		const content = await vault.read("Mneme/Cards/Encapsulation/Encapsulation - Application.md");
 
 		assert.equal(result.status, "accepted");
 		assert.equal(result.kind, "card");

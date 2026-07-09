@@ -88,7 +88,7 @@ A structured AI-generated proposal shown in Inbox before being committed.
 
 A structured proposal record produced by AI or developer fixtures and reviewed in Inbox.
 
-Initial AI capture is concept-first. Source Note analysis may propose Concept-stage changes only; Cards are generated later from written `Concept.md` and require their own review before `Card.md` is written.
+Initial AI capture is concept-first. Source Note analysis may propose Concept-stage changes only; Cards are generated later from written Concept Markdown and require their own review before Card Markdown is written.
 
 ## Core Workflow
 
@@ -103,7 +103,7 @@ Initial AI capture is concept-first. Source Note analysis may propose Concept-st
 9. Accept Concept writes Concept.md.
 10. User runs Generate Cards from Current Concept.
 11. AI returns Card proposals derived from the written Concept.
-12. User reviews and accepts Card proposals before Card.md is written.
+12. User reviews and accepts Card proposals before Card Markdown is written.
 13. FSRS schedules Cards.
 14. Review View groups due Cards by Concept.
 15. User reviews through Today’s Focus.
@@ -112,7 +112,7 @@ Current implementation note:
 
 Analyze Current Note indexes the Source Note and, when AI Capture is enabled, asks the selected Mock, OpenAI, or DeepSeek provider for Concept-stage proposals. DeepSeek uses its OpenAI-compatible chat-completions endpoint, while OpenAI uses the Responses API. Provider output remains untrusted until it passes Mneme's structured proposal validation and normalization into `KnowledgeProposal`. The command stores valid proposals in Inbox and never writes Markdown directly.
 
-Generate Cards from Current Concept works only from a written Mneme `Concept.md`. It sends that approved Concept to the selected provider in `card_generation` mode, accepts only `new_card` responses, and stores validated Card proposals in Inbox. `Card.md` is written only after the user accepts an individual Card proposal.
+Generate Cards from Current Concept works only from a written Mneme Concept Markdown file. It sends that approved Concept to the selected provider in `card_generation` mode, accepts only `new_card` responses, and stores validated Card proposals in Inbox. One Card Markdown file is written only after the user accepts an individual Card proposal.
 
 Card generation is coverage-driven and bounded to at most five proposals per run. Each proposal identifies the approved Concept claim or section it tests. If generation reveals missing knowledge, Mneme proposes a Concept update first rather than inserting new knowledge into a Card.
 

@@ -122,6 +122,7 @@ function createApprovedCardProposal(id = "proposal-card") {
 		payload: {
 			card: {
 				back: "Encapsulation bundles data and behavior while hiding representation.",
+				cardType: "definition",
 				front: "What is encapsulation?",
 				rubric: "Mention bundling and hidden representation.",
 			},
@@ -169,8 +170,8 @@ async function runAsyncTests(): Promise<void> {
 		const result = await writer.writeApprovedProposal(proposal.id);
 
 		assert.equal(result.status, "written");
-		assert.equal(vault.files.has("Mneme/Concepts/Encapsulation/Concept.md"), true);
-		const content = await vault.read("Mneme/Concepts/Encapsulation/Concept.md");
+		assert.equal(vault.files.has("Mneme/Concepts/Encapsulation.md"), true);
+		const content = await vault.read("Mneme/Concepts/Encapsulation.md");
 		assert.match(content, /^---\nmneme_type: concept\nmneme_id: concept-encapsulation\nmneme_version: 1/m);
 		assert.match(content, /## Core Meaning/);
 		assert.equal(content.includes("sourceHash"), false);
@@ -184,10 +185,12 @@ async function runAsyncTests(): Promise<void> {
 		const result = await writer.writeApprovedProposal(proposal.id);
 
 		assert.equal(result.status, "written");
-		assert.equal(vault.files.has("Mneme/Cards/Encapsulation/Card.md"), true);
-		const content = await vault.read("Mneme/Cards/Encapsulation/Card.md");
-		assert.match(content, /^---\nmneme_type: card_group\nmneme_concept_id: concept-encapsulation\nmneme_version: 1/m);
-		assert.match(content, /Related Concept: \[\[Mneme\/Concepts\/Encapsulation\/Concept\|Encapsulation\]\]/);
+		assert.equal(vault.files.has("Mneme/Cards/Encapsulation/Encapsulation - Definition.md"), true);
+		const content = await vault.read("Mneme/Cards/Encapsulation/Encapsulation - Definition.md");
+		assert.match(content, /^---\nmneme_type: card\nmneme_card_id: encapsulation-what-is-encapsulation-p/m);
+		assert.match(content, /mneme_concept_id: concept-encapsulation/);
+		assert.match(content, /card_type: definition/);
+		assert.match(content, /Related Concept: \[\[Mneme\/Concepts\/Encapsulation\|Encapsulation\]\]/);
 		assert.equal((await store.getProposal(proposal.id))?.status, "written");
 	}
 
@@ -322,14 +325,14 @@ async function runAsyncTests(): Promise<void> {
 	{
 		const proposal = createApprovedConceptProposal();
 		const vault = new MemoryVaultAdapter({
-			"Mneme/Concepts/Encapsulation/Concept.md": "Existing content",
+			"Mneme/Concepts/Encapsulation.md": "Existing content",
 		});
 		const { writer } = await createWriter({ [proposal.id]: proposal }, vault);
 		const result = await writer.writeApprovedProposal(proposal.id);
 
 		assert.equal(result.status, "written");
-		assert.equal(vault.files.has("Mneme/Concepts/Encapsulation/Concept-2.md"), true);
-		assert.equal(vault.files.get("Mneme/Concepts/Encapsulation/Concept.md"), "Existing content");
+		assert.equal(vault.files.has("Mneme/Concepts/Encapsulation-2.md"), true);
+		assert.equal(vault.files.get("Mneme/Concepts/Encapsulation.md"), "Existing content");
 	}
 
 	{
@@ -411,7 +414,7 @@ async function runAsyncTests(): Promise<void> {
 		const proposal = createApprovedCardProposal();
 		const { vault, writer } = await createWriter({ [proposal.id]: proposal });
 		await writer.writeApprovedProposal(proposal.id);
-		const content = await vault.read("Mneme/Cards/Encapsulation/Card.md");
+		const content = await vault.read("Mneme/Cards/Encapsulation/Encapsulation - Definition.md");
 		const parsedCards = parseMnemeCards(content);
 
 		assert.equal(parsedCards.length, 1);
@@ -614,7 +617,7 @@ async function runAsyncTests(): Promise<void> {
 		const result = await writer.writeApprovedProposal(proposal.id);
 
 		assert.equal(result.status, "failed");
-		assert.equal(vault.files.has("Mneme/Concepts/Encapsulation/Concept.md"), true);
+		assert.equal(vault.files.has("Mneme/Concepts/Encapsulation.md"), true);
 		assert.equal((await store.getProposal(proposal.id))?.status, "approved");
 	}
 }

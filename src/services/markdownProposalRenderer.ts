@@ -63,8 +63,8 @@ function renderNewConceptDraft(
 ): MarkdownWriteDraft {
 	const conceptId = proposal.conceptId ?? createMnemeConceptId(payload.title);
 	const conceptPath = buildConceptPath(settings.conceptsFolder, payload.title);
-	const cardPath = buildCardPath(settings.cardsFolder, payload.title);
-	const cardLink = toObsidianInternalLink(cardPath, `${payload.title} Cards`);
+	const cardFolderPath = `${settings.cardsFolder}/${slugifyForFilename(payload.title)}`;
+	const cardLink = toObsidianInternalLink(cardFolderPath, `${payload.title} Cards`);
 	const tags = normalizeTags(payload.tags ?? []);
 	const lines = [
 		"---",
@@ -150,16 +150,19 @@ function renderNewCardDraft(
 	const conceptId = payload.conceptId || proposal.conceptId || createMnemeConceptId(conceptLabel);
 	const conceptPath = buildConceptPath(settings.conceptsFolder, payload.conceptTitle || conceptLabel);
 	const conceptLink = toObsidianInternalLink(conceptPath, payload.conceptTitle || conceptLabel);
+	const cardTitle = payload.card.cardType ? formatCardTypeTitle(payload.card.cardType) : "Card";
 	const cardId = createTemporaryWriterCardId(conceptLabel, payload.card.front, proposal.id);
 	const lines = [
 		"---",
-		"mneme_type: card_group",
+		"mneme_type: card",
+		`mneme_card_id: ${cardId}`,
 		`mneme_concept_id: ${conceptId}`,
 		"mneme_version: 1",
 		`concept: "${conceptLink}"`,
+		...(payload.card.cardType ? [`card_type: ${payload.card.cardType}`] : []),
 		"---",
 		"",
-		`# ${payload.conceptTitle || conceptLabel} Cards`,
+		`# ${cardTitle}`,
 		"",
 		`Related Concept: ${conceptLink}`,
 		"",
@@ -191,7 +194,7 @@ function renderNewCardDraft(
 		kind: "card",
 		mode: "create",
 		sourceProposalId: proposal.id,
-		targetPath: buildCardPath(settings.cardsFolder, conceptLabel),
+		targetPath: buildCardPath(settings.cardsFolder, conceptLabel, cardTitle),
 	};
 }
 
@@ -238,6 +241,14 @@ function normalizeTags(value: string[]): string[] {
 		.filter((tag) => tag.length > 0);
 
 	return [...new Set(tags)].slice(0, 5);
+}
+
+function formatCardTypeTitle(value: string): string {
+	return value
+		.split(/[_\s-]+/)
+		.filter((part) => part.length > 0)
+		.map((part) => part.charAt(0).toLocaleUpperCase() + part.slice(1).toLocaleLowerCase())
+		.join(" ") || "Card";
 }
 
 function normalizeTag(value: string): string {

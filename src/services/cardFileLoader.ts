@@ -11,7 +11,7 @@ export class CardFileLoader {
 	async loadCardFiles(): Promise<LoadedMnemeCard[]> {
 		const cardFiles = this.app.vault
 			.getMarkdownFiles()
-			.filter(isCardFile);
+			.filter((file) => isCardFile(file, this.app.metadataCache.getFileCache(file)?.frontmatter));
 
 		const loadedCardGroups = await Promise.all(cardFiles.map((file) => this.loadCardFile(file)));
 
@@ -50,8 +50,16 @@ export class CardFileLoader {
 	}
 }
 
-export function isCardFile(file: Pick<TFile, "name">): boolean {
-	return file.name === "Card.md";
+export function isCardFile(file: Pick<TFile, "name">, frontmatter?: unknown): boolean {
+	return file.name === "Card.md" || isMnemeCardFrontmatter(frontmatter);
+}
+
+function isMnemeCardFrontmatter(frontmatter: unknown): boolean {
+	return isRecord(frontmatter) && (frontmatter.mneme_type === "card" || frontmatter.mneme_type === "card_group");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function createLoadedCard(

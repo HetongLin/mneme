@@ -233,7 +233,7 @@ async function runAsyncTests(): Promise<void> {
 
 	{
 		const sourceRecord = createSourceRecord(ACCEPTANCE_SOURCE_PATH);
-		const conceptPath = "Mneme/Concepts/Pre-AI-Acceptance-Pipeline/Concept.md";
+		const conceptPath = "Mneme/Concepts/Pre-AI-Acceptance-Pipeline.md";
 		const conceptScanner = new MemoryConceptScanner([{
 			conceptId: ACCEPTANCE_CONCEPT_ID,
 			path: conceptPath,
@@ -264,7 +264,7 @@ async function runAsyncTests(): Promise<void> {
 	{
 		const conceptScanner = new MemoryConceptScanner([{
 			conceptId: ACCEPTANCE_CONCEPT_ID,
-			path: "Mneme/Concepts/Pre-AI-Acceptance-Pipeline/Concept.md",
+			path: "Mneme/Concepts/Pre-AI-Acceptance-Pipeline.md",
 			title: ACCEPTANCE_CONCEPT_TITLE,
 		}]);
 		const { proposalStore, service } = await createFixtureService(
@@ -310,7 +310,7 @@ async function runAsyncTests(): Promise<void> {
 		});
 		const conceptScanner = new MemoryConceptScanner([{
 			conceptId: ACCEPTANCE_CONCEPT_ID,
-			path: "Mneme/Concepts/Pre-AI-Acceptance-Pipeline/Concept.md",
+			path: "Mneme/Concepts/Pre-AI-Acceptance-Pipeline.md",
 			title: ACCEPTANCE_CONCEPT_TITLE,
 		}]);
 		const { service } = await createFixtureService(storage, new MemoryVaultAdapter(), conceptScanner);
