@@ -1,4 +1,4 @@
-import { ItemView, MarkdownView, Notice, TFile, WorkspaceLeaf } from "obsidian";
+import { ItemView, MarkdownView, Notice, TAbstractFile, TFile, TFolder, WorkspaceLeaf } from "obsidian";
 import type {
 	ConceptLibraryFilter,
 	ConceptLibrarySortMode,
@@ -501,7 +501,7 @@ export class MnemeConceptLibraryView extends ItemView {
 		if (concept.cardsPath) {
 			actionsEl.createEl("button", { text: "Open Cards" }, (buttonEl) => {
 				buttonEl.addEventListener("click", () => {
-					void this.openMarkdownPath(concept.cardsPath, "Card");
+					void this.openCardTarget(concept.cardsPath);
 				});
 			});
 		}
@@ -518,7 +518,7 @@ export class MnemeConceptLibraryView extends ItemView {
 		detailsEl.createEl("summary", { text: "Preview" });
 		detailsEl.createEl("p", { text: `Core Meaning: ${concept.coreMeaning ?? "Not provided."}` });
 		detailsEl.createEl("p", { text: `Why It Matters: ${concept.whyItMatters ?? "Not provided."}` });
-		detailsEl.createEl("p", { text: `Cards: ${concept.cardsPath ?? "No Card.md link."}` });
+		detailsEl.createEl("p", { text: `Cards: ${concept.cardsPath ?? "No card folder or card file."}` });
 		detailsEl.createEl("p", { text: `Sources: ${formatCount(concept.sourceCount, "source")}` });
 		detailsEl.createEl("p", { text: `Tags: ${formatTags(concept.tags)}` });
 	}
@@ -557,6 +557,50 @@ export class MnemeConceptLibraryView extends ItemView {
 		}
 
 		await this.app.workspace.getLeaf("tab").openFile(abstractFile);
+	}
+
+	private async openCardTarget(path: string | undefined): Promise<void> {
+		if (!path) {
+			new Notice("Mneme: Card folder or card file not found.");
+			return;
+		}
+
+		const abstractFile = this.app.vault.getAbstractFileByPath(path);
+
+		if (abstractFile instanceof TFile) {
+			await this.openMarkdownPath(path, "Card");
+			return;
+		}
+
+		if (abstractFile instanceof TFolder) {
+			await this.revealInFileExplorer(abstractFile);
+			return;
+		}
+
+		new Notice("Mneme: Card folder not found. Generate and accept Cards first.");
+	}
+
+	private async revealInFileExplorer(target: TAbstractFile): Promise<void> {
+		const leaf = this.app.workspace.getLeavesOfType("file-explorer")[0]
+			?? this.app.workspace.getLeftLeaf(false);
+
+		if (!leaf) {
+			new Notice("Mneme: could not open the file explorer.");
+			return;
+		}
+
+		if (leaf.view.getViewType() !== "file-explorer") {
+			await leaf.setViewState({ active: true, type: "file-explorer" });
+		}
+
+		await this.app.workspace.revealLeaf(leaf);
+		const view = leaf.view as unknown as {
+			revealInFolder?: (file: TAbstractFile) => void;
+		};
+
+		if (typeof view.revealInFolder === "function") {
+			view.revealInFolder(target);
+		}
 	}
 
 	private findOpenMarkdownLeaf(path: string): WorkspaceLeaf | undefined {

@@ -27,7 +27,7 @@ export function getCardGroupLinkFromConceptFrontmatter(frontmatter: unknown): st
 		return undefined;
 	}
 
-	return getString(frontmatter, "cards");
+	return getString(frontmatter, "cards_folder") ?? getString(frontmatter, "cards");
 }
 
 export function getConceptLinkFromCardGroupFrontmatter(frontmatter: unknown): string | undefined {

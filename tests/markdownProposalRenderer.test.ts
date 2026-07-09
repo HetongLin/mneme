@@ -29,13 +29,14 @@ function getFirstDraftContent(result: ReturnType<typeof renderMarkdownProposal>)
 	assert.equal(result.status, "rendered");
 	assert.equal(result.status === "rendered" ? result.drafts[0].targetPath : "", "Mneme/Concepts/Encapsulation.md");
 	assert.match(content, /^---\nmneme_type: concept\nmneme_id: concept-encapsulation\nmneme_version: 1/m);
-	assert.match(content, /cards: "\[\[Mneme\/Cards\/Encapsulation\|Encapsulation Cards\]\]"/);
+	assert.match(content, /cards_folder: "Mneme\/Cards\/Encapsulation"/);
 	assert.match(content, /learning_mode: reviewable/);
 	assert.match(content, /importance: normal/);
 	assert.match(content, /tags: \[object-oriented-programming, design\]/);
 	assert.match(content, /# Encapsulation/);
 	assert.match(content, /## Core Meaning\n\nEncapsulation protects/);
-	assert.match(content, /## Review\n\n> \[!note\]- Review Cards/);
+	assert.match(content, /## Review\n\nCard folder: `Mneme\/Cards\/Encapsulation\/`/);
+	assert.equal(content.includes("[[Mneme/Cards/Encapsulation"), false);
 }
 
 {

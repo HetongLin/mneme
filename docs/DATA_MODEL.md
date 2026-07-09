@@ -124,7 +124,7 @@ Minimal generated frontmatter fields:
 - mneme_type: concept
 - mneme_id: string
 - mneme_version: 1
-- cards: optional Obsidian link to the Concept's card folder
+- cards_folder: optional plain vault path to the Concept's card folder; do not store it as an Obsidian wikilink because folder wikilinks can create phantom Markdown files
 - learning_mode: optional reviewable | exploratory
 - importance: optional low | normal | high | critical
 - tags: optional user-approved organization tags for Concept Library filtering
@@ -145,7 +145,7 @@ Example structure:
 mneme_type: concept
 mneme_id: concept-information-gain
 mneme_version: 1
-cards: "[[Mneme/Cards/Information Gain|Information Gain Cards]]"
+cards_folder: "Mneme/Cards/Information Gain"
 importance: normal
 learning_mode: reviewable
 tags: [machine-learning, decision-trees]
@@ -171,8 +171,9 @@ Add common traps here.
 
 ## Review
 
-> [!note]- Review Cards
-> [[Mneme/Cards/Information Gain|Information Gain Cards]]
+Card folder: `Mneme/Cards/Information Gain/`
+
+Generate and accept Cards to populate this folder.
 
 ## Source Notes
 

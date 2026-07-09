@@ -65,14 +65,13 @@ function renderNewConceptDraft(
 	const conceptId = proposal.conceptId ?? createMnemeConceptId(payload.title);
 	const conceptPath = buildConceptPath(settings.conceptsFolder, payload.title);
 	const cardFolderPath = `${settings.cardsFolder}/${slugifyForFilename(payload.title)}`;
-	const cardLink = toObsidianInternalLink(cardFolderPath, `${payload.title} Cards`);
 	const tags = normalizeTags(payload.tags ?? []);
 	const lines = [
 		"---",
 		"mneme_type: concept",
 		`mneme_id: ${conceptId}`,
 		"mneme_version: 1",
-		`cards: "${cardLink}"`,
+		`cards_folder: "${cardFolderPath}"`,
 		...(payload.learningMode ? [`learning_mode: ${payload.learningMode}`] : []),
 		...(payload.suggestedImportance ? [`importance: ${payload.suggestedImportance}`] : []),
 		...(tags.length > 0 ? [`tags: [${tags.join(", ")}]`] : []),
@@ -104,12 +103,8 @@ function renderNewConceptDraft(
 
 	lines.push("## Common Traps", "", "Add common traps here.", "");
 	lines.push("## Review", "");
-
-	if (cardLink) {
-		lines.push("> [!note]- Review Cards", `> ${cardLink}`, "");
-	} else {
-		lines.push("No review cards have been written yet.", "");
-	}
+	lines.push(`Card folder: \`${cardFolderPath}/\``);
+	lines.push("Generate and accept Cards to populate this folder.", "");
 
 	lines.push("## Source Notes", "");
 

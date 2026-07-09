@@ -131,7 +131,7 @@ This keeps Concepts and Cards separately reviewable and editable, and prevents r
 
 Each Card Markdown file is one reviewable Card under the Concept's card folder. Generated Cards include minimal frontmatter such as `mneme_type: card`, `mneme_card_id`, `mneme_concept_id`, and a Concept link, then use Mneme's existing card marker syntax.
 
-Concept notes link to their card folder, and Card files link back to their Concept. Machine metadata stays in plugin data, not in the main Markdown body.
+Concept notes may record their card folder as a plain vault path, and Card files link back to their Concept. The card folder path is not an Obsidian wikilink because folder wikilinks can create phantom Markdown files. Machine metadata stays in plugin data, not in the main Markdown body.
 
 ## Concept Library
 

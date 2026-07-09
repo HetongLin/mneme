@@ -205,10 +205,20 @@ function parseCardsPath(cardsLink: string | undefined): string | undefined {
 		return undefined;
 	}
 
-	return /\.md$/i.test(path) ? path : `${path}.md`;
+	if (/\.md$/i.test(path)) {
+		return path;
+	}
+
+	return getPathBasename(path).toLocaleLowerCase() === "card" ? `${path}.md` : path;
 }
 
 function compareConceptSummariesByTitle(first: ConceptSummary, second: ConceptSummary): number {
 	return first.title.localeCompare(second.title, undefined, { sensitivity: "base" })
 		|| first.path.localeCompare(second.path);
+}
+
+function getPathBasename(path: string): string {
+	const parts = path.split("/").filter((part) => part.length > 0);
+
+	return parts[parts.length - 1] ?? "";
 }
