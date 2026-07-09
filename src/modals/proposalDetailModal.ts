@@ -149,13 +149,13 @@ export class ProposalDetailModal extends Modal {
 		const learningModeInput = this.createSelectInput(parentEl, "Learning Mode", getString(payload, "learningMode"), [
 			["reviewable", "Reviewable"],
 			["exploratory", "Exploratory"],
-		]);
+		], "reviewable");
 		const importanceInput = this.createSelectInput(parentEl, "Importance", getString(payload, "suggestedImportance"), [
 			["low", "Low"],
 			["normal", "Normal"],
 			["high", "High"],
 			["critical", "Critical"],
-		]);
+		], "normal");
 		const tagsInput = this.createTextInput(parentEl, "Tags", getStringArray(payload, "tags").join(", "));
 
 		parentEl.createEl("p", {
@@ -238,12 +238,17 @@ export class ProposalDetailModal extends Modal {
 		label: string,
 		value: string | undefined,
 		options: Array<[string, string]>,
+		fallbackValue?: string,
 	): HTMLSelectElement {
 		const labelEl = parentEl.createEl("label", { cls: "mneme-proposal-detail-field" });
 		labelEl.createEl("span", { text: label });
 		const selectEl = labelEl.createEl("select");
 		const optionValues = new Set(options.map(([optionValue]) => optionValue));
-		const selectedValue = value && optionValues.has(value) ? value : options[0]?.[0] ?? "";
+		const selectedValue = value && optionValues.has(value)
+			? value
+			: fallbackValue && optionValues.has(fallbackValue)
+				? fallbackValue
+				: options[0]?.[0] ?? "";
 
 		for (const [optionValue, optionLabel] of options) {
 			const optionEl = selectEl.createEl("option", {
