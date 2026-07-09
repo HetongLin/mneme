@@ -254,6 +254,54 @@ If your plugin does not need CSS, delete this file.
 	text-transform: none;
 }
 
+.mneme-inbox-tabs {
+	align-items: center;
+	border-bottom: 1px solid var(--background-modifier-border);
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-bottom: 4px;
+	padding-bottom: 10px;
+}
+
+.mneme-review-view button.mneme-inbox-tab {
+	background: transparent;
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-muted);
+}
+
+.mneme-review-view button.mneme-inbox-tab.is-active {
+	background: var(--interactive-accent);
+	border-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.mneme-inbox-proposal-preview {
+	display: grid;
+	gap: 8px;
+	margin: 14px 0 12px;
+}
+
+.mneme-inbox-proposal-highlight {
+	background: var(--background-secondary);
+	border-radius: var(--radius-m);
+	display: grid;
+	gap: 4px;
+	padding: 10px 12px;
+}
+
+.mneme-inbox-proposal-highlight-label {
+	color: var(--text-muted);
+	font-family: var(--font-ui-small);
+	font-size: 12px;
+}
+
+.mneme-inbox-proposal-highlight-value {
+	color: var(--text-normal);
+	line-height: 1.45;
+	white-space: pre-wrap;
+}
+
 .mneme-proposal-detail-modal-metadata {
 	background: var(--background-secondary);
 	border-radius: var(--radius-m);

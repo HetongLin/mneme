@@ -17,11 +17,12 @@ import {
 } from "../services/inboxAcceptanceWorkflow";
 import {
 	getProposalEvidenceCount,
+	getProposalHighlights,
 	getProposalPreview,
 	getProposalSourcePath,
-	getProposalSubtitle,
 	getProposalTargetLabel,
 	getProposalTitle,
+	formatProposalKind,
 } from "../services/knowledgeProposalDisplay";
 import { KnowledgeProposalStore } from "../services/knowledgeProposalStore";
 import {
@@ -32,8 +33,10 @@ import {
 import type { VaultStateReconciler } from "../services/vaultStateReconciler";
 
 export const INBOX_VIEW_TYPE = "mneme-inbox-view";
+type InboxTab = "concepts" | "cards" | "other";
 
 export class MnemeInboxView extends ItemView {
+	private activeTab: InboxTab = "concepts";
 	private proposals: KnowledgeProposal[] = [];
 	private statusMessage = "Loading proposals...";
 
@@ -159,37 +162,50 @@ export class MnemeInboxView extends ItemView {
 			return;
 		}
 
-		this.renderProposalSection(
-			listEl,
-			"Concept Proposals",
-			sortProposals(activeProposals.filter(isConceptStageProposal)),
-		);
-		this.renderProposalSection(
-			listEl,
-			"Card Proposals",
-			sortProposals(activeProposals.filter(isCardStageProposal)),
-		);
-		this.renderProposalSection(
-			listEl,
-			"Unsupported/Other Proposals",
-			sortProposals(activeProposals.filter((proposal) => {
-				return !isConceptStageProposal(proposal) && !isCardStageProposal(proposal);
-			})),
-		);
+		const groupedProposals = groupActiveProposals(activeProposals);
+		this.activeTab = resolveActiveTab(this.activeTab, groupedProposals);
+		this.renderProposalTabs(listEl, groupedProposals);
+		this.renderProposalSection(listEl, getTabTitle(this.activeTab), sortProposals(groupedProposals[this.activeTab]));
 	}
 
 	private renderProposalSection(parentEl: HTMLElement, title: string, proposals: KnowledgeProposal[]): void {
-		if (proposals.length === 0) {
-			return;
-		}
-
 		parentEl.createEl("h3", {
 			cls: "mneme-inbox-section-title",
 			text: title,
 		});
 
+		if (proposals.length === 0) {
+			parentEl.createEl("p", {
+				cls: "mneme-review-empty",
+				text: `No ${title.toLocaleLowerCase()} ready for review.`,
+			});
+			return;
+		}
+
 		for (const proposal of proposals) {
 			this.renderProposalCard(parentEl, proposal);
+		}
+	}
+
+	private renderProposalTabs(parentEl: HTMLElement, proposals: Record<InboxTab, KnowledgeProposal[]>): void {
+		const tabsEl = parentEl.createDiv({ cls: "mneme-inbox-tabs" });
+		const tabs: Array<{ id: InboxTab; label: string }> = [
+			{ id: "concepts", label: "Concepts" },
+			{ id: "cards", label: "Cards" },
+			{ id: "other", label: "Other" },
+		];
+
+		for (const tab of tabs) {
+			tabsEl.createEl("button", {
+				cls: tab.id === this.activeTab ? "mneme-inbox-tab is-active" : "mneme-inbox-tab",
+				text: `${tab.label} (${proposals[tab.id].length})`,
+			}, (buttonEl) => {
+				buttonEl.disabled = proposals[tab.id].length === 0;
+				buttonEl.addEventListener("click", () => {
+					this.activeTab = tab.id;
+					this.render();
+				});
+			});
 		}
 	}
 
@@ -204,16 +220,16 @@ export class MnemeInboxView extends ItemView {
 		});
 		textEl.createEl("p", {
 			cls: "mneme-review-queue-meta",
-			text: `${getProposalStageLabel(proposal)} · ${getProposalSubtitle(proposal)}`,
+			text: `${getProposalStageLabel(proposal)} · ${formatProposalKind(proposal.kind)}`,
 		});
-		textEl.createEl("p", {
-			cls: "mneme-review-status",
-			text: getProposalPreview(proposal),
-		});
-		textEl.createEl("p", {
-			cls: "mneme-review-queue-meta",
-			text: formatProposalMeta(proposal),
-		});
+		this.renderProposalHighlights(textEl, proposal);
+		const metaText = formatProposalMeta(proposal);
+		if (metaText) {
+			textEl.createEl("p", {
+				cls: "mneme-review-queue-meta",
+				text: metaText,
+			});
+		}
 		textEl.createEl("p", {
 			cls: getValidationSummary(proposal).startsWith("Needs") ? "mneme-review-error" : "mneme-review-queue-meta",
 			text: getValidationSummary(proposal),
@@ -235,6 +251,31 @@ export class MnemeInboxView extends ItemView {
 		if (filterActiveInboxProposals([proposal]).length > 0) {
 			this.renderAcceptAction(actionsEl, proposal);
 			this.renderRejectAction(actionsEl, proposal);
+		}
+	}
+
+	private renderProposalHighlights(parentEl: HTMLElement, proposal: KnowledgeProposal): void {
+		const highlights = getProposalHighlights(proposal);
+
+		if (highlights.length === 0) {
+			parentEl.createEl("p", {
+				cls: "mneme-review-status",
+				text: getProposalPreview(proposal),
+			});
+			return;
+		}
+
+		const previewEl = parentEl.createDiv({ cls: "mneme-inbox-proposal-preview" });
+		for (const highlight of highlights) {
+			const rowEl = previewEl.createDiv({ cls: "mneme-inbox-proposal-highlight" });
+			rowEl.createEl("span", {
+				cls: "mneme-inbox-proposal-highlight-label",
+				text: highlight.label,
+			});
+			rowEl.createEl("span", {
+				cls: "mneme-inbox-proposal-highlight-value",
+				text: highlight.value,
+			});
 		}
 	}
 
@@ -366,14 +407,54 @@ function sortProposals(proposals: KnowledgeProposal[]): KnowledgeProposal[] {
 	return [...proposals].sort((first, second) => second.updatedAt.localeCompare(first.updatedAt));
 }
 
+function groupActiveProposals(proposals: KnowledgeProposal[]): Record<InboxTab, KnowledgeProposal[]> {
+	return {
+		cards: proposals.filter(isCardStageProposal),
+		concepts: proposals.filter(isConceptStageProposal),
+		other: proposals.filter((proposal) => {
+			return !isConceptStageProposal(proposal) && !isCardStageProposal(proposal);
+		}),
+	};
+}
+
+function resolveActiveTab(activeTab: InboxTab, proposals: Record<InboxTab, KnowledgeProposal[]>): InboxTab {
+	if (proposals[activeTab].length > 0) {
+		return activeTab;
+	}
+
+	if (proposals.concepts.length > 0) {
+		return "concepts";
+	}
+
+	if (proposals.cards.length > 0) {
+		return "cards";
+	}
+
+	return "other";
+}
+
+function getTabTitle(tab: InboxTab): string {
+	switch (tab) {
+		case "concepts":
+			return "Concept Proposals";
+		case "cards":
+			return "Card Proposals";
+		case "other":
+			return "Unsupported/Other Proposals";
+	}
+}
+
 function formatProposalMeta(proposal: KnowledgeProposal): string {
 	const sourcePath = getProposalSourcePath(proposal);
 	const evidenceCount = getProposalEvidenceCount(proposal);
-	const parts = [
-		sourcePath ? `Source: ${sourcePath}` : undefined,
-		getProposalTargetLabel(proposal),
-		evidenceCount > 0 ? `${evidenceCount} evidence ${evidenceCount === 1 ? "item" : "items"}` : undefined,
-	];
+	const evidenceLabel = evidenceCount > 0 ? `${evidenceCount} evidence ${evidenceCount === 1 ? "item" : "items"}` : undefined;
+	const parts = proposal.kind === "new_card"
+		? [evidenceLabel]
+		: [
+			sourcePath ? `Source: ${sourcePath}` : undefined,
+			getProposalTargetLabel(proposal),
+			evidenceLabel,
+		];
 
 	return parts.filter((part): part is string => Boolean(part)).join(" · ");
 }

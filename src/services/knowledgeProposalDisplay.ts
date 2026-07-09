@@ -1,4 +1,11 @@
 import type { KnowledgeProposal } from "../models/knowledgeProposal";
+import { formatCardTypeTitle } from "../utils/cardTitle";
+import { buildCardPath } from "../utils/markdownPath";
+
+export interface ProposalHighlight {
+	label: string;
+	value: string;
+}
 
 export function getProposalTitle(proposal: KnowledgeProposal): string {
 	const payload = getPayloadRecord(proposal);
@@ -7,8 +14,7 @@ export function getProposalTitle(proposal: KnowledgeProposal): string {
 		case "new_concept":
 			return getString(payload, "title") ?? "New Concept";
 		case "new_card": {
-			const conceptTitle = getString(payload, "conceptTitle");
-			return conceptTitle ? `New Card: ${conceptTitle}` : "New Card";
+			return getProposedCardMarkdownFilename(proposal);
 		}
 		case "revise_card":
 			return `Revise Card: ${getString(payload, "cardId") ?? proposal.cardId ?? "Unknown Card"}`;
@@ -29,6 +35,62 @@ export function getProposalTitle(proposal: KnowledgeProposal): string {
 		default:
 			return "Knowledge Proposal";
 	}
+}
+
+export function getProposalHighlights(proposal: KnowledgeProposal): ProposalHighlight[] {
+	const payload = getPayloadRecord(proposal);
+
+	switch (proposal.kind) {
+		case "new_concept":
+			return compactHighlights([
+				{ label: "Core Meaning", value: getString(payload, "coreMeaning") },
+				{ label: "Why It Matters", value: getString(payload, "summary") },
+				{ label: "Learning Mode", value: getString(payload, "learningMode") },
+				{ label: "Importance", value: getString(payload, "suggestedImportance") },
+				{ label: "Tags", value: formatStringArray(payload?.tags) },
+			]);
+		case "new_card":
+			return compactHighlights([
+				{ label: "Markdown File", value: getProposedCardMarkdownFilename(proposal) },
+				{ label: "Card Type", value: getNestedString(payload, "card", "cardType") },
+				{ label: "Front", value: getNestedString(payload, "card", "front") },
+				{ label: "Back", value: getNestedString(payload, "card", "back") },
+				{ label: "Rubric", value: getNestedString(payload, "card", "rubric") },
+				{ label: "Concept", value: getString(payload, "conceptTitle") ?? getString(payload, "conceptId") },
+			]);
+		case "add_view":
+			return compactHighlights([
+				{ label: "View", value: getNestedString(payload, "view", "title") },
+				{ label: "Body", value: getNestedString(payload, "view", "body") },
+				{ label: "Concept", value: getString(payload, "conceptTitle") ?? getString(payload, "conceptId") },
+			]);
+		case "update_concept":
+			return compactHighlights([
+				{ label: "Core Meaning", value: getString(payload, "proposedCoreMeaning") },
+				{ label: "Why It Matters", value: getString(payload, "proposedSummary") },
+				{ label: "Reason", value: getString(payload, "updateReason") },
+				{ label: "Concept", value: getString(payload, "conceptTitle") ?? getString(payload, "conceptId") },
+			]);
+		default:
+			return compactHighlights([
+				{ label: "Preview", value: getProposalPreview(proposal) },
+				{ label: "Target", value: getProposalTargetLabel(proposal) },
+			]);
+	}
+}
+
+export function getProposedCardMarkdownFilename(proposal: KnowledgeProposal): string {
+	const payload = getPayloadRecord(proposal);
+	const conceptLabel = getString(payload, "conceptTitle")
+		?? getString(payload, "conceptId")
+		?? proposal.conceptId
+		?? "Concept";
+	const cardType = getNestedString(payload, "card", "cardType");
+	const cardTitle = cardType ? formatCardTypeTitle(cardType) : "Card";
+	const path = buildCardPath("Mneme/Cards", conceptLabel, cardTitle);
+	const slashIndex = path.lastIndexOf("/");
+
+	return slashIndex === -1 ? path : path.slice(slashIndex + 1);
 }
 
 export function getProposalSubtitle(proposal: KnowledgeProposal): string {
@@ -162,6 +224,35 @@ function getString(record: Record<string, unknown> | undefined, key: string): st
 	return typeof value === "string" && value.trim().length > 0
 		? value
 		: undefined;
+}
+
+function compactHighlights(highlights: Array<{ label: string; value?: string }>): ProposalHighlight[] {
+	return highlights
+		.filter((highlight): highlight is ProposalHighlight => Boolean(highlight.value?.trim()))
+		.map((highlight) => ({
+			label: highlight.label,
+			value: truncateForList(highlight.value),
+		}));
+}
+
+function formatStringArray(value: unknown): string | undefined {
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
+
+	const strings = value
+		.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+		.map((item) => item.trim());
+
+	return strings.length > 0 ? strings.join(", ") : undefined;
+}
+
+function truncateForList(value: string): string {
+	const normalized = value.replace(/\s+/g, " ").trim();
+
+	return normalized.length > 240
+		? `${normalized.slice(0, 239).trim()}…`
+		: normalized;
 }
 
 function countNestedEvidence(value: unknown): number {

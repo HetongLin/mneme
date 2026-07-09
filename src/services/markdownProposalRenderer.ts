@@ -8,6 +8,7 @@ import {
 	slugifyForFilename,
 	toObsidianInternalLink,
 } from "../utils/markdownPath";
+import { formatCardTypeTitle } from "../utils/cardTitle";
 import { validateKnowledgeProposalPayload } from "./knowledgeProposalValidation";
 
 export type MarkdownProposalRenderResult =
@@ -241,14 +242,6 @@ function normalizeTags(value: string[]): string[] {
 		.filter((tag) => tag.length > 0);
 
 	return [...new Set(tags)].slice(0, 5);
-}
-
-function formatCardTypeTitle(value: string): string {
-	return value
-		.split(/[_\s-]+/)
-		.filter((part) => part.length > 0)
-		.map((part) => part.charAt(0).toLocaleUpperCase() + part.slice(1).toLocaleLowerCase())
-		.join(" ") || "Card";
 }
 
 function normalizeTag(value: string): string {

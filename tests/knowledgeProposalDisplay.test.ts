@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
 	getProposalEvidenceCount,
+	getProposalHighlights,
 	getProposalPreview,
 	getProposalSubtitle,
 	getProposalTitle,
@@ -45,6 +46,7 @@ import { createProposal } from "./knowledgeProposalTestUtils";
 		payload: {
 			card: {
 				back: "Encapsulation hides representation details.",
+				cardType: "definition",
 				evidence: [{ excerpt: "Encapsulation hides details." }],
 				front: "What is encapsulation?",
 			},
@@ -53,7 +55,13 @@ import { createProposal } from "./knowledgeProposalTestUtils";
 		},
 	});
 
-	assert.equal(getProposalTitle(proposal), "New Card: Encapsulation");
+	assert.equal(getProposalTitle(proposal), "Encapsulation - Definition.md");
+	assert.deepEqual(getProposalHighlights(proposal).slice(0, 4), [
+		{ label: "Markdown File", value: "Encapsulation - Definition.md" },
+		{ label: "Card Type", value: "definition" },
+		{ label: "Front", value: "What is encapsulation?" },
+		{ label: "Back", value: "Encapsulation hides representation details." },
+	]);
 	assert.equal(getProposalEvidenceCount(proposal), 1);
 }
 
