@@ -54,6 +54,8 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 			"Every proposal requires kind 'new_card', title, rationale, confidence from 0 to 1, evidence entries with sourcePath/quote/explanation, and payload.",
 			"The payload requires conceptId, conceptTitle, front, back, rubric, and cardType.",
 			"cardType must be exactly one of: definition, distinction, procedure, example, trap, proof, application, mastery, other. Use 'other' when unsure.",
+			"Choose cardType by this rubric: definition=asks what the Concept means; distinction=compares or contrasts Concepts; procedure=asks for steps, calculation, or method; example=asks to interpret a concrete case; trap=asks about a misconception or common error; proof=asks for derivation, justification, or theorem logic; application=asks how to use the Concept in a new situation; mastery=asks for synthesis across multiple ideas; other=only if none fit.",
+			"Return the exact cardType enum value only, not a natural-language label, phrase, or explanation.",
 			"Use focused recall questions that test understanding, distinctions, procedures, examples, traps, proofs, applications, or mastery. Avoid trivia and duplicate questions.",
 		].join("\n")
 		: [

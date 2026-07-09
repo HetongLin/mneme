@@ -155,6 +155,8 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("new_card"), true);
 	assert.equal(serialized.includes("new_concept"), false);
 	assert.equal(serialized.includes("Copy sourcePath exactly into source.path"), true);
+	assert.equal(serialized.includes("Choose cardType by this rubric"), true);
+	assert.equal(serialized.includes("Return the exact cardType enum value only"), true);
 	assert.equal(serialized.includes("sk-test-value"), false);
 }
 
@@ -169,6 +171,7 @@ async function run(): Promise<void> {
 
 	assert.equal(serialized.includes("card_generation"), true);
 	assert.equal(serialized.includes("new_card"), true);
+	assert.equal(serialized.includes("Choose cardType by this rubric"), true);
 	assert.equal(serialized.includes("deepseek-test-value"), false);
 }
 
