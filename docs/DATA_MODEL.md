@@ -90,6 +90,7 @@ Stable identity principle:
 - Titles, paths, folders, and Card indexes are mutable locators or presentation details.
 - Durable plugin state must never use a path fallback as its long-term key.
 - Legacy Markdown with missing or duplicate IDs remains readable but enters a Repair Flow before new durable state is created.
+- Cards without explicit stable IDs may be opened for repair, but they are excluded from Today’s Focus and FSRS review until repaired.
 
 Card ID repair re-reads the latest Markdown and verifies the expected block content and current ID before writing. Assigning an ID to a legacy fallback Card migrates that unambiguous Card's FSRS state, Review Later deferral, and suspension atomically. Replacing one duplicate ID does not migrate the shared old-ID state because Mneme cannot prove which duplicate owned it; the unchanged duplicate retains that state and the repaired Card starts fresh.
 
@@ -333,7 +334,7 @@ data.json must not store:
 
 `retiredCards` maps a stable Card id to `retiredAt`. Retirement clears temporary deferral and suspension controls, preserves Markdown and FSRS state, and removes the Card from Today’s Focus and Concept Learning State aggregation until explicit restore.
 
-Retired Cards preserve Markdown and history but are excluded from active review. Deleting a Card removes its exact Markdown block and active FSRS/control state after confirmation, then records a content-free tombstone so the Card ID cannot be reused and anonymous review history remains statistically valid. `Delete History Too` explicitly removes the tombstone and review events.
+Retired Cards preserve Markdown and history but are excluded from active review. Deleting a Card removes its exact Markdown block and active FSRS/control state after confirmation, then records a content-free tombstone so the Card ID cannot be reused and anonymous review history remains statistically valid. `Delete History Too` is a separately confirmed complete-erasure action for a deleted Card's tombstone and review events; it is not the normal deletion path and should not be presented as a routine way to make IDs reusable.
 
 Each `reviewEvents` record contains only `eventId`, stable `cardId`, `rating`, and `reviewedAt`; it stores no Card content. A `cardTombstones` record contains only `cardId`, `deletedAt`, `reviewCount`, and `lapseCount`. Existing Cards created before event logging may have aggregate counts without reconstructable per-review events. Global Clear Review History removes events and zeros tombstone counts while retaining tombstones for identity safety.
 
@@ -351,7 +352,7 @@ Exam Attempts are stored separately from review logs. They may produce Needs Wor
 
 ## External Exports
 
-Anki export is a one-way UTF-8 TSV snapshot of approved Cards. The exported copies have independent content and scheduling state; Mneme performs no Anki synchronization.
+Anki export is a one-way UTF-8 TSV snapshot of active valid approved Cards. The exported copies have independent content and scheduling state; Mneme performs no Anki synchronization. Invalid Cards, Cards without explicit stable IDs, and Retired Cards are excluded from the default export.
 
 A Knowledge Context Pack exports a neutral index plus selected clean Concept Markdown. It includes all approved Concepts by default, with optional Course or manual filters, and excludes Source Notes, Cards, credentials, scheduler state, and diagnostics. Its README states that approved knowledge is not a mastery claim.
 

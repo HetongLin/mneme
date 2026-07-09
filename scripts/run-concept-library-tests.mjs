@@ -9,6 +9,7 @@ const tests = [
 	"tests/conceptDuplicateDetector.test.ts",
 	"tests/conceptMergeService.test.ts",
 	"tests/conceptLibrarySearch.test.ts",
+	"tests/knowledgeContextPackExporter.test.ts",
 ];
 
 for (const test of tests) {

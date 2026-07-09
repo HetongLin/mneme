@@ -135,7 +135,7 @@ User experience is the first requirement. Internal schemas can be strict and det
 - Importance expresses long-term knowledge value and is independent of the global FSRS Retention Target.
 - Source provenance survives Source deletion as stale evidence until the student explicitly relinks or removes it.
 - Possible Duplicates require a Guided Merge with a final diff; the merged path becomes a Redirect Note.
-- Anki interoperability is a one-way UTF-8 TSV export. Exported cards are independent copies with no sync.
+- Anki interoperability is a one-way UTF-8 TSV export of active valid approved Cards. Exported cards are independent copies with no sync.
 - Use Mode is project-based. Its first increment is a neutral Knowledge Context Pack containing approved Concepts for an external agent; approved does not mean mastered.
 
 ## v0.1 Goal

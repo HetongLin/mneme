@@ -94,7 +94,7 @@ export function buildReviewQueueCard(
 }
 
 export function getCardDueStatus(eligibility: ReturnType<typeof getDailyReviewEligibility>): CardDueStatus {
-	if (eligibility.reason === "invalid") {
+	if (eligibility.reason === "invalid" || eligibility.reason === "missing-card-id") {
 		return "invalid";
 	}
 

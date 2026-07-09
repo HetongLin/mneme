@@ -42,7 +42,11 @@ Source Note
 → Analyze Current Note
 → Concept Suggestions
 → Inbox Approval
-→ Concept.md / Card.md
+→ Concept.md
+→ Generate Cards from written Concept
+→ Card Proposals
+→ Inbox Approval
+→ Card.md
 → FSRS Card Scheduling
 → Concept-based Review
 
@@ -257,7 +261,9 @@ Current v0.1 direction is Concept-first extraction:
 Source Note
 → Concept Suggestions
 → Inbox Approval
-→ Concept.md / Card.md
+→ Concept.md
+→ later Card Proposals
+→ Card.md
 
 Reason:
 
@@ -276,13 +282,14 @@ Prefer:
 - Today’s Focus
 - Later
 - Needs Attention
-- Weak Concepts
+- Needs Work Signals
 
 Avoid:
 
 - Debt
 - Failed
 - Missed
+- Weak Concepts
 - Overdue overload
 
 Review workload should eventually be controlled by limits such as:

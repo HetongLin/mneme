@@ -89,7 +89,7 @@ export class CardHistoryDeleteModal extends Modal {
 	onOpen(): void {
 		this.titleEl.setText("Delete Card History Too");
 		this.contentEl.createEl("p", {
-			text: `Permanently erase the tombstone and review events for ${this.options.cardId}? The Card ID may be reused after this.`,
+			text: `Permanently erase the tombstone and review events for ${this.options.cardId}? This is complete erasure, not a routine way to reuse Card IDs.`,
 		});
 		const actionsEl = this.contentEl.createDiv({ cls: "mneme-proposal-detail-modal-actions" });
 		const cancelButton = actionsEl.createEl("button", { text: "Cancel" });

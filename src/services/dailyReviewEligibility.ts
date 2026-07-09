@@ -28,6 +28,13 @@ export function getDailyReviewEligibility(
 		});
 	}
 
+	if (!card.hasExplicitCardId) {
+		return createEligibility({
+			includedInDailyReview: false,
+			reason: "missing-card-id",
+		});
+	}
+
 	if (!state) {
 		return createEligibility({
 			includedInDailyReview: true,

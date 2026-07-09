@@ -108,6 +108,18 @@ const now = new Date("2026-01-10T12:00:00.000Z");
 }
 
 {
+	const queue = buildReviewQueue([createConcept([createCard("legacy-fallback", true, false)])], {}, now);
+	const concept = queue.concepts[0];
+
+	assert.equal(concept?.invalidCards.length, 1);
+	assert.equal(concept?.invalidCards[0]?.eligibilityReason, "missing-card-id");
+	assert.equal(concept?.newCards.length, 0);
+	assert.equal(concept?.reviewableCount, 0);
+	assert.equal(queue.summary.invalidCards, 1);
+	assert.equal(queue.summary.newCards, 0);
+}
+
+{
 	const queue = buildReviewQueue(
 		[createConcept([createCard("later-only")])],
 		{ "later-only": createReviewState("later-only", "2026-01-12T12:00:00.000Z") },
@@ -182,7 +194,7 @@ function createConcept(cards: LoadedMnemeCard[]): MnemeConcept {
 	};
 }
 
-function createCard(cardId: string, isValid = true): LoadedMnemeCard {
+function createCard(cardId: string, isValid = true, hasExplicitCardId = true): LoadedMnemeCard {
 	return {
 		back: "Back",
 		basename: "Card",
@@ -191,7 +203,7 @@ function createCard(cardId: string, isValid = true): LoadedMnemeCard {
 		content: "",
 		errors: isValid ? [] : ["Missing BACK section."],
 		front: "Front",
-		hasExplicitCardId: true,
+		hasExplicitCardId,
 		id: cardId,
 		isValid,
 		path: "Concepts/Encapsulation/Card.md",

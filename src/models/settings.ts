@@ -97,6 +97,22 @@ export function normalizeRetention(value: unknown): number {
 	return clampNumber(value, 0.7, 0.98, DEFAULT_SETTINGS.fsrsRequestRetention);
 }
 
+export function getRetentionWorkloadWarning(retention: number): string {
+	if (retention >= 0.95) {
+		return "Very high retention can create a much heavier review workload.";
+	}
+
+	if (retention >= 0.92) {
+		return "High retention usually means shorter intervals and more frequent reviews.";
+	}
+
+	if (retention <= 0.8) {
+		return "Lower retention reduces workload but makes forgotten Cards more likely.";
+	}
+
+	return "Balanced retention keeps review workload moderate.";
+}
+
 export function normalizeMaximumInterval(value: unknown): number {
 	return Math.max(1, Math.round(clampNumber(value, 1, Number.MAX_SAFE_INTEGER, DEFAULT_SETTINGS.fsrsMaximumInterval)));
 }

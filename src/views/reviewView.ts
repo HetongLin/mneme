@@ -564,14 +564,19 @@ export class MnemeReviewView extends ItemView {
 		const cardEl = parentEl.createEl("details", { cls: "mneme-review-diagnostics-card" });
 
 		cardEl.createEl("summary", {
-			text: `${card.cardId} · ${queueCard.dueStatus} · risk ${cardRisk ? formatPercent(cardRisk.risk) : "(unset)"}`,
+			text: `${card.cardId} · ${formatDueStatus(queueCard)} · risk ${cardRisk ? formatPercent(cardRisk.risk) : "(unset)"}`,
 		});
 		cardEl.createEl("p", { text: `Path: ${card.path}` });
 		cardEl.createEl("p", { text: `Card ID: ${card.cardId}` });
 		cardEl.createEl("p", { text: `Card index: ${card.cardIndex}` });
-		cardEl.createEl("p", { text: `Due status: ${queueCard.dueStatus}` });
+		cardEl.createEl("p", { text: `Due status: ${formatDueStatus(queueCard)}` });
 		cardEl.createEl("p", { text: `Daily Review: ${queueCard.includedInDailyReview ? "included" : "not included"}` });
-		cardEl.createEl("p", { text: `Eligibility reason: ${queueCard.eligibilityReason}` });
+		cardEl.createEl("p", { text: `Eligibility: ${formatEligibilityReason(queueCard.eligibilityReason)}` });
+		if (queueCard.eligibilityReason === "missing-card-id") {
+			cardEl.createEl("p", {
+				text: "Assign a stable Card ID before this Card can enter Today’s Focus or FSRS review.",
+			});
+		}
 		cardEl.createEl("p", { text: `Review count: ${queueCard.reviewCount}` });
 		cardEl.createEl("p", { text: `Due: ${queueCard.dueAt ?? "(unset)"}` });
 		const deferral = this.activeDeferrals[queueCard.cardId];
@@ -706,7 +711,7 @@ export class MnemeReviewView extends ItemView {
 		const listEl = parentEl.createEl("ul", { cls: "mneme-review-details-list" });
 		for (const card of cards) {
 			listEl.createEl("li", {
-				text: `${card.cardId} · ${card.dueStatus} · ${card.eligibilityReason} · ${card.includedInDailyReview ? "Daily Review" : "Later"} · ${formatReviewCount(card.reviewCount)}`,
+				text: `${card.cardId} · ${formatDueStatus(card)} · ${formatEligibilityReason(card.eligibilityReason)} · ${card.includedInDailyReview ? "Daily Review" : "Later"} · ${formatReviewCount(card.reviewCount)}`,
 			});
 		}
 	}
@@ -720,9 +725,9 @@ export class MnemeReviewView extends ItemView {
 		detailsEl.createEl("summary", { text: "Card details" });
 		detailsEl.createEl("p", { text: `Card ID: ${card.cardId}` });
 		detailsEl.createEl("p", { text: `Card index: ${card.cardIndex}` });
-		detailsEl.createEl("p", { text: `Due status: ${queueCard.dueStatus}` });
+		detailsEl.createEl("p", { text: `Due status: ${formatDueStatus(queueCard)}` });
 		detailsEl.createEl("p", { text: `Daily Review: ${queueCard.includedInDailyReview ? "included" : "not included"}` });
-		detailsEl.createEl("p", { text: `Eligibility reason: ${queueCard.eligibilityReason}` });
+		detailsEl.createEl("p", { text: `Eligibility: ${formatEligibilityReason(queueCard.eligibilityReason)}` });
 		detailsEl.createEl("p", { text: `Review count: ${reviewState?.reviewCount ?? queueCard.reviewCount}` });
 		detailsEl.createEl("p", { text: `Last rating: ${reviewState?.lastRating ?? "(none)"}` });
 		detailsEl.createEl("p", { text: `Due: ${reviewState?.dueAt ?? queueCard.dueAt ?? "(unset)"}` });
@@ -1246,6 +1251,37 @@ function formatReviewCount(reviewCount: number): string {
 	}
 
 	return reviewCount === 1 ? "reviewed 1 time" : `reviewed ${reviewCount} times`;
+}
+
+function formatDueStatus(card: ReviewQueueCard): string {
+	if (card.eligibilityReason === "missing-card-id") {
+		return "needs stable Card ID";
+	}
+
+	return card.dueStatus;
+}
+
+function formatEligibilityReason(reason: ReviewQueueCard["eligibilityReason"]): string {
+	switch (reason) {
+		case "new":
+			return "New Card";
+		case "due":
+			return "Due now";
+		case "overdue":
+			return "Due earlier";
+		case "not-due":
+			return "Later";
+		case "invalid":
+			return "Invalid Card";
+		case "missing-card-id":
+			return "Needs stable Card ID";
+		case "missing-due-at":
+			return "Missing due date";
+		case "exploratory-concept":
+			return "Exploratory Concept";
+		default:
+			return reason;
+	}
 }
 
 function getConceptIssueCount(concept: MnemeConcept): number {

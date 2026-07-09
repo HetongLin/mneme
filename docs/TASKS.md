@@ -193,14 +193,15 @@ Requirements:
 - Update Existing Concept
 - Possible Duplicate
 - Ignore
-- Suggested Cards
 - Source references
+- No Card payloads in initial Source Note analysis
 
 Acceptance criteria:
 
 - Valid JSON passes
 - Invalid JSON fails with useful errors
 - No Markdown is written before user approval
+- Initial Source Note analysis cannot create Card proposals
 
 ## Task 011: Inbox MVP
 
@@ -213,35 +214,37 @@ Requirements:
 - Display suggestion type
 - Display concept title
 - Display source excerpt
-- Display suggested cards
+- Display Concept-stage meaning, evidence, and readiness
 - Actions: Accept, Edit, Reject
 
 Acceptance criteria:
 
 - User can accept suggestion
 - User can reject suggestion
-- Accepted suggestion can generate Markdown files
+- Accepted Concept suggestions can create or update `Concept.md`
+- Card proposals are reviewed later after a separate Generate Cards action from a written Concept
 - Rejected suggestion is not committed
 
-## Task 012: Concept.md and Card.md Writer
+## Task 012: Proposal Markdown Writers
 
 Goal:
 
-Generate Markdown files from approved suggestions.
+Generate Markdown files only from approved proposal types.
 
 Requirements:
 
-- Write Concept.md
-- Write Card.md
+- Accepted Concept proposals write `Concept.md`.
+- Accepted Card proposals write `Card.md` only after the separate Card-generation flow.
 - Use stable frontmatter
 - Use MNEME markers for cards
-- Initialize FSRS state for active Cards
+- Initialize FSRS state only for accepted active Cards with explicit stable Card IDs
 
 Acceptance criteria:
 
 - Files are created in configured folders
 - Card parser can parse generated Card.md
 - Concept.md remains human-editable
+- Initial Source Note analysis cannot bypass the Concept-first approval flow by writing Cards
 
 ## Task 027: Analyze Current Note to AI Concept Proposals
 
@@ -803,9 +806,9 @@ Acceptance criteria:
 - Other Card blocks, frontmatter, headings, and user Markdown remain byte-for-byte unchanged
 - Concurrent edits and duplicate IDs stop deletion
 - Deleted Cards disappear from Concept learning state and Today’s Focus
-- Deleted IDs cannot be reused while a tombstone exists
+- Default deletion leaves a tombstone so deleted Card IDs cannot be reused
 - Default deletion leaves no Front, Back, Rubric, or rationale in plugin data
-- `Delete History Too` removes both events and the tombstone, after which the ID may be reused
+- `Delete History Too` removes both events and the tombstone only after separate confirmation and is not a routine ID-reuse path
 - New generated Card IDs differ across proposal identities without exposing internal proposal IDs
 
 ## Task 051: Explainable Possible Duplicate Detection

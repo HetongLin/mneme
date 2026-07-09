@@ -40,6 +40,28 @@ const now = new Date("2026-01-10T12:00:00.000Z");
 }
 
 {
+	const eligibility = getDailyReviewEligibility(createCard("legacy-fallback", true, false), undefined, now);
+
+	assert.equal(eligibility.includedInDailyReview, false);
+	assert.equal(eligibility.isNew, false);
+	assert.equal(eligibility.reason, "missing-card-id");
+}
+
+{
+	const eligibility = getDailyReviewEligibility(
+		createCard("legacy-reviewed", true, false),
+		createReviewState("legacy-reviewed", {
+			dueAt: "2026-01-09T12:00:00.000Z",
+		}),
+		now,
+	);
+
+	assert.equal(eligibility.includedInDailyReview, false);
+	assert.equal(eligibility.isDue, false);
+	assert.equal(eligibility.reason, "missing-card-id");
+}
+
+{
 	const eligibility = getDailyReviewEligibility(createCard("invalid-card", false), undefined, now);
 
 	assert.equal(eligibility.includedInDailyReview, false);
@@ -85,7 +107,7 @@ const now = new Date("2026-01-10T12:00:00.000Z");
 	assert.equal(eligibility.reason, "missing-due-at");
 }
 
-function createCard(cardId: string, isValid = true): LoadedMnemeCard {
+function createCard(cardId: string, isValid = true, hasExplicitCardId = true): LoadedMnemeCard {
 	return {
 		back: "Back",
 		basename: "Card",
@@ -94,7 +116,7 @@ function createCard(cardId: string, isValid = true): LoadedMnemeCard {
 		content: "",
 		errors: isValid ? [] : ["Invalid card"],
 		front: "Front",
-		hasExplicitCardId: true,
+		hasExplicitCardId,
 		id: cardId,
 		isValid,
 		path: "Concept/Card.md",

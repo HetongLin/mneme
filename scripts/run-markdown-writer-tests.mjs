@@ -7,6 +7,7 @@ const tests = [
 	"tests/conceptMarkdownIdentity.test.ts",
 	"tests/markdownProposalRenderer.test.ts",
 	"tests/approvedProposalWriter.test.ts",
+	"tests/ankiTsvExporter.test.ts",
 ];
 
 for (const test of tests) {

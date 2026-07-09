@@ -1,4 +1,4 @@
-import { Notice, Plugin, TFile } from "obsidian";
+import { Notice, Plugin, TFile, TFolder } from "obsidian";
 import {
 	ACCEPTANCE_CARD_PROPOSAL_ID,
 	ACCEPTANCE_CONCEPT_ID,
@@ -20,6 +20,7 @@ import { FsrsReviewScheduler, FsrsSchedulerConfig } from "./services/fsrsReviewS
 import { ApprovedProposalWriter } from "./services/approvedProposalWriter";
 import { AiCardGenerationService } from "./services/aiCardGenerationService";
 import { AiConceptCaptureService } from "./services/aiConceptCaptureService";
+import { exportCardsToAnkiTsv } from "./services/ankiTsvExporter";
 import { createAiProvider } from "./services/aiProviderFactory";
 import { ConceptSourceLinkStore } from "./services/conceptSourceLinkStore";
 import { ConceptScanner } from "./services/conceptScanner";
@@ -27,6 +28,7 @@ import { ConceptMergeService } from "./services/conceptMergeService";
 import { getConceptIdFromFrontmatter } from "./services/conceptMarkdownIdentity";
 import { parseConceptTitle } from "./services/conceptMarkdownParser";
 import { KnowledgeProposalStore } from "./services/knowledgeProposalStore";
+import { createKnowledgeContextPack } from "./services/knowledgeContextPackExporter";
 import { ObsidianConceptVaultAdapter } from "./services/obsidianConceptVaultAdapter";
 import { ObsidianAiHttpClient } from "./services/obsidianAiHttpClient";
 import { ObsidianVaultAdapter } from "./services/obsidianVaultAdapter";
@@ -172,6 +174,22 @@ export default class MnemePlugin extends Plugin {
 			name: "Mneme: Resync Mneme Index",
 			callback: () => {
 				void this.resyncMnemeIndex();
+			},
+		});
+
+		this.addCommand({
+			id: "mneme-export-knowledge-context-pack",
+			name: "Mneme: Export Knowledge Context Pack",
+			callback: () => {
+				void this.exportKnowledgeContextPack();
+			},
+		});
+
+		this.addCommand({
+			id: "mneme-export-anki-tsv",
+			name: "Mneme: Export Anki TSV",
+			callback: () => {
+				void this.exportAnkiTsv();
 			},
 		});
 	}
@@ -497,6 +515,113 @@ export default class MnemePlugin extends Plugin {
 		}
 	}
 
+	private async exportKnowledgeContextPack(): Promise<void> {
+		try {
+			const scanner = this.createConceptScanner();
+			const scan = await scanner.scan();
+
+			if (scan.concepts.length === 0) {
+				new Notice("Mneme: No approved Concepts to export.");
+				return;
+			}
+
+			const concepts = await Promise.all(scan.concepts.map(async (summary) => ({
+				markdown: await this.readMarkdownFile(summary.path),
+				summary,
+			})));
+			const generatedAt = new Date().toISOString();
+			const pack = createKnowledgeContextPack(concepts, { generatedAt });
+			const exportFolder = `Mneme/Exports/Knowledge Context Pack ${formatExportTimestamp(generatedAt)}`;
+
+			await this.writeKnowledgeContextPack(exportFolder, pack.files);
+
+			console.info("Mneme: Knowledge Context Pack exported", {
+				conceptCount: pack.conceptCount,
+				exportFolder,
+				files: Object.keys(pack.files),
+			});
+			new Notice(`Mneme: Exported ${pack.conceptCount} Concepts to ${exportFolder}.`);
+		} catch (error) {
+			console.error("Mneme: failed to export Knowledge Context Pack", error);
+			new Notice("Mneme: Knowledge Context Pack export failed. See console.");
+		}
+	}
+
+	private async exportAnkiTsv(): Promise<void> {
+		try {
+			const cards = await new CardFileLoader(this.app).loadCardFiles();
+			const retiredCardIds = new Set(Object.keys(this.reviewStateStore.getRetiredCards()));
+			const result = exportCardsToAnkiTsv(cards, { retiredCardIds });
+
+			if (result.exportedCardCount === 0) {
+				new Notice("Mneme: No active valid Cards to export.");
+				return;
+			}
+
+			const generatedAt = new Date().toISOString();
+			const exportFolder = "Mneme/Exports";
+			const exportPath = `${exportFolder}/Anki Export ${formatExportTimestamp(generatedAt)}.tsv`;
+
+			await this.ensureFolderPath(exportFolder);
+			await this.app.vault.create(exportPath, result.tsv);
+
+			console.info("Mneme: Anki TSV exported", {
+				exportPath,
+				exportedCardCount: result.exportedCardCount,
+				skippedCardCount: result.skippedCardCount,
+			});
+			new Notice(`Mneme: Exported ${result.exportedCardCount} Cards to ${exportPath}.`);
+		} catch (error) {
+			console.error("Mneme: failed to export Anki TSV", error);
+			new Notice("Mneme: Anki TSV export failed. See console.");
+		}
+	}
+
+	private async readMarkdownFile(path: string): Promise<string> {
+		const abstractFile = this.app.vault.getAbstractFileByPath(path);
+
+		if (!(abstractFile instanceof TFile)) {
+			throw new Error(`Markdown file not found: ${path}`);
+		}
+
+		return this.app.vault.cachedRead(abstractFile);
+	}
+
+	private async writeKnowledgeContextPack(baseFolder: string, files: Record<string, string>): Promise<void> {
+		await this.ensureFolderPath(baseFolder);
+
+		for (const [relativePath, content] of Object.entries(files)) {
+			const fullPath = `${baseFolder}/${relativePath}`;
+			const folderPath = fullPath.includes("/") ? fullPath.slice(0, fullPath.lastIndexOf("/")) : "";
+
+			if (folderPath) {
+				await this.ensureFolderPath(folderPath);
+			}
+
+			await this.app.vault.create(fullPath, content);
+		}
+	}
+
+	private async ensureFolderPath(path: string): Promise<void> {
+		const parts = path.split("/").filter((part) => part.length > 0);
+		let currentPath = "";
+
+		for (const part of parts) {
+			currentPath = currentPath ? `${currentPath}/${part}` : part;
+			const existing = this.app.vault.getAbstractFileByPath(currentPath);
+
+			if (existing instanceof TFolder) {
+				continue;
+			}
+
+			if (existing) {
+				throw new Error(`Cannot create folder because a file already exists: ${currentPath}`);
+			}
+
+			await this.app.vault.createFolder(currentPath);
+		}
+	}
+
 	private async addSampleKnowledgeProposal(): Promise<void> {
 		try {
 			const activeFile = this.app.workspace.getActiveFile();
@@ -745,4 +870,8 @@ function settingsToFsrsConfig(settings: MnemeSettings): FsrsSchedulerConfig {
 		maximumInterval: settings.fsrsMaximumInterval,
 		requestRetention: settings.fsrsRequestRetention,
 	};
+}
+
+function formatExportTimestamp(value: string): string {
+	return value.replace(/[:.]/g, "-");
 }

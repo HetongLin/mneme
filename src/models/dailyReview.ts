@@ -4,6 +4,7 @@ export type DailyReviewEligibilityReason =
 	| "overdue"
 	| "not-due"
 	| "invalid"
+	| "missing-card-id"
 	| "missing-due-at"
 	| "exploratory-concept";
 

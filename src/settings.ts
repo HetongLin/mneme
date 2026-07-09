@@ -1,6 +1,7 @@
 import { App, Plugin, PluginSettingTab, Setting } from "obsidian";
 import {
 	DEFAULT_SETTINGS,
+	getRetentionWorkloadWarning,
 	MnemeSettings,
 	normalizeFolder,
 	normalizeMaximumInterval,
@@ -11,6 +12,7 @@ import {
 export {
 	DEFAULT_SETTINGS,
 	getSettingsFromPluginData,
+	getRetentionWorkloadWarning,
 	mergeSettingsIntoPluginData,
 	normalizeMaximumInterval,
 	normalizeFolder,
@@ -88,21 +90,22 @@ export class MnemeSettingTab extends PluginSettingTab {
 
 		containerEl.createEl("h3", { text: "FSRS Scheduling" });
 
-		new Setting(containerEl)
+		const retentionSetting = new Setting(containerEl)
 			.setName("Request retention")
-			.setDesc("Higher retention means shorter intervals and more reviews.")
-			.addText((text) => {
-				text.inputEl.type = "number";
-				text.inputEl.min = "0.70";
-				text.inputEl.max = "0.98";
-				text.inputEl.step = "0.01";
+			.setDesc(formatRetentionDescription(this.plugin.settings.fsrsRequestRetention));
+		retentionSetting.addText((text) => {
+			text.inputEl.type = "number";
+			text.inputEl.min = "0.70";
+			text.inputEl.max = "0.98";
+			text.inputEl.step = "0.01";
+			text.setValue(formatRetention(this.plugin.settings.fsrsRequestRetention));
+			text.onChange(async (value) => {
+				this.plugin.settings.fsrsRequestRetention = normalizeRetention(Number(value));
 				text.setValue(formatRetention(this.plugin.settings.fsrsRequestRetention));
-				text.onChange(async (value) => {
-					this.plugin.settings.fsrsRequestRetention = normalizeRetention(Number(value));
-					text.setValue(formatRetention(this.plugin.settings.fsrsRequestRetention));
-					await this.persistSettings();
-				});
+				retentionSetting.setDesc(formatRetentionDescription(this.plugin.settings.fsrsRequestRetention));
+				await this.persistSettings();
 			});
+		});
 
 		new Setting(containerEl)
 			.setName("Enable fuzz")
@@ -309,4 +312,8 @@ export class MnemeSettingTab extends PluginSettingTab {
 
 function formatRetention(value: number): string {
 	return value.toFixed(2);
+}
+
+function formatRetentionDescription(retention: number): string {
+	return `Global FSRS policy. Higher retention means shorter intervals and more reviews. ${getRetentionWorkloadWarning(retention)} Importance does not change this setting.`;
 }

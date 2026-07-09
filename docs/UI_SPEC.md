@@ -26,13 +26,14 @@ Prefer:
 - Today’s Focus
 - Later
 - Needs Attention
-- Weak Concepts
+- Needs Work Signals
 
 Avoid:
 
 - Debt
 - Failed
 - Missed
+- Weak Concepts
 - Overdue overload
 
 ## Main Views
@@ -176,8 +177,9 @@ For each suggestion, show:
 - Source excerpt
 - Core understanding
 - Common mistakes
-- Suggested cards
 - Actions
+
+Concept-stage Inbox cards must not show or create Suggested Cards. Cards are generated later from written Concepts through a separate Card-generation action and then reviewed as Card proposals.
 
 ## Card Edit Modal
 
@@ -190,8 +192,6 @@ Editable fields:
 - Front
 - Back
 - Rubric
-- Targets
-- Status
 
 Actions:
 
@@ -214,16 +214,11 @@ v0.1 settings:
 - Daily Concept Limit
 - Daily Card Limit
 - Cards per Concept
-- Desired Retention default
-- Desired Retention by importance
+- Global Retention Target
+- Explicit manual retention override, if implemented later
 - LLM provider settings
 
-Default retention mapping:
-
-- low: 0.80
-- normal: 0.85
-- high: 0.90
-- critical: 0.92
+Importance does not silently change FSRS desired retention. Mneme may use Importance to rank already-eligible Concepts, but FSRS keeps a global Retention Target unless the student intentionally chooses a separate scheduling override.
 
 ## Exploratory Concepts
 

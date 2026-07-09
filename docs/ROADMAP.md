@@ -9,7 +9,11 @@ Prove the core loop:
 Analyze Current Note
 → Concept Suggestions
 → Inbox Approval
-→ Concept.md / Card.md
+→ Concept.md
+→ Generate Cards from written Concept
+→ Card Proposals
+→ Inbox Approval
+→ Card.md
 → FSRS Review
 → Concept-based Review
 
@@ -116,7 +120,7 @@ Current progress:
 
 - Written Concept importance now feeds an explicit low/normal/high/critical weight into Today’s Focus priority.
 - Importance is visible in review details and does not modify Card FSRS state or eligibility.
-- Global retention settings already affect future FSRS reviews. An explicit Concept override and workload warning remain unfinished.
+- Global retention settings already affect future FSRS reviews, and the settings UI warns about review workload tradeoffs. An explicit Concept override remains unfinished.
 - Importance must never silently change desired retention.
 
 ## v0.5: Exploratory Concepts
@@ -167,7 +171,7 @@ Current progress:
 - Retired Cards are excluded from Today’s Focus, Concept Learning State risk, and ranking.
 - Confirmed Card deletion removes only the selected Markdown block and clears active scheduling controls.
 - Content-free review events and Card tombstones preserve statistical history and prevent ID reuse.
-- `Delete History Too` explicitly erases a deleted Card's events and tombstone; global history clearing retains identity tombstones but zeros their counts.
+- `Delete History Too` is a separately confirmed complete-erasure path for a deleted Card's events and tombstone; default deletion preserves identity tombstones and global history clearing retains identity tombstones while zeroing their counts.
 - Concept Library reports conservative Possible Duplicate pairs with explainable title/Core Meaning signals.
 - `Not a duplicate` decisions persist by stable Concept pair and remain reversible.
 - Possible Duplicate detection and dismissal never write Markdown.
@@ -257,6 +261,13 @@ Features:
 - Optional Course or manual Concept filtering
 - External-agent project discovery
 - Use Projects built from coherent Concept Sets
+
+Current progress:
+
+- Knowledge Context Pack export creates a neutral vault-local pack for external agents.
+- Exported Concept files omit Source Notes and Review Cards sections and do not include Cards, FSRS state, review history, credentials, diagnostics, or a project request.
+- One-way Anki TSV export creates isolated Card copies without syncing content, scheduling state, or review history.
+- Optional Course/manual filtering remains unfinished.
 
 ## v2.0: AI-native Learning System
 

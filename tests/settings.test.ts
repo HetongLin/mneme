@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
 	DEFAULT_SETTINGS,
+	getRetentionWorkloadWarning,
 	getSettingsFromPluginData,
 	mergeSettingsIntoPluginData,
 	normalizeSettings,
@@ -114,6 +115,25 @@ import {
 	assert.equal(settings.deepseekApiKey, "");
 	assert.equal(settings.deepseekBaseUrl, "https://api.deepseek.com");
 	assert.equal(settings.deepseekModel, "deepseek-v4-flash");
+}
+
+{
+	assert.equal(
+		getRetentionWorkloadWarning(0.96),
+		"Very high retention can create a much heavier review workload.",
+	);
+	assert.equal(
+		getRetentionWorkloadWarning(0.93),
+		"High retention usually means shorter intervals and more frequent reviews.",
+	);
+	assert.equal(
+		getRetentionWorkloadWarning(0.8),
+		"Lower retention reduces workload but makes forgotten Cards more likely.",
+	);
+	assert.equal(
+		getRetentionWorkloadWarning(0.9),
+		"Balanced retention keeps review workload moderate.",
+	);
 }
 
 {
