@@ -41,7 +41,7 @@ import { SourceProvenanceRemovalService } from "./services/sourceProvenanceRemov
 import { VaultStateReconciler } from "./services/vaultStateReconciler";
 import { buildCardPath, buildConceptPath } from "./utils/markdownPath";
 import { CONCEPT_LIBRARY_VIEW_TYPE, MnemeConceptLibraryView } from "./views/conceptLibraryView";
-import { MnemeInboxView, INBOX_VIEW_TYPE } from "./views/inboxView";
+import { MnemeInboxView, INBOX_VIEW_TYPE, type InboxTab } from "./views/inboxView";
 import { MnemeReviewView, REVIEW_VIEW_TYPE } from "./views/reviewView";
 
 export default class MnemePlugin extends Plugin {
@@ -366,7 +366,7 @@ export default class MnemePlugin extends Plugin {
 		new Notice(`Mneme: ${result.message}`);
 
 		if (result.status === "captured") {
-			await this.refreshOpenInboxViews();
+			await this.openInboxView("concepts");
 		}
 	}
 
@@ -450,8 +450,8 @@ export default class MnemePlugin extends Plugin {
 
 		new Notice(`Mneme: ${result.message}`);
 
-		if (result.status === "generated") {
-			await this.refreshOpenInboxViews();
+		if (result.status === "generated" || result.status === "skipped_active_proposals") {
+			await this.openInboxView("cards");
 		}
 	}
 
@@ -804,10 +804,14 @@ export default class MnemePlugin extends Plugin {
 		await this.app.workspace.revealLeaf(leaf);
 	}
 
-	private async openInboxView(): Promise<void> {
+	private async openInboxView(tab: InboxTab = "concepts"): Promise<void> {
 		const existingLeaf = this.app.workspace.getLeavesOfType(INBOX_VIEW_TYPE)[0];
 
 		if (existingLeaf) {
+			if (existingLeaf.view instanceof MnemeInboxView) {
+				existingLeaf.view.showTab(tab);
+				await existingLeaf.view.refresh();
+			}
 			await this.app.workspace.revealLeaf(existingLeaf);
 			return;
 		}
@@ -822,6 +826,9 @@ export default class MnemePlugin extends Plugin {
 			active: true,
 			type: INBOX_VIEW_TYPE,
 		});
+		if (leaf.view instanceof MnemeInboxView) {
+			leaf.view.showTab(tab);
+		}
 		await this.app.workspace.revealLeaf(leaf);
 	}
 

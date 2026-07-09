@@ -32,7 +32,7 @@ import {
 import type { VaultStateReconciler } from "../services/vaultStateReconciler";
 
 export const INBOX_VIEW_TYPE = "mneme-inbox-view";
-type InboxTab = "concepts" | "cards" | "other";
+export type InboxTab = "concepts" | "cards" | "other";
 
 export class MnemeInboxView extends ItemView {
 	private activeTab: InboxTab = "concepts";
@@ -91,6 +91,11 @@ export class MnemeInboxView extends ItemView {
 			this.statusMessage = "Failed to load Inbox proposals. See console for details.";
 		}
 
+		this.render();
+	}
+
+	showTab(tab: InboxTab): void {
+		this.activeTab = tab;
 		this.render();
 	}
 
