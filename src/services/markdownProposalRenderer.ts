@@ -65,6 +65,7 @@ function renderNewConceptDraft(
 	const conceptPath = buildConceptPath(settings.conceptsFolder, payload.title);
 	const cardPath = buildCardPath(settings.cardsFolder, payload.title);
 	const cardLink = toObsidianInternalLink(cardPath, `${payload.title} Cards`);
+	const tags = normalizeTags(payload.tags ?? []);
 	const lines = [
 		"---",
 		"mneme_type: concept",
@@ -73,6 +74,7 @@ function renderNewConceptDraft(
 		`cards: "${cardLink}"`,
 		...(payload.learningMode ? [`learning_mode: ${payload.learningMode}`] : []),
 		...(payload.suggestedImportance ? [`importance: ${payload.suggestedImportance}`] : []),
+		...(tags.length > 0 ? [`tags: [${tags.join(", ")}]`] : []),
 		"---",
 		"",
 		`# ${payload.title}`,
@@ -228,6 +230,26 @@ function truncateSingleLine(value: string, maxLength: number): string {
 	}
 
 	return `${normalized.slice(0, maxLength - 1).trim()}...`;
+}
+
+function normalizeTags(value: string[]): string[] {
+	const tags = value
+		.map(normalizeTag)
+		.filter((tag) => tag.length > 0);
+
+	return [...new Set(tags)].slice(0, 5);
+}
+
+function normalizeTag(value: string): string {
+	return value
+		.trim()
+		.replace(/^#+/, "")
+		.replace(/^['"]|['"]$/g, "")
+		.trim()
+		.toLocaleLowerCase()
+		.replace(/[^a-z0-9/_-]+/g, "-")
+		.replace(/-+/g, "-")
+		.replace(/^-|-$/g, "");
 }
 
 function escapeHtmlAttribute(value: string): string {

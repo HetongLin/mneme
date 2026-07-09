@@ -66,6 +66,7 @@ function normalizePayload(
 				relatedConceptHints: proposal.payload.relatedConceptHints,
 				suggestedImportance: proposal.payload.suggestedImportance,
 				summary: proposal.payload.summary,
+				tags: proposal.payload.tags,
 				title: proposal.payload.conceptTitle,
 			};
 		case "link_existing_concept":

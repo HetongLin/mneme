@@ -71,10 +71,12 @@ function repairCommonAiEnumDrift(value: unknown): unknown {
 
 		const learningMode = coerceLearningMode(proposal.payload.learningMode);
 		const suggestedImportance = coerceSuggestedImportance(proposal.payload.suggestedImportance);
+		const tags = normalizeTags(proposal.payload.tags);
 
 		if (
 			learningMode === proposal.payload.learningMode
 			&& suggestedImportance === proposal.payload.suggestedImportance
+			&& tags === proposal.payload.tags
 		) {
 			return proposal;
 		}
@@ -87,6 +89,7 @@ function repairCommonAiEnumDrift(value: unknown): unknown {
 				...proposal.payload,
 				learningMode,
 				suggestedImportance,
+				tags,
 			},
 		};
 	});
@@ -151,6 +154,29 @@ function coerceSuggestedImportance(value: unknown): "low" | "normal" | "high" | 
 
 function normalizeEnumToken(value: string): string {
 	return value.trim().toLocaleLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+function normalizeTags(value: unknown): string[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+
+	return [...new Set(value
+		.map((tag) => typeof tag === "string" ? normalizeTag(tag) : "")
+		.filter((tag): tag is string => tag.length > 0))]
+		.slice(0, 5);
+}
+
+function normalizeTag(value: string): string {
+	return value
+		.trim()
+		.replace(/^#+/, "")
+		.replace(/^['"]|['"]$/g, "")
+		.trim()
+		.toLocaleLowerCase()
+		.replace(/[^a-z0-9/_-]+/g, "-")
+		.replace(/-+/g, "-")
+		.replace(/^-|-$/g, "");
 }
 
 function validateProposal(
@@ -245,6 +271,7 @@ function validateNewConceptPayload(payload: Record<string, unknown>, path: strin
 	requireNonEmptyString(payload.coreMeaning, `${path}.payload.coreMeaning`, errors);
 	requireLiteralOneOf(payload.learningMode, ["reviewable", "exploratory"], `${path}.payload.learningMode`, errors);
 	requireLiteralOneOf(payload.suggestedImportance, ["low", "normal", "high", "critical"], `${path}.payload.suggestedImportance`, errors);
+	validateTagArray(payload.tags, `${path}.payload.tags`, errors);
 	validateStringArray(payload.relatedConceptHints, `${path}.payload.relatedConceptHints`, errors);
 
 	if (!Array.isArray(payload.views)) {
@@ -325,6 +352,12 @@ function validateConfidence(value: unknown, path: string, errors: string[]): voi
 function validateStringArray(value: unknown, path: string, errors: string[]): void {
 	if (!Array.isArray(value) || !value.every(isNonEmptyString)) {
 		errors.push(`${path} must be an array of non-empty strings.`);
+	}
+}
+
+function validateTagArray(value: unknown, path: string, errors: string[]): void {
+	if (!Array.isArray(value) || value.length === 0 || value.length > 5 || !value.every(isNonEmptyString)) {
+		errors.push(`${path} must be an array of 1 to 5 non-empty strings.`);
 	}
 }
 

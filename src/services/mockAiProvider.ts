@@ -40,6 +40,7 @@ export class MockAiProvider implements AiProvider {
 						relatedConceptHints: [],
 						suggestedImportance: "normal",
 						summary: `Mock concept proposal for ${input.sourcePath}.`,
+						tags: ["mock", "source-note"],
 						views: [],
 					},
 					rationale: "Deterministic mock proposal for offline tests.",

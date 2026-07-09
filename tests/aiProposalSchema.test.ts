@@ -59,6 +59,7 @@ const cardGenerationResponse = {
 				relatedConceptHints: ["Abstraction"],
 				suggestedImportance: "normal",
 				summary: "A boundary around representation details.",
+				tags: ["oop", "design"],
 				views: [{ body: "Think of public methods as the object's interface.", title: "Interface view" }],
 			},
 			rationale: "The source note introduces a durable concept.",
@@ -83,6 +84,7 @@ const cardGenerationResponse = {
 				relatedConceptHints: ["Abstraction"],
 				suggestedImportance: "medium",
 				summary: "A boundary around representation details.",
+				tags: ["Object Oriented Programming", "#design"],
 				views: [{ body: "Think of public methods as the object's interface.", title: "Interface view" }],
 			},
 			rationale: "The source note introduces a durable concept.",
@@ -100,6 +102,7 @@ const cardGenerationResponse = {
 		if (proposal.kind === "new_concept") {
 			assert.equal(proposal.payload.learningMode, "reviewable");
 			assert.equal(proposal.payload.suggestedImportance, "normal");
+			assert.deepEqual(proposal.payload.tags, ["object-oriented-programming", "design"]);
 		}
 	}
 }
@@ -237,6 +240,7 @@ const cardGenerationResponse = {
 				relatedConceptHints: [],
 				suggestedImportance: "normal",
 				summary: "A boundary around representation details.",
+				tags: ["oop"],
 				views: [],
 			},
 			rationale: "Invalid confidence.",
@@ -262,6 +266,7 @@ const cardGenerationResponse = {
 				relatedConceptHints: [],
 				suggestedImportance: "normal",
 				summary: "A boundary around representation details.",
+				tags: ["oop"],
 				views: [],
 			},
 			rationale: "Invalid title.",
@@ -288,6 +293,7 @@ const cardGenerationResponse = {
 				relatedConceptHints: ["Abstraction"],
 				suggestedImportance: "normal",
 				summary: "A boundary around representation details.",
+				tags: ["oop", "design"],
 				views: [],
 			},
 			rationale: "The source note introduces a durable concept.",

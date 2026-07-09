@@ -141,6 +141,8 @@ In `concept_capture` mode, providers must not return Card-stage proposal kinds:
 - `merge_card`
 - `retire_card`
 
+`new_concept` payloads include proposed organization `tags`. Tags are generated with the Concept proposal, shown for user review, and written to `Concept.md` frontmatter only when the Concept proposal is accepted.
+
 Cards are generated later from written `Concept.md`, then reviewed and accepted separately before any `Card.md` is written.
 
 Current implementation supports two post-review write paths:

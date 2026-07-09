@@ -60,6 +60,7 @@ export function buildPreAiAcceptanceConceptProposal(
 			}],
 			suggestedImportance: "normal",
 			summary: "A deterministic fixture Concept for validating Mneme's source analysis, Inbox, Markdown writing, Concept Library, and Review regression flow before AI Capture.",
+			tags: ["mneme", "acceptance-test"],
 			title: ACCEPTANCE_CONCEPT_TITLE,
 		},
 		sourceHash: args.sourceHash,

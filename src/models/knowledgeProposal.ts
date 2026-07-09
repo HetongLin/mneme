@@ -72,6 +72,7 @@ export interface NewConceptProposalPayload {
 	proposedViews?: ConceptViewDraft[];
 	suggestedImportance?: SuggestedImportance;
 	summary?: string;
+	tags?: string[];
 	title: string;
 }
 

@@ -148,6 +148,7 @@ export class ProposalDetailModal extends Modal {
 		const coreMeaningInput = this.createTextareaInput(parentEl, "Core Meaning", getString(payload, "coreMeaning"));
 		const learningModeInput = this.createTextInput(parentEl, "Learning Mode", getString(payload, "learningMode"));
 		const importanceInput = this.createTextInput(parentEl, "Importance", getString(payload, "suggestedImportance"));
+		const tagsInput = this.createTextInput(parentEl, "Tags", getStringArray(payload, "tags").join(", "));
 
 		parentEl.createEl("p", {
 			cls: "mneme-review-status",
@@ -160,6 +161,7 @@ export class ProposalDetailModal extends Modal {
 			learningMode: learningModeInput.value,
 			suggestedImportance: importanceInput.value,
 			summary: summaryInput.value,
+			tags: parseTags(tagsInput.value),
 			title: titleInput.value,
 		}));
 	}
@@ -404,6 +406,20 @@ function getString(record: Record<string, unknown>, key: string): string | undef
 	const value = record[key];
 
 	return typeof value === "string" ? value : undefined;
+}
+
+function getStringArray(record: Record<string, unknown>, key: string): string[] {
+	const value = record[key];
+
+	return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function parseTags(value: string): string[] {
+	return [...new Set(value
+		.split(",")
+		.map((tag) => tag.trim().replace(/^#+/, "").toLocaleLowerCase().replace(/[^a-z0-9/_-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, ""))
+		.filter((tag) => tag.length > 0))]
+		.slice(0, 5);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -44,6 +44,7 @@ export interface AiNewConceptProposalV1 extends AiConceptProposalBaseV1 {
 		relatedConceptHints: string[];
 		suggestedImportance: "low" | "normal" | "high" | "critical";
 		summary: string;
+		tags: string[];
 		views: Array<{
 			body: string;
 			title: string;

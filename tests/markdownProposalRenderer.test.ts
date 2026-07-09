@@ -18,6 +18,7 @@ function getFirstDraftContent(result: ReturnType<typeof renderMarkdownProposal>)
 			coreMeaning: "Encapsulation protects internal representation.",
 			learningMode: "reviewable",
 			suggestedImportance: "normal",
+			tags: ["Object Oriented Programming", "#design"],
 			title: "Encapsulation",
 		},
 		status: "approved",
@@ -31,6 +32,7 @@ function getFirstDraftContent(result: ReturnType<typeof renderMarkdownProposal>)
 	assert.match(content, /cards: "\[\[Mneme\/Cards\/Encapsulation\/Card\|Encapsulation Cards\]\]"/);
 	assert.match(content, /learning_mode: reviewable/);
 	assert.match(content, /importance: normal/);
+	assert.match(content, /tags: \[object-oriented-programming, design\]/);
 	assert.match(content, /# Encapsulation/);
 	assert.match(content, /## Core Meaning\n\nEncapsulation protects/);
 	assert.match(content, /## Review\n\n> \[!note\]- Review Cards/);

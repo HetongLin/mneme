@@ -61,9 +61,10 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 			"Top-level shape: {\"schemaVersion\":\"mneme.ai.proposals.v1\",\"mode\":\"concept_capture\",\"source\":{\"path\":\"<sourcePath>\",\"hash\":\"<sourceHash>\"},\"warnings\":[],\"proposals\":[]}.",
 			"Concept capture may return only new_concept, link_existing_concept, add_view, update_concept, or merge_concept.",
 			"Every proposal requires kind, title, rationale, confidence from 0 to 1, evidence entries with sourcePath/quote/explanation, and a kind-specific payload.",
-			"Payloads: new_concept={conceptTitle,summary,coreMeaning,learningMode,suggestedImportance,relatedConceptHints,views[{title,body}]}; link_existing_concept={existingConceptId,existingConceptTitle,reason}; add_view={targetConceptId,targetConceptTitle,viewTitle,viewBody}; update_concept={targetConceptId,targetConceptTitle,reason,proposedSummary and/or proposedCoreMeaning}; merge_concept={sourceConceptIds,proposedTitle,reason}.",
+			"Payloads: new_concept={conceptTitle,summary,coreMeaning,learningMode,suggestedImportance,tags,relatedConceptHints,views[{title,body}]}; link_existing_concept={existingConceptId,existingConceptTitle,reason}; add_view={targetConceptId,targetConceptTitle,viewTitle,viewBody}; update_concept={targetConceptId,targetConceptTitle,reason,proposedSummary and/or proposedCoreMeaning}; merge_concept={sourceConceptIds,proposedTitle,reason}.",
 			"For new_concept payloads, learningMode must be exactly 'reviewable' or 'exploratory'; do not use values like definition, application, recall, or understanding.",
 			"For new_concept payloads, suggestedImportance must be exactly 'low', 'normal', 'high', or 'critical'; use 'normal' when unsure.",
+			"For new_concept payloads, tags must be an array of 1 to 5 short lowercase organization tags, using hyphens instead of spaces, such as ['statistics','machine-learning']; do not use '#' prefixes.",
 			"Never return new_card, revise_card, split_card, merge_card, or retire_card.",
 			"Do not write Markdown.",
 		].join("\n");
@@ -225,6 +226,7 @@ function createKnowledgeProposalResponseJsonSchema(): Record<string, unknown> {
 							relatedConceptHints: { items: { type: "string" }, type: "array" },
 							suggestedImportance: { enum: ["low", "normal", "high", "critical"], type: "string" },
 							summary: { type: "string" },
+							tags: { items: { type: "string" }, maxItems: 5, minItems: 1, type: "array" },
 							views: {
 								items: {
 									additionalProperties: false,
@@ -234,7 +236,7 @@ function createKnowledgeProposalResponseJsonSchema(): Record<string, unknown> {
 								},
 								type: "array",
 							},
-						}, ["conceptTitle", "coreMeaning", "learningMode", "relatedConceptHints", "suggestedImportance", "summary", "views"]),
+						}, ["conceptTitle", "coreMeaning", "learningMode", "relatedConceptHints", "suggestedImportance", "summary", "tags", "views"]),
 						proposal("link_existing_concept", {
 							existingConceptId: { type: "string" },
 							existingConceptTitle: { type: "string" },
