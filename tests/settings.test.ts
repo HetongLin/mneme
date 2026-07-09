@@ -112,9 +112,18 @@ import {
 	assert.equal(settings.enableDeveloperTools, false);
 	assert.equal(settings.aiCaptureEnabled, false);
 	assert.equal(settings.aiProvider, "mock");
+	assert.equal(settings.aiRequestTimeoutMs, 120000);
 	assert.equal(settings.deepseekApiKey, "");
 	assert.equal(settings.deepseekBaseUrl, "https://api.deepseek.com");
 	assert.equal(settings.deepseekModel, "deepseek-v4-flash");
+}
+
+{
+	const settings = normalizeSettings({
+		aiRequestTimeoutMs: 30000,
+	});
+
+	assert.equal(settings.aiRequestTimeoutMs, DEFAULT_SETTINGS.aiRequestTimeoutMs);
 }
 
 {

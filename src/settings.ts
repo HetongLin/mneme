@@ -240,7 +240,7 @@ export class MnemeSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Request timeout")
-			.setDesc("Maximum provider wait time in milliseconds.")
+			.setDesc("Maximum provider wait time in milliseconds. Larger notes and structured JSON output may need 120000 ms or more.")
 			.addText((text) => {
 				text.inputEl.type = "number";
 				text.inputEl.min = "1";

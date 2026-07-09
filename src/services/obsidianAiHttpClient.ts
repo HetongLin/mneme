@@ -23,7 +23,7 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
 			promise,
 			new Promise<T>((_, reject) => {
 				timeoutId = setTimeout(
-					() => reject(new Error(`AI request timed out after ${timeoutMs} ms.`)),
+					() => reject(new Error(formatTimeoutMessage(timeoutMs))),
 					timeoutMs,
 				);
 			}),
@@ -33,4 +33,10 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
 			clearTimeout(timeoutId);
 		}
 	}
+}
+
+function formatTimeoutMessage(timeoutMs: number): string {
+	const seconds = Math.round(timeoutMs / 1000);
+
+	return `AI request timed out after ${seconds} seconds. Increase Mneme Settings → Request timeout, or try a shorter Source Note.`;
 }

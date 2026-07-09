@@ -22,11 +22,13 @@ export interface MnemeSettings {
 
 export type AiProviderName = "mock" | "openai" | "deepseek";
 
+const LEGACY_DEFAULT_AI_REQUEST_TIMEOUT_MS = 30000;
+
 export const DEFAULT_SETTINGS: MnemeSettings = {
 	aiCaptureEnabled: false,
 	aiMaxInputChars: 20000,
 	aiProvider: "mock",
-	aiRequestTimeoutMs: 30000,
+	aiRequestTimeoutMs: 120000,
 	cardsPerConceptLimit: 5,
 	cardsFolder: "Mneme/Cards",
 	conceptsFolder: "Mneme/Concepts",
@@ -55,7 +57,7 @@ export function normalizeSettings(value: unknown): MnemeSettings {
 			: DEFAULT_SETTINGS.aiCaptureEnabled,
 		aiMaxInputChars: normalizePositiveInteger(value.aiMaxInputChars, DEFAULT_SETTINGS.aiMaxInputChars),
 		aiProvider: normalizeAiProvider(value.aiProvider),
-		aiRequestTimeoutMs: normalizePositiveInteger(value.aiRequestTimeoutMs, DEFAULT_SETTINGS.aiRequestTimeoutMs),
+		aiRequestTimeoutMs: normalizeAiRequestTimeoutMs(value.aiRequestTimeoutMs),
 		cardsPerConceptLimit: normalizePositiveInteger(value.cardsPerConceptLimit, DEFAULT_SETTINGS.cardsPerConceptLimit),
 		cardsFolder: normalizeFolder(value.cardsFolder, DEFAULT_SETTINGS.cardsFolder),
 		conceptsFolder: normalizeFolder(value.conceptsFolder, DEFAULT_SETTINGS.conceptsFolder),
@@ -119,6 +121,14 @@ export function normalizeMaximumInterval(value: unknown): number {
 
 export function normalizePositiveInteger(value: unknown, fallback: number): number {
 	return Math.max(1, Math.round(clampNumber(value, 1, Number.MAX_SAFE_INTEGER, fallback)));
+}
+
+function normalizeAiRequestTimeoutMs(value: unknown): number {
+	const normalized = normalizePositiveInteger(value, DEFAULT_SETTINGS.aiRequestTimeoutMs);
+
+	return normalized === LEGACY_DEFAULT_AI_REQUEST_TIMEOUT_MS
+		? DEFAULT_SETTINGS.aiRequestTimeoutMs
+		: normalized;
 }
 
 export function normalizeFolder(value: unknown, fallback: string): string {
