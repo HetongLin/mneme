@@ -14,7 +14,8 @@ export type AiProposalValidationResult =
 	| { data: AiStructuredProposalResponseV1; errors: []; valid: true }
 	| { data?: undefined; errors: string[]; valid: false };
 
-export function validateAiStructuredProposalResponse(raw: unknown): AiProposalValidationResult {
+export function validateAiStructuredProposalResponse(input: unknown): AiProposalValidationResult {
+	const raw = repairCommonAiEnumDrift(input);
 	const errors: string[] = [];
 
 	if (!isRecord(raw)) {
@@ -55,6 +56,101 @@ export function validateAiStructuredProposalResponse(raw: unknown): AiProposalVa
 		errors: [],
 		valid: true,
 	};
+}
+
+function repairCommonAiEnumDrift(value: unknown): unknown {
+	if (!isRecord(value) || !Array.isArray(value.proposals)) {
+		return value;
+	}
+
+	let changed = false;
+	const proposals = value.proposals.map((proposal) => {
+		if (!isRecord(proposal) || proposal.kind !== "new_concept" || !isRecord(proposal.payload)) {
+			return proposal;
+		}
+
+		const learningMode = coerceLearningMode(proposal.payload.learningMode);
+		const suggestedImportance = coerceSuggestedImportance(proposal.payload.suggestedImportance);
+
+		if (
+			learningMode === proposal.payload.learningMode
+			&& suggestedImportance === proposal.payload.suggestedImportance
+		) {
+			return proposal;
+		}
+
+		changed = true;
+
+		return {
+			...proposal,
+			payload: {
+				...proposal.payload,
+				learningMode,
+				suggestedImportance,
+			},
+		};
+	});
+
+	if (!changed) {
+		return value;
+	}
+
+	return {
+		...value,
+		proposals,
+	};
+}
+
+function coerceLearningMode(value: unknown): "reviewable" | "exploratory" {
+	if (typeof value !== "string") {
+		return "reviewable";
+	}
+
+	const normalized = normalizeEnumToken(value);
+
+	if (normalized === "exploratory" || normalized === "explore" || normalized === "exploration") {
+		return "exploratory";
+	}
+
+	if (normalized === "optional" || normalized === "background" || normalized === "reference") {
+		return "exploratory";
+	}
+
+	return "reviewable";
+}
+
+function coerceSuggestedImportance(value: unknown): "low" | "normal" | "high" | "critical" {
+	if (typeof value !== "string") {
+		return "normal";
+	}
+
+	const normalized = normalizeEnumToken(value);
+
+	if (normalized === "low" || normalized === "minor" || normalized === "optional" || normalized === "background") {
+		return "low";
+	}
+
+	if (normalized === "high" || normalized === "important" || normalized === "major") {
+		return "high";
+	}
+
+	if (
+		normalized === "critical"
+		|| normalized === "essential"
+		|| normalized === "must_master"
+		|| normalized === "mustmaster"
+		|| normalized === "very_high"
+		|| normalized === "core"
+		|| normalized === "exam"
+	) {
+		return "critical";
+	}
+
+	return "normal";
+}
+
+function normalizeEnumToken(value: string): string {
+	return value.trim().toLocaleLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 }
 
 function validateProposal(

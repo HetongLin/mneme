@@ -73,6 +73,41 @@ const cardGenerationResponse = {
 	const result = validateAiStructuredProposalResponse({
 		...baseResponse,
 		proposals: [{
+			confidence: 0.91,
+			evidence,
+			kind: "new_concept",
+			payload: {
+				conceptTitle: "Encapsulation",
+				coreMeaning: "Encapsulation protects internal representation.",
+				learningMode: "application",
+				relatedConceptHints: ["Abstraction"],
+				suggestedImportance: "medium",
+				summary: "A boundary around representation details.",
+				views: [{ body: "Think of public methods as the object's interface.", title: "Interface view" }],
+			},
+			rationale: "The source note introduces a durable concept.",
+			title: "Encapsulation",
+		}],
+	});
+
+	assert.equal(result.valid, true);
+
+	if (result.valid) {
+		const proposal = result.data.proposals[0];
+
+		assert.equal(proposal.kind, "new_concept");
+
+		if (proposal.kind === "new_concept") {
+			assert.equal(proposal.payload.learningMode, "reviewable");
+			assert.equal(proposal.payload.suggestedImportance, "normal");
+		}
+	}
+}
+
+{
+	const result = validateAiStructuredProposalResponse({
+		...baseResponse,
+		proposals: [{
 			confidence: 0.8,
 			evidence,
 			kind: "link_existing_concept",

@@ -62,6 +62,8 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 			"Concept capture may return only new_concept, link_existing_concept, add_view, update_concept, or merge_concept.",
 			"Every proposal requires kind, title, rationale, confidence from 0 to 1, evidence entries with sourcePath/quote/explanation, and a kind-specific payload.",
 			"Payloads: new_concept={conceptTitle,summary,coreMeaning,learningMode,suggestedImportance,relatedConceptHints,views[{title,body}]}; link_existing_concept={existingConceptId,existingConceptTitle,reason}; add_view={targetConceptId,targetConceptTitle,viewTitle,viewBody}; update_concept={targetConceptId,targetConceptTitle,reason,proposedSummary and/or proposedCoreMeaning}; merge_concept={sourceConceptIds,proposedTitle,reason}.",
+			"For new_concept payloads, learningMode must be exactly 'reviewable' or 'exploratory'; do not use values like definition, application, recall, or understanding.",
+			"For new_concept payloads, suggestedImportance must be exactly 'low', 'normal', 'high', or 'critical'; use 'normal' when unsure.",
 			"Never return new_card, revise_card, split_card, merge_card, or retire_card.",
 			"Do not write Markdown.",
 		].join("\n");
