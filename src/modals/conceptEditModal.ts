@@ -52,6 +52,7 @@ export class ConceptEditModal extends Modal {
 				coreMeaning: extractCoreMeaning(markdown) ?? "",
 				importance: metadata.importance,
 				learningMode: metadata.learningMode,
+				tags: metadata.tags,
 				whyItMatters: extractWhyItMatters(markdown) ?? "",
 			};
 			this.renderEditor(this.baseline);
@@ -87,6 +88,12 @@ export class ConceptEditModal extends Modal {
 			baseline.importance,
 			[["low", "Low"], ["normal", "Normal"], ["high", "High"], ["critical", "Critical"]],
 		);
+		const tagsInput = this.createTextInput(
+			contentEl,
+			"Tags",
+			(baseline.tags ?? []).join(", "),
+			"Comma-separated, e.g. machine-learning, statistics",
+		);
 		const actionsEl = contentEl.createDiv({ cls: "mneme-proposal-detail-modal-actions" });
 		const cancelButton = actionsEl.createEl("button", { text: "Cancel" });
 		const saveButton = actionsEl.createEl("button", { text: "Save Concept" });
@@ -97,9 +104,25 @@ export class ConceptEditModal extends Modal {
 				coreMeaning: coreMeaningInput.value,
 				importance: parseImportance(importanceSelect.value),
 				learningMode: parseLearningMode(learningModeSelect.value),
+				tags: parseTags(tagsInput.value),
 				whyItMatters: whyInput.value,
 			}, saveButton);
 		});
+	}
+
+	private createTextInput(parentEl: HTMLElement, label: string, value: string, placeholder: string): HTMLInputElement {
+		const labelEl = parentEl.createEl("label", { cls: "mneme-proposal-detail-field" });
+		labelEl.createEl("span", { text: label });
+		const input = labelEl.createEl("input", {
+			attr: {
+				placeholder,
+				spellcheck: "false",
+				type: "text",
+			},
+		});
+		input.value = value;
+
+		return input;
 	}
 
 	private createTextarea(parentEl: HTMLElement, label: string, value: string): HTMLTextAreaElement {
@@ -162,6 +185,7 @@ export class ConceptEditModal extends Modal {
 			updatedMarkdown = updateConceptMetadata(updatedMarkdown, {
 				importance: next.importance ?? null,
 				learningMode: next.learningMode ?? null,
+				tags: next.tags,
 			});
 
 			if (updatedMarkdown !== currentMarkdown) {
@@ -202,4 +226,11 @@ function parseImportance(value: string): ConceptImportance | undefined {
 
 function parseLearningMode(value: string): ConceptLearningMode | undefined {
 	return value === "reviewable" || value === "exploratory" ? value : undefined;
+}
+
+function parseTags(value: string): string[] {
+	return [...new Set(value
+		.split(",")
+		.map((tag) => tag.trim().replace(/^#+/, "").toLocaleLowerCase().replace(/\s+/g, "-"))
+		.filter((tag) => tag.length > 0))];
 }

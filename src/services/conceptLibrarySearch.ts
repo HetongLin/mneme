@@ -21,6 +21,7 @@ export function filterConceptSummaries(
 	filter: ConceptLibraryFilter = {},
 ): ConceptSummary[] {
 	const query = normalizeQuery(filter.query);
+	const tag = normalizeTagFilter(filter.tag);
 
 	return concepts.filter((concept) => {
 		if (filter.learningMode && filter.learningMode !== "all" && concept.learningMode !== filter.learningMode) {
@@ -28,6 +29,10 @@ export function filterConceptSummaries(
 		}
 
 		if (filter.importance && filter.importance !== "all" && concept.importance !== filter.importance) {
+			return false;
+		}
+
+		if (tag && !(concept.tags ?? []).some((conceptTag) => normalizeQuery(conceptTag) === tag)) {
 			return false;
 		}
 
@@ -40,6 +45,7 @@ export function filterConceptSummaries(
 			concept.path,
 			concept.coreMeaning,
 			concept.whyItMatters,
+			...(concept.tags ?? []),
 		].some((value) => normalizeQuery(value).includes(query));
 	});
 }
@@ -80,4 +86,12 @@ function getImportanceRank(concept: ConceptSummary): number {
 
 function normalizeQuery(value: string | undefined): string {
 	return (value ?? "").trim().toLowerCase();
+}
+
+function normalizeTagFilter(value: string | undefined): string {
+	if (!value || value === "all") {
+		return "";
+	}
+
+	return normalizeQuery(value.replace(/^#+/, ""));
 }

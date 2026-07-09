@@ -10,6 +10,7 @@ export interface ConceptSummary {
 	learningMode?: ConceptLearningMode;
 	path: string;
 	sourceCount?: number;
+	tags?: string[];
 	title: string;
 	updatedAt?: number;
 	whyItMatters?: string;
@@ -52,6 +53,7 @@ export interface ConceptLibraryFilter {
 	importance?: "all" | ConceptImportance;
 	learningMode?: "all" | ConceptLearningMode;
 	query?: string;
+	tag?: "all" | string;
 }
 
 export type ConceptLibrarySortMode = "title" | "updatedAt_desc" | "importance_desc";

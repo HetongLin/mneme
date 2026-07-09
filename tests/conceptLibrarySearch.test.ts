@@ -13,6 +13,7 @@ const concepts: ConceptSummary[] = [
 		importance: "normal",
 		learningMode: "reviewable",
 		path: "Mneme/Concepts/Polymorphism/Concept.md",
+		tags: ["oop", "interfaces"],
 		title: "Polymorphism",
 		updatedAt: 200,
 	},
@@ -22,6 +23,7 @@ const concepts: ConceptSummary[] = [
 		importance: "critical",
 		learningMode: "exploratory",
 		path: "Mneme/Concepts/Encapsulation/Concept.md",
+		tags: ["oop", "design"],
 		title: "Encapsulation",
 		updatedAt: 300,
 		whyItMatters: "Keeps changes local.",
@@ -30,6 +32,7 @@ const concepts: ConceptSummary[] = [
 		conceptId: "concept-c",
 		importance: "low",
 		path: "Mneme/Concepts/Abstraction/Concept.md",
+		tags: ["design"],
 		title: "Abstraction",
 		updatedAt: 100,
 	},
@@ -77,6 +80,27 @@ const concepts: ConceptSummary[] = [
 	assert.deepEqual(
 		filterConceptSummaries(concepts, { importance: "critical" }).map((concept) => concept.title),
 		["Encapsulation"],
+	);
+}
+
+{
+	assert.deepEqual(
+		filterConceptSummaries(concepts, { query: "interfaces" }).map((concept) => concept.title),
+		["Polymorphism"],
+	);
+}
+
+{
+	assert.deepEqual(
+		filterConceptSummaries(concepts, { tag: "design" }).map((concept) => concept.title),
+		["Encapsulation", "Abstraction"],
+	);
+}
+
+{
+	assert.deepEqual(
+		filterConceptSummaries(concepts, { tag: "#oop" }).map((concept) => concept.title),
+		["Polymorphism", "Encapsulation"],
 	);
 }
 

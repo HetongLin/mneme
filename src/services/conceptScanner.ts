@@ -112,6 +112,7 @@ export class ConceptScanner {
 				learningMode: getLearningMode(frontmatter),
 				path: file.path,
 				sourceCount,
+				tags: getTags(frontmatter),
 				title,
 				updatedAt: file.mtime,
 				whyItMatters: extractWhyItMatters(markdown),
@@ -159,6 +160,36 @@ function getImportance(frontmatter: Record<string, unknown>): ConceptImportance 
 	return value === "low" || value === "normal" || value === "high" || value === "critical"
 		? value
 		: undefined;
+}
+
+function getTags(frontmatter: Record<string, unknown>): string[] | undefined {
+	const tags = normalizeTags(frontmatter.tags);
+
+	return tags.length > 0 ? tags : undefined;
+}
+
+function normalizeTags(value: unknown): string[] {
+	const rawTags = Array.isArray(value)
+		? value
+		: typeof value === "string"
+			? value.split(",")
+			: [];
+	const normalized = rawTags
+		.map((tag) => typeof tag === "string" ? normalizeTag(tag) : "")
+		.filter((tag): tag is string => tag.length > 0);
+
+	return [...new Set(normalized)];
+}
+
+function normalizeTag(value: string): string {
+	return value
+		.trim()
+		.replace(/^#+/, "")
+		.replace(/^\[|\]$/g, "")
+		.replace(/^['"]|['"]$/g, "")
+		.trim()
+		.toLocaleLowerCase()
+		.replace(/\s+/g, "-");
 }
 
 function parseCardsPath(cardsLink: string | undefined): string | undefined {

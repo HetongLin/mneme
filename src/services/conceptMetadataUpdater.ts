@@ -3,18 +3,20 @@ import type { ConceptImportance, ConceptLearningMode } from "../models/conceptLi
 export interface ConceptEditableMetadata {
 	importance?: ConceptImportance;
 	learningMode?: ConceptLearningMode;
+	tags: string[];
 }
 
 export interface ConceptMetadataUpdate {
 	importance?: ConceptImportance | null;
 	learningMode?: ConceptLearningMode | null;
+	tags?: string[] | null;
 }
 
 export function readConceptEditableMetadata(markdown: string): ConceptEditableMetadata {
 	const frontmatter = getFrontmatterLines(markdown);
 
 	if (!frontmatter) {
-		return {};
+		return { tags: [] };
 	}
 
 	const importance = readScalar(frontmatter.lines, "importance");
@@ -23,6 +25,7 @@ export function readConceptEditableMetadata(markdown: string): ConceptEditableMe
 	return {
 		importance: isImportance(importance) ? importance : undefined,
 		learningMode: isLearningMode(learningMode) ? learningMode : undefined,
+		tags: readTags(frontmatter.lines),
 	};
 }
 
@@ -41,6 +44,10 @@ export function updateConceptMetadata(markdown: string, update: ConceptMetadataU
 
 	if (update.importance !== undefined) {
 		lines = setScalar(lines, "importance", update.importance);
+	}
+
+	if (update.tags !== undefined) {
+		lines = setTags(lines, update.tags);
 	}
 
 	return [
@@ -73,6 +80,40 @@ function readScalar(lines: string[], key: string): string | undefined {
 	return value || undefined;
 }
 
+function readTags(lines: string[]): string[] {
+	const lineIndex = lines.findIndex((line) => /^tags\s*:/.test(line));
+
+	if (lineIndex < 0) {
+		return [];
+	}
+
+	const line = lines[lineIndex] ?? "";
+	const value = line.slice(line.indexOf(":") + 1).trim();
+
+	if (value.startsWith("[") && value.endsWith("]")) {
+		return normalizeTags(value.slice(1, -1).split(","));
+	}
+
+	if (value.length > 0) {
+		return normalizeTags(value.split(","));
+	}
+
+	const blockTags: string[] = [];
+
+	for (let index = lineIndex + 1; index < lines.length; index += 1) {
+		const blockLine = lines[index] ?? "";
+		const match = blockLine.match(/^\s*-\s+(.+?)\s*$/);
+
+		if (!match) {
+			break;
+		}
+
+		blockTags.push(match[1] ?? "");
+	}
+
+	return normalizeTags(blockTags);
+}
+
 function setScalar(lines: string[], key: string, value: string | null): string[] {
 	const result = [...lines];
 	const index = result.findIndex((line) => new RegExp(`^${key}\\s*:`).test(line));
@@ -94,6 +135,66 @@ function setScalar(lines: string[], key: string, value: string | null): string[]
 	}
 
 	return result;
+}
+
+function setTags(lines: string[], value: string[] | null): string[] {
+	const tags = normalizeTags(value ?? []);
+	const result = removeTags(lines);
+
+	if (tags.length === 0) {
+		return result;
+	}
+
+	result.push(`tags: [${tags.join(", ")}]`);
+
+	return result;
+}
+
+function removeTags(lines: string[]): string[] {
+	const result: string[] = [];
+
+	for (let index = 0; index < lines.length; index += 1) {
+		const line = lines[index] ?? "";
+
+		if (!/^tags\s*:/.test(line)) {
+			result.push(line);
+			continue;
+		}
+
+		if (line.slice(line.indexOf(":") + 1).trim().length > 0) {
+			continue;
+		}
+
+		for (index += 1; index < lines.length; index += 1) {
+			const blockLine = lines[index] ?? "";
+
+			if (!/^\s*-\s+/.test(blockLine)) {
+				index -= 1;
+				break;
+			}
+		}
+	}
+
+	return result;
+}
+
+function normalizeTags(value: string[]): string[] {
+	const tags = value
+		.map(normalizeTag)
+		.filter((tag) => tag.length > 0);
+
+	return [...new Set(tags)];
+}
+
+function normalizeTag(value: string): string {
+	return value
+		.trim()
+		.replace(/^#+/, "")
+		.replace(/^\[|\]$/g, "")
+		.replace(/^['"]|['"]$/g, "")
+		.trim()
+		.toLocaleLowerCase()
+		.replace(/\s+/g, "-");
 }
 
 function isImportance(value: string | undefined): value is ConceptImportance {

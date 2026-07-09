@@ -6,6 +6,7 @@ export interface ConceptEditBaseline {
 	coreMeaning: string;
 	importance?: ConceptImportance;
 	learningMode?: ConceptLearningMode;
+	tags?: string[];
 	whyItMatters: string;
 }
 
@@ -18,5 +19,6 @@ export function hasTargetedConceptEditConflict(
 	return (extractCoreMeaning(currentMarkdown) ?? "") !== baseline.coreMeaning
 		|| (extractWhyItMatters(currentMarkdown) ?? "") !== baseline.whyItMatters
 		|| currentMetadata.importance !== baseline.importance
-		|| currentMetadata.learningMode !== baseline.learningMode;
+		|| currentMetadata.learningMode !== baseline.learningMode
+		|| currentMetadata.tags.join("\n") !== (baseline.tags ?? []).join("\n");
 }

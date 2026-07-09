@@ -126,6 +126,7 @@ Minimal generated frontmatter fields:
 - cards: optional Obsidian link to Card.md
 - learning_mode: optional reviewable | exploratory
 - importance: optional low | normal | high | critical
+- tags: optional user-approved organization tags for Concept Library filtering
 
 Recommended sections:
 
@@ -146,6 +147,7 @@ mneme_version: 1
 cards: "[[Mneme/Cards/Information Gain/Card|Information Gain Cards]]"
 importance: normal
 learning_mode: reviewable
+tags: [machine-learning, decision-trees]
 ---
 
 # Information Gain
@@ -201,6 +203,12 @@ Controls how the concept is learned.
 
 - exploratory: only for low-stakes exploration
 - reviewable: concept can have Cards reviewed through FSRS
+
+### tags
+
+Tags are user-approved organization labels for browsing and filtering Concepts. Tags are not Concept relationships and do not imply prerequisites, applications, or similarity. Concept relationships belong in `Related Concepts` as links to existing approved Concepts.
+
+Mneme may help edit or recommend tags later, but accepted `Concept.md` files should only contain tags the user has approved.
 
 ## Card.md
 

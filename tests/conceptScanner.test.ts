@@ -49,6 +49,7 @@ async function runAsyncTests(): Promise<void> {
 						learning_mode: "reviewable",
 						mneme_id: "concept-encapsulation",
 						mneme_type: "concept",
+						tags: ["oop", "design"],
 					},
 					markdown: [
 						"# Encapsulation",
@@ -82,6 +83,7 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(concepts[0].coreMeaning, "Encapsulation protects representation.");
 		assert.equal(concepts[0].whyItMatters, "It keeps change local.");
 		assert.equal(concepts[0].cardsPath, "Mneme/Cards/Encapsulation/Card.md");
+		assert.deepEqual(concepts[0].tags, ["oop", "design"]);
 		assert.equal(concepts[0].updatedAt, 200);
 	}
 

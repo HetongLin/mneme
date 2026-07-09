@@ -42,6 +42,7 @@ export class MnemeConceptLibraryView extends ItemView {
 		importance: "all",
 		learningMode: "all",
 		query: "",
+		tag: "all",
 	};
 	private sortMode: ConceptLibrarySortMode = "title";
 	private statusMessage = "Loading Concepts...";
@@ -382,6 +383,16 @@ export class MnemeConceptLibraryView extends ItemView {
 			};
 		});
 
+		this.renderSelect(controlsEl, "Tag", this.filter.tag ?? "all", [
+			["all", "All"],
+			...this.getAllTags().map((tag): [string, string] => [tag, tag]),
+		], (value) => {
+			this.filter = {
+				...this.filter,
+				tag: value,
+			};
+		});
+
 		this.renderSelect(controlsEl, "Sort", this.sortMode, [
 			["title", "Title"],
 			["updatedAt_desc", "Recently updated"],
@@ -509,6 +520,7 @@ export class MnemeConceptLibraryView extends ItemView {
 		detailsEl.createEl("p", { text: `Why It Matters: ${concept.whyItMatters ?? "Not provided."}` });
 		detailsEl.createEl("p", { text: `Cards: ${concept.cardsPath ?? "No Card.md link."}` });
 		detailsEl.createEl("p", { text: `Sources: ${formatCount(concept.sourceCount, "source")}` });
+		detailsEl.createEl("p", { text: `Tags: ${formatTags(concept.tags)}` });
 	}
 
 	private getVisibleConcepts(): ConceptSummary[] {
@@ -516,6 +528,11 @@ export class MnemeConceptLibraryView extends ItemView {
 			filterConceptSummaries(this.concepts, this.filter),
 			this.sortMode,
 		);
+	}
+
+	private getAllTags(): string[] {
+		return [...new Set(this.concepts.flatMap((concept) => concept.tags ?? []))]
+			.sort((first, second) => first.localeCompare(second, undefined, { sensitivity: "base" }));
 	}
 
 	private async openMarkdownPath(path: string | undefined, label: "Concept" | "Card"): Promise<void> {
@@ -555,9 +572,14 @@ function formatConceptMeta(concept: ConceptSummary): string {
 	return [
 		concept.learningMode ? formatLabel(concept.learningMode) : undefined,
 		concept.importance ? `${formatLabel(concept.importance)} importance` : undefined,
+		concept.tags && concept.tags.length > 0 ? `tags: ${concept.tags.join(", ")}` : undefined,
 		concept.cardCount !== undefined ? formatCount(concept.cardCount, "card") : undefined,
 		concept.sourceCount !== undefined ? formatCount(concept.sourceCount, "source") : undefined,
 	].filter(Boolean).join(" · ");
+}
+
+function formatTags(tags: string[] | undefined): string {
+	return tags && tags.length > 0 ? tags.join(", ") : "No tags.";
 }
 
 function formatCount(count: number | undefined, noun: string): string {
