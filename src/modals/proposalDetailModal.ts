@@ -146,8 +146,16 @@ export class ProposalDetailModal extends Modal {
 		const titleInput = this.createTextInput(parentEl, "Concept title", getString(payload, "title"));
 		const summaryInput = this.createTextareaInput(parentEl, "Summary", getString(payload, "summary"));
 		const coreMeaningInput = this.createTextareaInput(parentEl, "Core Meaning", getString(payload, "coreMeaning"));
-		const learningModeInput = this.createTextInput(parentEl, "Learning Mode", getString(payload, "learningMode"));
-		const importanceInput = this.createTextInput(parentEl, "Importance", getString(payload, "suggestedImportance"));
+		const learningModeInput = this.createSelectInput(parentEl, "Learning Mode", getString(payload, "learningMode"), [
+			["reviewable", "Reviewable"],
+			["exploratory", "Exploratory"],
+		]);
+		const importanceInput = this.createSelectInput(parentEl, "Importance", getString(payload, "suggestedImportance"), [
+			["low", "Low"],
+			["normal", "Normal"],
+			["high", "High"],
+			["critical", "Critical"],
+		]);
 		const tagsInput = this.createTextInput(parentEl, "Tags", getStringArray(payload, "tags").join(", "));
 
 		parentEl.createEl("p", {
@@ -223,6 +231,30 @@ export class ProposalDetailModal extends Modal {
 		inputEl.value = value;
 
 		return inputEl;
+	}
+
+	private createSelectInput(
+		parentEl: HTMLElement,
+		label: string,
+		value: string | undefined,
+		options: Array<[string, string]>,
+	): HTMLSelectElement {
+		const labelEl = parentEl.createEl("label", { cls: "mneme-proposal-detail-field" });
+		labelEl.createEl("span", { text: label });
+		const selectEl = labelEl.createEl("select");
+		const optionValues = new Set(options.map(([optionValue]) => optionValue));
+		const selectedValue = value && optionValues.has(value) ? value : options[0]?.[0] ?? "";
+
+		for (const [optionValue, optionLabel] of options) {
+			const optionEl = selectEl.createEl("option", {
+				text: optionLabel,
+				value: optionValue,
+			});
+
+			optionEl.selected = optionValue === selectedValue;
+		}
+
+		return selectEl;
 	}
 
 	private createTextareaInput(parentEl: HTMLElement, label: string, value = ""): HTMLTextAreaElement {
