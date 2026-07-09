@@ -154,6 +154,7 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("card_generation"), true);
 	assert.equal(serialized.includes("new_card"), true);
 	assert.equal(serialized.includes("new_concept"), false);
+	assert.equal(serialized.includes("Copy sourcePath exactly into source.path"), true);
 	assert.equal(serialized.includes("sk-test-value"), false);
 }
 
@@ -209,6 +210,7 @@ async function run(): Promise<void> {
 	assert.equal(payload.input, undefined);
 	assert.equal(serialized.includes("mneme.ai.proposals.v1"), true);
 	assert.equal(serialized.includes("new_card"), true);
+	assert.equal(serialized.includes("Copy sourcePath exactly into source.path"), true);
 	assert.equal(serialized.includes("deepseek-secret-value"), false);
 	assert.equal(serialized.includes("Encapsulation keeps object internals hidden"), false);
 	assert.equal(serialized.includes("Encapsulation keeps"), true);

@@ -359,7 +359,7 @@ export default class MnemePlugin extends Plugin {
 				message: result.message,
 				sourcePath: activeFile.path,
 			});
-			new Notice("Mneme: AI response was invalid. No proposals added.");
+			new Notice(`Mneme: AI response invalid: ${formatNoticeDetail(result.message)} No proposals added.`);
 			return;
 		}
 
@@ -444,7 +444,7 @@ export default class MnemePlugin extends Plugin {
 				conceptPath: conceptFile.path,
 				message: result.message,
 			});
-			new Notice("Mneme: AI response was invalid. No Card proposals added.");
+			new Notice(`Mneme: AI response invalid: ${formatNoticeDetail(result.message)} No Card proposals added.`);
 			return;
 		}
 
@@ -874,4 +874,14 @@ function settingsToFsrsConfig(settings: MnemeSettings): FsrsSchedulerConfig {
 
 function formatExportTimestamp(value: string): string {
 	return value.replace(/[:.]/g, "-");
+}
+
+function formatNoticeDetail(message: string): string {
+	const normalized = message.replace(/\s+/g, " ").trim();
+
+	if (normalized.length <= 140) {
+		return normalized.endsWith(".") ? normalized : `${normalized}.`;
+	}
+
+	return `${normalized.slice(0, 137).trim()}...`;
 }

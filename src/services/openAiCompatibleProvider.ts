@@ -47,6 +47,8 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 	const systemPrompt = input.mode === "card_generation"
 		? [
 			"Return one JSON object with schemaVersion 'mneme.ai.proposals.v1', mode 'card_generation', the exact source path/hash, proposals, and string warnings.",
+			"Copy sourcePath exactly into source.path and sourceHash exactly into source.hash from the user JSON. Do not invent, shorten, or rehash either value.",
+			"Top-level shape: {\"schemaVersion\":\"mneme.ai.proposals.v1\",\"mode\":\"card_generation\",\"source\":{\"path\":\"<sourcePath>\",\"hash\":\"<sourceHash>\"},\"warnings\":[],\"proposals\":[]}.",
 			"Generate at most five non-duplicative new_card proposals from the approved written Concept. Do not propose Concepts or write Markdown.",
 			"Every Card must test one independently rateable outcome and include at least one exact quote from the written Concept as grounding evidence.",
 			"Every proposal requires kind 'new_card', title, rationale, confidence from 0 to 1, evidence entries with sourcePath/quote/explanation, and payload.",
@@ -55,6 +57,8 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 		].join("\n")
 		: [
 			"Return one JSON object with schemaVersion 'mneme.ai.proposals.v1', mode 'concept_capture', the exact source path/hash, proposals, and string warnings.",
+			"Copy sourcePath exactly into source.path and sourceHash exactly into source.hash from the user JSON. Do not invent, shorten, or rehash either value.",
+			"Top-level shape: {\"schemaVersion\":\"mneme.ai.proposals.v1\",\"mode\":\"concept_capture\",\"source\":{\"path\":\"<sourcePath>\",\"hash\":\"<sourceHash>\"},\"warnings\":[],\"proposals\":[]}.",
 			"Concept capture may return only new_concept, link_existing_concept, add_view, update_concept, or merge_concept.",
 			"Every proposal requires kind, title, rationale, confidence from 0 to 1, evidence entries with sourcePath/quote/explanation, and a kind-specific payload.",
 			"Payloads: new_concept={conceptTitle,summary,coreMeaning,learningMode,suggestedImportance,relatedConceptHints,views[{title,body}]}; link_existing_concept={existingConceptId,existingConceptTitle,reason}; add_view={targetConceptId,targetConceptTitle,viewTitle,viewBody}; update_concept={targetConceptId,targetConceptTitle,reason,proposedSummary and/or proposedCoreMeaning}; merge_concept={sourceConceptIds,proposedTitle,reason}.",
