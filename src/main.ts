@@ -125,7 +125,7 @@ export default class MnemePlugin extends Plugin {
 	private registerProductCommands(): void {
 		this.addCommand({
 			id: "open-review-view",
-			name: "Mneme: Open Review View",
+			name: "Open Review View",
 			callback: () => {
 				void this.openReviewView();
 			},
@@ -133,13 +133,13 @@ export default class MnemePlugin extends Plugin {
 
 		this.addCommand({
 			id: "mneme-clear-review-history",
-			name: "Mneme: Clear Review History",
+			name: "Clear Review History",
 			callback: () => this.openClearReviewHistoryModal(),
 		});
 
 		this.addCommand({
 			id: "mneme-analyze-current-note",
-			name: "Mneme: Analyze Current Note",
+			name: "Analyze Current Note",
 			callback: () => {
 				void this.analyzeCurrentNote();
 			},
@@ -147,7 +147,7 @@ export default class MnemePlugin extends Plugin {
 
 		this.addCommand({
 			id: "mneme-generate-cards-from-current-concept",
-			name: "Mneme: Generate Cards from Current Concept",
+			name: "Generate Cards from Current Concept",
 			callback: () => {
 				void this.generateCardsFromCurrentConcept();
 			},
@@ -155,7 +155,7 @@ export default class MnemePlugin extends Plugin {
 
 		this.addCommand({
 			id: "mneme-open-inbox",
-			name: "Mneme: Open Inbox",
+			name: "Open Inbox",
 			callback: () => {
 				void this.openInboxView();
 			},
@@ -163,7 +163,7 @@ export default class MnemePlugin extends Plugin {
 
 		this.addCommand({
 			id: "mneme-open-concept-library",
-			name: "Mneme: Open Concept Library",
+			name: "Open Concept Library",
 			callback: () => {
 				void this.openConceptLibraryView();
 			},
@@ -171,7 +171,7 @@ export default class MnemePlugin extends Plugin {
 
 		this.addCommand({
 			id: "mneme-resync-index",
-			name: "Mneme: Resync Mneme Index",
+			name: "Resync Index",
 			callback: () => {
 				void this.resyncMnemeIndex();
 			},
@@ -179,7 +179,7 @@ export default class MnemePlugin extends Plugin {
 
 		this.addCommand({
 			id: "mneme-export-knowledge-context-pack",
-			name: "Mneme: Export Knowledge Context Pack",
+			name: "Export Knowledge Context Pack",
 			callback: () => {
 				void this.exportKnowledgeContextPack();
 			},
@@ -187,7 +187,7 @@ export default class MnemePlugin extends Plugin {
 
 		this.addCommand({
 			id: "mneme-export-anki-tsv",
-			name: "Mneme: Export Anki TSV",
+			name: "Export Anki TSV",
 			callback: () => {
 				void this.exportAnkiTsv();
 			},
@@ -197,7 +197,7 @@ export default class MnemePlugin extends Plugin {
 	private registerDeveloperCommands(): void {
 		this.addCommand({
 			id: "scan-card-files",
-			name: "Mneme: Scan Card Files",
+			name: "Scan Card Files",
 			callback: () => {
 				void this.scanCardFiles();
 			},
@@ -205,13 +205,13 @@ export default class MnemePlugin extends Plugin {
 
 		this.addCommand({
 			id: "mneme-log-review-state",
-			name: "Mneme: Log Review State",
+			name: "Log Review State",
 			callback: () => this.logReviewState(),
 		});
 
 		this.addCommand({
 			id: "mneme-log-source-analysis-state",
-			name: "Mneme: Log Source Analysis State",
+			name: "Log Source Analysis State",
 			callback: () => {
 				void this.logSourceAnalysisState();
 			},
@@ -219,7 +219,7 @@ export default class MnemePlugin extends Plugin {
 
 		this.addCommand({
 			id: "mneme-log-knowledge-proposals",
-			name: "Mneme: Log Knowledge Proposals",
+			name: "Log Knowledge Proposals",
 			callback: () => {
 				void this.logKnowledgeProposals();
 			},
@@ -227,7 +227,7 @@ export default class MnemePlugin extends Plugin {
 
 		this.addCommand({
 			id: "mneme-log-concept-source-links",
-			name: "Mneme: Log Concept-Source Links",
+			name: "Log Concept-Source Links",
 			callback: () => {
 				void this.logConceptSourceLinks();
 			},
@@ -235,7 +235,7 @@ export default class MnemePlugin extends Plugin {
 
 		this.addCommand({
 			id: "mneme-log-concept-library",
-			name: "Mneme: Log Concept Library",
+			name: "Log Concept Library",
 			callback: () => {
 				void this.logConceptLibrary();
 			},
@@ -243,7 +243,7 @@ export default class MnemePlugin extends Plugin {
 
 		this.addCommand({
 			id: "mneme-add-sample-knowledge-proposal",
-			name: "Mneme: Add Sample Knowledge Proposal",
+			name: "Add Sample Knowledge Proposal",
 			callback: () => {
 				void this.addSampleKnowledgeProposal();
 			},
@@ -251,7 +251,7 @@ export default class MnemePlugin extends Plugin {
 
 		this.addCommand({
 			id: "mneme-create-pre-ai-acceptance-fixture",
-			name: "Mneme: Create Pre-AI Acceptance Fixture",
+			name: "Create Pre-AI Acceptance Fixture",
 			callback: () => {
 				void this.createPreAiAcceptanceFixture();
 			},
@@ -259,7 +259,7 @@ export default class MnemePlugin extends Plugin {
 
 		this.addCommand({
 			id: "mneme-log-pre-ai-acceptance-fixture",
-			name: "Mneme: Log Pre-AI Acceptance Fixture",
+			name: "Log Pre-AI Acceptance Fixture",
 			callback: () => {
 				void this.logPreAiAcceptanceFixture();
 			},
@@ -267,7 +267,7 @@ export default class MnemePlugin extends Plugin {
 
 		this.addCommand({
 			id: "mneme-generate-pre-ai-acceptance-cards",
-			name: "Mneme: Generate Pre-AI Acceptance Cards",
+			name: "Generate Pre-AI Acceptance Cards",
 			callback: () => {
 				void this.generatePreAiAcceptanceCards();
 			},
