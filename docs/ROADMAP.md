@@ -62,6 +62,7 @@ Features:
 
 - Better Card Edit Modal
 - Basic Concept Edit Modal
+- Manual Concept creation
 - Update Existing Concept
 - Possible Duplicate detection
 - Guided merge/update workflow
@@ -76,6 +77,8 @@ Current progress:
 - Advanced Diagnostics can repair Cards whose FRONT or BACK section is entirely missing while preserving surrounding Markdown and FSRS state.
 - Possible Duplicate detection and transactional Guided Merge are available from Concept Library; one-click Inbox merge remains forbidden.
 - Duplicate markers, malformed wrappers, and stable-ID conflicts still require the broader Repair Flow.
+
+Manual Concept creation remains unfinished. It is required because a student may know that a Concept matters even when AI Source Note analysis does not propose it, proposes the wrong boundary, or is not desired for that note. Manual creation should create the same kind of approved, readable Concept Markdown as accepted AI proposals, but its exact UX is deferred.
 
 ## v0.3: Low-pressure Review
 

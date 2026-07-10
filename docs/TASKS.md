@@ -933,3 +933,31 @@ Acceptance criteria:
 - Unrelated links and Source entries remain untouched
 - Concurrent edits abort without partial writes
 - Persistence failure restores Markdown and plugin data
+
+## Task 055: Manual Concept Creation
+
+Goal:
+
+Let a student create an approved Mneme Concept directly instead of depending on AI Source Note scanning.
+
+Rationale:
+
+AI capture accelerates extraction, but it is not authoritative about what the student intends to learn. Students may want to create a Concept when AI misses it, proposes the wrong boundary, or when they prefer to write the Concept themselves. Manual creation is therefore a required Concept entry path, not an optional power-user shortcut.
+
+Requirements:
+
+- Provide a user-facing way to create a new Concept without first running AI analysis
+- Produce the same readable Concept Markdown shape as an accepted `new_concept` proposal
+- Assign a stable Concept ID and required Mneme frontmatter
+- Let the student provide title, Summary, Core Meaning, learning mode, importance, and English slug tags
+- Treat the resulting Concept as approved user-authored knowledge, not AI proposal data
+- Keep Card generation separate: Cards are still generated later from the written Concept and reviewed through Inbox before Card Markdown is written
+- Do not require Source Evidence when the Concept is manually authored, though optional Source Note links can be considered in a later design
+
+Acceptance criteria:
+
+- A student can create a valid Concept.md without AI Capture being enabled
+- The created Concept appears in Concept Library after refresh/resync
+- Reviewable manually created Concepts can use Generate Cards from Current Concept
+- Exploratory manually created Concepts remain outside Today’s Focus and cannot generate Cards
+- The manual path does not create KnowledgeProposal records or pretend that AI approved the Concept

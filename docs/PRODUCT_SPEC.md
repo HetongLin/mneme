@@ -90,6 +90,8 @@ A structured proposal record produced by AI or developer fixtures and reviewed i
 
 Initial AI capture is concept-first. Source Note analysis may propose Concept-stage changes only; Cards are generated later from written Concept Markdown and require their own review before Card Markdown is written.
 
+Manual Concept creation is a required product capability. Mneme must not make AI Source Note scanning the only way to create Concepts, because AI extraction may miss what the student personally considers worth learning. A student should eventually be able to create a clean Mneme Concept directly, then generate Cards from that approved Concept through the normal review flow. The exact manual creation UX is intentionally deferred.
+
 ## Core Workflow
 
 1. User opens a Source Note.
@@ -137,6 +139,7 @@ User experience is the first requirement. Internal schemas can be strict and det
 - Possible Duplicates require a Guided Merge with a final diff; the merged path becomes a Redirect Note.
 - Anki interoperability is a one-way UTF-8 TSV export of active valid approved Cards. Exported cards are independent copies with no sync.
 - Use Mode is project-based. Its first increment is a neutral Knowledge Context Pack containing approved Concepts for an external agent; approved does not mean mastered.
+- AI scanning is an accelerator, not the only Concept entry path. Manual Concept creation must exist so students can decide what knowledge matters even when AI extraction is incomplete or unwanted.
 
 ## v0.1 Goal
 
@@ -187,6 +190,7 @@ Mneme may eventually become an AI-native learning system for university students
 
 Future directions:
 
+- Manual Concept creation
 - Random Concept Draw
 - Course-scoped Concept Draw
 - Exploratory Concepts
