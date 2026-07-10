@@ -157,6 +157,7 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("Copy sourcePath exactly into source.path"), true);
 	assert.equal(serialized.includes("Choose cardType by this rubric"), true);
 	assert.equal(serialized.includes("Return the exact cardType enum value only"), true);
+	assert.equal(serialized.includes("Write user-facing Card text in the approved Concept's dominant language"), true);
 	assert.equal(serialized.includes("sk-test-value"), false);
 }
 
@@ -172,6 +173,7 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("card_generation"), true);
 	assert.equal(serialized.includes("new_card"), true);
 	assert.equal(serialized.includes("Choose cardType by this rubric"), true);
+	assert.equal(serialized.includes("Write user-facing Card text in the approved Concept's dominant language"), true);
 	assert.equal(serialized.includes("deepseek-test-value"), false);
 }
 
@@ -190,6 +192,8 @@ async function run(): Promise<void> {
 	assert.equal(payload.model, "gpt-test");
 	assert.equal(payload.text?.format.type, "json_schema");
 	assert.equal(serialized.includes("sk-secret-value"), false);
+	assert.equal(serialized.includes("Write user-facing Concept text in the source note's dominant language"), true);
+	assert.equal(serialized.includes("tags must always be pure English lowercase organization slugs"), true);
 	assert.equal(serialized.includes("Encapsulation keeps object internals"), false);
 	assert.equal(serialized.includes("Encapsulatio"), true);
 }

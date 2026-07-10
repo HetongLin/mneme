@@ -143,6 +143,10 @@ In `concept_capture` mode, providers must not return Card-stage proposal kinds:
 
 `new_concept` payloads include proposed organization `tags`. Tags are generated with the Concept proposal, shown for user review, and written to `Concept.md` frontmatter only when the Concept proposal is accepted.
 
+Generated learning content follows the Source Note's dominant language. For example, Chinese notes may produce Chinese Concept titles, summaries, Core Meaning, Views, Card text, and evidence excerpts. Technical terms should include English names in parentheses when helpful. Evidence quotes must preserve the original source text and must not be translated.
+
+Tags are the exception to source-language following: generated tags must be pure English lowercase slugs, using hyphens instead of spaces. This keeps tag search stable and avoids duplicated multilingual tag meanings.
+
 Cards are generated later from written `Concept.md`, then reviewed and accepted separately before any `Card.md` is written.
 
 Current implementation supports two post-review write paths:

@@ -4,6 +4,10 @@
 
 All user-facing UI labels must be in English.
 
+Fixed product chrome and field labels use English. Content that comes from the student's notes follows the Source Note's dominant language, so a Chinese note may produce Chinese Concept summaries, Core Meaning, Card prompts, and evidence excerpts. Technical terms should include English names in parentheses when helpful, such as `字典学习 (Dictionary Learning)`.
+
+Concept tags are an exception: generated and approved tags should be pure English lowercase slugs, such as `dictionary-learning` or `sparse-representation`, to avoid duplicate multilingual tag meanings.
+
 The product should feel low-pressure. Avoid debt-like language.
 
 User experience is the first requirement. Primary UI should present concise review content, not AI/provider internals.

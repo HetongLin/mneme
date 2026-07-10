@@ -57,6 +57,7 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 			"Choose cardType by this rubric: definition=asks what the Concept means; distinction=compares or contrasts Concepts; procedure=asks for steps, calculation, or method; example=asks to interpret a concrete case; trap=asks about a misconception or common error; proof=asks for derivation, justification, or theorem logic; application=asks how to use the Concept in a new situation; mastery=asks for synthesis across multiple ideas; other=only if none fit.",
 			"Return the exact cardType enum value only, not a natural-language label, phrase, or explanation.",
 			"Use focused recall questions that test understanding, distinctions, procedures, examples, traps, proofs, applications, or mastery. Avoid trivia and duplicate questions.",
+			"Write user-facing Card text in the approved Concept's dominant language. Preserve technical terms and include English terms in parentheses when helpful. Evidence quotes must stay exact and must not be translated.",
 		].join("\n")
 		: [
 			"Return one JSON object with schemaVersion 'mneme.ai.proposals.v1', mode 'concept_capture', the exact source path/hash, proposals, and string warnings.",
@@ -65,9 +66,10 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 			"Concept capture may return only new_concept, link_existing_concept, add_view, update_concept, or merge_concept.",
 			"Every proposal requires kind, title, rationale, confidence from 0 to 1, evidence entries with sourcePath/quote/explanation, and a kind-specific payload.",
 			"Payloads: new_concept={conceptTitle,summary,coreMeaning,learningMode,suggestedImportance,tags,relatedConceptHints,views[{title,body}]}; link_existing_concept={existingConceptId,existingConceptTitle,reason}; add_view={targetConceptId,targetConceptTitle,viewTitle,viewBody}; update_concept={targetConceptId,targetConceptTitle,reason,proposedSummary and/or proposedCoreMeaning}; merge_concept={sourceConceptIds,proposedTitle,reason}.",
+			"Write user-facing Concept text in the source note's dominant language. For non-English source notes, keep the student's language and include English technical terms in parentheses when helpful, e.g. 字典学习 (Dictionary Learning). Evidence quotes must stay exact and must not be translated.",
 			"For new_concept payloads, learningMode must be exactly 'reviewable' or 'exploratory'; do not use values like definition, application, recall, or understanding.",
 			"For new_concept payloads, suggestedImportance must be exactly 'low', 'normal', 'high', or 'critical'; use 'normal' when unsure.",
-			"For new_concept payloads, tags must be an array of 1 to 5 short lowercase organization tags, using hyphens instead of spaces, such as ['statistics','machine-learning']; do not use '#' prefixes.",
+			"For new_concept payloads, tags must always be pure English lowercase organization slugs, 1 to 5 items, using hyphens instead of spaces, such as ['statistics','machine-learning']; do not use translated tags, duplicate meanings, or '#' prefixes.",
 			"For new_concept payloads, views is optional supporting perspective data: return [] unless every view has both a non-empty title and a non-empty body. Never return empty view placeholders.",
 			"Never return new_card, revise_card, split_card, merge_card, or retire_card.",
 			"Do not write Markdown.",
