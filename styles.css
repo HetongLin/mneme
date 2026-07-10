@@ -312,6 +312,32 @@ If your plugin does not need CSS, delete this file.
 	min-height: 92px;
 }
 
+.mneme-proposal-evidence-list {
+	display: grid;
+	gap: 10px;
+	margin: 10px 0 18px;
+}
+
+.mneme-proposal-evidence-item {
+	background: var(--background-secondary);
+	border-radius: var(--radius-m);
+	padding: 10px 12px;
+}
+
+.mneme-proposal-evidence-meta {
+	color: var(--text-muted);
+	font-family: var(--font-ui-small);
+	margin: 0 0 6px;
+}
+
+.mneme-proposal-evidence-excerpt {
+	border-inline-start: 3px solid var(--background-modifier-border);
+	color: var(--text-normal);
+	margin: 0;
+	padding-inline-start: 10px;
+	white-space: pre-wrap;
+}
+
 .mneme-concept-merge-modal {
 	max-width: min(1000px, 90vw);
 	width: min(1000px, 90vw);

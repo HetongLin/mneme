@@ -1,10 +1,19 @@
 import type { KnowledgeProposal } from "../models/knowledgeProposal";
+import type { SourceEvidence } from "../models/conceptSource";
 import { formatCardTypeTitle } from "../utils/cardTitle";
 import { buildCardPath } from "../utils/markdownPath";
 
 export interface ProposalHighlight {
 	label: string;
 	value: string;
+}
+
+export interface ProposalEvidenceDisplayItem {
+	excerpt: string;
+	heading?: string;
+	lineEnd?: number;
+	lineStart?: number;
+	sourcePath?: string;
 }
 
 export function getProposalTitle(proposal: KnowledgeProposal): string {
@@ -147,6 +156,15 @@ export function getProposalEvidenceCount(proposal: KnowledgeProposal): number {
 	return getEvidenceCount(proposal.evidence) + countNestedEvidence(proposal.payload);
 }
 
+export function getProposalEvidenceItems(proposal: KnowledgeProposal): ProposalEvidenceDisplayItem[] {
+	const evidence = collectEvidenceItems(proposal.payload, getProposalSourcePath(proposal));
+
+	return dedupeEvidenceItems([
+		...(proposal.evidence ?? []).map((item) => toEvidenceDisplayItem(item, getProposalSourcePath(proposal))),
+		...evidence,
+	]);
+}
+
 export function getProposalSourcePath(proposal: KnowledgeProposal): string | undefined {
 	const payload = getPayloadRecord(proposal);
 
@@ -269,6 +287,67 @@ function countNestedEvidence(value: unknown): number {
 
 		return count + ownEvidenceCount + (key === "evidence" ? 0 : countNestedEvidence(child));
 	}, 0);
+}
+
+function collectEvidenceItems(value: unknown, inheritedSourcePath?: string): ProposalEvidenceDisplayItem[] {
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectEvidenceItems(item, inheritedSourcePath));
+	}
+
+	if (!isRecord(value)) {
+		return [];
+	}
+
+	const sourcePath = getString(value, "sourcePath") ?? inheritedSourcePath;
+	const ownEvidence = Array.isArray(value.evidence)
+		? value.evidence
+			.filter(isSourceEvidence)
+			.map((item) => toEvidenceDisplayItem(item, sourcePath))
+		: [];
+	const nestedEvidence = Object.entries(value)
+		.filter(([key]) => key !== "evidence")
+		.flatMap(([, child]) => collectEvidenceItems(child, sourcePath));
+
+	return [...ownEvidence, ...nestedEvidence];
+}
+
+function toEvidenceDisplayItem(evidence: SourceEvidence, sourcePath?: string): ProposalEvidenceDisplayItem {
+	return {
+		excerpt: evidence.excerpt,
+		...(evidence.heading ? { heading: evidence.heading } : {}),
+		...(typeof evidence.lineEnd === "number" ? { lineEnd: evidence.lineEnd } : {}),
+		...(typeof evidence.lineStart === "number" ? { lineStart: evidence.lineStart } : {}),
+		...(sourcePath ? { sourcePath } : {}),
+	};
+}
+
+function dedupeEvidenceItems(items: ProposalEvidenceDisplayItem[]): ProposalEvidenceDisplayItem[] {
+	const seen = new Set<string>();
+
+	return items.filter((item) => {
+		const key = [
+			item.sourcePath ?? "",
+			item.heading ?? "",
+			item.lineStart ?? "",
+			item.lineEnd ?? "",
+			item.excerpt.trim(),
+		].join("\u0000");
+
+		if (seen.has(key)) {
+			return false;
+		}
+
+		seen.add(key);
+		return item.excerpt.trim().length > 0;
+	});
+}
+
+function isSourceEvidence(value: unknown): value is SourceEvidence {
+	if (!isRecord(value)) {
+		return false;
+	}
+
+	return typeof value.excerpt === "string" && value.excerpt.trim().length > 0;
 }
 
 function getEvidenceCount(value: unknown): number {

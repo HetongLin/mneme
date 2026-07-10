@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
 	getProposalEvidenceCount,
+	getProposalEvidenceItems,
 	getProposalHighlights,
 	getProposalPreview,
 	getProposalSubtitle,
@@ -118,9 +119,65 @@ import { createProposal } from "./knowledgeProposalTestUtils";
 			}],
 			title: "Evidence Count",
 		},
+		sourcePath: "Notes/Source.md",
 	});
 
 	assert.equal(getProposalEvidenceCount(proposal), 3);
+	assert.deepEqual(getProposalEvidenceItems(proposal), [
+		{
+			excerpt: "Top-level evidence",
+			sourcePath: "Notes/Source.md",
+		},
+		{
+			excerpt: "Nested evidence",
+			sourcePath: "Notes/Source.md",
+		},
+		{
+			excerpt: "View evidence",
+			sourcePath: "Notes/Source.md",
+		},
+	]);
+}
+
+{
+	const proposal = createProposal("proposal-g", {
+		evidence: [{ excerpt: "Repeated evidence", heading: "Intro", lineStart: 2 }],
+		kind: "new_card",
+		payload: {
+			card: {
+				back: "A",
+				evidence: [
+					{ excerpt: "Repeated evidence", heading: "Intro", lineStart: 2 },
+					{ excerpt: "Card-specific evidence", lineStart: 5, lineEnd: 7 },
+				],
+				front: "Q",
+				sourcePath: "Mneme/Concepts/Card Source.md",
+			},
+			conceptId: "concept-a",
+		},
+		sourcePath: "Notes/Original.md",
+	});
+
+	assert.deepEqual(getProposalEvidenceItems(proposal), [
+		{
+			excerpt: "Repeated evidence",
+			heading: "Intro",
+			lineStart: 2,
+			sourcePath: "Notes/Original.md",
+		},
+		{
+			excerpt: "Repeated evidence",
+			heading: "Intro",
+			lineStart: 2,
+			sourcePath: "Mneme/Concepts/Card Source.md",
+		},
+		{
+			excerpt: "Card-specific evidence",
+			lineEnd: 7,
+			lineStart: 5,
+			sourcePath: "Mneme/Concepts/Card Source.md",
+		},
+	]);
 }
 
 console.log("Knowledge proposal display tests passed.");

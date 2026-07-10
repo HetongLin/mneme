@@ -8,8 +8,8 @@ import {
 import { canTransitionProposalStatus } from "../services/knowledgeProposalLifecycle";
 import { KnowledgeProposalStore } from "../services/knowledgeProposalStore";
 import {
-	getProposalEvidenceCount,
-	getProposalPreview,
+	type ProposalEvidenceDisplayItem,
+	getProposalEvidenceItems,
 	getProposalSourcePath,
 	getProposalTargetLabel,
 	getProposalTitle,
@@ -52,9 +52,8 @@ export class ProposalDetailModal extends Modal {
 		contentEl.addClass("mneme-proposal-detail-modal");
 
 		this.renderSummary(contentEl);
-		this.renderProposedChange(contentEl);
-		this.renderSourceEvidence(contentEl);
 		this.renderStructuredEditor(contentEl);
+		this.renderSourceEvidence(contentEl);
 		this.renderValidation(contentEl, validation.errors, validation.warnings);
 
 		this.renderRawJsonEditor(contentEl);
@@ -100,20 +99,45 @@ export class ProposalDetailModal extends Modal {
 		}
 	}
 
-	private renderProposedChange(parentEl: HTMLElement): void {
-		parentEl.createEl("h3", { text: "Proposed Change" });
-		parentEl.createEl("p", {
-			cls: "mneme-review-status",
-			text: getProposalPreview(this.proposal),
-		});
-	}
-
 	private renderSourceEvidence(parentEl: HTMLElement): void {
 		parentEl.createEl("h3", { text: "Source Evidence" });
-		parentEl.createEl("p", {
-			cls: "mneme-review-status",
-			text: `${getProposalEvidenceCount(this.proposal)} evidence ${getProposalEvidenceCount(this.proposal) === 1 ? "item" : "items"}.`,
-		});
+		const evidenceItems = getProposalEvidenceItems(this.proposal);
+
+		if (evidenceItems.length === 0) {
+			parentEl.createEl("p", {
+				cls: "mneme-review-status",
+				text: "No source evidence provided.",
+			});
+			return;
+		}
+
+		const visibleEvidence = evidenceItems.slice(0, 5);
+		const listEl = parentEl.createDiv({ cls: "mneme-proposal-evidence-list" });
+
+		for (const evidence of visibleEvidence) {
+			const itemEl = listEl.createDiv({ cls: "mneme-proposal-evidence-item" });
+			const meta = formatEvidenceMeta(evidence);
+
+			if (meta) {
+				itemEl.createEl("p", {
+					cls: "mneme-proposal-evidence-meta",
+					text: meta,
+				});
+			}
+
+			itemEl.createEl("blockquote", {
+				cls: "mneme-proposal-evidence-excerpt",
+				text: evidence.excerpt,
+			});
+		}
+
+		const hiddenCount = evidenceItems.length - visibleEvidence.length;
+		if (hiddenCount > 0) {
+			parentEl.createEl("p", {
+				cls: "mneme-review-status",
+				text: `${hiddenCount} more evidence ${hiddenCount === 1 ? "item is" : "items are"} available in Advanced / Raw JSON.`,
+			});
+		}
 	}
 
 	private renderStructuredEditor(parentEl: HTMLElement): void {
@@ -456,6 +480,28 @@ function parseTags(value: string): string[] {
 		.map((tag) => tag.trim().replace(/^#+/, "").toLocaleLowerCase().replace(/[^a-z0-9/_-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, ""))
 		.filter((tag) => tag.length > 0))]
 		.slice(0, 5);
+}
+
+function formatEvidenceMeta(evidence: ProposalEvidenceDisplayItem): string {
+	const parts = [
+		evidence.sourcePath,
+		evidence.heading,
+		formatLineRange(evidence),
+	];
+
+	return parts.filter((part): part is string => Boolean(part)).join(" · ");
+}
+
+function formatLineRange(evidence: ProposalEvidenceDisplayItem): string | undefined {
+	if (typeof evidence.lineStart !== "number") {
+		return undefined;
+	}
+
+	if (typeof evidence.lineEnd === "number" && evidence.lineEnd !== evidence.lineStart) {
+		return `lines ${evidence.lineStart}-${evidence.lineEnd}`;
+	}
+
+	return `line ${evidence.lineStart}`;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

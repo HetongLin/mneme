@@ -147,7 +147,7 @@ Stale Source Provenance is a review queue for approved relationships whose Sourc
 
 Show AI-generated Concept Suggestions before committing them.
 
-Inbox is a review surface, not a JSON/debug surface. Primary Inbox cards should show clear proposal titles, short previews, source context, and readiness. Raw structured AI output and lifecycle metadata belong under Advanced / Raw JSON only.
+Inbox is a queue, not the acceptance surface. Primary Inbox cards should show only proposal titles and the queue actions needed to continue review. Raw structured AI output and lifecycle metadata belong under Advanced / Raw JSON only.
 
 ### Suggestion Types
 
@@ -158,28 +158,45 @@ Inbox is a review surface, not a JSON/debug surface. Primary Inbox cards should 
 
 ### Actions
 
-- Accept
-- Edit
+- Open
 - Reject
-- Merge
-- Create Concept
-- Update Concept
 
 ### Suggested Layout
 
 For each suggestion, show:
 
-- Suggestion type
 - Concept title
-- Importance
-- Learning mode
-- Source note
-- Source excerpt
-- Core understanding
-- Common mistakes
-- Actions
+- Open
+- Reject
 
 Concept-stage Inbox cards must not show or create Suggested Cards. Cards are generated later from written Concepts through a separate Card-generation action and then reviewed as Card proposals.
+
+Inbox must not expose an `Accept` action. Acceptance requires opening the proposal detail surface first.
+
+## Proposal Detail Review Modal
+
+### Purpose
+
+The proposal detail modal is the Review Gate. It lets the student read, edit, and approve or reject one proposed knowledge change.
+
+Preferred order:
+
+1. Title / Source / Target metadata
+2. Editable Concept or Card content
+3. Source Evidence
+4. Validation status
+5. Advanced / Raw JSON
+6. Bottom actions
+
+`Proposed Change` summaries should not appear above editable Concept fields when they merely duplicate Summary or Core Meaning. For Card proposals, the editable Front / Back / Rubric fields are the primary review content.
+
+Source Evidence must show concrete evidence excerpts, not only an evidence count. It may show the first few excerpts and place the full structured payload under Advanced / Raw JSON.
+
+Bottom actions:
+
+- Accept
+- Reject
+- Close
 
 ## Card Edit Modal
 

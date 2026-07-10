@@ -166,7 +166,9 @@ Future tasks will add proposal payload schemas, AI generation, diff preview, edi
 
 Knowledge proposals now support typed payloads for future Concept and Card changes.
 
-The Inbox can open a proposal detail modal with a temporary JSON payload editor. Users can save edits, approve valid payloads, or reject proposals. Approval still does not write Markdown.
+The Inbox can open a proposal detail modal. The Inbox list is only a queue: it shows proposal titles and allows `Open` or direct `Reject`; it must not allow acceptance.
+
+The proposal detail modal is the Review Gate. It shows editable proposal-specific fields first, then concrete Source Evidence excerpts, then validation and Advanced / Raw JSON. Users can save edits, accept valid payloads, or reject proposals from this detail surface.
 
 `Mneme: Add Sample Knowledge Proposal` is a temporary debug command for manual Inbox validation. It creates proposal data only; it does not call AI or write files.
 
@@ -175,12 +177,12 @@ The Inbox can open a proposal detail modal with a temporary JSON payload editor.
 Proposal acceptance is the explicit commit action:
 
 ```text
-Review proposal -> Accept Concept / Accept Card -> Markdown write
+Open proposal -> read/edit content -> inspect evidence -> Accept -> Markdown write
 ```
 
-`Accept Concept` validates the proposal, writes `Concept.md`, and marks the proposal `written` only after a successful vault write.
+For a Concept proposal, `Accept` validates the proposal, writes `Concept.md`, and marks the proposal `written` only after a successful vault write.
 
-`Accept Card` validates the proposal, writes one parser-compatible Card Markdown file, and marks the proposal `written` only after a successful vault write.
+For a Card proposal, `Accept` validates the proposal, writes one parser-compatible Card Markdown file, and marks the proposal `written` only after a successful vault write.
 
 The initial writer supports `new_concept` and `new_card` proposals only. Unsupported proposal kinds stay in Inbox until future structured editors and diff/patch writers exist.
 
@@ -196,7 +198,7 @@ Inbox Refresh and `Mneme: Resync Mneme Index` reconcile plugin data against the 
 
 Reconciliation never deletes user Markdown. It only cleans plugin index/cache/proposal state so `data.json` follows the current vault instead of acting as a second content source of truth.
 
-Raw JSON editing remains available under Advanced / Raw JSON for debugging and escape hatches, but the primary flow should present proposal-specific fields and `Accept Concept` / `Accept Card` actions.
+Raw JSON editing remains available under Advanced / Raw JSON for debugging and escape hatches, but the primary flow should present proposal-specific fields, readable Source Evidence excerpts, and bottom `Accept` / `Reject` / `Close` actions.
 
 ## Developer Tools Gate
 
