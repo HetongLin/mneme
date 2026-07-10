@@ -5,27 +5,18 @@ import { ApprovedProposalWriter } from "../services/approvedProposalWriter";
 import {
 	buildInboxProductSummary,
 	getInboxEmptyState,
-	getProposalReadinessLabel,
 } from "../services/inboxDisplayModel";
 import {
 	filterActiveInboxProposals,
 } from "../services/inboxProposalFilters";
 import {
-	getAcceptanceKind,
 	InboxAcceptanceWorkflow,
 } from "../services/inboxAcceptanceWorkflow";
 import {
-	getProposalEvidenceCount,
-	getProposalHighlights,
-	getProposalPreview,
-	getProposalSourcePath,
-	getProposalTargetLabel,
 	getProposalTitle,
-	formatProposalKind,
 } from "../services/knowledgeProposalDisplay";
 import { KnowledgeProposalStore } from "../services/knowledgeProposalStore";
 import {
-	getProposalStageLabel,
 	isCardStageProposal,
 	isConceptStageProposal,
 } from "../services/knowledgeProposalStage";
@@ -222,64 +213,14 @@ export class MnemeInboxView extends ItemView {
 			cls: "mneme-review-queue-title",
 			text: getProposalTitle(proposal),
 		});
-		textEl.createEl("p", {
-			cls: "mneme-review-queue-meta",
-			text: `${getProposalStageLabel(proposal)} · ${formatProposalKind(proposal.kind)}`,
-		});
-		this.renderProposalHighlights(textEl, proposal);
-		const metaText = formatProposalMeta(proposal);
-		if (metaText) {
-			textEl.createEl("p", {
-				cls: "mneme-review-queue-meta",
-				text: metaText,
-			});
-		}
-		textEl.createEl("p", {
-			cls: getValidationSummary(proposal).startsWith("Needs") ? "mneme-review-error" : "mneme-review-queue-meta",
-			text: getValidationSummary(proposal),
-		});
-		const sourceLinkIndicator = getSourceLinkIndicator(proposal);
-
-		if (sourceLinkIndicator) {
-			textEl.createEl("p", {
-				cls: "mneme-review-queue-meta",
-				text: sourceLinkIndicator,
-			});
-		}
 
 		const actionsEl = mainEl.createDiv({ cls: "mneme-review-actions" });
 
-		actionsEl.createEl("button", { text: "Edit" }, (buttonEl) => {
+		actionsEl.createEl("button", { text: "Open" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => this.openProposalDetail(proposal));
 		});
 		if (filterActiveInboxProposals([proposal]).length > 0) {
-			this.renderAcceptAction(actionsEl, proposal);
 			this.renderRejectAction(actionsEl, proposal);
-		}
-	}
-
-	private renderProposalHighlights(parentEl: HTMLElement, proposal: KnowledgeProposal): void {
-		const highlights = getProposalHighlights(proposal);
-
-		if (highlights.length === 0) {
-			parentEl.createEl("p", {
-				cls: "mneme-review-status",
-				text: getProposalPreview(proposal),
-			});
-			return;
-		}
-
-		const previewEl = parentEl.createDiv({ cls: "mneme-inbox-proposal-preview" });
-		for (const highlight of highlights) {
-			const rowEl = previewEl.createDiv({ cls: "mneme-inbox-proposal-highlight" });
-			rowEl.createEl("span", {
-				cls: "mneme-inbox-proposal-highlight-label",
-				text: highlight.label,
-			});
-			rowEl.createEl("span", {
-				cls: "mneme-inbox-proposal-highlight-value",
-				text: highlight.value,
-			});
 		}
 	}
 
@@ -292,62 +233,12 @@ export class MnemeInboxView extends ItemView {
 		}).open();
 	}
 
-	private renderAcceptAction(parentEl: HTMLElement, proposal: KnowledgeProposal): void {
-		if (!getAcceptanceKind(proposal)) {
-			return;
-		}
-
-		parentEl.createEl("button", { text: "Accept" }, (buttonEl) => {
-			buttonEl.disabled = !this.proposalWriter;
-			buttonEl.addEventListener("click", () => {
-				void this.acceptProposal(proposal);
-			});
-		});
-	}
-
 	private renderRejectAction(parentEl: HTMLElement, proposal: KnowledgeProposal): void {
 		parentEl.createEl("button", { text: "Reject" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
 				void this.rejectProposal(proposal);
 			});
 		});
-	}
-
-	private async acceptProposal(proposal: KnowledgeProposal): Promise<void> {
-		if (!this.proposalWriter) {
-			new Notice("Mneme: Markdown writer is not available.");
-			return;
-		}
-
-		try {
-			const workflow = new InboxAcceptanceWorkflow({
-				proposalStore: this.proposalStore,
-				writer: this.proposalWriter,
-			});
-			const result = await workflow.acceptProposal(proposal.id);
-
-			if (result.status === "accepted") {
-				new Notice(result.kind === "concept" ? "Mneme: Concept accepted." : "Mneme: Card accepted.");
-				await this.refresh();
-				return;
-			}
-
-			if (result.status === "invalid") {
-				new Notice("Mneme: Open proposal and fix errors before accepting.");
-				return;
-			}
-
-			console.error("Mneme: proposal acceptance failed", result);
-			new Notice(result.kind === "card"
-				? "Mneme: Card write failed. See console."
-				: "Mneme: Concept write failed. See console.");
-		} catch (error) {
-			console.error("Mneme: failed to accept proposal", {
-				error,
-				proposalId: proposal.id,
-			});
-			new Notice("Mneme: Proposal acceptance failed. See console.");
-		}
 	}
 
 	private async rejectProposal(proposal: KnowledgeProposal): Promise<void> {
@@ -370,28 +261,6 @@ export class MnemeInboxView extends ItemView {
 		}
 	}
 
-}
-
-function getSourceLinkIndicator(proposal: KnowledgeProposal): string | undefined {
-	if (proposal.status !== "written" || proposal.kind !== "new_concept") {
-		return undefined;
-	}
-
-	if (hasSourceLinkData(proposal)) {
-		return "Source links indexed";
-	}
-
-	return "No source links";
-}
-
-function hasSourceLinkData(proposal: KnowledgeProposal): boolean {
-	const payload = typeof proposal.payload === "object" && proposal.payload !== null
-		? proposal.payload as { proposedSourceLinks?: unknown }
-		: undefined;
-	const proposedSourceLinks = payload?.proposedSourceLinks;
-
-	return Boolean(proposal.sourcePath)
-		|| (Array.isArray(proposedSourceLinks) && proposedSourceLinks.length > 0);
 }
 
 function countReconciledItems(
@@ -446,23 +315,4 @@ function getTabTitle(tab: InboxTab): string {
 		case "other":
 			return "Unsupported/Other Proposals";
 	}
-}
-
-function formatProposalMeta(proposal: KnowledgeProposal): string {
-	const sourcePath = getProposalSourcePath(proposal);
-	const evidenceCount = getProposalEvidenceCount(proposal);
-	const evidenceLabel = evidenceCount > 0 ? `${evidenceCount} evidence ${evidenceCount === 1 ? "item" : "items"}` : undefined;
-	const parts = proposal.kind === "new_card"
-		? [evidenceLabel]
-		: [
-			sourcePath ? `Source: ${sourcePath}` : undefined,
-			getProposalTargetLabel(proposal),
-			evidenceLabel,
-		];
-
-	return parts.filter((part): part is string => Boolean(part)).join(" · ");
-}
-
-function getValidationSummary(proposal: KnowledgeProposal): string {
-	return getProposalReadinessLabel(proposal);
 }
