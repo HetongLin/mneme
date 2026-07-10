@@ -111,6 +111,69 @@ const cardGenerationResponse = {
 	const result = validateAiStructuredProposalResponse({
 		...baseResponse,
 		proposals: [{
+			confidence: 0.91,
+			evidence,
+			kind: "new_concept",
+			payload: {
+				conceptTitle: "Encapsulation",
+				coreMeaning: "Encapsulation protects internal representation.",
+				learningMode: "reviewable",
+				relatedConceptHints: [],
+				suggestedImportance: "normal",
+				summary: "A boundary around representation details.",
+				tags: ["oop"],
+				views: [
+					{ body: "", title: "" },
+					{ body: "   ", title: "Incomplete view" },
+					{ body: "Think of public methods as the object's interface.", title: "Interface view" },
+				],
+			},
+			rationale: "The source note introduces a durable concept.",
+			title: "Encapsulation",
+		}],
+	});
+
+	assert.equal(result.valid, true);
+
+	if (result.valid && result.data.proposals[0]?.kind === "new_concept") {
+		assert.deepEqual(result.data.proposals[0].payload.views, [
+			{ body: "Think of public methods as the object's interface.", title: "Interface view" },
+		]);
+	}
+}
+
+{
+	const result = validateAiStructuredProposalResponse({
+		...baseResponse,
+		proposals: [{
+			confidence: 0.91,
+			evidence,
+			kind: "new_concept",
+			payload: {
+				conceptTitle: "Encapsulation",
+				coreMeaning: "Encapsulation protects internal representation.",
+				learningMode: "reviewable",
+				relatedConceptHints: [],
+				suggestedImportance: "normal",
+				summary: "A boundary around representation details.",
+				tags: ["oop"],
+			},
+			rationale: "The source note introduces a durable concept.",
+			title: "Encapsulation",
+		}],
+	});
+
+	assert.equal(result.valid, true);
+
+	if (result.valid && result.data.proposals[0]?.kind === "new_concept") {
+		assert.deepEqual(result.data.proposals[0].payload.views, []);
+	}
+}
+
+{
+	const result = validateAiStructuredProposalResponse({
+		...baseResponse,
+		proposals: [{
 			confidence: 0.8,
 			evidence,
 			kind: "link_existing_concept",

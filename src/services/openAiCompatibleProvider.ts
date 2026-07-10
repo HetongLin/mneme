@@ -68,6 +68,7 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 			"For new_concept payloads, learningMode must be exactly 'reviewable' or 'exploratory'; do not use values like definition, application, recall, or understanding.",
 			"For new_concept payloads, suggestedImportance must be exactly 'low', 'normal', 'high', or 'critical'; use 'normal' when unsure.",
 			"For new_concept payloads, tags must be an array of 1 to 5 short lowercase organization tags, using hyphens instead of spaces, such as ['statistics','machine-learning']; do not use '#' prefixes.",
+			"For new_concept payloads, views is optional supporting perspective data: return [] unless every view has both a non-empty title and a non-empty body. Never return empty view placeholders.",
 			"Never return new_card, revise_card, split_card, merge_card, or retire_card.",
 			"Do not write Markdown.",
 		].join("\n");

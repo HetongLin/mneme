@@ -94,14 +94,7 @@ function repairCommonAiEnumDrift(value: unknown): unknown {
 		const learningMode = coerceLearningMode(proposal.payload.learningMode);
 		const suggestedImportance = coerceSuggestedImportance(proposal.payload.suggestedImportance);
 		const tags = normalizeTags(proposal.payload.tags);
-
-		if (
-			learningMode === proposal.payload.learningMode
-			&& suggestedImportance === proposal.payload.suggestedImportance
-			&& tags === proposal.payload.tags
-		) {
-			return proposal;
-		}
+		const views = normalizeConceptViews(proposal.payload.views);
 
 		changed = true;
 
@@ -112,6 +105,7 @@ function repairCommonAiEnumDrift(value: unknown): unknown {
 				learningMode,
 				suggestedImportance,
 				tags,
+				views,
 			},
 		};
 	});
@@ -287,6 +281,33 @@ function normalizeTag(value: string): string {
 		.replace(/[^a-z0-9/_-]+/g, "-")
 		.replace(/-+/g, "-")
 		.replace(/^-|-$/g, "");
+}
+
+function normalizeConceptViews(value: unknown): Array<{ body: string; title: string }> {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+
+	return value.flatMap((view) => {
+		if (!isRecord(view)) {
+			return [];
+		}
+
+		const title = normalizeViewText(view.title);
+		const body = normalizeViewText(view.body);
+
+		return title && body ? [{ body, title }] : [];
+	});
+}
+
+function normalizeViewText(value: unknown): string | undefined {
+	if (typeof value !== "string") {
+		return undefined;
+	}
+
+	const normalized = value.trim();
+
+	return normalized.length > 0 ? normalized : undefined;
 }
 
 function validateProposal(
