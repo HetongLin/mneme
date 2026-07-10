@@ -347,47 +347,41 @@ export class MnemeReviewView extends ItemView {
 		});
 
 		cardEl.createEl("div", {
-			cls: "mneme-review-front",
+			cls: "mneme-review-card-text",
 			text: currentCard.front || "(empty)",
 		});
 
-		this.renderCurrentCardDetails(cardEl, currentQueueCard);
-
 		if (!this.isAnswerShown) {
-			const actionsEl = cardEl.createDiv({ cls: "mneme-review-actions" });
+			const actionsEl = cardEl.createDiv({ cls: "mneme-review-primary-actions" });
 			actionsEl.createEl("button", { text: "Show Answer" }, (buttonEl) => {
 				buttonEl.addEventListener("click", () => this.showAnswer());
 			});
-			this.renderCardNavigationActions(actionsEl, concept, currentQueueCard);
+			this.renderCurrentCardDetails(cardEl, concept, currentQueueCard);
 			return;
 		}
 
+		cardEl.createDiv({ cls: "mneme-review-answer-separator" });
 		cardEl.createEl("div", {
-			cls: "mneme-review-answer",
+			cls: "mneme-review-card-text",
 			text: currentCard.back || "(empty)",
 		});
 
-		if (currentCard.rubric) {
-			cardEl.createEl("div", {
-				cls: "mneme-review-rubric",
-				text: currentCard.rubric,
-			});
-		}
-
 		const ratingsEl = cardEl.createDiv({ cls: "mneme-review-rating-row" });
 		for (const rating of REVIEW_RATINGS) {
-			ratingsEl.createEl("button", { text: rating.label }, (buttonEl) => {
+			ratingsEl.createEl("button", {
+				cls: `mneme-review-rating-button mneme-review-rating-${rating.value}`,
+				text: rating.label,
+			}, (buttonEl) => {
 				buttonEl.addEventListener("click", () => {
 					void this.rateCurrentCard(rating.value, rating.label);
 				});
 			});
 		}
 
-		const actionsEl = cardEl.createDiv({ cls: "mneme-review-actions" });
-		this.renderCardNavigationActions(actionsEl, concept, currentQueueCard);
+		this.renderCurrentCardDetails(cardEl, concept, currentQueueCard);
 	}
 
-	private renderCardNavigationActions(
+	private renderCardManagementActions(
 		parentEl: HTMLElement,
 		concept: ReviewQueueConcept,
 		queueCard: ReviewQueueCard,
@@ -716,13 +710,28 @@ export class MnemeReviewView extends ItemView {
 		}
 	}
 
-	private renderCurrentCardDetails(parentEl: HTMLElement, queueCard: ReviewQueueCard): void {
+	private renderCurrentCardDetails(
+		parentEl: HTMLElement,
+		concept: ReviewQueueConcept,
+		queueCard: ReviewQueueCard,
+	): void {
 		const card = queueCard.card;
 		const reviewState = this.reviewStateStore.getState(card.cardId);
 		const cardRisk = this.memorySummaries[queueCard.conceptId]?.cardRisks.find((risk) => risk.cardId === queueCard.cardId);
 		const detailsEl = parentEl.createEl("details", { cls: "mneme-review-card-details" });
 
 		detailsEl.createEl("summary", { text: "Card details" });
+		const actionsEl = detailsEl.createDiv({ cls: "mneme-review-card-management-actions" });
+		this.renderCardManagementActions(actionsEl, concept, queueCard);
+
+		if (card.rubric) {
+			detailsEl.createEl("h4", { text: "Rubric" });
+			detailsEl.createEl("div", {
+				cls: "mneme-review-rubric",
+				text: card.rubric,
+			});
+		}
+
 		detailsEl.createEl("p", { text: `Card ID: ${card.cardId}` });
 		detailsEl.createEl("p", { text: `Card index: ${card.cardIndex}` });
 		detailsEl.createEl("p", { text: `Due status: ${formatDueStatus(queueCard)}` });

@@ -37,7 +37,9 @@ If your plugin does not need CSS, delete this file.
 
 .mneme-review-toolbar,
 .mneme-review-actions,
-.mneme-review-rating-row {
+.mneme-review-primary-actions,
+.mneme-review-rating-row,
+.mneme-review-card-management-actions {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 10px;
@@ -135,31 +137,43 @@ If your plugin does not need CSS, delete this file.
 	margin: 0 0 22px;
 }
 
-.mneme-review-front {
+.mneme-review-card-text {
 	font-size: 24px;
 	line-height: 1.45;
-	margin: 22px 0;
-}
-
-.mneme-review-answer,
-.mneme-review-rubric {
-	background: var(--background-secondary);
-	border-radius: var(--radius-m);
-	line-height: 1.5;
-	margin: 16px 0;
-	padding: 16px;
+	margin: 34px 0;
 	white-space: pre-wrap;
 }
 
+.mneme-review-answer-separator {
+	border-top: 1px solid var(--background-modifier-border);
+	margin: 26px 0;
+}
+
 .mneme-review-rubric {
+	background: var(--background-secondary);
+	border-radius: var(--radius-m);
 	color: var(--text-muted);
 	font-family: var(--font-ui-small);
+	line-height: 1.5;
+	margin: 10px 0 14px;
+	padding: 12px 14px;
+	white-space: pre-wrap;
+}
+
+.mneme-review-primary-actions {
+	justify-content: center;
+	margin: 28px 0 10px;
 }
 
 .mneme-review-rating-row {
 	border-top: 1px solid var(--background-modifier-border);
-	margin-top: 22px;
+	justify-content: center;
+	margin-top: 28px;
 	padding-top: 18px;
+}
+
+.mneme-review-rating-button {
+	min-width: 96px;
 }
 
 .mneme-review-diagnostics {
@@ -368,8 +382,12 @@ If your plugin does not need CSS, delete this file.
 
 .mneme-review-card-details {
 	border-top: 1px solid var(--background-modifier-border);
-	margin: 18px 0;
+	margin: 22px 0 0;
 	padding-top: 12px;
+}
+
+.mneme-review-card-management-actions {
+	margin: 12px 0 16px;
 }
 
 .mneme-review-empty {

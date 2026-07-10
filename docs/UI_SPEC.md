@@ -64,16 +64,13 @@ Display:
 - Mneme Review
 - Concept title
 - Card progress
-- Source note
 - Front content
-- Actions
+- Primary action
+- Collapsed Card details
 
 Labels:
 
 - Show Answer
-- Edit
-- View Source
-- Skip
 
 Example:
 
@@ -81,7 +78,6 @@ Mneme Review
 
 Concept: Information Gain  
 Card 1 / 3  
-Source: Decision Tree.md
 
 Front:
 
@@ -90,9 +86,8 @@ Why does information gain tend to favor attributes with many values?
 Actions:
 
 - Show Answer
-- Edit
-- View Source
-- Skip
+
+Complex Card operations are isolated under `Card details`, not mixed into the primary review action row.
 
 ### Back State
 
@@ -100,8 +95,8 @@ After clicking Show Answer, display:
 
 - Front
 - Back
-- Rubric
 - Rating buttons
+- Collapsed Card details
 
 Labels:
 
@@ -109,8 +104,10 @@ Labels:
 - Hard
 - Good
 - Easy
-- Edit
-- View Source
+
+The Back should use the same typography and visual treatment as the Front. Rubric / scoring hints such as “1 point for...” are hidden under `Card details` by default.
+
+Primary back-side actions are only the FSRS rating buttons, arranged like an Anki answer screen. Complex actions stay under `Card details`.
 
 ### Rating Behavior
 
@@ -121,6 +118,7 @@ Labels:
 - Skip does not update FSRS state.
 - Edit opens Card Edit Modal.
 - View Source opens the Source Note.
+- Review Later, Suspend Card, Retire Card, and Delete Card are available from `Card details`, not the main review controls.
 
 ## Today’s Focus
 
