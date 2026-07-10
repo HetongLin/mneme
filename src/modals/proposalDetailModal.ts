@@ -2,7 +2,6 @@ import { App, Modal, Notice } from "obsidian";
 import type { KnowledgeProposal, KnowledgeProposalPayload } from "../models/knowledgeProposal";
 import { ApprovedProposalWriter } from "../services/approvedProposalWriter";
 import {
-	formatAcceptActionLabel,
 	getAcceptanceKind,
 	InboxAcceptanceWorkflow,
 } from "../services/inboxAcceptanceWorkflow";
@@ -62,7 +61,7 @@ export class ProposalDetailModal extends Modal {
 
 		const actionsEl = contentEl.createDiv({ cls: "mneme-proposal-detail-modal-actions" });
 		if (getAcceptanceKind(this.proposal)) {
-			actionsEl.createEl("button", { text: formatAcceptActionLabel(this.proposal) }, (buttonEl) => {
+			actionsEl.createEl("button", { text: "Accept" }, (buttonEl) => {
 				buttonEl.disabled = !this.options.writer;
 				buttonEl.title = this.options.writer
 					? "Validate and write this proposal to Markdown."
