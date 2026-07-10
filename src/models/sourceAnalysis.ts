@@ -2,6 +2,7 @@ export type SourceAnalysisStatus = "clean" | "stale" | "analyzing" | "failed";
 
 export interface SourceAnalysisRecord {
 	contentHash: string;
+	lastCardGenerationHash?: string;
 	lastAiCaptureHash?: string;
 	lastAnalyzedAt: string;
 	linkedConceptIds: string[];

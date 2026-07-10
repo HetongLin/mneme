@@ -18,6 +18,8 @@ Markdown stores approved Concept and Card content. `data.json` stores settings, 
 
 `SourceAnalysisStore` persists `SourceAnalysisRecord` entries in plugin data. `Mneme: Analyze Current Note` always updates source path, metadata, and content hash. When AI Capture is enabled, it may also add validated Concept proposals to Inbox; it never generates Cards or writes Markdown directly.
 
+The same record shape may also track written Concept hashes for Card generation gating. `lastCardGenerationHash` records the Concept content hash that most recently produced Card proposals, so unchanged Concepts cannot repeatedly create duplicate isolated Card proposal batches.
+
 AI Capture settings are stored in plugin data under `settings` and configure the provider boundary:
 
 - `aiCaptureEnabled`
@@ -388,11 +390,14 @@ For each analyzed Source Note, store:
 - sourcePath
 - contentHash
 - lastAiCaptureHash (optional; records the hash that completed proposal capture)
+- lastCardGenerationHash (optional; records the Concept hash that completed Card proposal generation)
 - mtime
 - size
 - lastAnalyzedAt
 
 Skip the AI call only when `contentHash` matches `lastAiCaptureHash`. This lets a note indexed while AI Capture was disabled receive its first later capture without pretending the provider already ran.
+
+For written Concepts, skip Card proposal generation when the current Concept content hash matches `lastCardGenerationHash`. The student must edit the Concept before generating another Card proposal batch.
 
 ## FSRS State
 

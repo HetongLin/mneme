@@ -116,7 +116,11 @@ Analyze Current Note indexes the Source Note and, when AI Capture is enabled, as
 
 Generate Cards from Current Concept works only from a written Mneme Concept Markdown file. It sends that approved Concept to the selected provider in `card_generation` mode, accepts only `new_card` responses, and stores validated Card proposals in Inbox. One Card Markdown file is written only after the user accepts an individual Card proposal.
 
+Analyze Current Note is for Source Notes, not written Mneme Concepts. Running Source Note analysis on a Concept would re-treat approved knowledge as raw input and can create confusing duplicate proposals, so Mneme blocks it.
+
 Card generation is coverage-driven and bounded to at most five proposals per run. Each proposal identifies the approved Concept claim or section it tests. If generation reveals missing knowledge, Mneme proposes a Concept update first rather than inserting new knowledge into a Card.
+
+Card generation is also content-hash gated per Concept. If the Concept has not changed since Card proposals were last generated, Mneme should not call AI again or create another isolated Inbox batch. The student must edit the Concept before generating another set of Card proposals.
 
 Concept Library also exposes Generate Cards for reviewable Concepts. Exploratory Concepts intentionally omit this action and remain outside Card/FSRS review.
 

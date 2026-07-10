@@ -335,6 +335,12 @@ export default class MnemePlugin extends Plugin {
 			return;
 		}
 
+		const frontmatter = this.app.metadataCache.getFileCache(activeFile)?.frontmatter;
+		if (getConceptIdFromFrontmatter(frontmatter)) {
+			new Notice("Mneme: Analyze Current Note cannot be used on Mneme Concepts.");
+			return;
+		}
+
 		const readSourceContent = (sourcePath: string) => this.readSourceNote(sourcePath);
 		const sourceAnalysisService = new SourceAnalysisService(
 			this.sourceAnalysisStore,
@@ -478,10 +484,13 @@ export default class MnemePlugin extends Plugin {
 			createProvider: (settings) => createAiProvider(settings, new ObsidianAiHttpClient()),
 			proposalStore: this.knowledgeProposalStore,
 			settingsProvider: () => this.settings,
+			sourceAnalysisStore: this.sourceAnalysisStore,
 		});
 		const result = await service.generate({
 			conceptId,
+			conceptMtime: conceptFile.stat.mtime,
 			conceptPath: conceptFile.path,
+			conceptSize: conceptFile.stat.size,
 			conceptTitle,
 			markdown,
 		});

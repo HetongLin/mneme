@@ -1,16 +1,20 @@
 import type { MnemeSettings } from "../models/settings";
+import type { SourceAnalysisRecord } from "../models/sourceAnalysis";
 import { computeContentHash } from "../utils/sourceHash";
 import type { AiProvider } from "./aiProvider";
 import { validateAiProviderConfig, validateCardGenerationResponse } from "./aiProvider";
 import { normalizeAiStructuredProposalResponse } from "./aiProposalNormalizer";
 import { validateAiStructuredProposalResponse } from "./aiProposalValidator";
 import type { KnowledgeProposalStore } from "./knowledgeProposalStore";
+import type { SourceAnalysisStore } from "./sourceAnalysisStore";
 
 const ACTIVE_STATUSES = new Set(["suggested", "opened", "edited", "stale"]);
 
 export interface AiCardGenerationInput {
 	conceptId: string;
+	conceptMtime?: number;
 	conceptPath: string;
+	conceptSize?: number;
 	conceptTitle: string;
 	markdown: string;
 }
@@ -21,7 +25,8 @@ export type AiCardGenerationStatus =
 	| "generated"
 	| "invalid_config"
 	| "invalid_response"
-	| "skipped_active_proposals";
+	| "skipped_active_proposals"
+	| "skipped_unchanged_concept";
 
 export interface AiCardGenerationResult {
 	message: string;
@@ -33,6 +38,7 @@ export interface AiCardGenerationServiceOptions {
 	createProvider: (settings: MnemeSettings) => AiProvider;
 	proposalStore: KnowledgeProposalStore;
 	settingsProvider: () => MnemeSettings;
+	sourceAnalysisStore?: SourceAnalysisStore;
 	timestampProvider?: () => string;
 }
 
@@ -64,6 +70,14 @@ export class AiCardGenerationService {
 
 			if (hasActiveProposal) {
 				return this.result("skipped_active_proposals", "Card proposals for this Concept are already in Inbox.");
+			}
+
+			const previousGenerationRecord = await this.options.sourceAnalysisStore?.getRecord(input.conceptPath);
+			if (previousGenerationRecord?.lastCardGenerationHash === conceptHash) {
+				return this.result(
+					"skipped_unchanged_concept",
+					"Concept has not changed since Card proposals were last generated.",
+				);
 			}
 
 			const provider = this.options.createProvider(settings);
@@ -124,6 +138,7 @@ export class AiCardGenerationService {
 			}
 
 			await this.options.proposalStore.upsertProposals(proposals);
+			await this.recordCardGeneration(input, conceptHash, previousGenerationRecord);
 
 			return {
 				message: proposals.length === 1
@@ -139,5 +154,29 @@ export class AiCardGenerationService {
 
 	private result(status: AiCardGenerationStatus, message: string): AiCardGenerationResult {
 		return { message, proposalCount: 0, status };
+	}
+
+	private async recordCardGeneration(
+		input: AiCardGenerationInput,
+		conceptHash: string,
+		previous: SourceAnalysisRecord | undefined,
+	): Promise<void> {
+		if (!this.options.sourceAnalysisStore) {
+			return;
+		}
+
+		const now = this.options.timestampProvider?.() ?? new Date().toISOString();
+		await this.options.sourceAnalysisStore.upsertRecord({
+			contentHash: conceptHash,
+			lastAiCaptureHash: previous?.lastAiCaptureHash,
+			lastAnalyzedAt: now,
+			lastCardGenerationHash: conceptHash,
+			linkedConceptIds: previous?.linkedConceptIds ?? [input.conceptId],
+			mtime: input.conceptMtime ?? previous?.mtime ?? 0,
+			pendingProposalIds: previous?.pendingProposalIds ?? [],
+			size: input.conceptSize ?? previous?.size ?? input.markdown.length,
+			sourcePath: input.conceptPath,
+			status: previous?.status ?? "clean",
+		});
 	}
 }

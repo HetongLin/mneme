@@ -848,6 +848,7 @@ function isSourceAnalysisRecord(value: unknown): value is SourceAnalysisRecord {
 	return isObject(value)
 		&& typeof value.sourcePath === "string"
 		&& typeof value.contentHash === "string"
+		&& (value.lastCardGenerationHash === undefined || typeof value.lastCardGenerationHash === "string")
 		&& typeof value.mtime === "number"
 		&& typeof value.size === "number"
 		&& typeof value.lastAnalyzedAt === "string"

@@ -87,6 +87,8 @@ It persists a `SourceAnalysisRecord` in plugin data through `SourceAnalysisStore
 
 This command creates Concept proposals only. It does not generate Cards or write Markdown.
 
+`Mneme: Analyze Current Note` must not run on written Mneme Concept files. Concepts are approved knowledge artifacts, not raw Source Notes; re-analyzing them as sources risks duplicate or circular Concept proposals.
+
 ## Provider Boundary
 
 Task 026A and Task 026A.1 established the provider infrastructure. Task 027 connects that boundary to Analyze Current Note.
@@ -193,6 +195,8 @@ The initial writer supports `new_concept` and `new_card` proposals only. Unsuppo
 Written `new_concept` proposals create editable Concept Markdown files directly in the configured Concepts folder. Written `new_card` proposals create one parseable Card Markdown file inside the Concept's card folder using Mneme's existing card marker syntax.
 
 Written Cards do not receive FSRS state during writing; they enter the normal parser/review pipeline after the vault is refreshed or reloaded.
+
+Card proposal generation records the Concept content hash when proposals are successfully created. If the same Concept hash requests generation again, Mneme skips the AI call even if the previous proposals have already been accepted or rejected. This prevents duplicate isolated Card batches from the same unchanged Concept. Editing the Concept changes the hash and permits a new generation attempt.
 
 Successful `new_concept` writes can also index approved Concept-source links. Mneme stores these links in plugin data and updates the analyzed Source Note's `linkedConceptIds` when source analysis state exists.
 

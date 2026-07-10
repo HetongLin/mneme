@@ -5,6 +5,7 @@ import type { AiProposalRequest, AiProposalResponse, AiProvider } from "../src/s
 import { AiCardGenerationService } from "../src/services/aiCardGenerationService";
 import { KnowledgeProposalStore } from "../src/services/knowledgeProposalStore";
 import { MockAiProvider } from "../src/services/mockAiProvider";
+import { SourceAnalysisStore } from "../src/services/sourceAnalysisStore";
 import { computeContentHash } from "../src/utils/sourceHash";
 
 const concept = {
@@ -37,6 +38,7 @@ async function run(): Promise<void> {
 		assert.equal(proposals[0]?.conceptId, concept.conceptId);
 		assert.equal(proposals[0]?.sourcePath, concept.conceptPath);
 		assert.equal(proposals[0]?.status, "suggested");
+		assert.equal((await fixture.sourceAnalysisStore.getRecord(concept.conceptPath))?.lastCardGenerationHash, await computeContentHash(concept.markdown));
 	}
 
 	{
@@ -46,6 +48,40 @@ async function run(): Promise<void> {
 
 		assert.equal(second.status, "skipped_active_proposals");
 		assert.equal(fixture.provider.callCount, 1);
+	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		await fixture.service.generate(concept);
+		const proposals = await fixture.proposalStore.loadProposals();
+
+		await fixture.proposalStore.replaceProposals(Object.fromEntries(
+			Object.entries(proposals).map(([id, proposal]) => [id, { ...proposal, status: "written" as const }]),
+		));
+
+		const second = await fixture.service.generate(concept);
+
+		assert.equal(second.status, "skipped_unchanged_concept");
+		assert.equal(fixture.provider.callCount, 1);
+	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		await fixture.service.generate(concept);
+		const proposals = await fixture.proposalStore.loadProposals();
+
+		await fixture.proposalStore.replaceProposals(Object.fromEntries(
+			Object.entries(proposals).map(([id, proposal]) => [id, { ...proposal, status: "written" as const }]),
+		));
+
+		const updatedConcept = {
+			...concept,
+			markdown: `${concept.markdown}\n\n## Why It Matters\n\nUpdated Concept content.`,
+		};
+		const second = await fixture.service.generate(updatedConcept);
+
+		assert.equal(second.status, "generated");
+		assert.equal(fixture.provider.callCount, 2);
 	}
 
 	{
@@ -224,15 +260,17 @@ function createFixture(settingsOverrides: Partial<typeof DEFAULT_SETTINGS>) {
 	const settings = { ...DEFAULT_SETTINGS, ...settingsOverrides };
 	const storage = new MemoryPluginStorage();
 	const proposalStore = new KnowledgeProposalStore(storage);
+	const sourceAnalysisStore = new SourceAnalysisStore(storage);
 	const provider = new CountingProvider(new MockAiProvider(settings));
 	const service = new AiCardGenerationService({
 		createProvider: () => provider,
 		proposalStore,
 		settingsProvider: () => settings,
+		sourceAnalysisStore,
 		timestampProvider: () => "2026-01-02T12:00:00.000Z",
 	});
 
-	return { proposalStore, provider, service };
+	return { proposalStore, provider, service, sourceAnalysisStore };
 }
 
 class CountingProvider implements AiProvider {
