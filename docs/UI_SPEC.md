@@ -87,7 +87,7 @@ Actions:
 
 - Show Answer
 
-Complex Card operations are isolated under `Card details`, not mixed into the primary review action row.
+Complex Card operations are isolated behind `More`, not mixed into the primary review action row.
 
 ### Back State
 
@@ -95,8 +95,8 @@ After clicking Show Answer, display:
 
 - Front
 - Back
-- Rating buttons
-- Collapsed Card details
+- Rating buttons in one row
+- Collapsed More actions
 
 Labels:
 
@@ -105,9 +105,9 @@ Labels:
 - Good
 - Easy
 
-The Back should use the same typography and visual treatment as the Front. Rubric / scoring hints such as “1 point for...” are hidden under `Card details` by default.
+The Back should use the same typography and visual treatment as the Front. Rubric / scoring hints such as “1 point for...” are hidden under `More` by default.
 
-Primary back-side actions are only the FSRS rating buttons, arranged like an Anki answer screen. Complex actions stay under `Card details`.
+Primary back-side actions are only the FSRS rating buttons, arranged like an Anki answer screen. Again, Hard, Good, and Easy stay on one row. Complex actions stay behind `More`; when expanded, those actions are displayed vertically.
 
 ### Rating Behavior
 
@@ -118,7 +118,7 @@ Primary back-side actions are only the FSRS rating buttons, arranged like an Ank
 - Skip does not update FSRS state.
 - Edit opens Card Edit Modal.
 - View Source opens the Source Note.
-- Review Later, Suspend Card, Retire Card, and Delete Card are available from `Card details`, not the main review controls.
+- Review Later, Suspend Card, Retire Card, and Delete Card are available from `More`, not the main review controls.
 
 ## Today’s Focus
 

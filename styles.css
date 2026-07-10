@@ -167,13 +167,44 @@ If your plugin does not need CSS, delete this file.
 
 .mneme-review-rating-row {
 	border-top: 1px solid var(--background-modifier-border);
-	justify-content: center;
+	display: grid;
+	gap: 12px;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
 	margin-top: 28px;
 	padding-top: 18px;
 }
 
 .mneme-review-rating-button {
-	min-width: 96px;
+	min-width: 0;
+	width: 100%;
+}
+
+.mneme-review-more {
+	border-top: 1px solid var(--background-modifier-border);
+	margin: 22px 0 0;
+	padding-top: 14px;
+}
+
+.mneme-review-more-row {
+	display: flex;
+	justify-content: center;
+}
+
+.mneme-review-more-panel {
+	background: var(--background-secondary);
+	border-radius: var(--radius-m);
+	margin-top: 14px;
+	padding: 14px;
+}
+
+.mneme-review-more-actions {
+	display: grid;
+	gap: 10px;
+	max-width: 260px;
+}
+
+.mneme-review-more-actions button {
+	width: 100%;
 }
 
 .mneme-review-diagnostics {
@@ -382,7 +413,7 @@ If your plugin does not need CSS, delete this file.
 
 .mneme-review-card-details {
 	border-top: 1px solid var(--background-modifier-border);
-	margin: 22px 0 0;
+	margin: 16px 0 0;
 	padding-top: 12px;
 }
 

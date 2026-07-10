@@ -47,6 +47,7 @@ export class MnemeReviewView extends ItemView {
 	private deferredCardCount = 0;
 	private readonly loader: ConceptLoader;
 	private isAnswerShown = false;
+	private isMoreActionsShown = false;
 	private isReviewComplete = false;
 	private focusSelection: TodaysFocusSelection = createEmptyFocusSelection();
 	private memorySummaries: Record<string, ConceptMemorySummary> = {};
@@ -718,11 +719,27 @@ export class MnemeReviewView extends ItemView {
 		const card = queueCard.card;
 		const reviewState = this.reviewStateStore.getState(card.cardId);
 		const cardRisk = this.memorySummaries[queueCard.conceptId]?.cardRisks.find((risk) => risk.cardId === queueCard.cardId);
-		const detailsEl = parentEl.createEl("details", { cls: "mneme-review-card-details" });
+		const moreEl = parentEl.createDiv({ cls: "mneme-review-more" });
+		const moreRowEl = moreEl.createDiv({ cls: "mneme-review-more-row" });
+		moreRowEl.createEl("button", {
+			text: this.isMoreActionsShown ? "Hide" : "More",
+		}, (buttonEl) => {
+			buttonEl.addEventListener("click", () => {
+				this.isMoreActionsShown = !this.isMoreActionsShown;
+				this.render();
+			});
+		});
 
-		detailsEl.createEl("summary", { text: "Card details" });
-		const actionsEl = detailsEl.createDiv({ cls: "mneme-review-card-management-actions" });
+		if (!this.isMoreActionsShown) {
+			return;
+		}
+
+		const morePanelEl = moreEl.createDiv({ cls: "mneme-review-more-panel" });
+		const actionsEl = morePanelEl.createDiv({ cls: "mneme-review-more-actions" });
 		this.renderCardManagementActions(actionsEl, concept, queueCard);
+
+		const detailsEl = morePanelEl.createEl("details", { cls: "mneme-review-card-details" });
+		detailsEl.createEl("summary", { text: "Card details" });
 
 		if (card.rubric) {
 			detailsEl.createEl("h4", { text: "Rubric" });
@@ -773,6 +790,7 @@ export class MnemeReviewView extends ItemView {
 		this.sessionCardCount = this.selectedCards.length;
 		this.selectedCardIndex = 0;
 		this.isAnswerShown = false;
+		this.isMoreActionsShown = false;
 		this.isReviewComplete = false;
 		this.skippedCardCount = 0;
 		this.deferredCardCount = 0;
@@ -794,6 +812,7 @@ export class MnemeReviewView extends ItemView {
 
 	private showAnswer(): void {
 		this.isAnswerShown = true;
+		this.isMoreActionsShown = false;
 		this.statusMessage = "Answer shown.";
 		this.render();
 	}
@@ -830,6 +849,7 @@ export class MnemeReviewView extends ItemView {
 			this.selectedCards.splice(this.selectedCardIndex, 1);
 			this.deferredCardCount += 1;
 			this.isAnswerShown = false;
+			this.isMoreActionsShown = false;
 			this.shouldRefreshQueueOnBack = true;
 
 			if (this.selectedCardIndex >= this.selectedCards.length) {
@@ -874,6 +894,7 @@ export class MnemeReviewView extends ItemView {
 			this.selectedCards.splice(this.selectedCardIndex, 1);
 			this.suspendedCardCount += 1;
 			this.isAnswerShown = false;
+			this.isMoreActionsShown = false;
 			this.shouldRefreshQueueOnBack = true;
 
 			if (this.selectedCardIndex >= this.selectedCards.length) {
@@ -914,6 +935,7 @@ export class MnemeReviewView extends ItemView {
 			delete this.activeSuspensions[card.cardId];
 			this.selectedCards.splice(this.selectedCardIndex, 1);
 			this.isAnswerShown = false;
+			this.isMoreActionsShown = false;
 			this.shouldRefreshQueueOnBack = true;
 
 			if (this.selectedCardIndex >= this.selectedCards.length) {
@@ -1002,6 +1024,7 @@ export class MnemeReviewView extends ItemView {
 
 	private advanceToNextCard(completionStatusMessage?: string): void {
 		this.isAnswerShown = false;
+		this.isMoreActionsShown = false;
 
 		if (this.selectedCardIndex + 1 < this.selectedCards.length) {
 			this.selectedCardIndex += 1;
@@ -1116,6 +1139,7 @@ export class MnemeReviewView extends ItemView {
 		this.selectedCardIndex = 0;
 		this.sessionCardCount = 0;
 		this.isAnswerShown = false;
+		this.isMoreActionsShown = false;
 		this.isReviewComplete = false;
 		this.skippedCardCount = 0;
 		this.deferredCardCount = 0;
