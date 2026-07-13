@@ -2,7 +2,7 @@ import type { ConceptSummary } from "../models/conceptLibrary";
 import type { KnowledgeProposal } from "../models/knowledgeProposal";
 import type { MarkdownWriteDraft, MarkdownWriteResult } from "../models/markdownWrite";
 import type { MnemeSettings } from "../models/settings";
-import { ensureUniquePath, normalizeVaultPath } from "../utils/markdownPath";
+import { buildCardGroupPath, ensureUniquePath, normalizeVaultPath, toObsidianInternalLink } from "../utils/markdownPath";
 import {
 	buildConceptSourceLinksFromNewConceptProposal,
 	buildConceptUpdateSourceLinks,
@@ -19,6 +19,7 @@ import { appendConceptView } from "./conceptViewAppender";
 import { appendConceptSourceNote } from "./conceptSourceNoteAppender";
 import { updateConceptSections } from "./conceptSectionUpdater";
 import { validateKnowledgeProposalPayload } from "./knowledgeProposalValidation";
+import { appendCardGroupDraft } from "./cardGroupWriter";
 
 export interface MnemeVaultAdapter {
 	append(path: string, content: string): Promise<void>;
@@ -112,7 +113,13 @@ export class ApprovedProposalWriter {
 		const targetPaths: string[] = [];
 
 		try {
-			const drafts = await this.assignUniqueTargetPaths(renderResult.drafts);
+			const preparedDrafts = proposal.kind === "new_card"
+				? await this.alignCardDraftWithConcept(renderResult.drafts, proposal.payload?.conceptId)
+				: renderResult.drafts;
+			const assignedDrafts = await this.assignUniqueTargetPaths(preparedDrafts);
+			const drafts = proposal.kind === "new_concept" && proposal.payload
+				? this.alignNewConceptDraftWithUniquePath(assignedDrafts, proposal.payload.title)
+				: assignedDrafts;
 
 			for (const draft of drafts) {
 				await this.ensureParentFolders(draft.targetPath);
@@ -367,6 +374,10 @@ export class ApprovedProposalWriter {
 	}
 
 	private async resolveConceptPath(conceptId: string): Promise<string> {
+		return (await this.resolveConceptSummary(conceptId)).path;
+	}
+
+	private async resolveConceptSummary(conceptId: string): Promise<ConceptSummary> {
 		if (!this.options.conceptScanner) {
 			throw new Error("Concept lookup is unavailable.");
 		}
@@ -388,7 +399,57 @@ export class ApprovedProposalWriter {
 			throw new Error(`Concept not found: ${conceptId}`);
 		}
 
-		return targetConcept.path;
+		return targetConcept;
+	}
+
+	private async alignCardDraftWithConcept(
+		drafts: MarkdownWriteDraft[],
+		conceptId: string | undefined,
+	): Promise<MarkdownWriteDraft[]> {
+		if (!this.options.conceptScanner || !conceptId) {
+			return drafts;
+		}
+
+		const concept = await this.resolveConceptSummary(conceptId);
+		const declaredCardsPath = concept.cardsPath
+			? normalizeVaultPath(concept.cardsPath)
+			: undefined;
+		const cardGroupPath = declaredCardsPath
+			? /\.md$/i.test(declaredCardsPath)
+				? /(?:^|\/)Card\.md$/i.test(declaredCardsPath)
+					? declaredCardsPath.replace(/Card\.md$/i, "Cards.md")
+					: declaredCardsPath
+				: `${declaredCardsPath}/Cards.md`
+			: undefined;
+		const conceptLink = toObsidianInternalLink(concept.path, concept.title);
+
+		return drafts.map((draft) => draft.mode !== "upsert_card_group"
+			? draft
+			: {
+				...draft,
+				content: draft.content
+					.replace(/^concept:\s*.*$/m, `concept: "${escapeYamlDoubleQuoted(conceptLink)}"`)
+					.replace(/^# .* Cards$/m, `# ${concept.title} Cards`),
+				targetPath: cardGroupPath ?? draft.targetPath,
+			});
+	}
+
+	private alignNewConceptDraftWithUniquePath(
+		drafts: MarkdownWriteDraft[],
+		conceptTitle: string,
+	): MarkdownWriteDraft[] {
+		return drafts.map((draft) => {
+			if (draft.kind !== "concept") return draft;
+			const stem = normalizeVaultPath(draft.targetPath).split("/").pop()?.replace(/\.md$/i, "") ?? conceptTitle;
+			const cardGroupPath = buildCardGroupPath(this.options.settingsProvider().cardsFolder, stem);
+			const cardGroupLink = toObsidianInternalLink(cardGroupPath, `${conceptTitle} Cards`);
+			return {
+				...draft,
+				content: draft.content
+					.replace(/^cards:\s*.*$/m, `cards: "${escapeYamlDoubleQuoted(cardGroupLink)}"`)
+					.replace(/^Cards:\s*.*$/m, `Cards: ${cardGroupLink}`),
+			};
+		});
 	}
 
 	private failedResult(proposalId: string, message: string): MarkdownWriteResult {
@@ -406,6 +467,11 @@ export class ApprovedProposalWriter {
 
 		for (const draft of drafts) {
 			const desiredPath = normalizeVaultPath(draft.targetPath);
+			if (draft.mode === "upsert_card_group") {
+				reservedPaths.add(desiredPath);
+				assignedDrafts.push({ ...draft, targetPath: desiredPath });
+				continue;
+			}
 			const occupiedPaths = new Set(reservedPaths);
 			let candidate = desiredPath;
 
@@ -441,6 +507,23 @@ export class ApprovedProposalWriter {
 	}
 
 	private async writeDraft(draft: MarkdownWriteDraft): Promise<void> {
+		if (draft.mode === "upsert_card_group") {
+			if (!(await this.options.vaultAdapter.exists(draft.targetPath))) {
+				await this.options.vaultAdapter.create(draft.targetPath, draft.content);
+				return;
+			}
+
+			const existing = await this.options.vaultAdapter.read(draft.targetPath);
+			const appendResult = appendCardGroupDraft(existing, draft.content);
+			if (appendResult.status === "invalid") {
+				throw new Error(appendResult.message);
+			}
+			if (appendResult.status === "appended") {
+				await this.options.vaultAdapter.modify(draft.targetPath, appendResult.markdown);
+			}
+			return;
+		}
+
 		if (draft.mode === "append") {
 			await this.options.vaultAdapter.append(draft.targetPath, draft.content);
 			return;
@@ -488,4 +571,8 @@ export class ApprovedProposalWriter {
 			await this.options.sourceAnalysisStore.upsertRecord(mergeLinkedConceptId(sourceRecord, conceptId));
 		}
 	}
+}
+
+function escapeYamlDoubleQuoted(value: string): string {
+	return value.replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
 }

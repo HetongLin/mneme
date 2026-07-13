@@ -67,7 +67,9 @@ async function runAsyncTests(): Promise<void> {
 		const firstRecord = createRecord("Notes/Intro.md");
 		const secondRecord = {
 			...createRecord("Notes/Advanced.md"),
+			lastCardGenerationFingerprint: "concept-learning-fingerprint",
 			lastCardGenerationHash: "concept-card-generation-hash",
+			lastCardGenerationOutcome: "coverage_complete" as const,
 		};
 		const storage = new MemorySourceAnalysisStorage({
 			reviewStates: {},
@@ -86,6 +88,7 @@ async function runAsyncTests(): Promise<void> {
 			"Notes/Advanced.md",
 		]));
 		assert.equal((await store.getRecord(secondRecord.sourcePath))?.lastCardGenerationHash, "concept-card-generation-hash");
+		assert.equal((await store.getRecord(secondRecord.sourcePath))?.lastCardGenerationOutcome, "coverage_complete");
 	}
 
 	{

@@ -1,7 +1,6 @@
 import type { KnowledgeProposal } from "../models/knowledgeProposal";
 import type { SourceEvidence } from "../models/conceptSource";
-import { formatCardTypeTitle } from "../utils/cardTitle";
-import { buildCardPath } from "../utils/markdownPath";
+import { buildCardGroupPath } from "../utils/markdownPath";
 
 export interface ProposalHighlight {
 	label: string;
@@ -23,7 +22,8 @@ export function getProposalTitle(proposal: KnowledgeProposal): string {
 		case "new_concept":
 			return getString(payload, "title") ?? "New Concept";
 		case "new_card": {
-			return getProposedCardMarkdownFilename(proposal);
+			const front = getNestedString(payload, "card", "front");
+			return front ? `Card: ${truncateDisplayText(front, 80)}` : "New Card";
 		}
 		case "revise_card":
 			return `Revise Card: ${getString(payload, "cardId") ?? proposal.cardId ?? "Unknown Card"}`;
@@ -60,7 +60,7 @@ export function getProposalHighlights(proposal: KnowledgeProposal): ProposalHigh
 			]);
 		case "new_card":
 			return compactHighlights([
-				{ label: "Markdown File", value: getProposedCardMarkdownFilename(proposal) },
+				{ label: "Card Group", value: getProposedCardMarkdownFilename(proposal) },
 				{ label: "Card Type", value: getNestedString(payload, "card", "cardType") },
 				{ label: "Front", value: getNestedString(payload, "card", "front") },
 				{ label: "Back", value: getNestedString(payload, "card", "back") },
@@ -94,12 +94,15 @@ export function getProposedCardMarkdownFilename(proposal: KnowledgeProposal): st
 		?? getString(payload, "conceptId")
 		?? proposal.conceptId
 		?? "Concept";
-	const cardType = getNestedString(payload, "card", "cardType");
-	const cardTitle = cardType ? formatCardTypeTitle(cardType) : "Card";
-	const path = buildCardPath("Mneme/Cards", conceptLabel, cardTitle);
+	const path = buildCardGroupPath("Mneme/Cards", conceptLabel);
 	const slashIndex = path.lastIndexOf("/");
 
 	return slashIndex === -1 ? path : path.slice(slashIndex + 1);
+}
+
+function truncateDisplayText(value: string, maxLength: number): string {
+	const normalized = value.replace(/\s+/g, " ").trim();
+	return normalized.length <= maxLength ? normalized : `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
 }
 
 export function getProposalSubtitle(proposal: KnowledgeProposal): string {

@@ -1,7 +1,7 @@
 export interface MarkdownWriteDraft {
 	content: string;
 	kind: "concept" | "card";
-	mode: "create" | "append" | "modify";
+	mode: "create" | "append" | "modify" | "upsert_card_group";
 	sourceProposalId: string;
 	targetPath: string;
 }

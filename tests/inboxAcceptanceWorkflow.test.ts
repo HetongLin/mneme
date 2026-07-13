@@ -108,7 +108,7 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal((await store.getProposal(proposal.id))?.status, "written");
 		assert.deepEqual(filterActiveInboxProposals(await store.listProposals()), []);
 		assert.equal(vault.files.has("Mneme/Concepts/Encapsulation.md"), true);
-		assert.equal(formatAcceptActionLabel(proposal), "Accept Concept");
+		assert.equal(formatAcceptActionLabel(proposal), "Accept & Next");
 	}
 
 	{
@@ -128,7 +128,7 @@ async function runAsyncTests(): Promise<void> {
 		});
 		const { store, vault, workflow } = createWorkflow({ [proposal.id]: proposal });
 		const result = await workflow.acceptProposal(proposal.id);
-		const content = await vault.read("Mneme/Cards/Encapsulation/Encapsulation - Application.md");
+		const content = await vault.read("Mneme/Cards/Encapsulation/Cards.md");
 
 		assert.equal(result.status, "accepted");
 		assert.equal(result.kind, "card");
@@ -136,7 +136,7 @@ async function runAsyncTests(): Promise<void> {
 		assert.deepEqual(filterActiveInboxProposals(await store.listProposals()), []);
 		assert.match(content, /MNEME:FRONT:start/);
 		assert.equal(content.includes("fsrsState"), false);
-		assert.equal(formatAcceptActionLabel(proposal), "Accept Card");
+		assert.equal(formatAcceptActionLabel(proposal), "Accept & Next");
 	}
 
 	{
@@ -176,7 +176,7 @@ async function runAsyncTests(): Promise<void> {
 
 		assert.equal(result.status, "accepted");
 		assert.equal(result.kind, "concept");
-		assert.equal(formatAcceptActionLabel(proposal), "Accept View");
+		assert.equal(formatAcceptActionLabel(proposal), "Accept & Next");
 		assert.match(await vault.read(conceptPath), /### Change boundary\n\nA stable interface isolates change\./);
 		assert.equal((await store.getProposal(proposal.id))?.status, "written");
 	}
@@ -201,7 +201,7 @@ async function runAsyncTests(): Promise<void> {
 
 		assert.equal(result.status, "accepted");
 		assert.equal(result.kind, "concept");
-		assert.equal(formatAcceptActionLabel(proposal), "Accept Source Link");
+		assert.equal(formatAcceptActionLabel(proposal), "Accept & Next");
 		assert.match(await vault.read(conceptPath), /\[\[Notes\/Lecture 1\]\]/);
 		assert.equal((await store.getProposal(proposal.id))?.status, "written");
 	}
@@ -240,7 +240,7 @@ async function runAsyncTests(): Promise<void> {
 
 		assert.equal(result.status, "accepted");
 		assert.equal(result.kind, "concept");
-		assert.equal(formatAcceptActionLabel(proposal), "Accept Update");
+		assert.equal(formatAcceptActionLabel(proposal), "Accept & Next");
 		assert.match(await vault.read(conceptPath), /## Why It Matters\n\nUpdated summary/);
 		assert.equal((await store.getProposal(proposal.id))?.status, "written");
 	}

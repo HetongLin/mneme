@@ -16,6 +16,8 @@ Source Notes
 -> Mneme tracks Concept-level learning state
 ```
 
+Students may also create clean approved Concepts directly; only AI-proposed knowledge changes require the Inbox Review Gate. Accepted Cards append as independently scheduled blocks to one Card Group Markdown file per Concept.
+
 Mneme is not an Anki clone. It may export approved Cards as isolated Anki-importable copies, but Mneme Markdown and Mneme FSRS remain independent.
 
 ## How to use

@@ -26,6 +26,7 @@ const request = {
 const cardRequest = {
 	conceptId: "concept-encapsulation",
 	conceptTitle: "Encapsulation",
+	existingCardFronts: ["What is encapsulation?"],
 	mode: "card_generation" as const,
 	sourceContent: "# Encapsulation\n\n## Core Meaning\n\nEncapsulation protects representation.",
 	sourceHash: "concept-hash",
@@ -193,7 +194,7 @@ async function run(): Promise<void> {
 	assert.equal(payload.text?.format.type, "json_schema");
 	assert.equal(serialized.includes("sk-secret-value"), false);
 	assert.equal(serialized.includes("Write user-facing Concept text in the source note's dominant language"), true);
-	assert.equal(serialized.includes("tags must always be pure English lowercase organization slugs"), true);
+	assert.equal(serialized.includes("Prefer stable English lowercase slugs"), true);
 	assert.equal(serialized.includes("Encapsulation keeps object internals"), false);
 	assert.equal(serialized.includes("Encapsulatio"), true);
 }

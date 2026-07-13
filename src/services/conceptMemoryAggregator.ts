@@ -57,6 +57,7 @@ export function aggregateReviewQueueConcept(
 	].filter((card) => !excludedCardIds.has(card.cardId));
 	const cardRisks = cards.map((card) => calculateCardMemoryRisk(card, reviewStates[card.cardId], now));
 	const validCardRisks = cardRisks.filter((cardRisk) => cardRisk.dueStatus !== "invalid");
+	const validCards = cards.filter((card) => card.dueStatus !== "invalid");
 	const reviewCardRisks = validCardRisks.filter((cardRisk) => cardRisk.includedInDailyReview);
 	const validCardCount = validCardRisks.length;
 	const reviewCardCount = reviewCardRisks.length;
@@ -81,6 +82,10 @@ export function aggregateReviewQueueConcept(
 	const earliestDueAt = getEarliestDueAt(reviewCardRisks);
 	const nextDueAt = getEarliestDueAt(validCardRisks.filter((cardRisk) => !cardRisk.includedInDailyReview));
 	const importanceWeight = getImportanceWeight(concept.concept.importance);
+	const assessmentProbes = new Set(validCards.map((card) => normalizeProbe(card.card.front)).filter(Boolean));
+	const coveredCardTypes = [...new Set(validCards.flatMap((card) => card.card.cardType ? [card.card.cardType] : []))];
+	const lastReviewedAt = getLatestReviewAt(validCards, reviewStates);
+	const rotationBoost = calculateRotationBoost(lastReviewedAt, now, validCardCount);
 	const reviewPriorityScore = calculateReviewPriorityScore({
 		dueRatio,
 		lapseRatio,
@@ -88,13 +93,17 @@ export function aggregateReviewQueueConcept(
 		overdueRatio: calculateRatio(overdueCardCount, reviewCardCount),
 		reviewCardCount,
 		importanceWeight,
+		rotationBoost,
 	});
 	const priorityScore = reviewPriorityScore;
 
 	return {
+		assessmentCoverage: assessmentProbes.size === 0 ? "none" : assessmentProbes.size === 1 ? "limited" : "multiple",
+		assessmentProbeCount: assessmentProbes.size,
 		averageRisk,
 		cardRisks,
 		conceptId: concept.conceptId,
+		coveredCardTypes,
 		dueCardCount,
 		dueRatio,
 		earliestDueAt,
@@ -112,6 +121,7 @@ export function aggregateReviewQueueConcept(
 		priorityScore,
 		reviewCardCount,
 		reviewPriorityScore,
+		rotationBoost,
 		title: concept.title,
 		topK,
 		topKAvgRisk,
@@ -228,6 +238,7 @@ function calculateReviewPriorityScore(input: {
 	overdueRatio: number;
 	reviewCardCount: number;
 	importanceWeight: number;
+	rotationBoost: number;
 }): number {
 	if (input.reviewCardCount === 0) {
 		return 0;
@@ -236,10 +247,34 @@ function calculateReviewPriorityScore(input: {
 	return clampRisk(
 		0.45 * input.overdueRatio
 		+ 0.35 * input.dueRatio
-		+ 0.25 * input.newRatio
-		+ 0.10 * input.lapseRatio
-		+ 0.10 * input.importanceWeight,
+			+ 0.25 * input.newRatio
+			+ 0.10 * input.lapseRatio
+			+ 0.10 * input.importanceWeight
+			+ input.rotationBoost,
 	);
+}
+
+function calculateRotationBoost(lastReviewedAt: string | undefined, now: Date, validCardCount: number): number {
+	if (validCardCount === 0) return 0;
+	if (!lastReviewedAt) return 0.08;
+	const reviewedAt = Date.parse(lastReviewedAt);
+	if (Number.isNaN(reviewedAt)) return 0.08;
+	const days = Math.max(0, (now.getTime() - reviewedAt) / MS_PER_DAY);
+	return Math.min(0.08, days / 30 * 0.08);
+}
+
+function getLatestReviewAt(
+	cards: ReviewQueueCard[],
+	reviewStates: Record<string, CardReviewState>,
+): string | undefined {
+	return cards
+		.map((card) => reviewStates[card.cardId]?.lastReviewedAt)
+		.filter((value): value is string => !!value && !Number.isNaN(Date.parse(value)))
+		.sort((left, right) => Date.parse(right) - Date.parse(left))[0];
+}
+
+function normalizeProbe(front: string): string {
+	return front.trim().toLocaleLowerCase().replace(/\s+/g, " ");
 }
 
 export function getImportanceWeight(importance: ConceptImportance | undefined): number {

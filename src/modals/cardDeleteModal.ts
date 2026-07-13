@@ -42,7 +42,7 @@ export class CardDeleteModal extends Modal {
 			const { card } = this.options;
 			const file = this.app.vault.getAbstractFileByPath(card.path);
 			if (!(file instanceof TFile)) {
-				new Notice("Mneme: Card.md was not found.");
+				new Notice("Mneme: Card Markdown was not found.");
 				return;
 			}
 			const before = await this.app.vault.cachedRead(file);

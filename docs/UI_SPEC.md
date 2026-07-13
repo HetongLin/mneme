@@ -6,7 +6,7 @@ All user-facing UI labels must be in English.
 
 Fixed product chrome and field labels use English. Content that comes from the student's notes follows the Source Note's dominant language, so a Chinese note may produce Chinese Concept summaries, Core Meaning, Card prompts, and evidence excerpts. Technical terms should include English names in parentheses when helpful, such as `字典学习 (Dictionary Learning)`.
 
-Concept tags are an exception: generated and approved tags should be pure English lowercase slugs, such as `dictionary-learning` or `sparse-representation`, to avoid duplicate multilingual tag meanings.
+AI should prefer stable English lowercase tag slugs, but user-approved and manually entered tags may use any language already meaningful in the vault. Mneme normalizes whitespace and punctuation without deleting non-Latin text.
 
 The product should feel low-pressure. Avoid debt-like language.
 
@@ -47,6 +47,8 @@ v0.1 includes:
 - Review View
 - Inbox View
 - Card Edit Modal
+- Create Concept Modal
+- Concept Library
 - Settings View or Settings Tab
 
 ## Review View
@@ -117,7 +119,7 @@ Primary back-side actions are only the FSRS rating buttons, arranged like an Ank
 - Easy updates FSRS state.
 - Skip does not update FSRS state.
 - Edit opens Card Edit Modal.
-- View Source opens the Source Note.
+- Open Concept opens the approved Concept that grounds the Card. Source Notes remain reachable from that Concept.
 - Review Later, Suspend Card, Retire Card, and Delete Card are available from `More`, not the main review controls.
 
 ## Today’s Focus
@@ -130,6 +132,8 @@ Today’s Focus
 5 Concepts · 16 Cards
 
 Do not display a scary overdue queue by default.
+
+Today’s Focus is a curated subset of FSRS-eligible Cards. The UI shows a calm `available later` count so work is not silently hidden, and ranking includes a bounded rotation factor so lower-importance eligible Concepts are not starved indefinitely.
 
 ## Concept Library Duplicate Diagnostics
 
@@ -185,26 +189,28 @@ Preferred order:
 
 1. Title / Source / Target metadata
 2. Editable Concept or Card content
-3. Source Evidence
+3. Source Evidence for Concept proposals, or Concept Grounding for Card proposals
 4. Validation status
 5. Advanced / Raw JSON
 6. Bottom actions
 
 `Proposed Change` summaries should not appear above editable Concept fields when they merely duplicate Summary or Core Meaning. For Card proposals, the editable Front / Back / Rubric fields are the primary review content.
 
-Source Evidence must show concrete evidence excerpts, not only an evidence count. It may show the first few excerpts and place the full structured payload under Advanced / Raw JSON.
+Concept proposals show concrete Source Evidence excerpts. Card proposals instead show Concept Grounding quoted from the approved Concept. Either surface may show the first few excerpts and place the full structured payload under Advanced / Raw JSON.
 
 Bottom actions:
 
-- Accept
-- Reject
+- Accept & Next
+- Reject & Next
 - Close
+
+The modal advances within the same proposal stage after a successful action. This reduces approval ceremony without permitting unseen bulk acceptance.
 
 ## Card Edit Modal
 
 ### Purpose
 
-Allow users to edit Card.md marker content safely.
+Allow users to edit one Card block inside a Card Group safely.
 
 Editable fields:
 
@@ -219,10 +225,16 @@ Actions:
 
 Rules:
 
-- Saving updates Card.md markers.
+- Saving updates only the selected Card Group block.
 - Editing content does not update FSRS state.
 - FSRS state only changes after a review rating.
 - If marker format is broken, show validation error.
+
+Back must contain the complete answer. Rubric is an optional scoring checklist and must not introduce knowledge absent from Back; keeping Rubric collapsed is safe only under this invariant.
+
+## Create Concept Modal
+
+`Create Concept` is available from the command palette and Concept Library. Title and Core Meaning are required; Why It Matters and tags are optional. The student may choose Learning Mode and Importance. Saving writes an immediately approved clean Concept with a stable ID and Card Group link; it does not create an Inbox proposal.
 
 ## Settings
 

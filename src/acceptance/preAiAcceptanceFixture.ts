@@ -19,7 +19,7 @@ The concept checks that Mneme can:
 - index a Source Note
 - create KnowledgeProposals
 - review and approve proposals in Inbox
-- write Concept.md and Card.md
+- write Concept.md and Card Group Markdown
 - index ConceptSourceLinks
 - show Concepts in Concept Library
 - preserve Review and FSRS behavior
@@ -102,7 +102,7 @@ export function buildPreAiAcceptanceCardProposal(
 
 function createAcceptanceEvidence(): SourceEvidence[] {
 	return [{
-		excerpt: "The concept checks that Mneme can index a Source Note, create KnowledgeProposals, write Concept.md and Card.md, index ConceptSourceLinks, show Concepts in Concept Library, and preserve Review and FSRS behavior.",
+		excerpt: "The concept checks that Mneme can index a Source Note, create KnowledgeProposals, write Concept.md and Card Group Markdown, index ConceptSourceLinks, show Concepts in Concept Library, and preserve Review and FSRS behavior.",
 		heading: "Pre-AI Acceptance Source",
 	}];
 }

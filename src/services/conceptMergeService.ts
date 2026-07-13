@@ -258,6 +258,14 @@ export class ConceptMergeService {
 			writes: ConceptMergeWrite[];
 		}
 	> {
+		const legacyFolder = [input.survivor, input.merged]
+			.find((concept) => concept.cardsPath && !/\.md$/i.test(concept.cardsPath));
+		if (legacyFolder?.cardsPath) {
+			return {
+				message: `Legacy per-Card folder must be consolidated before Guided Merge: ${legacyFolder.cardsPath}`,
+				status: "blocked",
+			};
+		}
 		if (input.survivor.cardsPath && input.survivor.cardsPath === input.merged.cardsPath) {
 			return { message: "Both Concepts reference the same Card Group. Repair that association first.", status: "blocked" };
 		}

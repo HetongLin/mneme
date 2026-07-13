@@ -23,6 +23,7 @@ export interface AiConceptCaptureRequest extends AiProposalRequestBase {
 export interface AiCardGenerationRequest extends AiProposalRequestBase {
 	conceptId: string;
 	conceptTitle: string;
+	existingCardFronts: string[];
 	mode: "card_generation";
 }
 

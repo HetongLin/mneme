@@ -15,6 +15,8 @@ import {
 	getProposalTitle,
 } from "../services/knowledgeProposalDisplay";
 import { validateKnowledgeProposalPayload } from "../services/knowledgeProposalValidation";
+import { getProposalStageLabel } from "../services/knowledgeProposalStage";
+import { normalizeConceptTags } from "../services/conceptMarkdownRenderer";
 
 interface ProposalDetailModalOptions {
 	onChange?(): Promise<void> | void;
@@ -24,6 +26,7 @@ interface ProposalDetailModalOptions {
 }
 
 export class ProposalDetailModal extends Modal {
+	private isActing = false;
 	private proposal: KnowledgeProposal;
 
 	constructor(
@@ -60,7 +63,7 @@ export class ProposalDetailModal extends Modal {
 
 		const actionsEl = contentEl.createDiv({ cls: "mneme-proposal-detail-modal-actions" });
 		if (getAcceptanceKind(this.proposal)) {
-			actionsEl.createEl("button", { text: "Accept" }, (buttonEl) => {
+			actionsEl.createEl("button", { text: "Accept & Next" }, (buttonEl) => {
 				buttonEl.disabled = !this.options.writer;
 				buttonEl.title = this.options.writer
 					? "Validate and write this proposal to Markdown."
@@ -70,7 +73,7 @@ export class ProposalDetailModal extends Modal {
 				});
 			});
 		}
-		actionsEl.createEl("button", { text: "Reject" }, (buttonEl) => {
+		actionsEl.createEl("button", { text: "Reject & Next" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
 				void this.reject();
 			});
@@ -100,13 +103,14 @@ export class ProposalDetailModal extends Modal {
 	}
 
 	private renderSourceEvidence(parentEl: HTMLElement): void {
-		parentEl.createEl("h3", { text: "Source Evidence" });
+		const evidenceLabel = this.proposal.kind === "new_card" ? "Concept Grounding" : "Source Evidence";
+		parentEl.createEl("h3", { text: evidenceLabel });
 		const evidenceItems = getProposalEvidenceItems(this.proposal);
 
 		if (evidenceItems.length === 0) {
 			parentEl.createEl("p", {
 				cls: "mneme-review-status",
-				text: "No source evidence provided.",
+				text: `No ${evidenceLabel.toLocaleLowerCase()} provided.`,
 			});
 			return;
 		}
@@ -180,11 +184,6 @@ export class ProposalDetailModal extends Modal {
 			["critical", "Critical"],
 		], "normal");
 		const tagsInput = this.createTextInput(parentEl, "Tags", getStringArray(payload, "tags").join(", "));
-
-		parentEl.createEl("p", {
-			cls: "mneme-review-status",
-			text: `Proposed cards: ${Array.isArray(payload.proposedCards) ? payload.proposedCards.length : 0}`,
-		});
 
 		this.createSaveEditsButton(parentEl, () => ({
 			...payload,
@@ -357,7 +356,6 @@ export class ProposalDetailModal extends Modal {
 		try {
 			this.proposal = await this.options.store.updateProposalStatus(this.proposal.id, "opened");
 			await this.options.onChange?.();
-			this.renderContent();
 		} catch (error) {
 			console.error("Mneme: failed to mark proposal opened", error);
 		}
@@ -396,11 +394,13 @@ export class ProposalDetailModal extends Modal {
 	}
 
 	private async accept(): Promise<void> {
+		if (this.isActing) return;
 		if (!this.options.writer) {
 			new Notice("Mneme: Markdown writer is not available.");
 			return;
 		}
 
+		this.isActing = true;
 		try {
 			const workflow = new InboxAcceptanceWorkflow({
 				proposalStore: this.options.store,
@@ -409,9 +409,8 @@ export class ProposalDetailModal extends Modal {
 			const result = await workflow.acceptProposal(this.proposal.id);
 
 			if (result.status === "accepted") {
-				await this.options.onChange?.();
 				new Notice(result.kind === "concept" ? "Mneme: Concept accepted." : "Mneme: Card accepted.");
-				this.close();
+				await this.advanceOrClose();
 				return;
 			}
 
@@ -429,10 +428,14 @@ export class ProposalDetailModal extends Modal {
 		} catch (error) {
 			console.error("Mneme: proposal acceptance failed", error);
 			new Notice("Mneme: Proposal acceptance failed. See console.");
+		} finally {
+			this.isActing = false;
 		}
 	}
 
 	private async reject(): Promise<void> {
+		if (this.isActing) return;
+		this.isActing = true;
 		try {
 			const workflow = this.options.writer
 				? new InboxAcceptanceWorkflow({
@@ -452,13 +455,29 @@ export class ProposalDetailModal extends Modal {
 				this.proposal = await this.options.store.updateProposalStatus(this.proposal.id, "rejected");
 			}
 
-			await this.options.onChange?.();
 			new Notice("Mneme: Proposal rejected.");
-			this.close();
+			await this.advanceOrClose();
 		} catch (error) {
 			console.error("Mneme: failed to reject proposal", error);
 			new Notice("Mneme: Proposal could not be rejected.");
+		} finally {
+			this.isActing = false;
 		}
+	}
+
+	private async advanceOrClose(): Promise<void> {
+		await this.options.onChange?.();
+		const stage = getProposalStageLabel(this.proposal);
+		const next = (await this.options.store.listActive())
+			.find((proposal) => proposal.id !== this.proposal.id && getProposalStageLabel(proposal) === stage);
+		if (!next) {
+			this.close();
+			return;
+		}
+
+		this.proposal = next;
+		await this.markOpenedIfPossible();
+		this.renderContent();
 	}
 }
 
@@ -475,11 +494,7 @@ function getStringArray(record: Record<string, unknown>, key: string): string[] 
 }
 
 function parseTags(value: string): string[] {
-	return [...new Set(value
-		.split(",")
-		.map((tag) => tag.trim().replace(/^#+/, "").toLocaleLowerCase().replace(/[^a-z0-9/_-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, ""))
-		.filter((tag) => tag.length > 0))]
-		.slice(0, 5);
+	return normalizeConceptTags(value.split(","));
 }
 
 function formatEvidenceMeta(evidence: ProposalEvidenceDisplayItem): string {

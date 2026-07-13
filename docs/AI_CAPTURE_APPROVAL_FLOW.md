@@ -1,6 +1,6 @@
 # AI Capture Approval Flow
 
-The intended future flow is:
+The current product flow is:
 
 ```text
 Analyze Current Note
@@ -11,7 +11,7 @@ Analyze Current Note
 -> Inbox Review
 -> User edits / approves / rejects / merges
 -> Accepted Concepts write Concept.md
--> Accepted Cards write Card.md
+-> Accepted Cards append to the Concept's Card Group
 -> Written Cards enter FSRS
 -> Review Mode groups due/new Cards by Concept
 ```
@@ -54,7 +54,7 @@ After a Concept is reviewed, approved, and explicitly written to `Concept.md`, t
 - `merge_card`
 - `retire_card`
 
-Card proposals still enter Inbox and require a separate review/edit/acceptance step before any `Card.md` is written.
+Card proposals still enter Inbox and require a separate review/edit/acceptance step before any Card Group content is written.
 
 Future Scan Vault behavior follows the same rule: first propose Concepts, then generate Cards from written Concepts.
 
@@ -123,7 +123,7 @@ The concept-capture response uses:
 - `proposals`
 - `warnings`
 
-Proposal entries may include machine-oriented `confidence`, `rationale`, and source evidence. These fields support validation and internal review, but they must not automatically appear in `Concept.md`, `Card.md`, Inbox primary UI, or Concept Library primary UI.
+Proposal entries may include machine-oriented `confidence`, `rationale`, and source evidence. These fields support validation and internal review, but they must not automatically appear in `Concept.md`, Card Group Markdown, Inbox primary UI, or Concept Library primary UI.
 
 The Card-generation response uses the same schema version and source envelope with `mode: "card_generation"`. The current accepted kind is `new_card`, whose payload identifies the written Concept and provides front, back, rubric, and card type.
 
@@ -147,9 +147,9 @@ In `concept_capture` mode, providers must not return Card-stage proposal kinds:
 
 Generated learning content follows the Source Note's dominant language. For example, Chinese notes may produce Chinese Concept titles, summaries, Core Meaning, Views, Card text, and evidence excerpts. Technical terms should include English names in parentheses when helpful. Evidence quotes must preserve the original source text and must not be translated.
 
-Tags are the exception to source-language following: generated tags must be pure English lowercase slugs, using hyphens instead of spaces. This keeps tag search stable and avoids duplicated multilingual tag meanings.
+AI should prefer stable English lowercase tag slugs, but the Review Gate preserves user-approved non-English tags. Mneme normalizes tag punctuation without erasing established vault language.
 
-Cards are generated later from written `Concept.md`, then reviewed and accepted separately before any `Card.md` is written.
+Cards are generated later from written `Concept.md`, then reviewed and accepted separately before any Card block is appended.
 
 Current implementation supports two post-review write paths:
 
@@ -162,19 +162,19 @@ AI-proposed merge acceptance and AI-proposed revise, split, merge, or retire Car
 
 ## Inbox Shell
 
-`KnowledgeProposalStore` persists future Inbox proposals in plugin data.
+`KnowledgeProposalStore` persists Inbox proposals in plugin data.
 
 The Inbox is product-facing review space, not a lifecycle-state dashboard. It summarizes active work as To Review, Concept Proposals, Card Proposals, and Invalid items. Developer lifecycle states such as rejected, stale, and written are not primary Inbox counters.
 
-Future tasks will add proposal payload schemas, AI generation, diff preview, editing, and Markdown writing.
+Current proposal kinds use typed payloads, structured editing, validation, and explicit Markdown writers. Destructive future proposal kinds still require dedicated preview-and-rollback designs before they can be accepted.
 
 ## Proposal Detail Review
 
-Knowledge proposals now support typed payloads for future Concept and Card changes.
+Knowledge proposals support typed payloads for Concept and Card changes.
 
 The Inbox can open a proposal detail modal. The Inbox list is only a queue: it shows proposal titles and allows `Open` or direct `Reject`; it must not allow acceptance.
 
-The proposal detail modal is the Review Gate. It shows editable proposal-specific fields first, then concrete Source Evidence excerpts, then validation and Advanced / Raw JSON. Users can save edits, accept valid payloads, or reject proposals from this detail surface.
+The proposal detail modal is the Review Gate. It shows editable proposal-specific fields first, then concrete Source Evidence for Concept proposals or Concept Grounding for Card proposals, then validation and Advanced / Raw JSON. `Accept & Next` and `Reject & Next` continue within the same stage without allowing unseen bulk acceptance.
 
 `Mneme: Add Sample Knowledge Proposal` is a temporary debug command for manual Inbox validation. It creates proposal data only; it does not call AI or write files.
 
@@ -188,15 +188,15 @@ Open proposal -> read/edit content -> inspect evidence -> Accept -> Markdown wri
 
 For a Concept proposal, `Accept` validates the proposal, writes `Concept.md`, and marks the proposal `written` only after a successful vault write.
 
-For a Card proposal, `Accept` validates the proposal, writes one parser-compatible Card Markdown file, and marks the proposal `written` only after a successful vault write.
+For a Card proposal, `Accept & Next` validates the proposal, appends one parser-compatible block to the Concept's Card Group, and marks the proposal `written` only after a successful vault write.
 
 The initial writer supports `new_concept` and `new_card` proposals only. Unsupported proposal kinds stay in Inbox until future structured editors and diff/patch writers exist.
 
-Written `new_concept` proposals create editable Concept Markdown files directly in the configured Concepts folder. Written `new_card` proposals create one parseable Card Markdown file inside the Concept's card folder using Mneme's existing card marker syntax.
+Written `new_concept` proposals create editable Concept Markdown files directly in the configured Concepts folder. Written `new_card` proposals append one parseable, independently identified block to the Concept's canonical Card Group file.
 
 Written Cards do not receive FSRS state during writing; they enter the normal parser/review pipeline after the vault is refreshed or reloaded.
 
-Card proposal generation records the Concept content hash when proposals are successfully created. If the same Concept hash requests generation again, Mneme skips the AI call even if the previous proposals have already been accepted or rejected. This prevents duplicate isolated Card batches from the same unchanged Concept. Editing the Concept changes the hash and permits a new generation attempt.
+Card proposal generation records a Learning Content Fingerprint built from assessable Concept sections and supplies existing Card fronts as a Coverage Map. Active proposals, previously written proposals, or a `coverage_complete` provider result for the same fingerprint block repetition; presentation/provenance edits do not unlock another round, while a fully rejected proposal round may be retried.
 
 Successful `new_concept` writes can also index approved Concept-source links. Mneme stores these links in plugin data and updates the analyzed Source Note's `linkedConceptIds` when source analysis state exists.
 
@@ -206,7 +206,7 @@ Inbox Refresh and `Mneme: Resync Mneme Index` reconcile plugin data against the 
 
 Reconciliation never deletes user Markdown. It only cleans plugin index/cache/proposal state so `data.json` follows the current vault instead of acting as a second content source of truth.
 
-Raw JSON editing remains available under Advanced / Raw JSON for debugging and escape hatches, but the primary flow should present proposal-specific fields, readable Source Evidence excerpts, and bottom `Accept` / `Reject` / `Close` actions.
+Raw JSON editing remains available under Advanced / Raw JSON for debugging and escape hatches, but the primary flow presents proposal-specific fields, readable evidence or grounding, and bottom `Accept & Next` / `Reject & Next` / `Close` actions.
 
 ## Developer Tools Gate
 
@@ -214,9 +214,9 @@ Acceptance fixtures, sample proposals, and diagnostic logging commands are devel
 
 ## Readable And Identifiable Markdown
 
-Generated `Concept.md` is a human-facing learning note with minimal Mneme frontmatter for identification. It links to its review card folder, uses concise Source Notes, and keeps machine metadata in plugin data.
+Generated `Concept.md` is a human-facing learning note with minimal Mneme frontmatter for identification. It omits empty placeholder sections, links to its Card Group, uses concise Source Notes, and keeps machine metadata in plugin data.
 
-Each generated Card Markdown file is one reviewable Card. It includes minimal card frontmatter, links back to the Concept, and keeps the existing parser-compatible card marker syntax.
+Each generated Card is one block in the Concept's Card Group Markdown file. The group links back to the Concept, while every block keeps an immutable Card ID, optional type, and parser-compatible marker sections.
 
 Cards are not dumped into `Concept.md` by default. `sourceHash`, proposal ids, review state, FSRS state, due dates, stability, difficulty, and raw JSON remain outside the main Markdown reading flow.
 
@@ -224,13 +224,13 @@ Cards are not dumped into `Concept.md` by default. `sourceHash`, proposal ids, r
 
 The Concept Library scans existing `Concept.md` files with Mneme concept frontmatter and shows clean Concept summaries.
 
-It is a browsing and opening layer only. Users edit Concepts by opening Markdown. Future AI Capture can use these summaries to match new source-note candidates against existing Concepts before proposing duplicates, merges, updates, or new views.
+It is a Markdown-backed management layer: students can create and open Concepts, edit supported metadata and sections, generate Cards, and enter reviewed repair or merge flows. The scanner also supplies existing Concept summaries to AI Capture so new Source Notes can propose links, updates, or views instead of unnecessary duplicates.
 
 ## AI Does Not Write Permanent Markdown
 
 AI output is proposal data until accepted by the user.
 
-Suggested Concepts and Cards do not become `Concept.md` or `Card.md` content until a user explicitly accepts the proposal.
+Suggested Concepts and Cards do not become `Concept.md` or Card Group content until a user explicitly accepts the proposal.
 
 ## No Accept All As Primary UX
 

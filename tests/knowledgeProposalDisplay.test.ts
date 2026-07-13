@@ -56,9 +56,9 @@ import { createProposal } from "./knowledgeProposalTestUtils";
 		},
 	});
 
-	assert.equal(getProposalTitle(proposal), "Encapsulation - Definition.md");
+	assert.equal(getProposalTitle(proposal), "Card: What is encapsulation?");
 	assert.deepEqual(getProposalHighlights(proposal).slice(0, 4), [
-		{ label: "Markdown File", value: "Encapsulation - Definition.md" },
+		{ label: "Card Group", value: "Cards.md" },
 		{ label: "Card Type", value: "definition" },
 		{ label: "Front", value: "What is encapsulation?" },
 		{ label: "Back", value: "Encapsulation hides representation details." },

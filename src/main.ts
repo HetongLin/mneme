@@ -8,6 +8,7 @@ import {
 } from "./acceptance/preAiAcceptanceFixture";
 import type { KnowledgeProposal } from "./models/knowledgeProposal";
 import { ConfirmClearReviewHistoryModal } from "./modals/confirmClearReviewHistoryModal";
+import { ManualConceptModal } from "./modals/manualConceptModal";
 import {
 	DEFAULT_SETTINGS,
 	getSettingsFromPluginData,
@@ -24,6 +25,7 @@ import { exportCardsToAnkiTsv } from "./services/ankiTsvExporter";
 import { createAiProvider } from "./services/aiProviderFactory";
 import { ConceptSourceLinkStore } from "./services/conceptSourceLinkStore";
 import { ConceptScanner } from "./services/conceptScanner";
+import { ConceptLoader } from "./services/conceptLoader";
 import { ConceptMergeService } from "./services/conceptMergeService";
 import {
 	getCardGroupLinkFromConceptFrontmatter,
@@ -36,13 +38,14 @@ import { ObsidianConceptVaultAdapter } from "./services/obsidianConceptVaultAdap
 import { ObsidianAiHttpClient } from "./services/obsidianAiHttpClient";
 import { ObsidianVaultAdapter } from "./services/obsidianVaultAdapter";
 import { PreAiAcceptanceFixtureService } from "./services/preAiAcceptanceFixtureService";
+import { createManualConcept } from "./services/manualConceptService";
 import { ReviewStateStore } from "./services/reviewStateStore";
 import { SourceAnalysisService } from "./services/sourceAnalysisService";
 import { SourceAnalysisStore } from "./services/sourceAnalysisStore";
 import { SourceProvenanceRelinkService } from "./services/sourceProvenanceRelinkService";
 import { SourceProvenanceRemovalService } from "./services/sourceProvenanceRemovalService";
 import { VaultStateReconciler } from "./services/vaultStateReconciler";
-import { buildCardPath, buildConceptPath, normalizeVaultPath, slugifyForFilename } from "./utils/markdownPath";
+import { buildCardGroupPath, buildConceptPath, normalizeVaultPath } from "./utils/markdownPath";
 import { CONCEPT_LIBRARY_VIEW_TYPE, MnemeConceptLibraryView } from "./views/conceptLibraryView";
 import { MnemeInboxView, INBOX_VIEW_TYPE, type InboxTab } from "./views/inboxView";
 import { MnemeReviewView, REVIEW_VIEW_TYPE } from "./views/reviewView";
@@ -104,6 +107,7 @@ export default class MnemePlugin extends Plugin {
 					new ObsidianVaultAdapter(this.app.vault),
 					this,
 				),
+				createConcept: () => this.openManualConceptModal(),
 				sourceRelinkService: new SourceProvenanceRelinkService(
 					new ObsidianVaultAdapter(this.app.vault),
 					this,
@@ -138,6 +142,12 @@ export default class MnemePlugin extends Plugin {
 			id: "mneme-clear-review-history",
 			name: "Clear Review History",
 			callback: () => this.openClearReviewHistoryModal(),
+		});
+
+		this.addCommand({
+			id: "mneme-create-concept",
+			name: "Create Concept",
+			callback: () => this.openManualConceptModal(),
 		});
 
 		this.addCommand({
@@ -203,6 +213,23 @@ export default class MnemePlugin extends Plugin {
 				void this.exportAnkiTsv();
 			},
 		});
+	}
+
+	private openManualConceptModal(): void {
+		new ManualConceptModal(this.app, {
+			create: (input) => createManualConcept(
+				input,
+				this.settings,
+				new ObsidianVaultAdapter(this.app.vault),
+			),
+			onCreated: async (result) => {
+				const file = this.app.vault.getAbstractFileByPath(result.path);
+				if (file instanceof TFile) {
+					await this.app.workspace.getLeaf("tab").openFile(file);
+				}
+				await this.refreshOpenConceptLibraryViews();
+			},
+		}).open();
 	}
 
 	private registerDeveloperCommands(): void {
@@ -308,7 +335,7 @@ export default class MnemePlugin extends Plugin {
 			const validCount = cards.filter((card) => card.isValid).length;
 			const invalidCount = cards.length - validCount;
 
-			console.info("Mneme: scanned Card.md files", {
+			console.info("Mneme: scanned Card Markdown files", {
 				cards,
 				invalidCount,
 				totalCount: cards.length,
@@ -445,7 +472,7 @@ export default class MnemePlugin extends Plugin {
 		const markdown = await this.app.vault.cachedRead(conceptFile);
 		const conceptTitle = parseConceptTitle(markdown, conceptFile.path);
 
-		return normalizeVaultPath(`${this.settings.cardsFolder}/${slugifyForFilename(conceptTitle)}`);
+		return buildCardGroupPath(this.settings.cardsFolder, conceptTitle);
 	}
 
 	private async openCardTarget(path: string): Promise<void> {
@@ -461,7 +488,7 @@ export default class MnemePlugin extends Plugin {
 			return;
 		}
 
-		new Notice("Mneme: Card folder not found. Generate and accept Cards first.");
+		new Notice("Mneme: Card Group not found. Generate and accept Cards first.");
 	}
 
 	private async generateCardsFromConceptFile(conceptFile: TFile): Promise<void> {
@@ -480,6 +507,10 @@ export default class MnemePlugin extends Plugin {
 
 		const markdown = await this.app.vault.cachedRead(conceptFile);
 		const conceptTitle = parseConceptTitle(markdown, conceptFile.path);
+		const loadedConcepts = await new ConceptLoader(this.app).loadConcepts();
+		const existingCardFronts = loadedConcepts.concepts
+			.find((concept) => concept.id === conceptId)
+			?.cards.filter((card) => card.isValid).map((card) => card.front) ?? [];
 		const service = new AiCardGenerationService({
 			createProvider: (settings) => createAiProvider(settings, new ObsidianAiHttpClient()),
 			proposalStore: this.knowledgeProposalStore,
@@ -492,6 +523,7 @@ export default class MnemePlugin extends Plugin {
 			conceptPath: conceptFile.path,
 			conceptSize: conceptFile.stat.size,
 			conceptTitle,
+			existingCardFronts,
 			markdown,
 		});
 
@@ -777,7 +809,7 @@ export default class MnemePlugin extends Plugin {
 			const conceptProposal = await this.knowledgeProposalStore.getProposal(ACCEPTANCE_CONCEPT_PROPOSAL_ID);
 			const cardProposal = await this.knowledgeProposalStore.getProposal(ACCEPTANCE_CARD_PROPOSAL_ID);
 			const conceptPath = buildConceptPath(this.settings.conceptsFolder, ACCEPTANCE_CONCEPT_TITLE);
-			const cardPath = buildCardPath(this.settings.cardsFolder, ACCEPTANCE_CONCEPT_TITLE);
+			const cardPath = buildCardGroupPath(this.settings.cardsFolder, ACCEPTANCE_CONCEPT_TITLE);
 			const status = {
 				cardPath,
 				cardProposalExists: Boolean(cardProposal),
@@ -843,6 +875,15 @@ export default class MnemePlugin extends Plugin {
 		const refreshes = this.app.workspace.getLeavesOfType(INBOX_VIEW_TYPE)
 			.map((leaf) => leaf.view)
 			.filter((view): view is MnemeInboxView => view instanceof MnemeInboxView)
+			.map((view) => view.refresh());
+
+		await Promise.all(refreshes);
+	}
+
+	private async refreshOpenConceptLibraryViews(): Promise<void> {
+		const refreshes = this.app.workspace.getLeavesOfType(CONCEPT_LIBRARY_VIEW_TYPE)
+			.map((leaf) => leaf.view)
+			.filter((view): view is MnemeConceptLibraryView => view instanceof MnemeConceptLibraryView)
 			.map((view) => view.refresh());
 
 		await Promise.all(refreshes);

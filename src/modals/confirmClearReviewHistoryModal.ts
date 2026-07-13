@@ -24,7 +24,7 @@ export class ConfirmClearReviewHistoryModal extends Modal {
 			text: "This clears stored Mneme review history, including card review counts, ratings, and due dates.",
 		});
 		contentEl.createEl("p", {
-			text: "It does not modify Concept.md, Card.md, or any notes in your vault.",
+			text: "It does not modify Concept Markdown, Card Markdown, or any notes in your vault.",
 		});
 		contentEl.createEl("p", {
 			cls: "mneme-clear-review-history-modal-instruction",

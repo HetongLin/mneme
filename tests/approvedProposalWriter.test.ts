@@ -7,6 +7,7 @@ import { KnowledgeProposalStore } from "../src/services/knowledgeProposalStore";
 import { SourceAnalysisStore } from "../src/services/sourceAnalysisStore";
 import { createPluginData, createProposal, createSourceRecord, MemoryKnowledgeProposalStorage } from "./knowledgeProposalTestUtils";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
+import type { ConceptSummary } from "../src/models/conceptLibrary";
 
 class MemoryVaultAdapter implements MnemeVaultAdapter {
 	createdFolders = new Set<string>();
@@ -72,6 +73,11 @@ async function createWriter(
 	proposals = {},
 	vault = new MemoryVaultAdapter(),
 	storage = new MemoryKnowledgeProposalStorage(createPluginData(proposals)),
+	concept: ConceptSummary = {
+		conceptId: "concept-encapsulation",
+		path: "Mneme/Concepts/Encapsulation/Concept.md",
+		title: "Encapsulation",
+	},
 ): Promise<{
 	storage: MemoryKnowledgeProposalStorage;
 	store: KnowledgeProposalStore;
@@ -84,11 +90,7 @@ async function createWriter(
 	const writer = new ApprovedProposalWriter({
 		conceptSourceLinkStore,
 		conceptScanner: {
-			scanConcepts: async () => [{
-				conceptId: "concept-encapsulation",
-				path: "Mneme/Concepts/Encapsulation/Concept.md",
-				title: "Encapsulation",
-			}],
+			scanConcepts: async () => [concept],
 		},
 		now: () => "2026-01-02T12:00:00.000Z",
 		proposalStore: store,
@@ -185,13 +187,77 @@ async function runAsyncTests(): Promise<void> {
 		const result = await writer.writeApprovedProposal(proposal.id);
 
 		assert.equal(result.status, "written");
-		assert.equal(vault.files.has("Mneme/Cards/Encapsulation/Encapsulation - Definition.md"), true);
-		const content = await vault.read("Mneme/Cards/Encapsulation/Encapsulation - Definition.md");
-		assert.match(content, /^---\nmneme_type: card\nmneme_card_id: encapsulation-what-is-encapsulation-p/m);
+		assert.equal(vault.files.has("Mneme/Cards/Encapsulation/Cards.md"), true);
+		const content = await vault.read("Mneme/Cards/Encapsulation/Cards.md");
+		assert.match(content, /^---\nmneme_type: card_group\nmneme_concept_id: concept-encapsulation/m);
 		assert.match(content, /mneme_concept_id: concept-encapsulation/);
-		assert.match(content, /card_type: definition/);
-		assert.match(content, /Related Concept: \[\[Mneme\/Concepts\/Encapsulation\|Encapsulation\]\]/);
+		assert.match(content, /MNEME:CARD:start id="[^"]+" type="definition"/);
 		assert.equal((await store.getProposal(proposal.id))?.status, "written");
+	}
+
+	{
+		const first = createApprovedCardProposal("proposal-card-one");
+		const second = createApprovedCardProposal("proposal-card-two");
+		second.payload!.card.front = "Why hide representation?";
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData({
+			[first.id]: first,
+			[second.id]: second,
+		}));
+		const vault = new MemoryVaultAdapter();
+		const { writer } = await createWriter({ [first.id]: first, [second.id]: second }, vault, storage);
+
+		assert.equal((await writer.writeApprovedProposal(first.id)).status, "written");
+		assert.equal((await writer.writeApprovedProposal(second.id)).status, "written");
+		const cards = parseMnemeCards(await vault.read("Mneme/Cards/Encapsulation/Cards.md"));
+
+		assert.equal(cards.length, 2);
+		assert.deepEqual(cards.map((card) => card.front), ["What is encapsulation?", "Why hide representation?"]);
+	}
+
+	{
+		const first = createApprovedCardProposal("proposal-card-valid-before-corruption");
+		const second = createApprovedCardProposal("proposal-card-after-corruption");
+		second.payload!.card.front = "Should this append?";
+		const proposals = { [first.id]: first, [second.id]: second };
+		const vault = new MemoryVaultAdapter();
+		const { writer } = await createWriter(proposals, vault);
+		const cardGroupPath = "Mneme/Cards/Encapsulation/Cards.md";
+
+		assert.equal((await writer.writeApprovedProposal(first.id)).status, "written");
+		const malformed = (await vault.read(cardGroupPath)).replace("<!-- MNEME:BACK:end -->", "");
+		vault.files.set(cardGroupPath, malformed);
+		const result = await writer.writeApprovedProposal(second.id);
+
+		assert.equal(result.status, "failed");
+		assert.match(result.message, /Repair invalid or unidentified Cards/);
+		assert.equal(await vault.read(cardGroupPath), malformed);
+	}
+
+	{
+		const proposal = createApprovedCardProposal("proposal-card-stable-group");
+		proposal.payload!.conceptTitle = "Renamed Encapsulation";
+		const declaredCardGroupPath = "Mneme/Cards/Stable-Identifier/Cards.md";
+		const actualConceptPath = "Knowledge/Encapsulation.md";
+		const vault = new MemoryVaultAdapter();
+		const { writer } = await createWriter(
+			{ [proposal.id]: proposal },
+			vault,
+			undefined,
+			{
+				cardsPath: declaredCardGroupPath,
+				conceptId: "concept-encapsulation",
+				path: actualConceptPath,
+				title: "Encapsulation as a Boundary",
+			},
+		);
+
+		const result = await writer.writeApprovedProposal(proposal.id);
+
+		assert.equal(result.status, "written");
+		assert.deepEqual(result.targetPaths, [declaredCardGroupPath]);
+		const content = await vault.read(declaredCardGroupPath);
+		assert.match(content, /concept: "\[\[Knowledge\/Encapsulation\|Encapsulation as a Boundary\]\]"/);
+		assert.equal(vault.files.has("Mneme/Cards/Renamed-Encapsulation/Cards.md"), false);
 	}
 
 	{
@@ -333,6 +399,10 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(result.status, "written");
 		assert.equal(vault.files.has("Mneme/Concepts/Encapsulation-2.md"), true);
 		assert.equal(vault.files.get("Mneme/Concepts/Encapsulation.md"), "Existing content");
+		assert.match(
+			await vault.read("Mneme/Concepts/Encapsulation-2.md"),
+			/cards: "\[\[Mneme\/Cards\/Encapsulation-2\/Cards\|Encapsulation Cards\]\]"/,
+		);
 	}
 
 	{
@@ -414,7 +484,7 @@ async function runAsyncTests(): Promise<void> {
 		const proposal = createApprovedCardProposal();
 		const { vault, writer } = await createWriter({ [proposal.id]: proposal });
 		await writer.writeApprovedProposal(proposal.id);
-		const content = await vault.read("Mneme/Cards/Encapsulation/Encapsulation - Definition.md");
+		const content = await vault.read("Mneme/Cards/Encapsulation/Cards.md");
 		const parsedCards = parseMnemeCards(content);
 
 		assert.equal(parsedCards.length, 1);

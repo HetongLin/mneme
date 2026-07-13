@@ -1,3 +1,5 @@
+import type { CardDraftType } from "../models/knowledgeProposal";
+
 export const CARD_MARKER_SECTIONS = ["FRONT", "BACK", "RUBRIC"] as const;
 
 export type CardMarkerSection = typeof CARD_MARKER_SECTIONS[number];
@@ -20,6 +22,7 @@ export interface CardMarkerIssue {
 export interface ParsedCardMarkers {
 	back: string;
 	cardBlockIndex: number;
+	cardType?: CardDraftType;
 	errors: CardMarkerIssue[];
 	explicitCardId?: string;
 	front: string;
@@ -30,6 +33,7 @@ export interface ParsedCardMarkers {
 }
 
 interface CardBlockMatch {
+	cardType?: CardDraftType;
 	content: string;
 	explicitCardId?: string;
 }
@@ -84,7 +88,7 @@ export function parseMnemeCards(markdown: string): ParsedCardMarkers[] {
 	}
 
 	const parsedCards = cardBlocks.map((block, index) => {
-		return addCardIdentityMetadata(parseCardMarkers(block.content), index, block.explicitCardId);
+		return addCardIdentityMetadata(parseCardMarkers(block.content), index, block.explicitCardId, block.cardType);
 	});
 	const malformedErrors = createCardBlockErrors(startCount, endCount, cardBlocks.length);
 
@@ -178,6 +182,7 @@ function getCardBlockMatches(markdown: string): CardBlockMatch[] {
 
 	return Array.from(markdown.matchAll(pattern), (match) => {
 		return {
+			cardType: parseCardTypeAttribute(match[1] ?? ""),
 			content: match[2] ?? "",
 			explicitCardId: parseCardIdAttribute(match[1] ?? ""),
 		};
@@ -188,6 +193,7 @@ function addCardIdentityMetadata(
 	parsed: ParsedCardMarkers,
 	cardBlockIndex: number,
 	explicitCardId?: string,
+	cardType?: CardDraftType,
 ): ParsedCardMarkers {
 	const warnings = [...parsed.warnings];
 
@@ -202,10 +208,24 @@ function addCardIdentityMetadata(
 	return {
 		...parsed,
 		cardBlockIndex,
+		cardType,
 		explicitCardId,
 		hasExplicitCardId: explicitCardId !== undefined,
 		warnings,
 	};
+}
+
+function parseCardTypeAttribute(attributes: string): CardDraftType | undefined {
+	const quoted = /\btype\s*=\s*"([^"]+)"/.exec(attributes)
+		?? /\btype\s*=\s*'([^']+)'/.exec(attributes);
+	const value = quoted?.[1] ?? /\btype\s*=\s*([^\s>]+)/.exec(attributes)?.[1];
+	return isCardType(value) ? value : undefined;
+}
+
+function isCardType(value: string | undefined): value is CardDraftType {
+	return value === "definition" || value === "distinction" || value === "procedure"
+		|| value === "example" || value === "trap" || value === "proof"
+		|| value === "application" || value === "mastery" || value === "other";
 }
 
 function parseCardIdAttribute(attributes: string): string | undefined {

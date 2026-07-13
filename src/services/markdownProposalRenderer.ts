@@ -2,14 +2,14 @@ import type { KnowledgeProposal, NewCardProposalPayload, NewConceptProposalPaylo
 import type { MarkdownWriteDraft } from "../models/markdownWrite";
 import type { MnemeSettings } from "../models/settings";
 import {
-	buildCardPath,
+	buildCardGroupPath,
 	buildConceptPath,
 	createMnemeConceptId,
 	slugifyForFilename,
 	toObsidianInternalLink,
 } from "../utils/markdownPath";
-import { formatCardTypeTitle } from "../utils/cardTitle";
 import { validateKnowledgeProposalPayload } from "./knowledgeProposalValidation";
+import { renderConceptMarkdown } from "./conceptMarkdownRenderer";
 
 export type MarkdownProposalRenderResult =
 	| { drafts: MarkdownWriteDraft[]; status: "rendered" }
@@ -64,72 +64,23 @@ function renderNewConceptDraft(
 ): MarkdownWriteDraft {
 	const conceptId = proposal.conceptId ?? createMnemeConceptId(payload.title);
 	const conceptPath = buildConceptPath(settings.conceptsFolder, payload.title);
-	const cardFolderPath = `${settings.cardsFolder}/${slugifyForFilename(payload.title)}`;
-	const tags = normalizeTags(payload.tags ?? []);
-	const lines = [
-		"---",
-		"mneme_type: concept",
-		`mneme_id: ${conceptId}`,
-		"mneme_version: 1",
-		`cards_folder: "${cardFolderPath}"`,
-		...(payload.learningMode ? [`learning_mode: ${payload.learningMode}`] : []),
-		...(payload.suggestedImportance ? [`importance: ${payload.suggestedImportance}`] : []),
-		...(tags.length > 0 ? [`tags: [${tags.join(", ")}]`] : []),
-		"---",
-		"",
-		`# ${payload.title}`,
-		"",
-		"## Core Meaning",
-		"",
-		payload.coreMeaning || payload.summary || "",
-		"",
-		"## Why It Matters",
-		"",
-		payload.summary && payload.summary !== payload.coreMeaning
-			? payload.summary
-			: "Add why this concept matters here.",
-		"",
-		"## Views",
-		"",
-	];
-
-	if (payload.proposedViews && payload.proposedViews.length > 0) {
-		for (const view of payload.proposedViews) {
-			lines.push(`### ${view.title}`, "", view.body, "");
-		}
-	} else {
-		lines.push("Add views here.", "");
-	}
-
-	lines.push("## Common Traps", "", "Add common traps here.", "");
-	lines.push("## Review", "");
-	lines.push(`Card folder: \`${cardFolderPath}/\``);
-	lines.push("Generate and accept Cards to populate this folder.", "");
-
-	lines.push("## Source Notes", "");
-
-	if (payload.proposedSourceLinks && payload.proposedSourceLinks.length > 0) {
-		lines.push("> [!info]- Source Notes");
-		for (const link of payload.proposedSourceLinks) {
-			lines.push(`> - ${toObsidianInternalLink(link.sourcePath)}`);
-			lines.push(`>   - relation: ${link.relationType}`);
-			const excerpt = link.evidence?.[0]?.excerpt;
-
-			if (excerpt) {
-				lines.push(`>   - evidence: ${truncateSingleLine(excerpt, 180)}`);
-			}
-		}
-	} else if (proposal.sourcePath) {
-		lines.push("> [!info]- Source Notes");
-		lines.push(`> - ${toObsidianInternalLink(proposal.sourcePath)}`);
-	} else {
-		lines.push("> [!info]- Source Notes", "> Add source notes here.");
-	}
-
-	lines.push("", "## Related Concepts", "", "<!-- Add related concepts here. -->", "");
+	const cardGroupPath = buildCardGroupPath(settings.cardsFolder, payload.title);
+	const cardGroupLink = toObsidianInternalLink(cardGroupPath, `${payload.title} Cards`);
 
 	return {
-		content: lines.join("\n"),
+		content: renderConceptMarkdown({
+			cardGroupLink,
+			conceptId,
+			coreMeaning: payload.coreMeaning || payload.summary || "",
+			importance: payload.suggestedImportance,
+			learningMode: payload.learningMode,
+			sourceLinks: payload.proposedSourceLinks,
+			sourcePath: proposal.sourcePath,
+			tags: payload.tags,
+			title: payload.title,
+			views: payload.proposedViews,
+			whyItMatters: payload.summary,
+		}),
 		kind: "concept",
 		mode: "create",
 		sourceProposalId: proposal.id,
@@ -146,25 +97,23 @@ function renderNewCardDraft(
 	const conceptId = payload.conceptId || proposal.conceptId || createMnemeConceptId(conceptLabel);
 	const conceptPath = buildConceptPath(settings.conceptsFolder, payload.conceptTitle || conceptLabel);
 	const conceptLink = toObsidianInternalLink(conceptPath, payload.conceptTitle || conceptLabel);
-	const cardTitle = payload.card.cardType ? formatCardTypeTitle(payload.card.cardType) : "Card";
 	const cardId = createTemporaryWriterCardId(conceptLabel, payload.card.front, proposal.id);
+	const cardTypeAttribute = payload.card.cardType
+		? ` type="${escapeHtmlAttribute(payload.card.cardType)}"`
+		: "";
 	const lines = [
 		"---",
-		"mneme_type: card",
-		`mneme_card_id: ${cardId}`,
+		"mneme_type: card_group",
 		`mneme_concept_id: ${conceptId}`,
 		"mneme_version: 1",
-		`concept: "${conceptLink}"`,
-		...(payload.card.cardType ? [`card_type: ${payload.card.cardType}`] : []),
+		`concept: "${escapeYamlDoubleQuoted(conceptLink)}"`,
 		"---",
 		"",
-		`# ${cardTitle}`,
-		"",
-		`Related Concept: ${conceptLink}`,
+		`# ${conceptLabel} Cards`,
 		"",
 		"<!-- Mneme cards below -->",
 		"",
-		`<!-- MNEME:CARD:start id="${escapeHtmlAttribute(cardId)}" -->`,
+		`<!-- MNEME:CARD:start id="${escapeHtmlAttribute(cardId)}"${cardTypeAttribute} -->`,
 		"<!-- MNEME:FRONT:start -->",
 		payload.card.front,
 		"<!-- MNEME:FRONT:end -->",
@@ -188,9 +137,9 @@ function renderNewCardDraft(
 	return {
 		content: lines.join("\n"),
 		kind: "card",
-		mode: "create",
+		mode: "upsert_card_group",
 		sourceProposalId: proposal.id,
-		targetPath: buildCardPath(settings.cardsFolder, conceptLabel, cardTitle),
+		targetPath: buildCardGroupPath(settings.cardsFolder, conceptLabel),
 	};
 }
 
@@ -221,40 +170,14 @@ function stableStringHash(value: string): string {
 	return (hash >>> 0).toString(36);
 }
 
-function truncateSingleLine(value: string, maxLength: number): string {
-	const normalized = value.replace(/\s+/g, " ").trim();
-
-	if (normalized.length <= maxLength) {
-		return normalized;
-	}
-
-	return `${normalized.slice(0, maxLength - 1).trim()}...`;
-}
-
-function normalizeTags(value: string[]): string[] {
-	const tags = value
-		.map(normalizeTag)
-		.filter((tag) => tag.length > 0);
-
-	return [...new Set(tags)].slice(0, 5);
-}
-
-function normalizeTag(value: string): string {
-	return value
-		.trim()
-		.replace(/^#+/, "")
-		.replace(/^['"]|['"]$/g, "")
-		.trim()
-		.toLocaleLowerCase()
-		.replace(/[^a-z0-9/_-]+/g, "-")
-		.replace(/-+/g, "-")
-		.replace(/^-|-$/g, "");
-}
-
 function escapeHtmlAttribute(value: string): string {
 	return value
 		.replace(/&/g, "&amp;")
 		.replace(/"/g, "&quot;")
 		.replace(/</g, "&lt;")
 		.replace(/>/g, "&gt;");
+}
+
+function escapeYamlDoubleQuoted(value: string): string {
+	return value.replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
 }

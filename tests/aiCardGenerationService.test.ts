@@ -3,6 +3,7 @@ import type { MnemePluginData } from "../src/models/reviewState";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
 import type { AiProposalRequest, AiProposalResponse, AiProvider } from "../src/services/aiProvider";
 import { AiCardGenerationService } from "../src/services/aiCardGenerationService";
+import { extractConceptLearningContent } from "../src/services/conceptLearningContent";
 import { KnowledgeProposalStore } from "../src/services/knowledgeProposalStore";
 import { MockAiProvider } from "../src/services/mockAiProvider";
 import { SourceAnalysisStore } from "../src/services/sourceAnalysisStore";
@@ -38,7 +39,10 @@ async function run(): Promise<void> {
 		assert.equal(proposals[0]?.conceptId, concept.conceptId);
 		assert.equal(proposals[0]?.sourcePath, concept.conceptPath);
 		assert.equal(proposals[0]?.status, "suggested");
-		assert.equal((await fixture.sourceAnalysisStore.getRecord(concept.conceptPath))?.lastCardGenerationHash, await computeContentHash(concept.markdown));
+		assert.equal(
+			(await fixture.sourceAnalysisStore.getRecord(concept.conceptPath))?.lastCardGenerationFingerprint,
+			await conceptFingerprint(),
+		);
 	}
 
 	{
@@ -48,6 +52,42 @@ async function run(): Promise<void> {
 
 		assert.equal(second.status, "skipped_active_proposals");
 		assert.equal(fixture.provider.callCount, 1);
+	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		const conceptHash = await conceptFingerprint();
+		fixture.provider.response = {
+			mode: "card_generation",
+			proposals: [],
+			schemaVersion: "mneme.ai.proposals.v1",
+			source: { hash: conceptHash, path: concept.conceptPath },
+			warnings: [],
+		};
+
+		const first = await fixture.service.generate(concept);
+		const second = await fixture.service.generate(concept);
+		const record = await fixture.sourceAnalysisStore.getRecord(concept.conceptPath);
+
+		assert.equal(first.status, "coverage_complete");
+		assert.equal(first.proposalCount, 0);
+		assert.equal(second.status, "skipped_unchanged_concept");
+		assert.equal(fixture.provider.callCount, 1);
+		assert.equal(record?.lastCardGenerationOutcome, "coverage_complete");
+	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		await fixture.service.generate(concept);
+		const proposals = await fixture.proposalStore.loadProposals();
+		await fixture.proposalStore.replaceProposals(Object.fromEntries(
+			Object.entries(proposals).map(([id, proposal]) => [id, { ...proposal, status: "rejected" as const }]),
+		));
+
+		const retry = await fixture.service.generate(concept);
+
+		assert.equal(retry.status, "generated");
+		assert.equal(fixture.provider.callCount, 2);
 	}
 
 	{
@@ -82,6 +122,24 @@ async function run(): Promise<void> {
 
 		assert.equal(second.status, "generated");
 		assert.equal(fixture.provider.callCount, 2);
+	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		await fixture.service.generate(concept);
+		const proposals = await fixture.proposalStore.loadProposals();
+		await fixture.proposalStore.replaceProposals(Object.fromEntries(
+			Object.entries(proposals).map(([id, proposal]) => [id, { ...proposal, status: "written" as const }]),
+		));
+
+		const metadataOnlyChange = {
+			...concept,
+			markdown: `---\nmneme_type: concept\ntags: [changed]\n---\n\n${concept.markdown}\n\n## Source Notes\n\n[[Notes/Changed]]`,
+		};
+		const second = await fixture.service.generate(metadataOnlyChange);
+
+		assert.equal(second.status, "skipped_unchanged_concept");
+		assert.equal(fixture.provider.callCount, 1);
 	}
 
 	{
@@ -126,7 +184,7 @@ async function run(): Promise<void> {
 
 	{
 		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
-		const conceptHash = await computeContentHash(concept.markdown);
+		const conceptHash = await conceptFingerprint();
 		fixture.provider.response = {
 			mode: "card_generation",
 			proposals: [{
@@ -161,7 +219,7 @@ async function run(): Promise<void> {
 
 	{
 		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
-		const conceptHash = await computeContentHash(concept.markdown);
+		const conceptHash = await conceptFingerprint();
 		fixture.provider.response = {
 			mode: "card_generation",
 			proposals: Array.from({ length: 6 }, (_, index) => createCardProposal(index)),
@@ -178,7 +236,7 @@ async function run(): Promise<void> {
 
 	{
 		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
-		const conceptHash = await computeContentHash(concept.markdown);
+		const conceptHash = await conceptFingerprint();
 		const proposal = createCardProposal(0);
 		proposal.evidence[0]!.quote = "This quote is not in the approved Concept.";
 		fixture.provider.response = {
@@ -197,7 +255,7 @@ async function run(): Promise<void> {
 
 	{
 		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
-		const conceptHash = await computeContentHash(concept.markdown);
+		const conceptHash = await conceptFingerprint();
 		const proposal = createCardProposal(0);
 		proposal.evidence = [];
 		fixture.provider.response = {
@@ -216,7 +274,7 @@ async function run(): Promise<void> {
 
 	{
 		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
-		const conceptHash = await computeContentHash(concept.markdown);
+		const conceptHash = await conceptFingerprint();
 		const proposal = createCardProposal(0);
 		proposal.evidence[0]!.sourcePath = "Mneme/Concepts/Other/Concept.md";
 		fixture.provider.response = {
@@ -254,6 +312,10 @@ function createCardProposal(index: number) {
 		rationale: "Tests the approved Core Meaning.",
 		title: `Encapsulation Card ${index + 1}`,
 	};
+}
+
+async function conceptFingerprint(): Promise<string> {
+	return computeContentHash(extractConceptLearningContent(concept.markdown, concept.conceptPath));
 }
 
 function createFixture(settingsOverrides: Partial<typeof DEFAULT_SETTINGS>) {

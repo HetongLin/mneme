@@ -182,7 +182,7 @@ const multiCard = [
 
 {
 	const parsedCards = parseMnemeCards([
-		"<!-- MNEME:CARD:start id=\"encapsulation-basic\" -->",
+		"<!-- MNEME:CARD:start id=\"encapsulation-basic\" type=\"application\" -->",
 		"<!-- MNEME:FRONT:start -->",
 		"What is encapsulation?",
 		"<!-- MNEME:FRONT:end -->",
@@ -194,6 +194,7 @@ const multiCard = [
 
 	assert.equal(parsedCards.length, 1);
 	assert.equal(parsedCards[0]?.explicitCardId, "encapsulation-basic");
+	assert.equal(parsedCards[0]?.cardType, "application");
 	assert.equal(parsedCards[0]?.hasExplicitCardId, true);
 	assert.equal(parsedCards[0]?.warnings.some((issue) => issue.code === "missing_explicit_card_id"), false);
 }

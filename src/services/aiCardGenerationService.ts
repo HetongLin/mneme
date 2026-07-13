@@ -7,8 +7,9 @@ import { normalizeAiStructuredProposalResponse } from "./aiProposalNormalizer";
 import { validateAiStructuredProposalResponse } from "./aiProposalValidator";
 import type { KnowledgeProposalStore } from "./knowledgeProposalStore";
 import type { SourceAnalysisStore } from "./sourceAnalysisStore";
+import { extractConceptLearningContent } from "./conceptLearningContent";
 
-const ACTIVE_STATUSES = new Set(["suggested", "opened", "edited", "stale"]);
+const ACTIVE_STATUSES = new Set(["suggested", "opened", "edited", "stale", "approved"]);
 
 export interface AiCardGenerationInput {
 	conceptId: string;
@@ -16,11 +17,13 @@ export interface AiCardGenerationInput {
 	conceptPath: string;
 	conceptSize?: number;
 	conceptTitle: string;
+	existingCardFronts?: string[];
 	markdown: string;
 }
 
 export type AiCardGenerationStatus =
 	| "ai_disabled"
+	| "coverage_complete"
 	| "failed"
 	| "generated"
 	| "invalid_config"
@@ -60,12 +63,14 @@ export class AiCardGenerationService {
 		}
 
 		try {
-			const conceptHash = await computeContentHash(input.markdown);
+			const learningContent = extractConceptLearningContent(input.markdown, input.conceptPath);
+			const learningFingerprint = await computeContentHash(learningContent);
+			const contentHash = await computeContentHash(input.markdown);
 			const existing = await this.options.proposalStore.listBySourcePath(input.conceptPath);
 			const hasActiveProposal = existing.some((proposal) => (
 				proposal.kind === "new_card"
-				&& proposal.sourceHash === conceptHash
-				&& ACTIVE_STATUSES.has(proposal.status)
+					&& proposal.sourceHash === learningFingerprint
+					&& ACTIVE_STATUSES.has(proposal.status)
 			));
 
 			if (hasActiveProposal) {
@@ -73,10 +78,20 @@ export class AiCardGenerationService {
 			}
 
 			const previousGenerationRecord = await this.options.sourceAnalysisStore?.getRecord(input.conceptPath);
-			if (previousGenerationRecord?.lastCardGenerationHash === conceptHash) {
+			const hasWrittenProposal = existing.some((proposal) => (
+				proposal.kind === "new_card"
+					&& proposal.sourceHash === learningFingerprint
+					&& proposal.status === "written"
+			));
+			const previousFingerprint = previousGenerationRecord?.lastCardGenerationFingerprint
+				?? previousGenerationRecord?.lastCardGenerationHash;
+			if (
+				previousFingerprint === learningFingerprint
+				&& (hasWrittenProposal || previousGenerationRecord?.lastCardGenerationOutcome === "coverage_complete")
+			) {
 				return this.result(
 					"skipped_unchanged_concept",
-					"Concept has not changed since Card proposals were last generated.",
+					"No new assessable Concept content is available for Card generation.",
 				);
 			}
 
@@ -84,9 +99,10 @@ export class AiCardGenerationService {
 			const response = await provider.generateKnowledgeProposals({
 				conceptId: input.conceptId,
 				conceptTitle: input.conceptTitle,
+				existingCardFronts: normalizeExistingCardFronts(input.existingCardFronts),
 				mode: "card_generation",
-				sourceContent: input.markdown,
-				sourceHash: conceptHash,
+				sourceContent: learningContent,
+				sourceHash: learningFingerprint,
 				sourcePath: input.conceptPath,
 			});
 			const validation = validateAiStructuredProposalResponse(response.structuredResponse);
@@ -99,14 +115,14 @@ export class AiCardGenerationService {
 				return this.result("invalid_response", "AI response mode does not match Card generation.");
 			}
 
-			if (validation.data.source.path !== input.conceptPath || validation.data.source.hash !== conceptHash) {
+			if (validation.data.source.path !== input.conceptPath || validation.data.source.hash !== learningFingerprint) {
 				return this.result("invalid_response", "AI response source does not match the written Concept.");
 			}
 
 			const hasInvalidGrounding = validation.data.proposals.some((proposal) => (
 				proposal.evidence.some((evidence) => (
 					evidence.sourcePath !== input.conceptPath
-						|| !input.markdown.includes(evidence.quote)
+						|| !learningContent.includes(evidence.quote)
 				))
 			));
 
@@ -138,7 +154,20 @@ export class AiCardGenerationService {
 			}
 
 			await this.options.proposalStore.upsertProposals(proposals);
-			await this.recordCardGeneration(input, conceptHash, previousGenerationRecord);
+			await this.recordCardGeneration(
+				input,
+				contentHash,
+				learningFingerprint,
+				proposals.length === 0 ? "coverage_complete" : "proposed",
+				previousGenerationRecord,
+			);
+
+			if (proposals.length === 0) {
+				return this.result(
+					"coverage_complete",
+					"Existing Cards already cover the assessable Concept content.",
+				);
+			}
 
 			return {
 				message: proposals.length === 1
@@ -158,7 +187,9 @@ export class AiCardGenerationService {
 
 	private async recordCardGeneration(
 		input: AiCardGenerationInput,
-		conceptHash: string,
+		contentHash: string,
+		learningFingerprint: string,
+		outcome: "proposed" | "coverage_complete",
 		previous: SourceAnalysisRecord | undefined,
 	): Promise<void> {
 		if (!this.options.sourceAnalysisStore) {
@@ -167,10 +198,12 @@ export class AiCardGenerationService {
 
 		const now = this.options.timestampProvider?.() ?? new Date().toISOString();
 		await this.options.sourceAnalysisStore.upsertRecord({
-			contentHash: conceptHash,
+			contentHash,
 			lastAiCaptureHash: previous?.lastAiCaptureHash,
 			lastAnalyzedAt: now,
-			lastCardGenerationHash: conceptHash,
+			lastCardGenerationFingerprint: learningFingerprint,
+			lastCardGenerationOutcome: outcome,
+			lastCardGenerationHash: learningFingerprint,
 			linkedConceptIds: previous?.linkedConceptIds ?? [input.conceptId],
 			mtime: input.conceptMtime ?? previous?.mtime ?? 0,
 			pendingProposalIds: previous?.pendingProposalIds ?? [],
@@ -179,4 +212,8 @@ export class AiCardGenerationService {
 			status: previous?.status ?? "clean",
 		});
 	}
+}
+
+function normalizeExistingCardFronts(value: string[] | undefined): string[] {
+	return [...new Set((value ?? []).map((front) => front.trim()).filter(Boolean))].slice(0, 100);
 }

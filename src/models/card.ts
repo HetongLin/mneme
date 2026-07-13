@@ -1,8 +1,11 @@
+import type { CardDraftType } from "./knowledgeProposal";
+
 export interface LoadedMnemeCard {
 	back: string;
 	basename: string;
 	cardId: string;
 	cardIndex: number;
+	cardType?: CardDraftType;
 	content: string;
 	errors: string[];
 	front: string;

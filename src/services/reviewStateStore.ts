@@ -848,6 +848,10 @@ function isSourceAnalysisRecord(value: unknown): value is SourceAnalysisRecord {
 	return isObject(value)
 		&& typeof value.sourcePath === "string"
 		&& typeof value.contentHash === "string"
+		&& (value.lastCardGenerationFingerprint === undefined || typeof value.lastCardGenerationFingerprint === "string")
+		&& (value.lastCardGenerationOutcome === undefined
+			|| value.lastCardGenerationOutcome === "proposed"
+			|| value.lastCardGenerationOutcome === "coverage_complete")
 		&& (value.lastCardGenerationHash === undefined || typeof value.lastCardGenerationHash === "string")
 		&& typeof value.mtime === "number"
 		&& typeof value.size === "number"

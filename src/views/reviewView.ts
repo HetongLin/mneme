@@ -61,7 +61,7 @@ export class MnemeReviewView extends ItemView {
 	private selectedConcept: ReviewQueueConcept | null = null;
 	private skippedCardCount = 0;
 	private shouldRefreshQueueOnBack = false;
-	private statusMessage = "Ready to scan Card.md files.";
+	private statusMessage = "Ready to scan Card files.";
 	private suspendedCardCount = 0;
 
 	constructor(
@@ -96,7 +96,7 @@ export class MnemeReviewView extends ItemView {
 
 	async refreshCards(): Promise<void> {
 		this.resetReviewState();
-		this.statusMessage = "Scanning Card.md files...";
+		this.statusMessage = "Scanning Card files...";
 		this.render();
 
 		try {
@@ -395,9 +395,9 @@ export class MnemeReviewView extends ItemView {
 				}).open();
 			});
 		});
-		parentEl.createEl("button", { text: "View Source" }, (buttonEl) => {
+		parentEl.createEl("button", { text: "Open Concept" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
-				void this.openReviewSource(concept.concept);
+				void this.openConceptSource(concept.concept);
 			});
 		});
 		parentEl.createEl("button", { text: "Skip" }, (buttonEl) => {
@@ -519,6 +519,7 @@ export class MnemeReviewView extends ItemView {
 		parentEl.createEl("p", { text: `Review priority: ${formatPriorityBand(memorySummary)} (${formatPercent(memorySummary.reviewPriorityScore)})` });
 		parentEl.createEl("p", { text: `Importance: ${memorySummary.importance ?? "normal (default)"}` });
 		parentEl.createEl("p", { text: `Review cards: ${memorySummary.reviewCardCount}` });
+		parentEl.createEl("p", { text: `Assessment coverage: ${formatAssessmentCoverage(memorySummary)}` });
 		parentEl.createEl("p", { text: `Earliest due: ${memorySummary.earliestDueAt ?? "(unset)"}` });
 		parentEl.createEl("p", { text: `Next due: ${memorySummary.nextDueAt ?? "(unset)"}` });
 		parentEl.createEl("p", { text: `Overdue cards: ${memorySummary.overdueCardCount}` });
@@ -690,6 +691,7 @@ export class MnemeReviewView extends ItemView {
 		detailsGridEl.createEl("span", { text: `Review priority ${formatPercent(memorySummary.reviewPriorityScore)}` });
 		detailsGridEl.createEl("span", { text: `Importance ${memorySummary.importance ?? "normal"}` });
 		detailsGridEl.createEl("span", { text: `${memorySummary.reviewCardCount} review cards` });
+		detailsGridEl.createEl("span", { text: `Assessment coverage ${formatAssessmentCoverage(memorySummary)}` });
 		detailsGridEl.createEl("span", { text: `${memorySummary.overdueCardCount} overdue` });
 		detailsGridEl.createEl("span", { text: `Next due ${memorySummary.nextDueAt ?? "(unset)"}` });
 		detailsGridEl.createEl("span", { text: `Due ${formatPercent(memorySummary.dueRatio)}` });
@@ -1076,55 +1078,6 @@ export class MnemeReviewView extends ItemView {
 		this.render();
 	}
 
-	private async openReviewSource(concept: MnemeConcept): Promise<void> {
-		if (!concept.sourcePath) {
-			await this.openConceptSource(concept);
-			return;
-		}
-
-		const sourceFile = this.resolveMarkdownFile(concept.sourcePath, concept.conceptPath ?? "");
-
-		if (!sourceFile) {
-			console.warn("Mneme: Source Note path did not resolve to a file", {
-				conceptTitle: concept.title,
-				sourcePath: concept.sourcePath,
-			});
-			new Notice("Mneme: Source Note not found. Opening Concept instead.");
-			await this.openConceptSource(concept);
-			return;
-		}
-
-		const existingLeaf = this.findOpenMarkdownLeaf(sourceFile.path);
-		if (existingLeaf) {
-			await this.app.workspace.revealLeaf(existingLeaf);
-			this.app.workspace.setActiveLeaf(existingLeaf, { focus: true });
-		} else {
-			await this.app.workspace.getLeaf("tab").openFile(sourceFile);
-		}
-
-		this.statusMessage = `Opened ${sourceFile.basename}.`;
-		new Notice(`Opened ${sourceFile.basename}.`);
-		this.render();
-	}
-
-	private resolveMarkdownFile(linkPath: string, sourcePath: string): TFile | null {
-		const direct = this.app.vault.getAbstractFileByPath(linkPath);
-
-		if (direct instanceof TFile) {
-			return direct;
-		}
-
-		const withExtension = this.app.vault.getAbstractFileByPath(
-			/\.md$/i.test(linkPath) ? linkPath : `${linkPath}.md`,
-		);
-
-		if (withExtension instanceof TFile) {
-			return withExtension;
-		}
-
-		return this.app.metadataCache.getFirstLinkpathDest(linkPath, sourcePath);
-	}
-
 	private findOpenMarkdownLeaf(path: string): WorkspaceLeaf | undefined {
 		return this.app.workspace.getLeavesOfType("markdown").find((leaf) => {
 			const view = leaf.view;
@@ -1238,6 +1191,15 @@ function formatTextLabel(value: string): string {
 
 function formatPriorityLabel(rankedConcept: RankedReviewQueueConcept): string {
 	return `${formatPriorityBand(rankedConcept)} priority`;
+}
+
+function formatAssessmentCoverage(summary: ConceptMemorySummary): string {
+	const types = summary.coveredCardTypes.length > 0
+		? ` · ${summary.coveredCardTypes.join(", ")}`
+		: "";
+	if (summary.assessmentCoverage === "none") return "No valid probes";
+	if (summary.assessmentCoverage === "limited") return `Limited (${summary.assessmentProbeCount} probe${types})`;
+	return `Multiple (${summary.assessmentProbeCount} probes${types})`;
 }
 
 function formatPriorityBand(summary: Pick<ConceptMemorySummary, "priorityBand"> | Pick<RankedReviewQueueConcept, "priorityBand">): string {

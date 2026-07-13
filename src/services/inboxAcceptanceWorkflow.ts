@@ -157,29 +157,7 @@ export function getAcceptanceKind(proposal: KnowledgeProposal): InboxAcceptanceK
 }
 
 export function formatAcceptActionLabel(proposal: KnowledgeProposal): string {
-	if (proposal.kind === "link_existing_concept") {
-		return "Accept Source Link";
-	}
-
-	if (proposal.kind === "update_concept") {
-		return "Accept Update";
-	}
-
-	if (proposal.kind === "add_view") {
-		return "Accept View";
-	}
-
-	const kind = getAcceptanceKind(proposal);
-
-	if (kind === "concept") {
-		return "Accept Concept";
-	}
-
-	if (kind === "card") {
-		return "Accept Card";
-	}
-
-	return "Accept";
+	return getAcceptanceKind(proposal) ? "Accept & Next" : "Accept";
 }
 
 function formatKind(kind: InboxAcceptanceKind): string {

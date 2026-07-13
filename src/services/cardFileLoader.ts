@@ -1,5 +1,6 @@
 import { App, TFile } from "obsidian";
 import { LoadedMnemeCard } from "../models/card";
+import type { CardDraftType } from "../models/knowledgeProposal";
 import { ParsedCardMarkers, parseMnemeCards } from "./cardMarkerParser";
 
 const FALLBACK_ID_WARNING = "Card has no explicit id; using fallback identity.";
@@ -22,12 +23,13 @@ export class CardFileLoader {
 		try {
 			const content = await this.app.vault.cachedRead(file);
 			const parsedCards = parseMnemeCards(content);
+			const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
 
-			return parsedCards.map((parsed, index) => createLoadedCard(file, content, parsed, index));
+			return parsedCards.map((parsed, index) => createLoadedCard(file, content, parsed, index, getLegacyCardType(frontmatter)));
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 
-			console.error("Mneme: failed to load Card.md file", {
+			console.error("Mneme: failed to load Card Markdown file", {
 				error,
 				path: file.path,
 			});
@@ -38,7 +40,7 @@ export class CardFileLoader {
 				cardId: `${file.path}#0`,
 				cardIndex: 0,
 				content: "",
-				errors: [`Failed to load Card.md: ${message}`],
+				errors: [`Failed to load Card Markdown: ${message}`],
 				front: "",
 				hasExplicitCardId: false,
 				id: `${file.path}#0`,
@@ -67,12 +69,14 @@ function createLoadedCard(
 	content: string,
 	parsed: ParsedCardMarkers,
 	cardIndex: number,
+	legacyCardType?: CardDraftType,
 ): LoadedMnemeCard {
 	return {
 		back: parsed.back,
 		basename: file.basename,
 		cardId: getCardId(file.path, parsed, cardIndex),
 		cardIndex,
+		cardType: parsed.cardType ?? legacyCardType,
 		content,
 		errors: parsed.errors.map((issue) => issue.message),
 		front: parsed.front,
@@ -83,6 +87,16 @@ function createLoadedCard(
 		rubric: parsed.rubric || undefined,
 		warnings: getWarningMessages(parsed),
 	};
+}
+
+function getLegacyCardType(frontmatter: unknown): CardDraftType | undefined {
+	if (!isRecord(frontmatter)) return undefined;
+	const value = frontmatter.card_type;
+	return value === "definition" || value === "distinction" || value === "procedure"
+		|| value === "example" || value === "trap" || value === "proof"
+		|| value === "application" || value === "mastery" || value === "other"
+		? value
+		: undefined;
 }
 
 export function markDuplicateCardIds(cards: LoadedMnemeCard[]): LoadedMnemeCard[] {

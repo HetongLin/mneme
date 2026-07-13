@@ -28,6 +28,7 @@ export const CONCEPT_LIBRARY_VIEW_TYPE = "mneme-concept-library-view";
 
 export interface ConceptLibraryActions {
 	conceptMergeService?: ConceptMergeService;
+	createConcept?(): Promise<void> | void;
 	sourceRelinkService?: SourceProvenanceRelinkService;
 	sourceRemovalService?: SourceProvenanceRemovalService;
 	generateCards?(concept: ConceptSummary): Promise<void> | void;
@@ -333,6 +334,11 @@ export class MnemeConceptLibraryView extends ItemView {
 		});
 
 		const toolbarEl = headerEl.createDiv({ cls: "mneme-review-toolbar" });
+		if (this.actions.createConcept) {
+			toolbarEl.createEl("button", { text: "Create Concept" }, (buttonEl) => {
+				buttonEl.addEventListener("click", () => void this.actions.createConcept?.());
+			});
+		}
 		toolbarEl.createEl("button", { text: "Refresh" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
 				void this.refresh();
@@ -518,7 +524,7 @@ export class MnemeConceptLibraryView extends ItemView {
 		detailsEl.createEl("summary", { text: "Preview" });
 		detailsEl.createEl("p", { text: `Core Meaning: ${concept.coreMeaning ?? "Not provided."}` });
 		detailsEl.createEl("p", { text: `Why It Matters: ${concept.whyItMatters ?? "Not provided."}` });
-		detailsEl.createEl("p", { text: `Cards: ${concept.cardsPath ?? "No card folder or card file."}` });
+		detailsEl.createEl("p", { text: `Cards: ${concept.cardsPath ?? "No Card Group."}` });
 		detailsEl.createEl("p", { text: `Sources: ${formatCount(concept.sourceCount, "source")}` });
 		detailsEl.createEl("p", { text: `Tags: ${formatTags(concept.tags)}` });
 	}
@@ -561,7 +567,7 @@ export class MnemeConceptLibraryView extends ItemView {
 
 	private async openCardTarget(path: string | undefined): Promise<void> {
 		if (!path) {
-			new Notice("Mneme: Card folder or card file not found.");
+			new Notice("Mneme: Card Group or legacy Card folder not found.");
 			return;
 		}
 
@@ -577,7 +583,7 @@ export class MnemeConceptLibraryView extends ItemView {
 			return;
 		}
 
-		new Notice("Mneme: Card folder not found. Generate and accept Cards first.");
+		new Notice("Mneme: Card Group not found. Generate and accept Cards first.");
 	}
 
 	private async revealInFileExplorer(target: TAbstractFile): Promise<void> {

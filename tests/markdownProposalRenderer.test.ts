@@ -29,14 +29,16 @@ function getFirstDraftContent(result: ReturnType<typeof renderMarkdownProposal>)
 	assert.equal(result.status, "rendered");
 	assert.equal(result.status === "rendered" ? result.drafts[0].targetPath : "", "Mneme/Concepts/Encapsulation.md");
 	assert.match(content, /^---\nmneme_type: concept\nmneme_id: concept-encapsulation\nmneme_version: 1/m);
-	assert.match(content, /cards_folder: "Mneme\/Cards\/Encapsulation"/);
+	assert.match(content, /cards: "\[\[Mneme\/Cards\/Encapsulation\/Cards\|Encapsulation Cards\]\]"/);
 	assert.match(content, /learning_mode: reviewable/);
 	assert.match(content, /importance: normal/);
 	assert.match(content, /tags: \[object-oriented-programming, design\]/);
 	assert.match(content, /# Encapsulation/);
 	assert.match(content, /## Core Meaning\n\nEncapsulation protects/);
-	assert.match(content, /## Review\n\nCard folder: `Mneme\/Cards\/Encapsulation\/`/);
-	assert.equal(content.includes("[[Mneme/Cards/Encapsulation"), false);
+	assert.match(content, /## Review Cards\n\nCards: \[\[Mneme\/Cards\/Encapsulation\/Cards\|Encapsulation Cards\]\]/);
+	assert.equal(content.includes("Add why this concept matters here."), false);
+	assert.equal(content.includes("Add views here."), false);
+	assert.equal(content.includes("Add common traps here."), false);
 }
 
 {
@@ -128,16 +130,31 @@ function getFirstDraftContent(result: ReturnType<typeof renderMarkdownProposal>)
 	const parsedCards = parseMnemeCards(content);
 
 	assert.equal(result.status, "rendered");
-	assert.equal(result.status === "rendered" ? result.drafts[0].targetPath : "", "Mneme/Cards/Encapsulation/Encapsulation - Definition.md");
-	assert.match(content, /^---\nmneme_type: card\nmneme_card_id: encapsulation-what-is-encapsulation-p/m);
+	assert.equal(result.status === "rendered" ? result.drafts[0].targetPath : "", "Mneme/Cards/Encapsulation/Cards.md");
+	assert.equal(result.status === "rendered" ? result.drafts[0].mode : "", "upsert_card_group");
+	assert.match(content, /^---\nmneme_type: card_group\nmneme_concept_id: concept-encapsulation/m);
 	assert.match(content, /mneme_concept_id: concept-encapsulation/);
-	assert.match(content, /card_type: definition/);
 	assert.match(content, /concept: "\[\[Mneme\/Concepts\/Encapsulation\|Encapsulation\]\]"/);
-	assert.match(content, /Related Concept: \[\[Mneme\/Concepts\/Encapsulation\|Encapsulation\]\]/);
+	assert.match(content, /MNEME:CARD:start id="encapsulation-what-is-encapsulation-p[^\"]+" type="definition"/);
 	assert.equal(parsedCards.length, 1);
 	assert.equal(parsedCards[0].isValid, true);
 	assert.equal(parsedCards[0].hasExplicitCardId, true);
 	assert.equal(parsedCards[0].front, "What is encapsulation?");
+}
+
+{
+	const proposal = createProposal("proposal-unicode-tags", {
+		kind: "new_concept",
+		payload: {
+			coreMeaning: "向量空间是满足线性组合封闭性的集合。",
+			tags: ["线性代数", "Linear Algebra"],
+			title: "向量空间",
+		},
+		status: "approved",
+	});
+	const content = getFirstDraftContent(renderMarkdownProposal(proposal, DEFAULT_SETTINGS));
+
+	assert.match(content, /tags: \[线性代数, linear-algebra\]/);
 }
 
 {

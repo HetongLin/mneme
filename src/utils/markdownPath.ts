@@ -33,6 +33,12 @@ export function buildCardPath(cardsFolder: string, conceptTitleOrId: string, car
 	return normalizeVaultPath(`${cardsFolder}/${conceptSlug}/${filename}.md`);
 }
 
+export function buildCardGroupPath(cardsFolder: string, conceptTitleOrId: string): string {
+	const conceptSlug = slugifyForFilename(conceptTitleOrId);
+
+	return normalizeVaultPath(`${cardsFolder}/${conceptSlug}/Cards.md`);
+}
+
 export function ensureUniquePath(existingPaths: Set<string>, desiredPath: string): string {
 	const normalizedDesired = normalizeVaultPath(desiredPath);
 

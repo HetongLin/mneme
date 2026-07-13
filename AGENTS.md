@@ -4,7 +4,7 @@
 
 Mneme is an Obsidian-native concept review plugin for university students.
 
-Mneme turns user-written Markdown notes into editable Concepts and Cards. AI may generate structured suggestions, but users must review, edit, and approve before anything is committed.
+Mneme turns user-written Markdown notes into editable Concepts and Cards. AI-generated knowledge changes require review, editing, and approval; directly authored Concepts are written without a fake approval step.
 
 Mneme is not a generic AI chat plugin, not a simple flashcard generator, and not an Anki clone.
 
@@ -14,18 +14,21 @@ Source Note
 → Analyze Current Note
 → Concept Suggestions
 → Inbox Approval
-→ Concept.md / Card.md
+→ Concept.md
+→ Card Proposals
+→ Inbox Approval
+→ Card Group Markdown
 → FSRS Card Scheduling
 → Concept-based Review
 
 ## Product Principles
 
-- AI generates; humans approve.
+- AI proposes; humans approve. Direct student authorship needs no artificial approval gate.
 - Concept is the primary learning object.
 - Card is a testing tool for a Concept.
 - Markdown is the content source of truth.
 - Concept.md is the source of truth for concept content.
-- Card.md is the source of truth for card content.
+- One Card Group Markdown file per Concept is the source of truth for Card content; each block has an independent Card ID and FSRS state.
 - data.json stores state, indexes, hashes, pending suggestions, FSRS state, logs, and caches.
 - Do not duplicate Card front/back content in data.json.
 - Do not let AI write final Markdown directly without Inbox approval.
@@ -36,29 +39,30 @@ Source Note
 
 Before making significant changes, read `docs/CODEX_BRIEF.md`.
 
-The current documentation contains early design decisions and provisional ideas. These documents are guidance, not immutable law. Codex may propose changes when there is a clear engineering or product reason, but changes must be explicit, justified, and documented.
+The current documentation records both stable decisions and evolving implementation guidance. ADRs are authoritative when documents conflict. Codex may propose changes when there is a clear engineering or product reason, but changes must be explicit, justified, and documented.
 
-## v0.1 Scope
+## Current Stabilization Scope
 
-Implement only:
+Prioritize:
 
 - Analyze Current Note
+- Create Concept
 - Hash-based skip
 - Concept Suggestions JSON
 - Schema validation with Zod
 - Inbox approval
 - Concept.md generation
-- Card.md generation
+- Card Group generation
 - Card marker parsing
 - Review View
 - Show Answer
 - Again / Hard / Good / Easy
 - Edit Card
-- View Source
+- Open Concept
 - FSRS card scheduling
 - Concept-based grouping
 
-Do not implement in v0.1:
+Do not expand ordinary stabilization work into:
 
 - Automatic vault scanning
 - PDF/PPT parsing
@@ -124,7 +128,7 @@ If these references are too large, read their README first, then inspect only th
 
 Concept.md is the source of truth for concept content.
 
-Card.md is the source of truth for review UI content.
+The Concept's Card Group Markdown file is the source of truth for review UI content.
 
 data.json may store:
 
@@ -141,11 +145,12 @@ data.json must not be the source of truth for Concept or Card content.
 
 ## Card Marker Rules
 
-Card.md must contain these marker sections:
+Every Card block must contain:
 
 - MNEME:FRONT
 - MNEME:BACK
-- MNEME:RUBRIC
+
+`MNEME:RUBRIC` is recommended but optional. It must not introduce knowledge absent from Back.
 
 If a card is invalid, do not crash. Mark it invalid and show a repair option.
 
@@ -155,7 +160,7 @@ Review View must behave like Anki:
 
 1. Show Front.
 2. User clicks Show Answer.
-3. Show Back and Rubric.
+3. Show Back; keep Rubric under More / Card details by default.
 4. Show Again / Hard / Good / Easy.
 5. Rating updates FSRS state.
 6. Move to the next card.
@@ -169,7 +174,7 @@ Preferred labels:
 - Today’s Focus
 - Later
 - Needs Attention
-- Weak Concepts
+- Needs Work Signals
 
 Avoid:
 
@@ -208,7 +213,7 @@ Common labels:
 - Easy
 - Edit
 - Edit Card
-- View Source
+- Open Concept
 - Skip
 - Accept
 - Reject

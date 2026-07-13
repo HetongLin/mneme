@@ -79,7 +79,7 @@ export class CardEditModal extends Modal {
 			const abstractFile = this.app.vault.getAbstractFileByPath(card.path);
 
 			if (!(abstractFile instanceof TFile)) {
-				new Notice("Mneme: Card.md was not found.");
+				new Notice("Mneme: Card Markdown was not found.");
 				return;
 			}
 

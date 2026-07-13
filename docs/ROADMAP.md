@@ -13,13 +13,14 @@ Analyze Current Note
 → Generate Cards from written Concept
 → Card Proposals
 → Inbox Approval
-→ Card.md
+→ Card Group
 → FSRS Review
 → Concept-based Review
 
 Features:
 
 - Analyze Current Note
+- Create Concept
 - Hash-based skip
 - AI Capture settings and provider adapter infrastructure for Mock, OpenAI, and DeepSeek
 - Structured AI proposal schema validation
@@ -29,13 +30,13 @@ Features:
 - Runtime schema validation
 - Inbox approval
 - Concept.md generation
-- Card.md generation
+- Card Group generation
 - Card marker parsing
 - Review View
 - Show Answer
 - Again / Hard / Good / Easy
 - Edit Card
-- View Source
+- Open Concept
 - FSRS card scheduling
 - Concept-based grouping
 
@@ -62,7 +63,6 @@ Features:
 
 - Better Card Edit Modal
 - Basic Concept Edit Modal
-- Manual Concept creation
 - Update Existing Concept
 - Possible Duplicate detection
 - Guided merge/update workflow
@@ -77,8 +77,9 @@ Current progress:
 - Advanced Diagnostics can repair Cards whose FRONT or BACK section is entirely missing while preserving surrounding Markdown and FSRS state.
 - Possible Duplicate detection and transactional Guided Merge are available from Concept Library; one-click Inbox merge remains forbidden.
 - Duplicate markers, malformed wrappers, and stable-ID conflicts still require the broader Repair Flow.
-
-Manual Concept creation remains unfinished. It is required because a student may know that a Concept matters even when AI Source Note analysis does not propose it, proposes the wrong boundary, or is not desired for that note. Manual creation should create the same kind of approved, readable Concept Markdown as accepted AI proposals, but its exact UX is deferred.
+- Manual Concept creation is available from the command palette and Concept Library. It writes an immediately approved clean Concept without creating a fake proposal or requiring Source Evidence.
+- New accepted Cards append to one canonical Card Group per Concept. Legacy one-Card files remain readable.
+- Card generation uses assessable-content fingerprints and existing Card fronts as a Coverage Map; rejected rounds may be retried without letting metadata edits create duplicate rounds.
 
 ## v0.3: Low-pressure Review
 
@@ -100,6 +101,7 @@ Features:
 Current progress:
 
 - Today’s Focus applies configurable daily Concept, daily Card, and Cards-per-Concept limits after priority ranking.
+- Ranking includes a bounded rotation boost for long-unseen eligible Concepts, while Later remains visible as a calm availability count.
 - Same-day review history is counted across refreshes, and cards outside the focus remain unchanged in Advanced Diagnostics.
 - Review Later persists a Card-level deferral until the next local day without changing FSRS state.
 - Pause Concept is persisted separately from FSRS and can be resumed from Advanced Diagnostics.
@@ -168,7 +170,7 @@ Current progress:
 - Fallback review state, Review Later, and suspension move to the new ID when ownership is unambiguous.
 - Duplicate IDs can be replaced one block at a time; ambiguous shared history remains with the original ID instead of being guessed.
 - Concept Library isolates missing and duplicate Concept IDs in an Identity Repair queue.
-- Guided Concept repair synchronizes Concept.md and its explicitly linked Card.md, with rollback on conflict or persistence failure.
+- Guided Concept repair synchronizes Concept.md and its explicitly linked Card Group, with rollback on conflict or persistence failure.
 - Only uniquely attributable Concept pause state is re-keyed; duplicate-ID aggregate state is not guessed.
 - Stable-ID Cards can be retired without changing Markdown or FSRS history, then restored from Advanced Diagnostics.
 - Retired Cards are excluded from Today’s Focus, Concept Learning State risk, and ranking.
@@ -194,7 +196,7 @@ Includes:
 
 - Stable Analyze Current Note
 - Stable Inbox
-- Stable Concept.md / Card.md format
+- Stable Concept and Card Group Markdown formats
 - FSRS review
 - Concept-based Today’s Focus
 - Edit Card
@@ -214,7 +216,7 @@ Features:
 
 - Draw Concept
 - Show Concept
-- View Source
+- Open Concept
 - Mark as Known
 - Mark as Needs Work
 - Promote to Review

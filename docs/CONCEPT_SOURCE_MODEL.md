@@ -69,7 +69,7 @@ The relation carries metadata:
 
 ## Source Analysis Records
 
-Source analysis state lives in plugin data, not in `Concept.md` or `Card.md`.
+Source analysis state lives in plugin data, not in `Concept.md` or Card Group Markdown.
 
 `SourceAnalysisRecord` tracks path, `mtime`, size, content hash, linked Concept ids, pending proposal ids, and analysis status.
 
@@ -129,9 +129,9 @@ This keeps Concepts and Cards separately reviewable and editable, and prevents r
 
 `Concept.md` is a clean learning note plus a thin identity layer. Generated Concept notes include minimal frontmatter such as `mneme_type: concept`, `mneme_id`, and `mneme_version`, then present Core Meaning, Views, Review Cards, Source Notes, and Related Concepts as editable reading sections.
 
-Each Card Markdown file is one reviewable Card under the Concept's card folder. Generated Cards include minimal frontmatter such as `mneme_type: card`, `mneme_card_id`, `mneme_concept_id`, and a Concept link, then use Mneme's existing card marker syntax.
+Each Concept has one Card Group Markdown file. Generated Cards append independently identified blocks to it; group frontmatter contains `mneme_type: card_group`, `mneme_concept_id`, and a Concept link, while each block carries its own immutable Card ID and optional Card type.
 
-Concept notes may record their card folder as a plain vault path, and Card files link back to their Concept. The card folder path is not an Obsidian wikilink because folder wikilinks can create phantom Markdown files. Machine metadata stays in plugin data, not in the main Markdown body.
+Concept notes link to the Card Group file, and the Card Group links back to its Concept. Legacy per-Card folders remain readable but are not the canonical write format. Machine metadata stays in plugin data, not in the main Markdown body.
 
 ## Concept Library
 
@@ -147,7 +147,7 @@ After a successful `new_concept` Markdown write, Mneme can create approved `Conc
 
 An approved `link_existing_concept` proposal follows the same provenance boundary: Mneme appends the Source Note to the written Concept's readable `## Source Notes` section, then updates the runtime link index and the Source Note analysis record. Repeated writes are idempotent.
 
-These links are index/state metadata. They help Mneme remember which Source Notes support which Concepts, but editable `Concept.md` and `Card.md` remain the content source of truth.
+These links are index/state metadata. They help Mneme remember which Source Notes support which Concepts, but editable `Concept.md` and Card Group Markdown remain the content source of truth.
 
 ## Living Assets
 

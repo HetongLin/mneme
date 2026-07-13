@@ -5,7 +5,7 @@ This checkpoint records the Mneme review architecture before replacing placehold
 ## Current Completed Flow
 
 ```text
-Concept.md / Card.md
+Concept Markdown / Card Group Markdown
 -> Card marker parsing
 -> CardFileLoader
 -> ConceptLoader
@@ -26,11 +26,11 @@ Concepts are user-facing learning units. Concept priority is computed by aggrega
 
 ## Review View UX Principle
 
-Flashcard mode should stay focused on the current card: front, answer reveal, rubric, and rating actions. Diagnostic data should be progressively disclosed at concept and card level, with the completion state offering `Back to Concepts` and `Source` actions.
+Flashcard mode should stay focused on the current Card: Front, answer reveal, and rating actions. Rubric and diagnostics should be progressively disclosed; navigation should open the approved Concept.
 
 ## Review History Reset
 
-`Mneme: Clear Review History` clears persisted card review states from plugin data without modifying `Concept.md`, `Card.md`, or source notes. This is useful during debugging, after major card rewrites, and before FSRS migration testing.
+`Mneme: Clear Review History` clears persisted Card review states from plugin data without modifying Concept Markdown, Card Group Markdown, or Source Notes. This is useful during debugging, after major Card rewrites, and before FSRS migration testing.
 
 ## What Must Be True Before FSRS
 

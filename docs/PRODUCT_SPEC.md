@@ -62,7 +62,7 @@ Examples:
 
 ### Concept
 
-A durable learning object extracted from Source Notes.
+A durable learning object directly authored or explicitly approved by the student.
 
 A Concept is a vault-global knowledge model or principle that can be explained, applied, and assessed independently. Courses reference Concepts many-to-many instead of owning separate copies.
 
@@ -90,7 +90,7 @@ A structured proposal record produced by AI or developer fixtures and reviewed i
 
 Initial AI capture is concept-first. Source Note analysis may propose Concept-stage changes only; Cards are generated later from written Concept Markdown and require their own review before Card Markdown is written.
 
-Manual Concept creation is a required product capability. Mneme must not make AI Source Note scanning the only way to create Concepts, because AI extraction may miss what the student personally considers worth learning. A student should eventually be able to create a clean Mneme Concept directly, then generate Cards from that approved Concept through the normal review flow. The exact manual creation UX is intentionally deferred.
+Manual Concept creation is a first-class product capability. `Create Concept` writes the same clean approved Concept format as AI acceptance, without manufacturing a proposal or asking the student to approve their own authorship.
 
 ## Core Workflow
 
@@ -102,7 +102,7 @@ Manual Concept creation is a required product capability. Mneme must not make AI
 6. Mneme validates JSON with a runtime schema.
 7. Suggestions appear in Inbox.
 8. User accepts, edits, rejects, links, or updates each reviewed proposal.
-9. Accept Concept writes Concept.md.
+9. Accept & Next writes the reviewed Concept.md.
 10. User runs Generate Cards from Current Concept.
 11. AI returns Card proposals derived from the written Concept.
 12. User reviews and accepts Card proposals before Card Markdown is written.
@@ -114,19 +114,19 @@ Current implementation note:
 
 Analyze Current Note indexes the Source Note and, when AI Capture is enabled, asks the selected Mock, OpenAI, or DeepSeek provider for Concept-stage proposals. DeepSeek uses its OpenAI-compatible chat-completions endpoint, while OpenAI uses the Responses API. Provider output remains untrusted until it passes Mneme's structured proposal validation and normalization into `KnowledgeProposal`. The command stores valid proposals in Inbox and never writes Markdown directly.
 
-Generate Cards from Current Concept works only from a written Mneme Concept Markdown file. It sends that approved Concept to the selected provider in `card_generation` mode, accepts only `new_card` responses, and stores validated Card proposals in Inbox. One Card Markdown file is written only after the user accepts an individual Card proposal.
+Generate Cards from Current Concept works only from a written Mneme Concept Markdown file. It sends assessable Concept content plus existing Card fronts as a Coverage Map, accepts only `new_card` responses, and stores validated Card proposals in Inbox. An accepted Card appends one independently identified block to the Concept's Card Group.
 
 Analyze Current Note is for Source Notes, not written Mneme Concepts. Running Source Note analysis on a Concept would re-treat approved knowledge as raw input and can create confusing duplicate proposals, so Mneme blocks it.
 
 Card generation is coverage-driven and bounded to at most five proposals per run. Each proposal identifies the approved Concept claim or section it tests. If generation reveals missing knowledge, Mneme proposes a Concept update first rather than inserting new knowledge into a Card.
 
-Card generation is also content-hash gated per Concept. If the Concept has not changed since Card proposals were last generated, Mneme should not call AI again or create another isolated Inbox batch. The student must edit the Concept before generating another set of Card proposals.
+Card generation uses a Learning Content Fingerprint rather than a whole-file hash. Presentation, tag, provenance, and navigation edits do not unlock a duplicate round; active or written Cards and a `coverage_complete` result for the same fingerprint block repetition, while a fully rejected proposal round may be tried again.
 
 Concept Library also exposes Generate Cards for reviewable Concepts. Exploratory Concepts intentionally omit this action and remain outside Card/FSRS review.
 
 Today’s Focus is a bounded view over the ranked review queue. User-configured Concept and Card limits apply after priority ranking and include Cards already reviewed that local day; items outside the focus keep their FSRS state unchanged and remain available through diagnostics rather than appearing as debt.
 
-Concept `importance` contributes a small, explicit weight to Today’s Focus ranking so must-master knowledge wins ties and near-ties. It does not change Card eligibility, due dates, or FSRS scheduling parameters.
+Concept `importance` contributes a small, explicit weight to Today’s Focus ranking so must-master knowledge wins ties and near-ties. A bounded rotation boost prevents long-unseen eligible Concepts from starving. Neither mechanism changes Card eligibility, due dates, or FSRS scheduling parameters.
 
 Exploratory Concepts remain outside Today’s Focus even if a legacy or manually created Card file exists. Mneme keeps those Cards and any historical FSRS state intact, but treats them as diagnostic-only until the Concept is changed back to reviewable.
 
@@ -135,7 +135,7 @@ User experience is the first requirement. Internal schemas can be strict and det
 ## Product Contracts
 
 - Concept and Card state is keyed only by immutable IDs; file paths are mutable locators.
-- AI knowledge changes must pass an individual Review Gate. Unseen proposals cannot be bulk accepted.
+- AI knowledge changes must pass an individual Review Gate. Unseen proposals cannot be bulk accepted; direct student authorship needs no artificial gate.
 - Concept Learning State is a reasoned aggregate of Card evidence, coverage, and student input. Mneme does not claim a mastery percentage.
 - FSRS owns Card scheduling only. Exam Attempts, Use activity, Concept ranking, and AI Rating Suggestions cannot update FSRS without an explicit normal Card review and user-confirmed rating.
 - Importance expresses long-term knowledge value and is independent of the global FSRS Retention Target.
@@ -147,10 +147,10 @@ User experience is the first requirement. Internal schemas can be strict and det
 
 ## v0.1 Goal
 
-The v0.1 goal is to prove the core loop:
+The v0.1 goal is to prove both the AI-assisted and direct-authoring entry paths into the core loop:
 
-AI suggests Concepts and Cards
-→ User approves
+AI suggests Concepts and Cards, or the student authors a Concept directly
+→ User approves AI proposals
 → Markdown files are created
 → Cards are reviewed through FSRS
 → Review is grouped by Concept
@@ -163,14 +163,15 @@ AI suggests Concepts and Cards
 - Runtime schema validation
 - Inbox approval
 - Concept.md generation
-- Card.md generation
+- Manual Concept creation
+- Card Group generation
 - Card marker parsing
 - Review View
 - Show Answer
 - Again / Hard / Good / Easy
 - Edit Card
 - Edit the current Card without changing FSRS state
-- View Source
+- Open Concept
 - Skip without changing FSRS state
 - FSRS card scheduling
 - Concept-based grouping
@@ -194,7 +195,6 @@ Mneme may eventually become an AI-native learning system for university students
 
 Future directions:
 
-- Manual Concept creation
 - Random Concept Draw
 - Course-scoped Concept Draw
 - Exploratory Concepts

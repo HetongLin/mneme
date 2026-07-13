@@ -18,7 +18,7 @@ Markdown stores approved Concept and Card content. `data.json` stores settings, 
 
 `SourceAnalysisStore` persists `SourceAnalysisRecord` entries in plugin data. `Mneme: Analyze Current Note` always updates source path, metadata, and content hash. When AI Capture is enabled, it may also add validated Concept proposals to Inbox; it never generates Cards or writes Markdown directly.
 
-The same record shape may also track written Concept hashes for Card generation gating. `lastCardGenerationHash` records the Concept content hash that most recently produced Card proposals, so unchanged Concepts cannot repeatedly create duplicate isolated Card proposal batches.
+The same record shape also tracks a written Concept's Learning Content Fingerprint. `lastCardGenerationFingerprint` records the assessable Concept content used by the most recent successful generation call, including a `coverage_complete` result; changes to tags, provenance, frontmatter, or review navigation do not create a new generation round. The legacy `lastCardGenerationHash` field remains readable for data compatibility.
 
 AI Capture settings are stored in plugin data under `settings` and configure the provider boundary:
 
@@ -45,7 +45,7 @@ AI raw JSON
 -> normalization
 -> KnowledgeProposal
 -> Inbox review
--> Accept
+-> Accept & Next
 -> Markdown writer
 ```
 
@@ -61,7 +61,7 @@ User-facing Markdown must stay concise:
 - Card Markdown is review content, not a provider trace.
 - AI schema fields, provider metadata, prompt text, diagnostics, confidence scores, raw evidence arrays, source hashes, proposal ids, lifecycle metadata, and FSRS state stay in plugin data, proposal internals, diagnostics, or Advanced / Raw JSON.
 
-Inbox acceptance is explicit. `Accept Concept` and `Accept Card` validate supported proposal payloads, write clean editable Concept / Card Markdown, and mark proposals `written` only after a successful vault write. Rejected and written proposals are not active Inbox work.
+Inbox acceptance is explicit. `Accept & Next` validates the currently opened proposal, writes clean editable Concept or Card Group Markdown, and marks it `written` only after a successful vault write. Rejected and written proposals are not active Inbox work.
 
 The product-facing Inbox does not present proposal lifecycle states as primary navigation. Its main counters are To Review, Concept Proposals, Card Proposals, and Invalid items. Developer and diagnostic commands are hidden unless Developer Tools is enabled in settings.
 
@@ -77,9 +77,9 @@ Readable and identifiable Markdown principle:
 
 - `Concept.md` is a human-facing learning note.
 - `Concept.md` includes minimal Mneme frontmatter for stable identification.
-- Card Markdown files are the Concept's review-card files.
-- Card Markdown includes minimal Mneme frontmatter for Concept association.
-- `Concept.md` links to the Concept's card folder.
+- One Card Group Markdown file contains the Concept's review Cards as independently identified blocks.
+- The Card Group includes minimal Mneme frontmatter for Concept association.
+- `Concept.md` links to the Concept's Card Group file.
 - Card Markdown links back to `Concept.md`.
 - Machine metadata remains in plugin data.
 - Source evidence is optional and should use progressive disclosure.
@@ -104,13 +104,12 @@ Recommended vault layout:
 
 Mneme/
   Concepts/
-    Information Gain.md
-    Equivalence Partitioning.md
+    Information-Gain.md
+    Equivalence-Partitioning.md
 
   Cards/
-    Information Gain/
-      Information Gain - Definition.md
-      Information Gain - Trap.md
+    Information-Gain/
+      Cards.md
 
 Plugin internal data:
 
@@ -119,27 +118,27 @@ Plugin internal data:
 
 ## Concept files
 
-A Concept Markdown file is the source of truth for Concept content. New Concepts are written directly under the configured Concepts folder, for example `Mneme/Concepts/Information Gain.md`.
+A Concept Markdown file is the source of truth for Concept content. New Concepts are written directly under the configured Concepts folder, for example `Mneme/Concepts/Information-Gain.md`.
 
 Minimal generated frontmatter fields:
 
 - mneme_type: concept
 - mneme_id: string
 - mneme_version: 1
-- cards_folder: optional plain vault path to the Concept's card folder; do not store it as an Obsidian wikilink because folder wikilinks can create phantom Markdown files
+- cards: Obsidian link to the Concept's Card Group file
 - learning_mode: optional reviewable | exploratory
 - importance: optional low | normal | high | critical
 - tags: optional user-approved organization tags for Concept Library filtering
 
-Recommended sections:
+Generated Concepts include only sections with useful content, except the always-present Review Cards link. Recommended sections are:
 
 - Core Meaning
 - Why It Matters
 - Views
 - Common Traps
-- Review
+- Review Cards
 - Source Notes
-- Related Concepts
+- Related Concepts, when links exist
 
 Example structure:
 
@@ -147,7 +146,7 @@ Example structure:
 mneme_type: concept
 mneme_id: concept-information-gain
 mneme_version: 1
-cards_folder: "Mneme/Cards/Information Gain"
+cards: "[[Mneme/Cards/Information-Gain/Cards|Information Gain Cards]]"
 importance: normal
 learning_mode: reviewable
 tags: [machine-learning, decision-trees]
@@ -161,21 +160,11 @@ Information gain measures the reduction of uncertainty after splitting a dataset
 
 ## Why It Matters
 
-Add why this concept matters here.
+Splitting criteria depend on it when choosing useful decision-tree attributes.
 
-## Views
+## Review Cards
 
-Add views here.
-
-## Common Traps
-
-Add common traps here.
-
-## Review
-
-Card folder: `Mneme/Cards/Information Gain/`
-
-Generate and accept Cards to populate this folder.
+Cards: [[Mneme/Cards/Information-Gain/Cards|Information Gain Cards]]
 
 ## Source Notes
 
@@ -183,10 +172,6 @@ Generate and accept Cards to populate this folder.
 > - [[Decision Tree Notes]]
 >   - relation: origin
 >   - evidence: introduces the basic definition.
-
-## Related Concepts
-
-<!-- Add related concepts here. -->
 
 ## Concept Fields
 
@@ -214,18 +199,18 @@ Tags are user-approved organization labels for browsing and filtering Concepts. 
 
 Mneme may help edit or recommend tags later, but accepted `Concept.md` files should only contain tags the user has approved.
 
-## Card files
+## Card Group files
 
-Each Card Markdown file is the source of truth for one independently reviewable Card. New Cards are grouped by Concept folder, for example `Mneme/Cards/Information Gain/Information Gain - Definition.md`.
+Each Concept has one Card Group Markdown file, for example `Mneme/Cards/Information-Gain/Cards.md`. The file is the content source of truth for all of that Concept's Cards; every Card block retains an independent stable ID and Card Memory State.
+
+When two new Concepts have the same title, Mneme first assigns a unique Concept filename and uses that unique stem for the initial Card Group folder. Once written, the Concept's `cards` link is the location authority, so later title edits do not fork the Card Group.
 
 Minimal generated frontmatter fields:
 
-- mneme_type: card
-- mneme_card_id: string
+- mneme_type: card_group
 - mneme_concept_id: string
 - mneme_version: 1
 - concept: Obsidian link to the Concept file
-- card_type: optional definition | distinction | procedure | example | trap | proof | application | mastery | other
 
 Required marker sections:
 
@@ -240,26 +225,22 @@ Required wrapper markers for newly generated Cards:
 
 - MNEME:CARD
 
-Legacy `card_group` files and legacy single-card files without a CARD wrapper remain readable but should be offered stable-ID repair when needed.
+Legacy one-Card files remain readable. Mneme does not silently delete or consolidate them; new accepted Card proposals use the canonical Card Group format.
 
 Example structure:
 
 ---
-mneme_type: card
-mneme_card_id: information-gain-definition-pexample
+mneme_type: card_group
 mneme_concept_id: concept-information-gain
 mneme_version: 1
-concept: "[[Mneme/Concepts/Information Gain|Information Gain]]"
-card_type: definition
+concept: "[[Mneme/Concepts/Information-Gain|Information Gain]]"
 ---
 
-# Definition
-
-Related Concept: [[Mneme/Concepts/Information Gain|Information Gain]]
+# Information Gain Cards
 
 <!-- Mneme cards below -->
 
-<!-- MNEME:CARD:start id="information-gain-definition-pexample" -->
+<!-- MNEME:CARD:start id="information-gain-definition-pexample" type="definition" -->
 <!-- MNEME:FRONT:start -->
 Why does information gain tend to favor attributes with many values?
 <!-- MNEME:FRONT:end -->
@@ -275,7 +256,7 @@ Because attributes with many values can split samples into smaller and purer sub
 <!-- MNEME:RUBRIC:end -->
 <!-- MNEME:CARD:end -->
 
-Legacy multi-card Card.md files may wrap repeated card sections. Explicit CARD ids are preferred because future review state needs stable card identity:
+Additional Cards append another identified block in the same file:
 
 <!-- MNEME:CARD:start id="card_information_gain_definition" -->
 <!-- MNEME:FRONT:start -->
@@ -304,6 +285,7 @@ Answer 2
 - Existing single-card files without CARD wrappers remain valid.
 - If CARD wrappers are present, each complete CARD block is parsed as one card.
 - CARD wrappers should include a stable id, for example `<!-- MNEME:CARD:start id="card_id" -->`.
+- CARD wrappers may include a `type` attribute for assessment coverage, for example `type="application"`.
 - Missing CARD ids use fallback identity and should produce a warning.
 - Duplicate CARD ids make affected cards invalid.
 - Extra Markdown outside markers is allowed.
@@ -360,7 +342,7 @@ Possible Duplicate candidates are derived from current Concept titles and Core M
 
 A `conceptMergeRecords` entry stores `mergedConceptId`, `survivorConceptId`, `mergedPath`, `survivorPath`, and `mergedAt`. It contains no learning content. The merged ID remains reserved after the old Concept becomes a `concept_redirect`, preventing a later generated Concept from reusing that identity.
 
-Guided Merge moves complete stable-ID Card blocks into the surviving Card Group without rewriting their IDs or Card-keyed FSRS state. If the survivor has no Card Group, it adopts the merged Concept's group and updates that group's association. A vacated Card.md remains as an empty `card_group` redirect so old vault links resolve without creating a phantom Card.
+Guided Merge moves complete stable-ID Card blocks into the surviving Card Group without rewriting their IDs or Card-keyed FSRS state. If the survivor has no Card Group, it adopts the merged Concept's group and updates that group's association. A vacated Card Group remains as an empty `card_group` redirect so old vault links resolve without creating a phantom Card. Legacy per-Card folders must be explicitly consolidated before Guided Merge; Mneme does not guess a destructive migration.
 
 ## Courses And Exam Contexts
 
@@ -390,14 +372,16 @@ For each analyzed Source Note, store:
 - sourcePath
 - contentHash
 - lastAiCaptureHash (optional; records the hash that completed proposal capture)
-- lastCardGenerationHash (optional; records the Concept hash that completed Card proposal generation)
+- lastCardGenerationFingerprint (optional; records assessable Concept content that completed Card proposal generation)
+- lastCardGenerationOutcome (optional; `proposed` or `coverage_complete`, so an empty complete-coverage result is not confused with a rejected proposal round)
+- lastCardGenerationHash (deprecated compatibility alias)
 - mtime
 - size
 - lastAnalyzedAt
 
 Skip the AI call only when `contentHash` matches `lastAiCaptureHash`. This lets a note indexed while AI Capture was disabled receive its first later capture without pretending the provider already ran.
 
-For written Concepts, skip Card proposal generation when the current Concept content hash matches `lastCardGenerationHash`. The student must edit the Concept before generating another Card proposal batch.
+For written Concepts, compare the Learning Content Fingerprint rather than the whole file. Active proposals, written proposals, and a recorded `coverage_complete` result block duplicate rounds for unchanged learning content; a fully rejected proposal round may be retried. Existing Card fronts are supplied as a Coverage Map so providers can avoid proposing the same outcome again.
 
 ## FSRS State
 
@@ -475,7 +459,7 @@ Concept recognition uses minimal frontmatter:
 - `mneme_type: concept`
 - `mneme_id`
 
-The library displays clean learning information from Markdown sections such as Core Meaning and Why It Matters. It can open the Concept file and linked Card file, but it does not replace Markdown editing or store Concept content in `data.json`.
+The library displays clean learning information from Markdown sections such as Core Meaning and Why It Matters. It can open the Concept file and linked Card Group, but it does not replace Markdown editing or store Concept content in `data.json`.
 
 This scanner also prepares future AI Capture: existing Concept summaries can help avoid duplicates and support merge, update, and add-view proposals.
 

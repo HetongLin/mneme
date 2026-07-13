@@ -5,7 +5,7 @@ This checkpoint records Mneme's review architecture after adding the FSRS schedu
 ## Current FSRS Flow
 
 ```text
-Card.md
+Card block in Card Group Markdown
 -> stable cardId
 -> Flashcard rating
 -> FsrsReviewScheduler
@@ -75,11 +75,6 @@ See also: [Concept-Source Model](CONCEPT_SOURCE_MODEL.md) and [AI Capture Approv
 - No schema migration UI.
 - Existing placeholder states are not converted to FSRS.
 - Concept group priority formula is still MVP weighting over eligible Daily Review Cards.
-- No source-note-level navigation yet.
+- Review intentionally opens the approved Concept rather than bypassing it to a Source Note.
 
-## Next Recommended Tasks
-
-1. Task 017: FSRS Retention Settings
-2. Task 018: Review Log / Revlog Foundation
-3. Task 019: Concept Importance and Exam Mode
-4. Task 020: Source Navigation Enhancement
+This is a historical checkpoint; current priorities live in `ROADMAP.md`.

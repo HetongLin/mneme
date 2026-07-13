@@ -25,6 +25,41 @@ const now = new Date("2026-01-10T12:00:00.000Z");
 }
 
 {
+	const definition = createQueueCard("definition-card", "due");
+	definition.card.front = "Define encapsulation.";
+	definition.card.cardType = "definition";
+	const application = createQueueCard("application-card", "due");
+	application.card.front = "Apply encapsulation to this design.";
+	application.card.cardType = "application";
+	const summary = aggregateReviewQueueConcept(createQueueConcept({
+		dueCards: [definition, application],
+	}), {}, now);
+
+	assert.equal(summary.assessmentCoverage, "multiple");
+	assert.equal(summary.assessmentProbeCount, 2);
+	assert.deepEqual(summary.coveredCardTypes, ["definition", "application"]);
+}
+
+{
+	const concept = createQueueConcept({
+		dueCards: [createQueueCard("rotation-card", "due")],
+	});
+	const recentlyReviewed = aggregateReviewQueueConcept(concept, {
+		"rotation-card": createReviewState("rotation-card", {
+			lastReviewedAt: "2026-01-10T11:00:00.000Z",
+		}),
+	}, now);
+	const longUnseen = aggregateReviewQueueConcept(concept, {
+		"rotation-card": createReviewState("rotation-card", {
+			lastReviewedAt: "2025-12-01T12:00:00.000Z",
+		}),
+	}, now);
+
+	assert.equal(longUnseen.rotationBoost, 0.08);
+	assert.equal(longUnseen.reviewPriorityScore > recentlyReviewed.reviewPriorityScore, true);
+}
+
+{
 	const summary = aggregateReviewQueueConcept(createQueueConcept({
 		dueCards: [createQueueCard("active", "due"), createQueueCard("retired", "due")],
 	}), {}, now, new Set(["retired"]));

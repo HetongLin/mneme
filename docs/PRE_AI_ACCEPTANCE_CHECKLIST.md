@@ -9,7 +9,7 @@ This validates:
 - Proposal Detail editing
 - explicit Concept/Card acceptance
 - readable/identifiable `Concept.md`
-- parser-compatible `Card.md`
+- parser-compatible Card Group Markdown
 - ConceptSourceLink indexing
 - Concept Library scanning
 - Review/FSRS regression
@@ -42,16 +42,16 @@ This does not validate:
 8. Review the concept proposal.
 9. Confirm payload is readable and editable.
 10. Save a small edit.
-11. Click `Accept Concept`.
+11. Click `Accept & Next`.
 12. Open generated `Concept.md`.
 13. Confirm `Concept.md` is readable and has minimal frontmatter.
 14. Run `Mneme: Generate Pre-AI Acceptance Cards`.
 15. Run `Mneme: Open Inbox`.
 16. Confirm the Card proposal now appears under Card Proposals.
 17. Review the card proposal.
-18. Click `Accept Card`.
-19. Open generated `Card.md`.
-20. Confirm `Card.md` links back to `Concept.md` and remains parseable.
+18. Click `Accept & Next`.
+19. Open generated `Cards.md`.
+20. Confirm the Card Group links back to `Concept.md` and remains parseable.
 21. Run `Mneme: Log Concept-Source Links`.
 22. Run `Mneme: Log Source Analysis State`.
 23. Run `Mneme: Open Concept Library`.
@@ -73,8 +73,8 @@ Pass:
 - Concept and Card approval remain separate
 - invalid JSON is rejected
 - valid edited payload can be saved
-- `Accept Concept` creates readable `Concept.md`
-- `Accept Card` creates parser-compatible `Card.md`
+- `Accept & Next` creates readable `Concept.md`
+- `Accept & Next` appends parser-compatible Card Group content
 - accepted proposals move out of Active Inbox
 - rejected proposals move out of Active Inbox
 - Inbox Refresh removes stale proposals whose source note was deleted
@@ -91,10 +91,10 @@ Fail:
 
 - proposal bypasses approval
 - initial fixture creates a Card proposal before the Concept is written
-- proposal writes Markdown without an explicit `Accept Concept` or `Accept Card`
+- proposal writes Markdown without an explicit Review Gate `Accept & Next`
 - `Concept.md` shows raw `sourceHash`, `proposalId`, `fsrsState`, `dueAt`, `stability`, `difficulty`, or raw JSON
-- `Card.md` contains FSRS state
-- index reconciliation deletes generated `Concept.md` or `Card.md`
+- Card Group Markdown contains FSRS state
+- index reconciliation deletes generated `Concept.md` or Card Group Markdown
 - deleted source notes leave stale proposals visible after Inbox Refresh
 - deleted `Concept.md` files remain visible after Concept Library refresh
 - Concept Library cannot find the generated Concept

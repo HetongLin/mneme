@@ -5,7 +5,7 @@ Mneme turns a student's approved source material into durable learning objects a
 ## Language
 
 **Concept**:
-A vault-global knowledge model or principle that can be explained and applied independently, with its understanding assessed independently. Knowledge that can carry a different importance or be learned and forgotten separately belongs in a separate Concept; a Course may reference but does not own or duplicate it.
+A user-authored or user-approved vault-global knowledge model that can be explained, applied, and assessed independently. Knowledge that can carry a different importance or be learned and forgotten separately belongs in a separate Concept; a Course may reference but does not own or duplicate it.
 _Avoid_: Topic, summary, note
 
 **Concept ID**:
@@ -49,7 +49,7 @@ A review signal that two Concepts may represent the same independently assessabl
 _Avoid_: Confirmed duplicate, automatic merge
 
 **Review Gate**:
-The required user interaction in which the complete knowledge-changing proposal is presented before it may be accepted and written. Confidence scores and unseen batch selections cannot satisfy this gate.
+The required user interaction in which a complete AI-proposed knowledge change is presented before it may be accepted and written. Direct student authorship needs no artificial approval step; confidence scores and unseen batch selections cannot satisfy the gate.
 _Avoid_: Accept All, auto-approval, confidence threshold
 
 **Guided Merge**:
@@ -76,6 +76,10 @@ _Avoid_: AI rationale, new knowledge, Source-only evidence
 A concise account of which distinct learning outcomes existing and proposed Cards test for a Concept. It guides small, non-duplicative generation rounds without implying that every Concept needs every Card category.
 _Avoid_: Card quota, mastery percentage, content outline
 
+**Learning Content Fingerprint**:
+A stable digest of the approved, assessable Concept content used to decide whether Card generation has new knowledge to cover. It excludes presentation, provenance, organization metadata, and review-navigation text.
+_Avoid_: Whole-file hash, Concept version, Card batch ID
+
 **Rating Suggestion**:
 An AI assessment of a student's answer against a Card Rubric that explains strengths, omissions, and a proposed review rating. It does not update Card Memory State until the student confirms a final rating.
 _Avoid_: Automatic rating, FSRS decision, answer truth
@@ -89,7 +93,7 @@ The single Markdown file belonging to one Concept that contains its Cards as sep
 _Avoid_: One-file-per-Card layout, shared Card schedule
 
 **Learning State**:
-A reasoned aggregate view of the available evidence about a Concept, including Card Memory States, assessment coverage, and explicit student input. It describes what Mneme has observed without claiming that the student has mastered the Concept, and it never schedules the Concept directly.
+A reasoned view that keeps Card memory evidence, assessment coverage, and explicit student input distinguishable. It describes what Mneme has observed without claiming mastery, and it never schedules the Concept directly.
 _Avoid_: Concept mastery, mastery score, percent mastered
 
 **Importance**:

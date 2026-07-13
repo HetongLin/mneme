@@ -2,6 +2,7 @@ import { CardDueStatus } from "./reviewQueue";
 import { ReviewRating } from "./reviewState";
 import type { DailyReviewEligibilityReason } from "./dailyReview";
 import type { ConceptImportance } from "./conceptLibrary";
+import type { CardDraftType } from "./knowledgeProposal";
 
 export type ConceptPriorityBand = "high" | "medium" | "low";
 export type CardMemoryRiskSource = "fsrs" | "placeholder";
@@ -24,9 +25,12 @@ export interface CardMemoryRisk {
 }
 
 export interface ConceptMemorySummary {
+	assessmentCoverage: "none" | "limited" | "multiple";
+	assessmentProbeCount: number;
 	averageRisk: number;
 	cardRisks: CardMemoryRisk[];
 	conceptId: string;
+	coveredCardTypes: CardDraftType[];
 	dueCardCount: number;
 	dueRatio: number;
 	earliestDueAt?: string;
@@ -44,6 +48,7 @@ export interface ConceptMemorySummary {
 	priorityScore: number;
 	reviewCardCount: number;
 	reviewPriorityScore: number;
+	rotationBoost: number;
 	title: string;
 	topK: number;
 	topKAvgRisk: number;
