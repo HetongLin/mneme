@@ -176,8 +176,8 @@ export class ProposalDetailModal extends Modal {
 	private renderNewConceptEditor(parentEl: HTMLElement): void {
 		const payload: Record<string, unknown> = isRecord(this.proposal.payload) ? this.proposal.payload : {};
 		const titleInput = this.createTextInput(parentEl, "Concept title", getString(payload, "title"));
-		const summaryInput = this.createTextareaInput(parentEl, "Summary", getString(payload, "summary"));
 		const coreMeaningInput = this.createTextareaInput(parentEl, "Core Meaning", getString(payload, "coreMeaning"));
+		const summaryInput = this.createTextareaInput(parentEl, "Why It Matters", getString(payload, "summary"));
 		const learningModeInput = this.createSelectInput(parentEl, "Learning Mode", getString(payload, "learningMode"), [
 			["reviewable", "Reviewable"],
 			["exploratory", "Exploratory"],

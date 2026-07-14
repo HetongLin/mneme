@@ -206,6 +206,9 @@ async function run(): Promise<void> {
 	assert.equal(payload.text?.format.type, "json_schema");
 	assert.equal(serialized.includes("sk-secret-value"), false);
 	assert.equal(serialized.includes("Write user-facing Concept text in the source note's dominant language"), true);
+	assert.equal(serialized.includes("coreMeaning is the primary learning content"), true);
+	assert.equal(serialized.includes("summary field becomes Why It Matters"), true);
+	assert.equal(serialized.includes("Do not use summary to repeat or paraphrase coreMeaning"), true);
 	assert.equal(serialized.includes("Prefer stable English lowercase slugs"), true);
 	assert.equal(serialized.includes("Use $...$ for short inline math"), true);
 	assert.equal(serialized.includes("Use $$...$$ on separate lines"), true);

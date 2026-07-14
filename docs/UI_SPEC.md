@@ -209,7 +209,9 @@ Preferred order:
 5. Advanced / Raw JSON
 6. Bottom actions
 
-`Proposed Change` summaries should not appear above editable Concept fields when they merely duplicate Summary or Core Meaning. For Card proposals, the editable Front / Back / Rubric fields are the primary review content.
+For a new Concept proposal, editable learning fields appear in this order: Concept title, Core Meaning, Why It Matters, Learning Mode, Importance, and Tags. `Core Meaning` explains what the Concept is and its defining mechanism. `Why It Matters` explains why it is useful, when it matters, or what problem it helps solve; the persisted AI payload key remains `summary` for compatibility.
+
+`Proposed Change` summaries should not appear above editable Concept fields when they merely duplicate Why It Matters or Core Meaning. For Card proposals, the editable Front / Back / Rubric fields are the primary review content.
 
 Do not add a generic `Edit` heading, interaction instructions, duplicated proposal title, or success text such as `Proposal payload is ready for review`. Editable fields should be self-evident. Validation UI appears only when there is an actionable error or warning.
 
