@@ -122,7 +122,7 @@ Card generation is coverage-driven and bounded to at most five proposals per run
 
 Card generation uses a Learning Content Fingerprint rather than a whole-file hash. Presentation, tag, provenance, and navigation edits do not unlock a duplicate round; active or written Cards and a `coverage_complete` result for the same fingerprint block repetition, while a fully rejected proposal round may be tried again.
 
-Concept Library also exposes Generate Cards for reviewable Concepts. Exploratory Concepts intentionally omit this action and remain outside Card/FSRS review.
+Concept Library is a quick-review card wall: each Concept card shows only its title and Core Meaning, while management actions and diagnostics stay collapsed. It also exposes Generate Cards for reviewable Concepts under each card's `More` menu. Exploratory Concepts intentionally omit this action and remain outside Card/FSRS review.
 
 Today’s Focus is a bounded view over the ranked review queue. User-configured Concept and Card limits apply after priority ranking and include Cards already reviewed that local day; items outside the focus keep their FSRS state unchanged and remain available through diagnostics rather than appearing as debt.
 

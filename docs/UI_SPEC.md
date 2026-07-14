@@ -135,6 +135,17 @@ Do not display a scary overdue queue by default.
 
 Today’s Focus is a curated subset of FSRS-eligible Cards. The UI shows a calm `available later` count so work is not silently hidden, and ranking includes a bounded rotation factor so lower-importance eligible Concepts are not starved indefinitely.
 
+## Concept Library Quick Review
+
+Concept Library is primarily a visual quick-review surface, not a metadata dashboard. Its default body is a responsive wall of Concept cards. Each card's primary face contains only:
+
+- Concept title
+- Core Meaning
+
+Selecting the card opens the clean Concept note. File paths, tags, learning mode, importance, Source counts, Card counts, and Why It Matters do not appear on the card face. Concept management actions such as Edit Concept, Open Cards, and Generate Cards remain available under the card's collapsed `More` control.
+
+Search stays visible. Learning mode, importance, tag, and sort controls live under collapsed `Filters`. Identity Repair, Stale Source Provenance, and Possible Duplicates remain available below the card wall under collapsed `Library maintenance`, so diagnostics do not dominate quick review.
+
 ## Concept Library Duplicate Diagnostics
 
 Possible Duplicate is a review signal, not merge permission. Each candidate shows both Concept titles, concise Core Meaning previews, and human-readable triggering reasons. Internal similarity scores may order candidates but are not presented as confidence. The student can open either note, mark the pair `Not a duplicate`, or enter Guided Merge. Detection and dismissal never write Markdown.

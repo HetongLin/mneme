@@ -12,7 +12,6 @@ import { ConceptIdRepairModal } from "../modals/conceptIdRepairModal";
 import { ConceptMergeModal } from "../modals/conceptMergeModal";
 import { SourceProvenanceRelinkModal } from "../modals/sourceProvenanceRelinkModal";
 import { SourceProvenanceRemovalModal } from "../modals/sourceProvenanceRemovalModal";
-import { createConceptPreview } from "../services/conceptMarkdownParser";
 import { ConceptScanner } from "../services/conceptScanner";
 import { ReviewStateStore } from "../services/reviewStateStore";
 import type { ConceptMergeService } from "../services/conceptMergeService";
@@ -46,8 +45,10 @@ export class MnemeConceptLibraryView extends ItemView {
 		tag: "all",
 	};
 	private sortMode: ConceptLibrarySortMode = "title";
-	private statusMessage = "Loading Concepts...";
+	private statusMessage: string | undefined = "Loading Concepts...";
 	private showDismissedDuplicates = false;
+	private areFiltersOpen = false;
+	private isMaintenanceOpen = false;
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -86,7 +87,7 @@ export class MnemeConceptLibraryView extends ItemView {
 			this.duplicateCandidates = result.duplicateCandidates;
 			this.identityIssues = result.identityIssues;
 			this.staleSourceIssues = result.staleSourceIssues;
-			this.statusMessage = `${this.concepts.length} concepts found. ${this.identityIssues.length} identity issue(s). ${this.staleSourceIssues.length} stale Source link(s). ${this.getActiveDuplicateCandidates().length} possible duplicate(s).`;
+			this.statusMessage = undefined;
 		} catch (error) {
 			console.error("Mneme: failed to scan Concept Library", error);
 			this.concepts = [];
@@ -107,15 +108,13 @@ export class MnemeConceptLibraryView extends ItemView {
 		this.renderHeader();
 		this.renderControls();
 		this.renderStatus();
-		this.renderIdentityIssues();
-		this.renderStaleSourceIssues();
-		this.renderDuplicateCandidates();
 		this.renderConceptList();
+		this.renderMaintenance();
 	}
 
-	private renderStaleSourceIssues(): void {
+	private renderStaleSourceIssues(parentEl: HTMLElement): void {
 		if (this.staleSourceIssues.length === 0) return;
-		const sectionEl = this.contentEl.createDiv({ cls: "mneme-review-queue" });
+		const sectionEl = parentEl.createDiv({ cls: "mneme-review-queue" });
 		sectionEl.createEl("h3", { text: "Stale Source Provenance" });
 		sectionEl.createEl("p", {
 			cls: "mneme-review-status",
@@ -165,7 +164,7 @@ export class MnemeConceptLibraryView extends ItemView {
 		}
 	}
 
-	private renderDuplicateCandidates(): void {
+	private renderDuplicateCandidates(parentEl: HTMLElement): void {
 		const dismissals = this.reviewStateStore.getConceptDuplicateDismissals();
 		const active = this.duplicateCandidates.filter((candidate) => !dismissals[candidate.pairKey]);
 		const dismissed = this.duplicateCandidates.filter((candidate) => !!dismissals[candidate.pairKey]);
@@ -173,7 +172,7 @@ export class MnemeConceptLibraryView extends ItemView {
 			return;
 		}
 
-		const sectionEl = this.contentEl.createDiv({ cls: "mneme-review-queue" });
+		const sectionEl = parentEl.createDiv({ cls: "mneme-review-queue" });
 		sectionEl.createEl("h3", { text: "Possible Duplicates" });
 		sectionEl.createEl("p", {
 			cls: "mneme-review-status",
@@ -275,12 +274,12 @@ export class MnemeConceptLibraryView extends ItemView {
 		return this.duplicateCandidates.filter((candidate) => !dismissals[candidate.pairKey]);
 	}
 
-	private renderIdentityIssues(): void {
+	private renderIdentityIssues(parentEl: HTMLElement): void {
 		if (this.identityIssues.length === 0) {
 			return;
 		}
 
-		const sectionEl = this.contentEl.createDiv({ cls: "mneme-review-queue" });
+		const sectionEl = parentEl.createDiv({ cls: "mneme-review-queue" });
 		sectionEl.createEl("h3", { text: "Identity Repair" });
 		for (const issue of this.identityIssues) {
 			const itemEl = sectionEl.createDiv({ cls: "mneme-review-queue-item mneme-concept-library-item" });
@@ -330,7 +329,7 @@ export class MnemeConceptLibraryView extends ItemView {
 		});
 		titleGroupEl.createEl("p", {
 			cls: "mneme-review-subtitle",
-			text: "Browse, search, and open your Mneme Concepts.",
+			text: "Quickly revisit the meaning of your approved Concepts.",
 		});
 
 		const toolbarEl = headerEl.createDiv({ cls: "mneme-review-toolbar" });
@@ -358,14 +357,26 @@ export class MnemeConceptLibraryView extends ItemView {
 		searchEl.placeholder = "Search concepts...";
 		searchEl.value = this.filter.query ?? "";
 		searchEl.addEventListener("input", () => {
+			const cursorPosition = searchEl.selectionStart ?? searchEl.value.length;
 			this.filter = {
 				...this.filter,
 				query: searchEl.value,
 			};
 			this.render();
+			const nextSearchEl = this.contentEl.querySelector<HTMLInputElement>(".mneme-concept-library-search");
+			nextSearchEl?.focus();
+			nextSearchEl?.setSelectionRange(cursorPosition, cursorPosition);
 		});
 
-		this.renderSelect(controlsEl, "Learning mode", this.filter.learningMode ?? "all", [
+		const filtersEl = controlsEl.createEl("details", { cls: "mneme-concept-library-filters" });
+		filtersEl.open = this.areFiltersOpen;
+		filtersEl.addEventListener("toggle", () => {
+			this.areFiltersOpen = filtersEl.open;
+		});
+		filtersEl.createEl("summary", { text: "Filters" });
+		const filterGridEl = filtersEl.createDiv({ cls: "mneme-concept-library-filter-grid" });
+
+		this.renderSelect(filterGridEl, "Learning mode", this.filter.learningMode ?? "all", [
 			["all", "All"],
 			["reviewable", "Reviewable"],
 			["exploratory", "Exploratory"],
@@ -376,7 +387,7 @@ export class MnemeConceptLibraryView extends ItemView {
 			};
 		});
 
-		this.renderSelect(controlsEl, "Importance", this.filter.importance ?? "all", [
+		this.renderSelect(filterGridEl, "Importance", this.filter.importance ?? "all", [
 			["all", "All"],
 			["low", "Low"],
 			["normal", "Normal"],
@@ -389,7 +400,7 @@ export class MnemeConceptLibraryView extends ItemView {
 			};
 		});
 
-		this.renderSelect(controlsEl, "Tag", this.filter.tag ?? "all", [
+		this.renderSelect(filterGridEl, "Tag", this.filter.tag ?? "all", [
 			["all", "All"],
 			...this.getAllTags().map((tag): [string, string] => [tag, tag]),
 		], (value) => {
@@ -399,7 +410,7 @@ export class MnemeConceptLibraryView extends ItemView {
 			};
 		});
 
-		this.renderSelect(controlsEl, "Sort", this.sortMode, [
+		this.renderSelect(filterGridEl, "Sort", this.sortMode, [
 			["title", "Title"],
 			["updatedAt_desc", "Recently updated"],
 			["importance_desc", "Importance"],
@@ -438,25 +449,36 @@ export class MnemeConceptLibraryView extends ItemView {
 		const visibleConcepts = this.getVisibleConcepts();
 		const summaryEl = this.contentEl.createDiv({ cls: "mneme-review-summary" });
 
-		summaryEl.createEl("span", { text: `${visibleConcepts.length} concepts` });
-		this.contentEl.createEl("p", {
-			cls: "mneme-review-status",
-			text: this.statusMessage,
+		summaryEl.createEl("span", {
+			text: visibleConcepts.length === this.concepts.length
+				? `${visibleConcepts.length} Concepts`
+				: `${visibleConcepts.length} of ${this.concepts.length} Concepts`,
 		});
+		const maintenanceCount = this.getMaintenanceItemCount();
+		if (maintenanceCount > 0) {
+			summaryEl.createEl("span", { text: `${maintenanceCount} maintenance item${maintenanceCount === 1 ? "" : "s"}` });
+		}
+		if (this.statusMessage) {
+			this.contentEl.createEl("p", {
+				cls: "mneme-review-status",
+				text: this.statusMessage,
+			});
+		}
 	}
 
 	private renderConceptList(): void {
-		const listEl = this.contentEl.createDiv({ cls: "mneme-review-queue" });
+		const listEl = this.contentEl.createDiv({ cls: "mneme-concept-library-grid" });
 		const visibleConcepts = this.getVisibleConcepts();
 
 		if (visibleConcepts.length === 0) {
-			listEl.createEl("p", {
+			const emptyEl = listEl.createDiv({ cls: "mneme-concept-library-empty" });
+			emptyEl.createEl("p", {
 				cls: "mneme-review-empty",
 				text: "No Concepts found.",
 			});
-			listEl.createEl("p", {
+			emptyEl.createEl("p", {
 				cls: "mneme-review-status",
-				text: "Write an approved Concept proposal first, or generate Concepts later through AI Capture.",
+				text: "Create a Concept or adjust the current search and filters.",
 			});
 			return;
 		}
@@ -467,29 +489,26 @@ export class MnemeConceptLibraryView extends ItemView {
 	}
 
 	private renderConceptCard(parentEl: HTMLElement, concept: ConceptSummary): void {
-		const itemEl = parentEl.createDiv({ cls: "mneme-review-queue-item mneme-concept-library-item" });
-		const mainEl = itemEl.createDiv({ cls: "mneme-review-queue-main" });
-		const textEl = mainEl.createDiv();
-		const preview = concept.coreMeaning ?? createConceptPreview(`# ${concept.title}\n\n${concept.whyItMatters ?? ""}`);
-
-		textEl.createEl("h3", {
-			cls: "mneme-review-queue-title",
+		const cardEl = parentEl.createEl("article", { cls: "mneme-concept-library-card" });
+		const openEl = cardEl.createEl("button", {
+			attr: { "aria-label": `Open ${concept.title}` },
+			cls: "mneme-concept-library-card-open",
+		});
+		openEl.createEl("span", {
+			cls: "mneme-concept-library-card-title",
 			text: concept.title,
 		});
-		textEl.createEl("p", {
-			cls: "mneme-review-status",
-			text: preview || "No preview available.",
+		openEl.createEl("span", {
+			cls: "mneme-concept-library-card-meaning",
+			text: formatCoreMeaning(concept.coreMeaning),
 		});
-		textEl.createEl("p", {
-			cls: "mneme-review-queue-meta",
-			text: formatConceptMeta(concept),
-		});
-		textEl.createEl("p", {
-			cls: "mneme-review-queue-meta",
-			text: concept.path,
+		openEl.addEventListener("click", () => {
+			void this.openMarkdownPath(concept.path, "Concept");
 		});
 
-		const actionsEl = mainEl.createDiv({ cls: "mneme-review-actions" });
+		const moreEl = cardEl.createEl("details", { cls: "mneme-concept-library-card-more" });
+		moreEl.createEl("summary", { text: "More" });
+		const actionsEl = moreEl.createDiv({ cls: "mneme-concept-library-card-actions" });
 		actionsEl.createEl("button", { text: "Open Concept" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
 				void this.openMarkdownPath(concept.path, "Concept");
@@ -519,14 +538,33 @@ export class MnemeConceptLibraryView extends ItemView {
 				});
 			});
 		}
+	}
 
-		const detailsEl = itemEl.createEl("details", { cls: "mneme-review-details" });
-		detailsEl.createEl("summary", { text: "Preview" });
-		detailsEl.createEl("p", { text: `Core Meaning: ${concept.coreMeaning ?? "Not provided."}` });
-		detailsEl.createEl("p", { text: `Why It Matters: ${concept.whyItMatters ?? "Not provided."}` });
-		detailsEl.createEl("p", { text: `Cards: ${concept.cardsPath ?? "No Card Group."}` });
-		detailsEl.createEl("p", { text: `Sources: ${formatCount(concept.sourceCount, "source")}` });
-		detailsEl.createEl("p", { text: `Tags: ${formatTags(concept.tags)}` });
+	private renderMaintenance(): void {
+		const hasMaintenance = this.identityIssues.length > 0
+			|| this.staleSourceIssues.length > 0
+			|| this.duplicateCandidates.length > 0;
+		if (!hasMaintenance) return;
+
+		const detailsEl = this.contentEl.createEl("details", { cls: "mneme-concept-library-maintenance" });
+		detailsEl.open = this.isMaintenanceOpen;
+		detailsEl.addEventListener("toggle", () => {
+			this.isMaintenanceOpen = detailsEl.open;
+		});
+		const count = this.getMaintenanceItemCount();
+		detailsEl.createEl("summary", {
+			text: count > 0 ? `Library maintenance (${count})` : "Library maintenance",
+		});
+		const contentEl = detailsEl.createDiv({ cls: "mneme-concept-library-maintenance-content" });
+		this.renderIdentityIssues(contentEl);
+		this.renderStaleSourceIssues(contentEl);
+		this.renderDuplicateCandidates(contentEl);
+	}
+
+	private getMaintenanceItemCount(): number {
+		return this.identityIssues.length
+			+ this.staleSourceIssues.length
+			+ this.getActiveDuplicateCandidates().length;
 	}
 
 	private getVisibleConcepts(): ConceptSummary[] {
@@ -618,30 +656,8 @@ export class MnemeConceptLibraryView extends ItemView {
 	}
 }
 
-function formatConceptMeta(concept: ConceptSummary): string {
-	return [
-		concept.learningMode ? formatLabel(concept.learningMode) : undefined,
-		concept.importance ? `${formatLabel(concept.importance)} importance` : undefined,
-		concept.tags && concept.tags.length > 0 ? `tags: ${concept.tags.join(", ")}` : undefined,
-		concept.cardCount !== undefined ? formatCount(concept.cardCount, "card") : undefined,
-		concept.sourceCount !== undefined ? formatCount(concept.sourceCount, "source") : undefined,
-	].filter(Boolean).join(" · ");
-}
-
-function formatTags(tags: string[] | undefined): string {
-	return tags && tags.length > 0 ? tags.join(", ") : "No tags.";
-}
-
-function formatCount(count: number | undefined, noun: string): string {
-	if (count === undefined) {
-		return `Unknown ${noun}s`;
-	}
-
-	return `${count} ${noun}${count === 1 ? "" : "s"}`;
-}
-
-function formatLabel(value: string): string {
-	return value.charAt(0).toUpperCase() + value.slice(1);
+function formatCoreMeaning(value: string | undefined): string {
+	return value?.trim() || "No Core Meaning yet.";
 }
 
 function formatDuplicateCore(value: string | undefined): string {
