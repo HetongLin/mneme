@@ -4,7 +4,7 @@
 
 All user-facing UI labels must be in English.
 
-Fixed product chrome and field labels use English. Content that comes from the student's notes follows the Source Note's dominant language, so a Chinese note may produce Chinese Concept summaries, Core Meaning, Card prompts, and evidence excerpts. Technical terms should include English names in parentheses when helpful, such as `字典学习 (Dictionary Learning)`.
+Fixed product chrome and field labels use English. Generated learning content follows the Source Note's detected dominant language. English Sources produce English learning content. Chinese Sources produce Chinese-first Concept titles, Core Meaning, Why It Matters, Views, and Card text; each technical concept or established proper term includes its standard English name in parentheses on first occurrence, such as `字典学习 (Dictionary Learning)`. Evidence excerpts remain exact and untranslated.
 
 AI should prefer stable English lowercase tag slugs, but user-approved and manually entered tags may use any language already meaningful in the vault. Mneme normalizes whitespace and punctuation without deleting non-Latin text.
 

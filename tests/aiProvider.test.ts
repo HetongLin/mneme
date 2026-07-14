@@ -8,6 +8,7 @@ import {
 import { createAiProvider } from "../src/services/aiProviderFactory";
 import { validateAiStructuredProposalResponse } from "../src/services/aiProposalValidator";
 import { buildDeepSeekKnowledgeProposalPayload, DeepSeekProvider } from "../src/services/deepSeekProvider";
+import { detectLearningContentLanguage } from "../src/services/learningContentLanguage";
 import { MockAiProvider } from "../src/services/mockAiProvider";
 import { buildOpenAiKnowledgeProposalPayload, OpenAiProvider } from "../src/services/openAiProvider";
 
@@ -32,6 +33,12 @@ const cardRequest = {
 	sourceHash: "concept-hash",
 	sourcePath: "Mneme/Concepts/Encapsulation/Concept.md",
 };
+
+assert.equal(detectLearningContentLanguage("Bayesian reasoning combines prior beliefs with observed evidence."), "en");
+assert.equal(detectLearningContentLanguage("贝叶斯推理将先验知识与观测证据结合起来。Bayes theorem 是核心概念。"), "zh");
+assert.equal(detectLearningContentLanguage("---\ntags: [machine-learning]\n---\n贝叶斯推理通过观测证据更新先验信念。"), "zh");
+assert.equal(detectLearningContentLanguage("---\ntitle: 贝叶斯定理\n---\nBayesian reasoning updates prior beliefs with observed evidence."), "en");
+assert.equal(detectLearningContentLanguage("$P(A \\mid B)$"), "source");
 
 async function run(): Promise<void> {
 {
@@ -151,6 +158,7 @@ async function run(): Promise<void> {
 	};
 	const payload = buildOpenAiKnowledgeProposalPayload(cardRequest, settings);
 	const serialized = JSON.stringify(payload);
+	const requestContext = readRequestContext(payload);
 
 	assert.equal(serialized.includes("card_generation"), true);
 	assert.equal(serialized.includes("new_card"), true);
@@ -158,7 +166,9 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("Copy sourcePath exactly into source.path"), true);
 	assert.equal(serialized.includes("Choose cardType by this rubric"), true);
 	assert.equal(serialized.includes("Return the exact cardType enum value only"), true);
-	assert.equal(serialized.includes("Write user-facing Card text in the approved Concept's dominant language"), true);
+	assert.equal(serialized.includes("Follow languageContract exactly for generated Card text"), true);
+	assert.equal(requestContext.languageContract?.outputLanguageCode, "en");
+	assert.equal(serialized.includes("Do not translate generated Concept or Card content into Chinese"), true);
 	assert.equal(serialized.includes("Use $...$ for short inline math"), true);
 	assert.equal(serialized.includes("Use $$...$$ on separate lines"), true);
 	assert.equal(serialized.includes("Never emit bare LaTeX"), true);
@@ -179,11 +189,13 @@ async function run(): Promise<void> {
 	};
 	const payload = buildDeepSeekKnowledgeProposalPayload(cardRequest, settings);
 	const serialized = JSON.stringify(payload);
+	const requestContext = readRequestContext(payload);
 
 	assert.equal(serialized.includes("card_generation"), true);
 	assert.equal(serialized.includes("new_card"), true);
 	assert.equal(serialized.includes("Choose cardType by this rubric"), true);
-	assert.equal(serialized.includes("Write user-facing Card text in the approved Concept's dominant language"), true);
+	assert.equal(serialized.includes("Follow languageContract exactly for generated Card text"), true);
+	assert.equal(requestContext.languageContract?.outputLanguageCode, "en");
 	assert.equal(serialized.includes("Use $...$ for short inline math"), true);
 	assert.equal(serialized.includes("Use $$...$$ on separate lines"), true);
 	assert.equal(serialized.includes("delimiter rules are mandatory"), true);
@@ -200,12 +212,16 @@ async function run(): Promise<void> {
 	};
 	const payload = buildOpenAiKnowledgeProposalPayload(request, settings);
 	const serialized = JSON.stringify(payload);
+	const requestContext = readRequestContext(payload);
 
 	assert.equal(payload.endpoint, "https://api.openai.com/v1/responses");
 	assert.equal(payload.model, "gpt-test");
 	assert.equal(payload.text?.format.type, "json_schema");
 	assert.equal(serialized.includes("sk-secret-value"), false);
-	assert.equal(serialized.includes("Write user-facing Concept text in the source note's dominant language"), true);
+	assert.equal(serialized.includes("Follow languageContract exactly for generated Concept text"), true);
+	assert.equal(serialized.includes("Treat it as authoritative"), true);
+	assert.equal(requestContext.languageContract?.outputLanguageCode, "en");
+	assert.equal(serialized.includes("existingConcepts, existing Concept titles"), true);
 	assert.equal(serialized.includes("coreMeaning is the primary learning content"), true);
 	assert.equal(serialized.includes("whyItMatters states why it is useful"), true);
 	assert.equal(serialized.includes("Do not use whyItMatters to repeat or paraphrase coreMeaning"), true);
@@ -216,6 +232,55 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("delimiter rules are mandatory"), true);
 	assert.equal(serialized.includes("Encapsulation keeps object internals"), false);
 	assert.equal(serialized.includes("Encapsulatio"), true);
+}
+
+{
+	const settings = {
+		...DEFAULT_SETTINGS,
+		aiProvider: "openai" as const,
+		openaiApiKey: "sk-secret-value",
+	};
+	const payload = buildOpenAiKnowledgeProposalPayload({
+		...request,
+		existingConcepts: [{
+			conceptId: "concept-bayes-theorem",
+			coreMeaning: "贝叶斯定理通过证据更新先验概率。",
+			title: "贝叶斯定理 (Bayes Theorem)",
+		}],
+	}, settings);
+	const serialized = JSON.stringify(payload);
+	const requestContext = readRequestContext(payload);
+
+	assert.equal(requestContext.languageContract?.outputLanguageCode, "en");
+	assert.equal(requestContext.languageContract?.outputLanguage, "English");
+	assert.equal(serialized.includes("A response that violates languageContract is invalid"), true);
+	assert.equal(serialized.includes("Do not translate generated Concept or Card content into Chinese"), true);
+	assert.equal(serialized.includes("every AI-authored natural-language field"), true);
+}
+
+{
+	const settings = {
+		...DEFAULT_SETTINGS,
+		aiProvider: "openai" as const,
+		openaiApiKey: "sk-secret-value",
+	};
+	const payload = buildOpenAiKnowledgeProposalPayload({
+		...request,
+		existingConcepts: [{
+			conceptId: "concept-bayes-theorem",
+			coreMeaning: "Bayes theorem updates a prior belief with evidence.",
+			title: "Bayes Theorem",
+		}],
+		sourceContent: "贝叶斯推理将先验知识与观测证据结合起来，并用于更新后验概率。",
+	}, settings);
+	const serialized = JSON.stringify(payload);
+	const requestContext = readRequestContext(payload);
+
+	assert.equal(requestContext.languageContract?.outputLanguageCode, "zh");
+	assert.equal(requestContext.languageContract?.outputLanguage, "Chinese");
+	assert.equal(serialized.includes("Write generated learning titles and prose primarily in Chinese"), true);
+	assert.equal(serialized.includes("append its standard English name in parentheses"), true);
+	assert.equal(serialized.includes("中文名称 (English Name)"), true);
 }
 
 {
@@ -352,6 +417,27 @@ function createStructuredResponse() {
 		schemaVersion: "mneme.ai.proposals.v1",
 		source: { hash: request.sourceHash, path: request.sourcePath },
 		warnings: [],
+	};
+}
+
+function readRequestContext(payload: {
+	input?: Array<{ content: string }>;
+	messages?: Array<{ content: string }>;
+}): {
+	languageContract?: {
+		outputLanguage?: string;
+		outputLanguageCode?: string;
+	};
+} {
+	const content = payload.input?.find(({ content: value }) => value.startsWith("{"))?.content
+		?? payload.messages?.find(({ content: value }) => value.startsWith("{"))?.content
+		?? "{}";
+
+	return JSON.parse(content) as {
+		languageContract?: {
+			outputLanguage?: string;
+			outputLanguageCode?: string;
+		};
 	};
 }
 

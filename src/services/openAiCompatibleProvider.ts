@@ -1,5 +1,6 @@
 import type { AiProposalRequest } from "./aiProvider";
 import { AI_CARD_GENERATION_MAX_PROPOSALS } from "./aiProposalSchema";
+import { createLearningContentLanguageContract } from "./learningContentLanguage";
 
 export interface OpenAiCompatibleProviderConfig {
 	baseUrl: string;
@@ -49,11 +50,20 @@ const OBSIDIAN_MATH_MARKDOWN_GUIDANCE = [
 	"If the source uses $...$ or $$...$$, preserve valid delimiters when carrying that mathematics into generated content. Write 'Bayes theorem uses $P(h \\mid D)=\\frac{P(D \\mid h)P(h)}{P(D)}$' rather than leaving P(h|D) or the equation as bare text.",
 ].join(" ");
 
+const LANGUAGE_CONTRACT_GUIDANCE = [
+	"The user JSON contains a languageContract computed by Mneme from sourceContent. Treat it as authoritative.",
+	"A response that violates languageContract is invalid. Before returning JSON, verify every generated learning field against it.",
+	"Apply languageContract to every AI-authored natural-language field, including proposal titles, rationales, evidence explanations, new Concept titles, Core Meaning, Why It Matters, View titles and bodies, and Card fronts, backs, and rubrics.",
+	"Do not infer or change the output language based on existingConcepts, existing Concept titles, existingCardFronts, UI language, tags, filenames, or examples elsewhere in this prompt.",
+	"Exact evidence quotes and copied identifiers or existing target titles are exempt: preserve them exactly and never translate them.",
+].join(" ");
+
 export function buildOpenAiCompatibleKnowledgeProposalPayload(
 	input: AiProposalRequest,
 	config: OpenAiCompatibleProviderConfig,
 ): OpenAiCompatibleStructuredOutputPayload {
 	const sourceContent = input.sourceContent.slice(0, config.maxInputChars);
+	const languageContract = createLearningContentLanguageContract(input.sourceContent);
 	const formattingContract = {
 		mathMarkdown: "Required: wrap inline mathematics in $...$ with no spaces immediately inside the delimiters, and standalone mathematics in $$...$$; never return bare formulas in generated payload text.",
 	};
@@ -61,6 +71,7 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 		? [
 			"Return one JSON object with schemaVersion 'mneme.ai.proposals.v1', mode 'card_generation', the exact source path/hash, proposals, and string warnings.",
 			"Copy sourcePath exactly into source.path and sourceHash exactly into source.hash from the user JSON. Do not invent, shorten, or rehash either value.",
+			LANGUAGE_CONTRACT_GUIDANCE,
 			"Top-level shape: {\"schemaVersion\":\"mneme.ai.proposals.v1\",\"mode\":\"card_generation\",\"source\":{\"path\":\"<sourcePath>\",\"hash\":\"<sourceHash>\"},\"warnings\":[],\"proposals\":[]}.",
 			"Generate at most five non-duplicative new_card proposals from the approved written Concept. Do not propose Concepts or return a standalone Markdown document.",
 			"Treat existingCardFronts as the current Coverage Map. Do not repeat the same learning outcome; return an empty proposals array when the approved Concept has no useful uncovered outcome.",
@@ -72,11 +83,12 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 			"Return the exact cardType enum value only, not a natural-language label, phrase, or explanation.",
 			"Use focused recall questions that test understanding, distinctions, procedures, examples, traps, proofs, applications, or mastery. Avoid trivia and duplicate questions.",
 			OBSIDIAN_MATH_MARKDOWN_GUIDANCE,
-			"Write user-facing Card text in the approved Concept's dominant language. Preserve technical terms and include English terms in parentheses when helpful. Evidence quotes must stay exact and must not be translated.",
+			"Follow languageContract exactly for generated Card text. Evidence quotes must stay exact and must not be translated.",
 		].join("\n")
 		: [
 			"Return one JSON object with schemaVersion 'mneme.ai.proposals.v1', mode 'concept_capture', the exact source path/hash, proposals, and string warnings.",
 			"Copy sourcePath exactly into source.path and sourceHash exactly into source.hash from the user JSON. Do not invent, shorten, or rehash either value.",
+			LANGUAGE_CONTRACT_GUIDANCE,
 			"Top-level shape: {\"schemaVersion\":\"mneme.ai.proposals.v1\",\"mode\":\"concept_capture\",\"source\":{\"path\":\"<sourcePath>\",\"hash\":\"<sourceHash>\"},\"warnings\":[],\"proposals\":[]}.",
 			"Concept capture may return only new_concept, link_existing_concept, add_view, update_concept, or merge_concept.",
 			"Every proposal requires kind, title, rationale, confidence from 0 to 1, evidence entries with sourcePath/quote/explanation, and a kind-specific payload.",
@@ -84,7 +96,7 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 			"For new_concept payloads, coreMeaning is the primary learning content: state what the Concept is and its defining mechanism clearly enough to identify it. whyItMatters states why it is useful, when it matters, or what problem it helps solve. Do not use whyItMatters to repeat or paraphrase coreMeaning.",
 			"For update_concept payloads, proposedCoreMeaning and proposedWhyItMatters follow the same distinction: proposedCoreMeaning explains what the Concept is; proposedWhyItMatters explains its usefulness, relevance, or application.",
 			OBSIDIAN_MATH_MARKDOWN_GUIDANCE,
-			"Write user-facing Concept text in the source note's dominant language. For non-English source notes, keep the student's language and include English technical terms in parentheses when helpful, e.g. 字典学习 (Dictionary Learning). Evidence quotes must stay exact and must not be translated.",
+			"Follow languageContract exactly for generated Concept text. Evidence quotes must stay exact and must not be translated.",
 			"For new_concept payloads, learningMode must be exactly 'reviewable' or 'exploratory'; do not use values like definition, application, recall, or understanding.",
 			"For new_concept payloads, suggestedImportance must be exactly 'low', 'normal', 'high', or 'critical'; use 'normal' when unsure.",
 			"For new_concept payloads, suggest 1 to 5 concise organization tags. Prefer stable English lowercase slugs, but preserve an established non-English domain tag when it clearly matches the student's note; do not duplicate meanings or include '#' prefixes.",
@@ -94,6 +106,7 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 		].join("\n");
 	const requestContext = input.mode === "card_generation"
 		? {
+			languageContract,
 			conceptId: input.conceptId,
 			conceptTitle: input.conceptTitle,
 			existingCardFronts: input.existingCardFronts,
@@ -104,6 +117,7 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 			sourcePath: input.sourcePath,
 		}
 		: {
+			languageContract,
 			existingConcepts: input.existingConcepts,
 			formattingContract,
 			mode: input.mode,

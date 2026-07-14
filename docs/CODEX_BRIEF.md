@@ -42,7 +42,7 @@ The Review Gate protects AI-proposed knowledge changes. It must not impersonate 
 6. FSRS fully controls Card scheduling. Concept aggregation cannot reschedule Cards.
 7. Concept Learning State distinguishes memory risk, assessment coverage, and explicit student signals; it is not a mastery percentage.
 8. Inbox is a review queue, not a debug dashboard. List items can Open or Reject; acceptance happens only inside the complete editable Review Gate.
-9. Fixed product labels are English. Generated learning prose follows the Source Note's dominant language.
+9. Fixed product labels are English. Generated learning prose follows the Source Note's detected dominant language. Chinese learning content includes standard English names for technical concepts on first occurrence.
 10. AI should propose stable English tag slugs, but user-approved tags in other scripts remain valid.
 11. Review should feel like Today’s Focus, not accumulated debt. Non-due FSRS Cards remain Later and cannot be promoted by ranking.
 12. Never silently discard or destructively migrate user Markdown.
