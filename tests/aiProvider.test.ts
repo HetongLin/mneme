@@ -225,6 +225,11 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("Do not apply a fixed numerical cap to Concept proposals"), true);
 	assert.equal(serialized.includes("exactly one independently explainable, durable knowledge unit"), true);
 	assert.equal(serialized.includes("Do not create a Concept from a section heading"), true);
+	assert.equal(serialized.includes("shortest unambiguous canonical or established Concept name"), true);
+	assert.equal(serialized.includes("Name the knowledge itself, not the Source Note's purpose"), true);
+	assert.equal(serialized.includes("Prefer 'Bayes Theorem' over 'Bayes Theorem for Hypothesis Evaluation'"), true);
+	assert.equal(serialized.includes("Put an application context in whyItMatters or a View"), true);
+	assert.equal(serialized.includes("instead of creating a context-qualified duplicate"), true);
 	assert.equal(serialized.includes("Compare each candidate with existingConcepts before creating it"), true);
 	assert.equal(serialized.includes("Return an empty proposals array when the Source Note contains no durable knowledge worth creating or linking"), true);
 	assert.equal(serialized.includes("at least one evidence entry"), true);
