@@ -8,6 +8,8 @@ Fixed product chrome and field labels use English. Content that comes from the s
 
 AI should prefer stable English lowercase tag slugs, but user-approved and manually entered tags may use any language already meaningful in the vault. Mneme normalizes whitespace and punctuation without deleting non-Latin text.
 
+Generated and manually edited mathematical notation uses Obsidian MathJax Markdown. Use `$...$` for short inline formulas inside a sentence. Use `$$...$$` on separate lines for standalone, long, emphasized, or multi-line equations. Primary Concept and Review Card surfaces render this Markdown through Obsidian; selecting a rendered formula opens the corresponding raw Concept or Card editor.
+
 The product should feel low-pressure. Avoid debt-like language.
 
 User experience is the first requirement. Primary UI should present concise review content, not AI/provider internals.
@@ -143,6 +145,8 @@ Concept Library is primarily a visual quick-review surface, not a metadata dashb
 - Core Meaning
 
 Selecting the card opens the clean Concept note. File paths, tags, learning mode, importance, Source counts, Card counts, and Why It Matters do not appear on the card face. Concept management actions such as Edit Concept, Open Cards, and Generate Cards remain available under the card's collapsed `More` control.
+
+Core Meaning is rendered with Obsidian Markdown, including MathJax formulas delimited by `$...$` or `$$...$$`. Selecting a rendered formula opens Edit Concept so the student can inspect and change the original Markdown/LaTeX source.
 
 Search stays visible. Learning mode, importance, tag, and sort controls live under collapsed `Filters`. Identity Repair, Stale Source Provenance, and Possible Duplicates remain available below the card wall under collapsed `Library maintenance`, so diagnostics do not dominate quick review.
 

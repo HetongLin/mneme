@@ -1,4 +1,4 @@
-import { ItemView, MarkdownView, Notice, TAbstractFile, TFile, TFolder, WorkspaceLeaf } from "obsidian";
+import { ItemView, MarkdownRenderer, MarkdownView, Notice, TAbstractFile, TFile, TFolder, WorkspaceLeaf } from "obsidian";
 import type {
 	ConceptLibraryFilter,
 	ConceptLibrarySortMode,
@@ -490,19 +490,39 @@ export class MnemeConceptLibraryView extends ItemView {
 
 	private renderConceptCard(parentEl: HTMLElement, concept: ConceptSummary): void {
 		const cardEl = parentEl.createEl("article", { cls: "mneme-concept-library-card" });
-		const openEl = cardEl.createEl("button", {
-			attr: { "aria-label": `Open ${concept.title}` },
+		const openEl = cardEl.createDiv({
+			attr: {
+				"aria-label": `Open ${concept.title}`,
+				role: "button",
+				tabindex: "0",
+			},
 			cls: "mneme-concept-library-card-open",
 		});
 		openEl.createEl("span", {
 			cls: "mneme-concept-library-card-title",
 			text: concept.title,
 		});
-		openEl.createEl("span", {
+		const meaningEl = openEl.createDiv({
 			cls: "mneme-concept-library-card-meaning",
-			text: formatCoreMeaning(concept.coreMeaning),
 		});
-		openEl.addEventListener("click", () => {
+		void this.renderMarkdown(
+			meaningEl,
+			formatCoreMeaning(concept.coreMeaning),
+			concept.path,
+		);
+		openEl.addEventListener("click", (event) => {
+			if (isRenderedMathTarget(event.target)) {
+				event.preventDefault();
+				event.stopPropagation();
+				this.openConceptEditor(concept);
+				return;
+			}
+			if (isMarkdownInteractiveTarget(event.target)) return;
+			void this.openMarkdownPath(concept.path, "Concept");
+		});
+		openEl.addEventListener("keydown", (event) => {
+			if (event.target !== openEl || (event.key !== "Enter" && event.key !== " ")) return;
+			event.preventDefault();
 			void this.openMarkdownPath(concept.path, "Concept");
 		});
 
@@ -516,10 +536,7 @@ export class MnemeConceptLibraryView extends ItemView {
 		});
 		actionsEl.createEl("button", { text: "Edit Concept" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
-				new ConceptEditModal(this.app, {
-					concept,
-					onSaved: () => this.refresh(),
-				}).open();
+				this.openConceptEditor(concept);
 			});
 		});
 
@@ -537,6 +554,24 @@ export class MnemeConceptLibraryView extends ItemView {
 					void this.actions.generateCards?.(concept);
 				});
 			});
+		}
+	}
+
+	private openConceptEditor(concept: ConceptSummary): void {
+		new ConceptEditModal(this.app, {
+			concept,
+			onSaved: () => this.refresh(),
+		}).open();
+	}
+
+	private async renderMarkdown(parentEl: HTMLElement, markdown: string, sourcePath: string): Promise<void> {
+		try {
+			await MarkdownRenderer.render(this.app, markdown, parentEl, sourcePath, this);
+			markRenderedMathEditable(parentEl);
+		} catch (error) {
+			console.error("Mneme: failed to render Concept Markdown", error);
+			parentEl.empty();
+			parentEl.setText(markdown);
 		}
 	}
 
@@ -667,4 +702,18 @@ function formatDuplicateCore(value: string | undefined): string {
 	const normalized = value.replace(/\s+/g, " ").trim();
 
 	return normalized.length <= 320 ? normalized : `${normalized.slice(0, 319).trim()}…`;
+}
+
+function isRenderedMathTarget(target: EventTarget | null): boolean {
+	return target instanceof Element && target.closest(".math, .math-inline, .math-block, .katex, mjx-container") !== null;
+}
+
+function isMarkdownInteractiveTarget(target: EventTarget | null): boolean {
+	return target instanceof Element && target.closest("a, button, input, select, textarea") !== null;
+}
+
+function markRenderedMathEditable(parentEl: HTMLElement): void {
+	parentEl.querySelectorAll<HTMLElement>(".math, mjx-container").forEach((mathEl) => {
+		mathEl.title = "Click to edit formula source";
+	});
 }

@@ -146,6 +146,16 @@ export class ProposalDetailModal extends Modal {
 
 	private renderStructuredEditor(parentEl: HTMLElement): void {
 		parentEl.createEl("h3", { text: "Edit" });
+		if (
+			this.proposal.kind === "new_concept"
+			|| this.proposal.kind === "new_card"
+			|| this.proposal.kind === "update_concept"
+		) {
+			parentEl.createEl("p", {
+				cls: "mneme-markdown-edit-hint",
+				text: "Math: use $...$ inside a sentence; use $$...$$ on separate lines for a display equation.",
+			});
+		}
 
 		if (this.proposal.kind === "new_concept") {
 			this.renderNewConceptEditor(parentEl);

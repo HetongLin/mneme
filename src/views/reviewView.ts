@@ -1,4 +1,4 @@
-import { ItemView, MarkdownView, Notice, TFile, WorkspaceLeaf } from "obsidian";
+import { ItemView, MarkdownRenderer, MarkdownView, Notice, TFile, WorkspaceLeaf } from "obsidian";
 import { ConceptMemorySummary } from "../models/conceptMemory";
 import { LoadedMnemeCard } from "../models/card";
 import { RankedReviewQueueConcept } from "../models/conceptQueue";
@@ -347,10 +347,7 @@ export class MnemeReviewView extends ItemView {
 			text: concept.title,
 		});
 
-		cardEl.createEl("div", {
-			cls: "mneme-review-card-text",
-			text: currentCard.front || "(empty)",
-		});
+		this.renderCardMarkdown(cardEl, currentCard.front || "(empty)", currentCard, "mneme-review-card-text");
 
 		if (!this.isAnswerShown) {
 			const actionsEl = cardEl.createDiv({ cls: "mneme-review-primary-actions" });
@@ -362,10 +359,7 @@ export class MnemeReviewView extends ItemView {
 		}
 
 		cardEl.createDiv({ cls: "mneme-review-answer-separator" });
-		cardEl.createEl("div", {
-			cls: "mneme-review-card-text",
-			text: currentCard.back || "(empty)",
-		});
+		this.renderCardMarkdown(cardEl, currentCard.back || "(empty)", currentCard, "mneme-review-card-text");
 
 		const ratingsEl = cardEl.createDiv({ cls: "mneme-review-rating-row" });
 		for (const rating of REVIEW_RATINGS) {
@@ -382,6 +376,35 @@ export class MnemeReviewView extends ItemView {
 		this.renderCurrentCardDetails(cardEl, concept, currentQueueCard);
 	}
 
+	private renderCardMarkdown(
+		parentEl: HTMLElement,
+		markdown: string,
+		card: LoadedMnemeCard,
+		className: string,
+	): void {
+		const markdownEl = parentEl.createDiv({ cls: `${className} mneme-markdown-content` });
+		markdownEl.addEventListener("click", (event) => {
+			if (!isRenderedMathTarget(event.target)) return;
+			event.preventDefault();
+			event.stopPropagation();
+			this.openCardEditor(card);
+		});
+		void MarkdownRenderer.render(this.app, markdown, markdownEl, card.path, this)
+			.then(() => markRenderedMathEditable(markdownEl))
+			.catch((error) => {
+				console.error("Mneme: failed to render Card Markdown", error);
+				markdownEl.empty();
+				markdownEl.setText(markdown);
+			});
+	}
+
+	private openCardEditor(card: LoadedMnemeCard): void {
+		new CardEditModal(this.app, {
+			card,
+			onSaved: () => this.refreshCards(),
+		}).open();
+	}
+
 	private renderCardManagementActions(
 		parentEl: HTMLElement,
 		concept: ReviewQueueConcept,
@@ -389,10 +412,7 @@ export class MnemeReviewView extends ItemView {
 	): void {
 		parentEl.createEl("button", { text: "Edit" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
-				new CardEditModal(this.app, {
-					card: queueCard.card,
-					onSaved: () => this.refreshCards(),
-				}).open();
+				this.openCardEditor(queueCard.card);
 			});
 		});
 		parentEl.createEl("button", { text: "Open Concept" }, (buttonEl) => {
@@ -745,10 +765,7 @@ export class MnemeReviewView extends ItemView {
 
 		if (card.rubric) {
 			detailsEl.createEl("h4", { text: "Rubric" });
-			detailsEl.createEl("div", {
-				cls: "mneme-review-rubric",
-				text: card.rubric,
-			});
+			this.renderCardMarkdown(detailsEl, card.rubric, card, "mneme-review-rubric");
 		}
 
 		detailsEl.createEl("p", { text: `Card ID: ${card.cardId}` });
@@ -1216,6 +1233,16 @@ function formatOptionalNumber(value: number | undefined): string {
 	}
 
 	return Number.isInteger(value) ? String(value) : value.toFixed(4);
+}
+
+function isRenderedMathTarget(target: EventTarget | null): boolean {
+	return target instanceof Element && target.closest(".math, .math-inline, .math-block, .katex, mjx-container") !== null;
+}
+
+function markRenderedMathEditable(parentEl: HTMLElement): void {
+	parentEl.querySelectorAll<HTMLElement>(".math, mjx-container").forEach((mathEl) => {
+		mathEl.title = "Click to edit formula source";
+	});
 }
 
 function formatDiagnosticConceptSummary(
