@@ -202,7 +202,7 @@ The proposal detail modal is the Review Gate. It lets the student read, edit, an
 
 Preferred order:
 
-1. Title / Source / Target metadata
+1. Source / Target metadata when applicable
 2. Editable Concept or Card content
 3. Source Evidence for Concept proposals, or Concept Grounding for Card proposals
 4. Validation status
@@ -210,6 +210,8 @@ Preferred order:
 6. Bottom actions
 
 `Proposed Change` summaries should not appear above editable Concept fields when they merely duplicate Summary or Core Meaning. For Card proposals, the editable Front / Back / Rubric fields are the primary review content.
+
+Do not add a generic `Edit` heading, interaction instructions, duplicated proposal title, or success text such as `Proposal payload is ready for review`. Editable fields should be self-evident. Validation UI appears only when there is an actionable error or warning.
 
 Markdown-bearing editor fields use a Live Preview interaction: the inactive field is rendered with Obsidian Markdown, and selecting it reveals the original editable source, including `$...$` and `$$...$$` delimiters. Concept Library remains the dedicated read-only rendered Concept surface.
 

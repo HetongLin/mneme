@@ -78,10 +78,6 @@ export class ConceptEditModal extends Modal {
 			cls: "mneme-review-status",
 			text: `Editing ${this.options.concept.path}`,
 		});
-		contentEl.createEl("p", {
-			cls: "mneme-markdown-edit-hint",
-			text: "Select a preview to edit its Markdown source. Use $...$ inline and $$...$$ on separate lines for display math.",
-		});
 		const coreMeaningInput = this.createTextarea(contentEl, "Core Meaning", baseline.coreMeaning);
 		const whyInput = this.createTextarea(contentEl, "Why It Matters", baseline.whyItMatters);
 		const learningModeSelect = this.createSelect<ConceptLearningMode>(

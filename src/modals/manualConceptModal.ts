@@ -28,10 +28,6 @@ export class ManualConceptModal extends Modal {
 	}
 
 	private renderForm(): void {
-		this.contentEl.createEl("p", {
-			cls: "mneme-markdown-edit-hint",
-			text: "Select a preview to edit its Markdown source. Use $...$ inline and $$...$$ on separate lines for display math.",
-		});
 		const title = this.createInput("Title", "e.g. Information Gain");
 		const coreMeaning = this.createTextarea("Core Meaning", "Explain the idea in your own words.");
 		const whyItMatters = this.createTextarea("Why It Matters", "Optional");

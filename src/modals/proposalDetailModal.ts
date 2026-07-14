@@ -12,7 +12,6 @@ import {
 	getProposalEvidenceItems,
 	getProposalSourcePath,
 	getProposalTargetLabel,
-	getProposalTitle,
 } from "../services/knowledgeProposalDisplay";
 import { validateKnowledgeProposalPayload } from "../services/knowledgeProposalValidation";
 import { getProposalStageLabel } from "../services/knowledgeProposalStage";
@@ -95,7 +94,6 @@ export class ProposalDetailModal extends Modal {
 	private renderSummary(parentEl: HTMLElement): void {
 		const metadataEl = parentEl.createDiv({ cls: "mneme-proposal-detail-modal-metadata" });
 		const rows = [
-			["Title", getProposalTitle(this.proposal)],
 			["Source", getProposalSourcePath(this.proposal)],
 			["Target", getProposalTargetLabel(this.proposal)],
 		];
@@ -154,18 +152,6 @@ export class ProposalDetailModal extends Modal {
 	}
 
 	private renderStructuredEditor(parentEl: HTMLElement): void {
-		parentEl.createEl("h3", { text: "Edit" });
-		if (
-			this.proposal.kind === "new_concept"
-			|| this.proposal.kind === "new_card"
-			|| this.proposal.kind === "update_concept"
-		) {
-			parentEl.createEl("p", {
-				cls: "mneme-markdown-edit-hint",
-				text: "Select a preview to edit its Markdown source. Accept & Next saves current fields automatically. Use $...$ inline and $$...$$ on separate lines for display math.",
-			});
-		}
-
 		if (this.proposal.kind === "new_concept") {
 			this.renderNewConceptEditor(parentEl);
 			return;
@@ -334,10 +320,6 @@ export class ProposalDetailModal extends Modal {
 
 	private renderValidation(parentEl: HTMLElement, errors: string[], warnings: string[]): void {
 		if (errors.length === 0 && warnings.length === 0) {
-			parentEl.createEl("p", {
-				cls: "mneme-review-status",
-				text: "Proposal payload is ready for review.",
-			});
 			return;
 		}
 

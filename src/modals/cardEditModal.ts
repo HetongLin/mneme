@@ -38,10 +38,6 @@ export class CardEditModal extends Modal {
 			cls: "mneme-review-status",
 			text: `Editing ${card.path}`,
 		});
-		contentEl.createEl("p", {
-			cls: "mneme-markdown-edit-hint",
-			text: "Select a preview to edit its Markdown source. Use $...$ inline and $$...$$ on separate lines for display math.",
-		});
 		const frontInput = this.createTextarea(contentEl, "Front", card.front);
 		const backInput = this.createTextarea(contentEl, "Back", card.back);
 		const rubricInput = this.createTextarea(contentEl, "Rubric", card.rubric ?? "");

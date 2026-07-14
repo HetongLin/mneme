@@ -178,13 +178,6 @@ If your plugin does not need CSS, delete this file.
 	overflow-y: hidden;
 }
 
-.mneme-markdown-edit-hint {
-	color: var(--text-muted);
-	font-family: var(--font-ui-small);
-	font-size: var(--font-ui-smaller);
-	margin: 6px 0 14px;
-}
-
 .mneme-review-primary-actions {
 	justify-content: center;
 	margin: 28px 0 10px;
