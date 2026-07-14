@@ -71,7 +71,7 @@ function renderNewConceptDraft(
 		content: renderConceptMarkdown({
 			cardGroupLink,
 			conceptId,
-			coreMeaning: payload.coreMeaning || payload.summary || "",
+			coreMeaning: payload.coreMeaning || "",
 			importance: payload.suggestedImportance,
 			learningMode: payload.learningMode,
 			sourceLinks: payload.proposedSourceLinks,
@@ -79,7 +79,7 @@ function renderNewConceptDraft(
 			tags: payload.tags,
 			title: payload.title,
 			views: payload.proposedViews,
-			whyItMatters: payload.summary,
+			whyItMatters: payload.whyItMatters,
 		}),
 		kind: "concept",
 		mode: "create",

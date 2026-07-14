@@ -45,6 +45,7 @@ export function buildPreAiAcceptanceConceptProposal(
 		kind: "new_concept",
 		payload: {
 			coreMeaning: "Mneme's pre-AI acceptance pipeline proves that reviewed proposals can become readable Markdown and searchable Concepts without bypassing human approval.",
+			whyItMatters: "It provides a deterministic check of Mneme's source analysis, Inbox, Markdown writing, Concept Library, and Review regression flow before AI Capture.",
 			learningMode: "reviewable",
 			proposedSourceLinks: args.sourcePath ? [{
 				evidence,
@@ -59,7 +60,6 @@ export function buildPreAiAcceptanceConceptProposal(
 				title: "Acceptance Flow",
 			}],
 			suggestedImportance: "normal",
-			summary: "A deterministic fixture Concept for validating Mneme's source analysis, Inbox, Markdown writing, Concept Library, and Review regression flow before AI Capture.",
 			tags: ["mneme", "acceptance-test"],
 			title: ACCEPTANCE_CONCEPT_TITLE,
 		},

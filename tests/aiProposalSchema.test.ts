@@ -80,7 +80,7 @@ const cardGenerationResponse = {
 				learningMode: "reviewable",
 				relatedConceptHints: ["Abstraction"],
 				suggestedImportance: "normal",
-				summary: "A boundary around representation details.",
+				whyItMatters: "It lets implementations evolve without breaking callers.",
 				tags: ["oop", "design"],
 				views: [{ body: "Think of public methods as the object's interface.", title: "Interface view" }],
 			},
@@ -102,10 +102,60 @@ const cardGenerationResponse = {
 			payload: {
 				conceptTitle: "Encapsulation",
 				coreMeaning: "Encapsulation protects internal representation.",
+				learningMode: "reviewable",
+				relatedConceptHints: [],
+				suggestedImportance: "normal",
+				summary: "Legacy field that must not be accepted.",
+				tags: ["oop"],
+				views: [],
+				whyItMatters: "It lets implementations evolve without breaking callers.",
+			},
+			rationale: "Tests removal of the old field.",
+			title: "Encapsulation",
+		}],
+	});
+
+	assert.equal(result.valid, false);
+	assert.equal(result.errors.some((error) => error.includes("payload.summary is not supported")), true);
+}
+
+{
+	const result = validateAiStructuredProposalResponse({
+		...baseResponse,
+		proposals: [{
+			confidence: 0.8,
+			evidence,
+			kind: "update_concept",
+			payload: {
+				proposedCoreMeaning: "Encapsulation protects internal representation.",
+				proposedSummary: "Legacy update field that must not be accepted.",
+				reason: "Tests removal of the old update field.",
+				targetConceptId: "concept-encapsulation",
+				targetConceptTitle: "Encapsulation",
+			},
+			rationale: "Tests removal of the old update field.",
+			title: "Update Encapsulation",
+		}],
+	});
+
+	assert.equal(result.valid, false);
+	assert.equal(result.errors.some((error) => error.includes("payload.proposedSummary is not supported")), true);
+}
+
+{
+	const result = validateAiStructuredProposalResponse({
+		...baseResponse,
+		proposals: [{
+			confidence: 0.91,
+			evidence,
+			kind: "new_concept",
+			payload: {
+				conceptTitle: "Encapsulation",
+				coreMeaning: "Encapsulation protects internal representation.",
 				learningMode: "application",
 				relatedConceptHints: ["Abstraction"],
 				suggestedImportance: "medium",
-				summary: "A boundary around representation details.",
+				whyItMatters: "It lets implementations evolve without breaking callers.",
 				tags: ["Object Oriented Programming", "#design"],
 				views: [{ body: "Think of public methods as the object's interface.", title: "Interface view" }],
 			},
@@ -142,7 +192,7 @@ const cardGenerationResponse = {
 				learningMode: "reviewable",
 				relatedConceptHints: [],
 				suggestedImportance: "normal",
-				summary: "A boundary around representation details.",
+				whyItMatters: "It lets implementations evolve without breaking callers.",
 				tags: ["oop"],
 				views: [
 					{ body: "", title: "" },
@@ -177,7 +227,7 @@ const cardGenerationResponse = {
 				learningMode: "reviewable",
 				relatedConceptHints: [],
 				suggestedImportance: "normal",
-				summary: "A boundary around representation details.",
+				whyItMatters: "It lets implementations evolve without breaking callers.",
 				tags: ["oop"],
 			},
 			rationale: "The source note introduces a durable concept.",
@@ -324,7 +374,7 @@ const cardGenerationResponse = {
 				learningMode: "reviewable",
 				relatedConceptHints: [],
 				suggestedImportance: "normal",
-				summary: "A boundary around representation details.",
+				whyItMatters: "It lets implementations evolve without breaking callers.",
 				tags: ["oop"],
 				views: [],
 			},
@@ -350,7 +400,7 @@ const cardGenerationResponse = {
 				learningMode: "reviewable",
 				relatedConceptHints: [],
 				suggestedImportance: "normal",
-				summary: "A boundary around representation details.",
+				whyItMatters: "It lets implementations evolve without breaking callers.",
 				tags: ["oop"],
 				views: [],
 			},
@@ -377,7 +427,7 @@ const cardGenerationResponse = {
 				learningMode: "reviewable",
 				relatedConceptHints: ["Abstraction"],
 				suggestedImportance: "normal",
-				summary: "A boundary around representation details.",
+				whyItMatters: "It lets implementations evolve without breaking callers.",
 				tags: ["oop", "design"],
 				views: [],
 			},

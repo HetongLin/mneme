@@ -25,6 +25,21 @@ import { createProposal } from "./knowledgeProposalTestUtils";
 }
 
 {
+	const proposal = createProposal("proposal-legacy-concept", {
+		kind: "new_concept",
+		payload: {
+			summary: "Legacy field",
+			title: "Encapsulation",
+		} as never,
+	});
+
+	const result = validateKnowledgeProposalPayload(proposal);
+
+	assert.equal(result.valid, false);
+	assert.equal(result.errors.includes("summary is not supported; regenerate this proposal with whyItMatters."), true);
+}
+
+{
 	const proposal = createProposal("proposal-c", {
 		kind: "new_card",
 		payload: {
@@ -140,6 +155,21 @@ import { createProposal } from "./knowledgeProposalTestUtils";
 
 	assert.equal(result.valid, false);
 	assert.deepEqual(result.errors, ["Concept update must include at least one proposed change."]);
+}
+
+{
+	const proposal = createProposal("proposal-legacy-update", {
+		kind: "update_concept",
+		payload: {
+			conceptId: "concept-a",
+			proposedSummary: "Legacy field",
+		} as never,
+	});
+
+	const result = validateKnowledgeProposalPayload(proposal);
+
+	assert.equal(result.valid, false);
+	assert.equal(result.errors.includes("proposedSummary is not supported; regenerate this proposal with proposedWhyItMatters."), true);
 }
 
 {

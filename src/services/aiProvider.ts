@@ -2,9 +2,9 @@ import type { KnowledgeProposal, KnowledgeProposalKind } from "../models/knowled
 import type { AiProviderName, MnemeSettings } from "../models/settings";
 export type AiProposalMode = "concept_capture" | "card_generation";
 
-export interface ExistingConceptSummary {
+export interface ExistingConceptContext {
 	conceptId: string;
-	summary?: string;
+	coreMeaning?: string;
 	title: string;
 }
 
@@ -16,7 +16,7 @@ interface AiProposalRequestBase {
 }
 
 export interface AiConceptCaptureRequest extends AiProposalRequestBase {
-	existingConceptSummaries: ExistingConceptSummary[];
+	existingConcepts: ExistingConceptContext[];
 	mode: "concept_capture";
 }
 

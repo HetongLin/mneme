@@ -228,7 +228,7 @@ async function runAsyncTests(): Promise<void> {
 			kind: "update_concept",
 			payload: {
 				conceptId: "concept-encapsulation",
-				proposedSummary: "Updated summary",
+				proposedWhyItMatters: "It explains why the updated Concept matters.",
 			},
 			status: "suggested",
 		});
@@ -241,7 +241,7 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(result.status, "accepted");
 		assert.equal(result.kind, "concept");
 		assert.equal(formatAcceptActionLabel(proposal), "Accept & Next");
-		assert.match(await vault.read(conceptPath), /## Why It Matters\n\nUpdated summary/);
+		assert.match(await vault.read(conceptPath), /## Why It Matters\n\nIt explains why the updated Concept matters/);
 		assert.equal((await store.getProposal(proposal.id))?.status, "written");
 	}
 

@@ -114,7 +114,7 @@ async function runAsyncTests(): Promise<void> {
 	{
 		const proposal = createProposal("proposal-a", {
 			payload: {
-				summary: "A test concept",
+				whyItMatters: "It verifies proposal persistence.",
 				title: "Encapsulation",
 			},
 			status: "suggested",

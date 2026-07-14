@@ -735,12 +735,12 @@ export default class MnemePlugin extends Plugin {
 				kind: "new_concept",
 				payload: {
 					coreMeaning: "Describe the core idea before approving this proposal.",
+					whyItMatters: "It provides temporary content for validating the Inbox review flow.",
 					proposedCards: [{
 						back: "Replace this with the answer before approval.",
 						front: "What should this concept help you remember?",
 						rubric: "Mention the important distinctions and examples.",
 					}],
-					summary: "A temporary sample proposal for Inbox validation.",
 					title,
 				},
 				sourceHash: sourceRecord?.contentHash,

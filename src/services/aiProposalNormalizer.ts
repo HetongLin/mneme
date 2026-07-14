@@ -56,6 +56,7 @@ function normalizePayload(
 		case "new_concept":
 			return {
 				coreMeaning: normalizeInlineMathDelimiterSpacing(proposal.payload.coreMeaning),
+				whyItMatters: normalizeInlineMathDelimiterSpacing(proposal.payload.whyItMatters),
 				learningMode: proposal.payload.learningMode,
 				proposedSourceLinks: [createSourceLinkDraft(response, proposal)],
 				proposedViews: proposal.payload.views.map((view) => ({
@@ -66,7 +67,6 @@ function normalizePayload(
 				})),
 				relatedConceptHints: proposal.payload.relatedConceptHints,
 				suggestedImportance: proposal.payload.suggestedImportance,
-				summary: normalizeInlineMathDelimiterSpacing(proposal.payload.summary),
 				tags: proposal.payload.tags,
 				title: proposal.payload.conceptTitle,
 			};
@@ -93,7 +93,7 @@ function normalizePayload(
 				conceptId: proposal.payload.targetConceptId,
 				conceptTitle: proposal.payload.targetConceptTitle,
 				proposedCoreMeaning: normalizeOptionalMarkdown(proposal.payload.proposedCoreMeaning),
-				proposedSummary: normalizeOptionalMarkdown(proposal.payload.proposedSummary),
+				proposedWhyItMatters: normalizeOptionalMarkdown(proposal.payload.proposedWhyItMatters),
 				updateReason: proposal.payload.reason,
 			};
 		case "merge_concept":

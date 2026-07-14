@@ -12,9 +12,9 @@ import { MockAiProvider } from "../src/services/mockAiProvider";
 import { buildOpenAiKnowledgeProposalPayload, OpenAiProvider } from "../src/services/openAiProvider";
 
 const request = {
-	existingConceptSummaries: [{
+	existingConcepts: [{
 		conceptId: "concept-encapsulation",
-		summary: "Bundles data with behavior.",
+		coreMeaning: "Bundles data with behavior.",
 		title: "Encapsulation",
 	}],
 	mode: "concept_capture" as const,
@@ -207,8 +207,9 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("sk-secret-value"), false);
 	assert.equal(serialized.includes("Write user-facing Concept text in the source note's dominant language"), true);
 	assert.equal(serialized.includes("coreMeaning is the primary learning content"), true);
-	assert.equal(serialized.includes("summary field becomes Why It Matters"), true);
-	assert.equal(serialized.includes("Do not use summary to repeat or paraphrase coreMeaning"), true);
+	assert.equal(serialized.includes("whyItMatters states why it is useful"), true);
+	assert.equal(serialized.includes("Do not use whyItMatters to repeat or paraphrase coreMeaning"), true);
+	assert.equal(serialized.includes("summary"), false);
 	assert.equal(serialized.includes("Prefer stable English lowercase slugs"), true);
 	assert.equal(serialized.includes("Use $...$ for short inline math"), true);
 	assert.equal(serialized.includes("Use $$...$$ on separate lines"), true);

@@ -17,6 +17,7 @@ export function validateKnowledgeProposalPayload(proposal: KnowledgeProposal): K
 
 	switch (proposal.kind) {
 		case "new_concept":
+			rejectRemovedField(payload, "summary", "whyItMatters", errors);
 			requireString(payload, "title", "New concept title is required.", errors);
 			break;
 		case "new_card":
@@ -42,6 +43,7 @@ export function validateKnowledgeProposalPayload(proposal: KnowledgeProposal): K
 			validateCardArray(payload.replacementCards, 2, "At least two replacement cards are required.", errors);
 			break;
 		case "merge_concept":
+			rejectRemovedField(payload, "proposedMergedSummary", "proposedMergedWhyItMatters", errors);
 			requireString(payload, "targetConceptId", "Target concept id is required.", errors);
 			break;
 		case "add_view":
@@ -49,6 +51,7 @@ export function validateKnowledgeProposalPayload(proposal: KnowledgeProposal): K
 			validateView(getRecord(payload, "view"), errors);
 			break;
 		case "update_concept":
+			rejectRemovedField(payload, "proposedSummary", "proposedWhyItMatters", errors);
 			requireString(payload, "conceptId", "Concept id is required.", errors);
 			if (!hasConceptUpdate(payload)) {
 				errors.push("Concept update must include at least one proposed change.");
@@ -59,6 +62,17 @@ export function validateKnowledgeProposalPayload(proposal: KnowledgeProposal): K
 	}
 
 	return createResult(errors, warnings);
+}
+
+function rejectRemovedField(
+	payload: Record<string, unknown>,
+	removedField: string,
+	replacementField: string,
+	errors: string[],
+): void {
+	if (Object.prototype.hasOwnProperty.call(payload, removedField)) {
+		errors.push(`${removedField} is not supported; regenerate this proposal with ${replacementField}.`);
+	}
 }
 
 function validateOptionalViews(value: unknown, errors: string[]): void {
@@ -88,7 +102,7 @@ function validateOptionalSourceLinks(value: unknown, errors: string[]): void {
 }
 
 function hasConceptUpdate(payload: Record<string, unknown>): boolean {
-	return [payload.proposedCoreMeaning, payload.proposedSummary]
+	return [payload.proposedCoreMeaning, payload.proposedWhyItMatters]
 		.some((value) => typeof value === "string" && value.trim().length > 0)
 		|| (Array.isArray(payload.proposedViews) && payload.proposedViews.length > 0)
 		|| (Array.isArray(payload.proposedSourceLinks) && payload.proposedSourceLinks.length > 0);

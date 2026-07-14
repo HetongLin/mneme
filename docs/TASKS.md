@@ -949,7 +949,7 @@ Requirements:
 - Provide a user-facing way to create a new Concept without first running AI analysis
 - Produce the same readable Concept Markdown shape as an accepted `new_concept` proposal
 - Assign a stable Concept ID and required Mneme frontmatter
-- Let the student provide title, Summary, Core Meaning, learning mode, importance, and English slug tags
+- Let the student provide title, Core Meaning, Why It Matters, learning mode, importance, and English slug tags
 - Treat the resulting Concept as approved user-authored knowledge, not AI proposal data
 - Keep Card generation separate: Cards are still generated later from the written Concept and reviewed through Inbox before Card Markdown is written
 - Do not require Source Evidence when the Concept is manually authored, though optional Source Note links can be considered in a later design

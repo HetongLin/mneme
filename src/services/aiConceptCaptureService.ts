@@ -1,7 +1,7 @@
 import type { ConceptSummary } from "../models/conceptLibrary";
 import type { MnemeSettings } from "../models/settings";
 import type { SourceFileSnapshot } from "./sourceAnalysisDecision";
-import type { AiProvider, ExistingConceptSummary } from "./aiProvider";
+import type { AiProvider, ExistingConceptContext } from "./aiProvider";
 import { validateAiProviderConfig, validateConceptCaptureResponse } from "./aiProvider";
 import { normalizeAiStructuredProposalResponse } from "./aiProposalNormalizer";
 import { validateAiStructuredProposalResponse } from "./aiProposalValidator";
@@ -81,7 +81,7 @@ export class AiConceptCaptureService {
 			const concepts = await this.options.conceptScanner.scanConcepts();
 			const provider = this.options.createProvider(settings);
 			const response = await provider.generateKnowledgeProposals({
-				existingConceptSummaries: concepts.map(toExistingConceptSummary),
+				existingConcepts: concepts.map(toExistingConceptContext),
 				mode: "concept_capture",
 				sourceContent,
 				sourceHash: sourceAnalysis.contentHash,
@@ -146,10 +146,10 @@ export class AiConceptCaptureService {
 	}
 }
 
-function toExistingConceptSummary(concept: ConceptSummary): ExistingConceptSummary {
+function toExistingConceptContext(concept: ConceptSummary): ExistingConceptContext {
 	return {
 		conceptId: concept.conceptId,
-		summary: concept.coreMeaning ?? concept.whyItMatters,
+		coreMeaning: concept.coreMeaning ?? concept.whyItMatters,
 		title: concept.title,
 	};
 }

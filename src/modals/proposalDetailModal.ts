@@ -177,7 +177,7 @@ export class ProposalDetailModal extends Modal {
 		const payload: Record<string, unknown> = isRecord(this.proposal.payload) ? this.proposal.payload : {};
 		const titleInput = this.createTextInput(parentEl, "Concept title", getString(payload, "title"));
 		const coreMeaningInput = this.createTextareaInput(parentEl, "Core Meaning", getString(payload, "coreMeaning"));
-		const summaryInput = this.createTextareaInput(parentEl, "Why It Matters", getString(payload, "summary"));
+		const whyItMattersInput = this.createTextareaInput(parentEl, "Why It Matters", getString(payload, "whyItMatters"));
 		const learningModeInput = this.createSelectInput(parentEl, "Learning Mode", getString(payload, "learningMode"), [
 			["reviewable", "Reviewable"],
 			["exploratory", "Exploratory"],
@@ -195,9 +195,9 @@ export class ProposalDetailModal extends Modal {
 			coreMeaning: coreMeaningInput.value,
 			learningMode: learningModeInput.value,
 			suggestedImportance: importanceInput.value,
-			summary: summaryInput.value,
 			tags: parseTags(tagsInput.value),
 			title: titleInput.value,
+			whyItMatters: whyItMattersInput.value,
 		}) as KnowledgeProposalPayload;
 	}
 
@@ -228,10 +228,10 @@ export class ProposalDetailModal extends Modal {
 			"Proposed Core Meaning",
 			getString(payload, "proposedCoreMeaning"),
 		);
-		const summaryInput = this.createTextareaInput(
+		const whyItMattersInput = this.createTextareaInput(
 			parentEl,
 			"Proposed Why It Matters",
-			getString(payload, "proposedSummary"),
+			getString(payload, "proposedWhyItMatters"),
 		);
 		const reasonInput = this.createTextareaInput(
 			parentEl,
@@ -242,7 +242,7 @@ export class ProposalDetailModal extends Modal {
 		this.collectStructuredPayload = () => ({
 			...payload,
 			proposedCoreMeaning: coreMeaningInput.value,
-			proposedSummary: summaryInput.value,
+			proposedWhyItMatters: whyItMattersInput.value,
 			updateReason: reasonInput.value,
 		}) as KnowledgeProposalPayload;
 	}

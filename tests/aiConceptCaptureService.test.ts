@@ -117,9 +117,9 @@ async function run(): Promise<void> {
 		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
 		await fixture.service.analyze(source);
 
-		assert.deepEqual(fixture.provider.lastRequest?.existingConceptSummaries, [{
+		assert.deepEqual(fixture.provider.lastRequest?.existingConcepts, [{
 			conceptId: "concept-abstraction",
-			summary: "Hides unnecessary detail.",
+			coreMeaning: "Hides unnecessary detail.",
 			title: "Abstraction",
 		}]);
 	}

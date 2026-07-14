@@ -446,7 +446,7 @@ async function runAsyncTests(): Promise<void> {
 					sourceHash: "update-hash",
 					sourcePath: "Notes/Interfaces.md",
 				}],
-				proposedSummary: "It lets implementations evolve without breaking clients.",
+				proposedWhyItMatters: "It lets implementations evolve without breaking clients.",
 				proposedViews: [{
 					body: "Treat the public API as a contract.",
 					title: "Contract view",

@@ -53,7 +53,7 @@ export function getProposalHighlights(proposal: KnowledgeProposal): ProposalHigh
 		case "new_concept":
 			return compactHighlights([
 				{ label: "Core Meaning", value: getString(payload, "coreMeaning") },
-				{ label: "Why It Matters", value: getString(payload, "summary") },
+				{ label: "Why It Matters", value: getString(payload, "whyItMatters") },
 				{ label: "Learning Mode", value: getString(payload, "learningMode") },
 				{ label: "Importance", value: getString(payload, "suggestedImportance") },
 				{ label: "Tags", value: formatStringArray(payload?.tags) },
@@ -76,7 +76,7 @@ export function getProposalHighlights(proposal: KnowledgeProposal): ProposalHigh
 		case "update_concept":
 			return compactHighlights([
 				{ label: "Core Meaning", value: getString(payload, "proposedCoreMeaning") },
-				{ label: "Why It Matters", value: getString(payload, "proposedSummary") },
+				{ label: "Why It Matters", value: getString(payload, "proposedWhyItMatters") },
 				{ label: "Reason", value: getString(payload, "updateReason") },
 				{ label: "Concept", value: getString(payload, "conceptTitle") ?? getString(payload, "conceptId") },
 			]);
@@ -120,9 +120,9 @@ export function getProposalPreview(proposal: KnowledgeProposal): string {
 
 	switch (proposal.kind) {
 		case "new_concept":
-			return getString(payload, "summary")
-				?? getString(payload, "coreMeaning")
-				?? "No concept summary yet.";
+			return getString(payload, "coreMeaning")
+				?? getString(payload, "whyItMatters")
+				?? "No Concept content yet.";
 		case "new_card":
 			return getNestedString(payload, "card", "front") ?? "No card front yet.";
 		case "revise_card":
@@ -134,16 +134,16 @@ export function getProposalPreview(proposal: KnowledgeProposal): string {
 				?? getNestedString(payload, "view", "title")
 				?? "No view draft yet.";
 		case "update_concept":
-			return getString(payload, "proposedSummary")
-				?? getString(payload, "proposedCoreMeaning")
+			return getString(payload, "proposedCoreMeaning")
+				?? getString(payload, "proposedWhyItMatters")
 				?? getString(payload, "updateReason")
-				?? "No update summary yet.";
+				?? "No Concept update content yet.";
 		case "link_existing_concept":
 			return getString(payload, "relationReason") ?? "No relation reason yet.";
 		case "merge_concept":
 			return getString(payload, "mergeReason")
-				?? getString(payload, "proposedMergedSummary")
-				?? "No merge summary yet.";
+				?? getString(payload, "proposedMergedWhyItMatters")
+				?? "No merge details yet.";
 		case "split_card":
 			return getString(payload, "splitReason") ?? "No split reason yet.";
 		case "merge_card":

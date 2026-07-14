@@ -40,10 +40,10 @@ export interface AiNewConceptProposalV1 extends AiConceptProposalBaseV1 {
 	payload: {
 		conceptTitle: string;
 		coreMeaning: string;
+		whyItMatters: string;
 		learningMode: "reviewable" | "exploratory";
 		relatedConceptHints: string[];
 		suggestedImportance: "low" | "normal" | "high" | "critical";
-		summary: string;
 		tags: string[];
 		views: Array<{
 			body: string;
@@ -75,7 +75,7 @@ export interface AiUpdateConceptProposalV1 extends AiConceptProposalBaseV1 {
 	kind: "update_concept";
 	payload: {
 		proposedCoreMeaning?: string;
-		proposedSummary?: string;
+		proposedWhyItMatters?: string;
 		reason: string;
 		targetConceptId: string;
 		targetConceptTitle: string;

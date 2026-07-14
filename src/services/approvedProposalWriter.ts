@@ -182,10 +182,10 @@ export class ApprovedProposalWriter {
 			const originalMarkdown = await this.options.vaultAdapter.read(targetPath);
 			let updatedMarkdown = originalMarkdown;
 
-			if (payload.proposedCoreMeaning?.trim() || payload.proposedSummary?.trim()) {
+			if (payload.proposedCoreMeaning?.trim() || payload.proposedWhyItMatters?.trim()) {
 				updatedMarkdown = updateConceptSections(updatedMarkdown, {
 					coreMeaning: payload.proposedCoreMeaning?.trim() || undefined,
-					whyItMatters: payload.proposedSummary?.trim() || undefined,
+					whyItMatters: payload.proposedWhyItMatters?.trim() || undefined,
 				}).markdown;
 			}
 

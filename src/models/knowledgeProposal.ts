@@ -65,13 +65,13 @@ export interface CardDraft {
 
 export interface NewConceptProposalPayload {
 	coreMeaning?: string;
+	whyItMatters?: string;
 	learningMode?: ProposalLearningMode;
 	proposedCards?: CardDraft[];
 	relatedConceptHints?: string[];
 	proposedSourceLinks?: ConceptSourceLinkDraft[];
 	proposedViews?: ConceptViewDraft[];
 	suggestedImportance?: SuggestedImportance;
-	summary?: string;
 	tags?: string[];
 	title: string;
 }
@@ -85,7 +85,7 @@ export interface LinkExistingConceptProposalPayload {
 
 export interface MergeConceptProposalPayload {
 	mergeReason?: string;
-	proposedMergedSummary?: string;
+	proposedMergedWhyItMatters?: string;
 	proposedMergedTitle?: string;
 	sourceConceptId?: string;
 	sourceConceptTitle?: string;
@@ -104,7 +104,7 @@ export interface UpdateConceptProposalPayload {
 	conceptTitle?: string;
 	proposedCoreMeaning?: string;
 	proposedSourceLinks?: ConceptSourceLinkDraft[];
-	proposedSummary?: string;
+	proposedWhyItMatters?: string;
 	proposedViews?: ConceptViewDraft[];
 	updateReason?: string;
 }

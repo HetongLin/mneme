@@ -397,9 +397,13 @@ function validateNewCardPayload(payload: Record<string, unknown>, path: string, 
 }
 
 function validateNewConceptPayload(payload: Record<string, unknown>, path: string, errors: string[]): void {
+	if (Object.prototype.hasOwnProperty.call(payload, "summary")) {
+		errors.push(`${path}.payload.summary is not supported; use whyItMatters.`);
+	}
+
 	requireNonEmptyString(payload.conceptTitle, `${path}.payload.conceptTitle`, errors);
-	requireNonEmptyString(payload.summary, `${path}.payload.summary`, errors);
 	requireNonEmptyString(payload.coreMeaning, `${path}.payload.coreMeaning`, errors);
+	requireNonEmptyString(payload.whyItMatters, `${path}.payload.whyItMatters`, errors);
 	requireLiteralOneOf(payload.learningMode, ["reviewable", "exploratory"], `${path}.payload.learningMode`, errors);
 	requireLiteralOneOf(payload.suggestedImportance, ["low", "normal", "high", "critical"], `${path}.payload.suggestedImportance`, errors);
 	validateTagArray(payload.tags, `${path}.payload.tags`, errors);
@@ -435,15 +439,19 @@ function validateAddViewPayload(payload: Record<string, unknown>, path: string, 
 }
 
 function validateUpdateConceptPayload(payload: Record<string, unknown>, path: string, errors: string[]): void {
+	if (Object.prototype.hasOwnProperty.call(payload, "proposedSummary")) {
+		errors.push(`${path}.payload.proposedSummary is not supported; use proposedWhyItMatters.`);
+	}
+
 	requireNonEmptyString(payload.targetConceptId, `${path}.payload.targetConceptId`, errors);
 	requireNonEmptyString(payload.targetConceptTitle, `${path}.payload.targetConceptTitle`, errors);
 	requireNonEmptyString(payload.reason, `${path}.payload.reason`, errors);
 
-	const hasSummary = isNonEmptyString(payload.proposedSummary);
+	const hasWhyItMatters = isNonEmptyString(payload.proposedWhyItMatters);
 	const hasCoreMeaning = isNonEmptyString(payload.proposedCoreMeaning);
 
-	if (!hasSummary && !hasCoreMeaning) {
-		errors.push(`${path}.payload requires proposedSummary or proposedCoreMeaning.`);
+	if (!hasWhyItMatters && !hasCoreMeaning) {
+		errors.push(`${path}.payload requires proposedWhyItMatters or proposedCoreMeaning.`);
 	}
 }
 

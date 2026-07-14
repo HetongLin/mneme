@@ -185,7 +185,7 @@ function getFirstDraftContent(result: ReturnType<typeof renderMarkdownProposal>)
 		kind: "update_concept",
 		payload: {
 			conceptId: "concept-a",
-			proposedSummary: "Updated summary",
+			proposedWhyItMatters: "The update explains why the Concept matters.",
 		},
 		status: "approved",
 	});

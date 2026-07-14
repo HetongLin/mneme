@@ -16,7 +16,7 @@ import { createProposal, createSourceRecord } from "./knowledgeProposalTestUtils
 		kind: "update_concept",
 		payload: {
 			conceptId: "concept-encapsulation",
-			proposedSummary: "Updated summary.",
+			proposedWhyItMatters: "This update explains why the Concept matters.",
 		},
 		sourceHash: "update-hash",
 		sourcePath: "Notes/New Evidence.md",

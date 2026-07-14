@@ -55,6 +55,8 @@ AI raw JSON
 
 Knowledge proposals may include typed payloads for proposed Concept and Card changes. These payloads are proposal state only; Markdown content is written only after explicit user acceptance.
 
+Concept proposal content uses the same language as written Concept Markdown: `coreMeaning` and `whyItMatters`. Concept updates use `proposedCoreMeaning` and `proposedWhyItMatters`. There are no `summary` aliases in the AI schema or persisted proposal payload.
+
 Card proposal Evidence must resolve to an exact substring of the current assessable Concept content. Provider quotes that differ only by whitespace, line breaks, or Obsidian math delimiters may be reconciled to the exact stored substring; semantic paraphrases are not accepted as grounding.
 
 User-facing Markdown must stay concise:

@@ -80,9 +80,9 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 			"Top-level shape: {\"schemaVersion\":\"mneme.ai.proposals.v1\",\"mode\":\"concept_capture\",\"source\":{\"path\":\"<sourcePath>\",\"hash\":\"<sourceHash>\"},\"warnings\":[],\"proposals\":[]}.",
 			"Concept capture may return only new_concept, link_existing_concept, add_view, update_concept, or merge_concept.",
 			"Every proposal requires kind, title, rationale, confidence from 0 to 1, evidence entries with sourcePath/quote/explanation, and a kind-specific payload.",
-			"Payloads: new_concept={conceptTitle,summary,coreMeaning,learningMode,suggestedImportance,tags,relatedConceptHints,views[{title,body}]}; link_existing_concept={existingConceptId,existingConceptTitle,reason}; add_view={targetConceptId,targetConceptTitle,viewTitle,viewBody}; update_concept={targetConceptId,targetConceptTitle,reason,proposedSummary and/or proposedCoreMeaning}; merge_concept={sourceConceptIds,proposedTitle,reason}.",
-			"For new_concept payloads, coreMeaning is the primary learning content: state what the Concept is and its defining mechanism clearly enough to identify it. The summary field becomes Why It Matters in the written Concept: state why it is useful, when it matters, or what problem it helps solve. Do not use summary to repeat or paraphrase coreMeaning.",
-			"For update_concept payloads, proposedCoreMeaning and proposedSummary follow the same distinction: proposedCoreMeaning explains what the Concept is; proposedSummary becomes Why It Matters.",
+			"Payloads: new_concept={conceptTitle,coreMeaning,whyItMatters,learningMode,suggestedImportance,tags,relatedConceptHints,views[{title,body}]}; link_existing_concept={existingConceptId,existingConceptTitle,reason}; add_view={targetConceptId,targetConceptTitle,viewTitle,viewBody}; update_concept={targetConceptId,targetConceptTitle,reason,proposedCoreMeaning and/or proposedWhyItMatters}; merge_concept={sourceConceptIds,proposedTitle,reason}.",
+			"For new_concept payloads, coreMeaning is the primary learning content: state what the Concept is and its defining mechanism clearly enough to identify it. whyItMatters states why it is useful, when it matters, or what problem it helps solve. Do not use whyItMatters to repeat or paraphrase coreMeaning.",
+			"For update_concept payloads, proposedCoreMeaning and proposedWhyItMatters follow the same distinction: proposedCoreMeaning explains what the Concept is; proposedWhyItMatters explains its usefulness, relevance, or application.",
 			OBSIDIAN_MATH_MARKDOWN_GUIDANCE,
 			"Write user-facing Concept text in the source note's dominant language. For non-English source notes, keep the student's language and include English technical terms in parentheses when helpful, e.g. 字典学习 (Dictionary Learning). Evidence quotes must stay exact and must not be translated.",
 			"For new_concept payloads, learningMode must be exactly 'reviewable' or 'exploratory'; do not use values like definition, application, recall, or understanding.",
@@ -104,7 +104,7 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 			sourcePath: input.sourcePath,
 		}
 		: {
-			existingConceptSummaries: input.existingConceptSummaries,
+			existingConcepts: input.existingConcepts,
 			formattingContract,
 			mode: input.mode,
 			sourceContent,
@@ -249,10 +249,10 @@ function createKnowledgeProposalResponseJsonSchema(): Record<string, unknown> {
 						proposal("new_concept", {
 							conceptTitle: { type: "string" },
 							coreMeaning: { type: "string" },
+							whyItMatters: { type: "string" },
 							learningMode: { enum: ["reviewable", "exploratory"], type: "string" },
 							relatedConceptHints: { items: { type: "string" }, type: "array" },
 							suggestedImportance: { enum: ["low", "normal", "high", "critical"], type: "string" },
-							summary: { type: "string" },
 							tags: { items: { type: "string" }, maxItems: 5, minItems: 1, type: "array" },
 							views: {
 								items: {
@@ -263,7 +263,7 @@ function createKnowledgeProposalResponseJsonSchema(): Record<string, unknown> {
 								},
 								type: "array",
 							},
-						}, ["conceptTitle", "coreMeaning", "learningMode", "relatedConceptHints", "suggestedImportance", "summary", "tags", "views"]),
+						}, ["conceptTitle", "coreMeaning", "whyItMatters", "learningMode", "relatedConceptHints", "suggestedImportance", "tags", "views"]),
 						proposal("link_existing_concept", {
 							existingConceptId: { type: "string" },
 							existingConceptTitle: { type: "string" },
@@ -277,11 +277,11 @@ function createKnowledgeProposalResponseJsonSchema(): Record<string, unknown> {
 						}, ["targetConceptId", "targetConceptTitle", "viewBody", "viewTitle"]),
 						proposal("update_concept", {
 							proposedCoreMeaning: { type: "string" },
-							proposedSummary: { type: "string" },
+							proposedWhyItMatters: { type: "string" },
 							reason: { type: "string" },
 							targetConceptId: { type: "string" },
 							targetConceptTitle: { type: "string" },
-						}, ["proposedCoreMeaning", "proposedSummary", "reason", "targetConceptId", "targetConceptTitle"]),
+						}, ["proposedCoreMeaning", "proposedWhyItMatters", "reason", "targetConceptId", "targetConceptTitle"]),
 						proposal("merge_concept", {
 							proposedTitle: { type: "string" },
 							reason: { type: "string" },

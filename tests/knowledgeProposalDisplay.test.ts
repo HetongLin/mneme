@@ -19,8 +19,9 @@ import { createProposal } from "./knowledgeProposalTestUtils";
 		},
 		kind: "new_concept",
 		payload: {
-			summary: "A boundary around representation details.",
+			coreMeaning: "Encapsulation separates a stable interface from its representation.",
 			title: "Encapsulation",
+			whyItMatters: "It lets implementations evolve behind a stable boundary.",
 		},
 		sourcePath: "Notes/OOP.md",
 		status: "written",
@@ -32,7 +33,11 @@ import { createProposal } from "./knowledgeProposalTestUtils";
 	].join(" ");
 
 	assert.equal(getProposalTitle(proposal), "Encapsulation");
-	assert.equal(getProposalPreview(proposal), "A boundary around representation details.");
+	assert.equal(getProposalPreview(proposal), "Encapsulation separates a stable interface from its representation.");
+	assert.deepEqual(getProposalHighlights(proposal).slice(0, 2), [
+		{ label: "Core Meaning", value: "Encapsulation separates a stable interface from its representation." },
+		{ label: "Why It Matters", value: "It lets implementations evolve behind a stable boundary." },
+	]);
 	assert.equal(primaryText.includes("written"), false);
 	assert.equal(primaryText.includes("Status"), false);
 	assert.equal(primaryText.includes("confidence"), false);
@@ -88,7 +93,7 @@ import { createProposal } from "./knowledgeProposalTestUtils";
 	});
 
 	assert.equal(getProposalTitle(proposal), "New Concept");
-	assert.equal(getProposalPreview(proposal), "No concept summary yet.");
+	assert.equal(getProposalPreview(proposal), "No Concept content yet.");
 }
 
 {
