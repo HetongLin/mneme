@@ -1,35 +1,61 @@
 import type {
 	AiCardGenerationResponseV1,
+	AiConceptCaptureResponseV1,
 	AiSourceEvidenceV1,
 } from "./aiProposalSchema";
 
-export interface CardGroundingReconciliation {
+interface GroundingResponse {
+	proposals: Array<{
+		evidence: AiSourceEvidenceV1[];
+	}>;
+	warnings: string[];
+}
+
+export interface ProposalGroundingReconciliation<TResponse> {
 	discardedEvidenceCount: number;
 	discardedProposalCount: number;
 	repairedEvidenceCount: number;
-	response: AiCardGenerationResponseV1;
+	response: TResponse;
 }
 
 export function reconcileCardGrounding(
 	response: AiCardGenerationResponseV1,
 	learningContent: string,
 	conceptPath: string,
-): CardGroundingReconciliation {
+): ProposalGroundingReconciliation<AiCardGenerationResponseV1> {
+	return reconcileProposalGrounding(response, learningContent, conceptPath, "Card", "Concept Markdown");
+}
+
+export function reconcileConceptGrounding(
+	response: AiConceptCaptureResponseV1,
+	sourceContent: string,
+	sourcePath: string,
+): ProposalGroundingReconciliation<AiConceptCaptureResponseV1> {
+	return reconcileProposalGrounding(response, sourceContent, sourcePath, "Concept", "Source Note Markdown");
+}
+
+function reconcileProposalGrounding<TResponse extends GroundingResponse>(
+	response: TResponse,
+	sourceContent: string,
+	sourcePath: string,
+	proposalLabel: "Card" | "Concept",
+	sourceLabel: "Concept Markdown" | "Source Note Markdown",
+): ProposalGroundingReconciliation<TResponse> {
 	let discardedEvidenceCount = 0;
 	let discardedProposalCount = 0;
 	let repairedEvidenceCount = 0;
-	const proposals: AiCardGenerationResponseV1["proposals"] = [];
+	const proposals: TResponse["proposals"] = [];
 
 	for (const proposal of response.proposals) {
 		const evidence: AiSourceEvidenceV1[] = [];
 
 		for (const item of proposal.evidence) {
-			if (item.sourcePath !== conceptPath) {
+			if (item.sourcePath !== sourcePath) {
 				discardedEvidenceCount += 1;
 				continue;
 			}
 
-			const exactQuote = resolveGroundingQuote(learningContent, item.quote);
+			const exactQuote = resolveGroundingQuote(sourceContent, item.quote);
 			if (!exactQuote) {
 				discardedEvidenceCount += 1;
 				continue;
@@ -49,13 +75,13 @@ export function reconcileCardGrounding(
 
 	const warnings = [...response.warnings];
 	if (repairedEvidenceCount > 0) {
-		warnings.push(`Mneme restored ${repairedEvidenceCount} grounding quote${repairedEvidenceCount === 1 ? "" : "s"} to exact Concept Markdown.`);
+		warnings.push(`Mneme restored ${repairedEvidenceCount} grounding quote${repairedEvidenceCount === 1 ? "" : "s"} to exact ${sourceLabel}.`);
 	}
 	if (discardedEvidenceCount > 0) {
 		warnings.push(`Mneme ignored ${discardedEvidenceCount} grounding item${discardedEvidenceCount === 1 ? "" : "s"} that could not be verified.`);
 	}
 	if (discardedProposalCount > 0 && proposals.length > 0) {
-		warnings.push(`Mneme ignored ${discardedProposalCount} ungrounded Card proposal${discardedProposalCount === 1 ? "" : "s"}.`);
+		warnings.push(`Mneme ignored ${discardedProposalCount} ungrounded ${proposalLabel} proposal${discardedProposalCount === 1 ? "" : "s"}.`);
 	}
 
 	return {

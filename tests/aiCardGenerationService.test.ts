@@ -3,7 +3,7 @@ import type { MnemePluginData } from "../src/models/reviewState";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
 import type { AiProposalRequest, AiProposalResponse, AiProvider } from "../src/services/aiProvider";
 import { AiCardGenerationService } from "../src/services/aiCardGenerationService";
-import { resolveGroundingQuote } from "../src/services/cardGroundingReconciler";
+import { resolveGroundingQuote } from "../src/services/proposalGroundingReconciler";
 import { extractConceptLearningContent } from "../src/services/conceptLearningContent";
 import { KnowledgeProposalStore } from "../src/services/knowledgeProposalStore";
 import { MockAiProvider } from "../src/services/mockAiProvider";

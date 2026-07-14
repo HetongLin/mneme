@@ -8,7 +8,7 @@ import { validateAiStructuredProposalResponse } from "./aiProposalValidator";
 import type { KnowledgeProposalStore } from "./knowledgeProposalStore";
 import type { SourceAnalysisStore } from "./sourceAnalysisStore";
 import { extractConceptLearningContent } from "./conceptLearningContent";
-import { reconcileCardGrounding } from "./cardGroundingReconciler";
+import { reconcileCardGrounding } from "./proposalGroundingReconciler";
 
 const ACTIVE_STATUSES = new Set(["suggested", "opened", "edited", "stale", "approved"]);
 

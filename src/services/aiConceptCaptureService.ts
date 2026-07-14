@@ -6,6 +6,7 @@ import { validateAiProviderConfig, validateConceptCaptureResponse } from "./aiPr
 import { normalizeAiStructuredProposalResponse } from "./aiProposalNormalizer";
 import { validateAiStructuredProposalResponse } from "./aiProposalValidator";
 import type { KnowledgeProposalStore } from "./knowledgeProposalStore";
+import { reconcileConceptGrounding } from "./proposalGroundingReconciler";
 import type { AnalyzeSourceResult, SourceAnalysisService } from "./sourceAnalysisService";
 import type { SourceAnalysisStore } from "./sourceAnalysisStore";
 
@@ -104,8 +105,26 @@ export class AiConceptCaptureService {
 				);
 			}
 
+			if (validation.data.mode !== "concept_capture") {
+				return this.result(
+					"invalid_response",
+					"Concept capture must return concept_capture mode.",
+					sourceAnalysis,
+				);
+			}
+
+			const grounding = reconcileConceptGrounding(validation.data, sourceContent, snapshot.path);
+
+			if (validation.data.proposals.length > 0 && grounding.response.proposals.length === 0) {
+				return this.result(
+					"invalid_response",
+					"Every Concept proposal must quote grounding from the current Source Note.",
+					sourceAnalysis,
+				);
+			}
+
 			const now = this.options.timestampProvider?.() ?? new Date().toISOString();
-			const proposals = normalizeAiStructuredProposalResponse(validation.data, { now });
+			const proposals = normalizeAiStructuredProposalResponse(grounding.response, { now });
 			const captureValidation = validateConceptCaptureResponse(proposals);
 
 			if (!captureValidation.valid) {

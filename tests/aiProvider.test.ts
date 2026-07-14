@@ -222,8 +222,14 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("Treat it as authoritative"), true);
 	assert.equal(requestContext.languageContract?.outputLanguageCode, "en");
 	assert.equal(serialized.includes("existingConcepts, existing Concept titles"), true);
-	assert.equal(serialized.includes("coreMeaning is the primary learning content"), true);
-	assert.equal(serialized.includes("whyItMatters states why it is useful"), true);
+	assert.equal(serialized.includes("Do not apply a fixed numerical cap to Concept proposals"), true);
+	assert.equal(serialized.includes("exactly one independently explainable, durable knowledge unit"), true);
+	assert.equal(serialized.includes("Do not create a Concept from a section heading"), true);
+	assert.equal(serialized.includes("Compare each candidate with existingConcepts before creating it"), true);
+	assert.equal(serialized.includes("Return an empty proposals array when the Source Note contains no durable knowledge worth creating or linking"), true);
+	assert.equal(serialized.includes("at least one evidence entry"), true);
+	assert.equal(serialized.includes("coreMeaning is the compact primary learning content"), true);
+	assert.equal(serialized.includes("whyItMatters states only why it is useful"), true);
 	assert.equal(serialized.includes("Do not use whyItMatters to repeat or paraphrase coreMeaning"), true);
 	assert.equal(serialized.includes("summary"), false);
 	assert.equal(serialized.includes("Prefer stable English lowercase slugs"), true);

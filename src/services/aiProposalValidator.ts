@@ -346,8 +346,10 @@ function validateProposal(
 	requireNonEmptyString(value.rationale, `${path}.rationale`, errors);
 	validateConfidence(value.confidence, `${path}.confidence`, errors);
 	validateEvidenceArray(value.evidence, `${path}.evidence`, errors);
-	if (mode === AI_PROPOSAL_MODE_CARD_GENERATION && Array.isArray(value.evidence) && value.evidence.length === 0) {
-		errors.push(`${path}.evidence must identify approved Concept grounding.`);
+	if (Array.isArray(value.evidence) && value.evidence.length === 0) {
+		errors.push(mode === AI_PROPOSAL_MODE_CARD_GENERATION
+			? `${path}.evidence must identify approved Concept grounding.`
+			: `${path}.evidence must include at least one Source Note quote.`);
 	}
 
 	const payload = getRecord(value, "payload", errors, `${path}.payload`);

@@ -91,9 +91,14 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 			LANGUAGE_CONTRACT_GUIDANCE,
 			"Top-level shape: {\"schemaVersion\":\"mneme.ai.proposals.v1\",\"mode\":\"concept_capture\",\"source\":{\"path\":\"<sourcePath>\",\"hash\":\"<sourceHash>\"},\"warnings\":[],\"proposals\":[]}.",
 			"Concept capture may return only new_concept, link_existing_concept, add_view, update_concept, or merge_concept.",
-			"Every proposal requires kind, title, rationale, confidence from 0 to 1, evidence entries with sourcePath/quote/explanation, and a kind-specific payload.",
+			"Do not apply a fixed numerical cap to Concept proposals. Cover every durable knowledge change warranted by the Source Note, while preferring no proposal over a weak one.",
+			"Every proposal requires kind, title, rationale, confidence from 0 to 1, at least one evidence entry with sourcePath/quote/explanation, and a kind-specific payload. Each evidence quote must be an exact, non-empty excerpt from sourceContent and sourcePath must exactly equal the supplied sourcePath.",
 			"Payloads: new_concept={conceptTitle,coreMeaning,whyItMatters,learningMode,suggestedImportance,tags,relatedConceptHints,views[{title,body}]}; link_existing_concept={existingConceptId,existingConceptTitle,reason}; add_view={targetConceptId,targetConceptTitle,viewTitle,viewBody}; update_concept={targetConceptId,targetConceptTitle,reason,proposedCoreMeaning and/or proposedWhyItMatters}; merge_concept={sourceConceptIds,proposedTitle,reason}.",
-			"For new_concept payloads, coreMeaning is the primary learning content: state what the Concept is and its defining mechanism clearly enough to identify it. whyItMatters states why it is useful, when it matters, or what problem it helps solve. Do not use whyItMatters to repeat or paraphrase coreMeaning.",
+			"A new_concept must represent exactly one independently explainable, durable knowledge unit that remains useful beyond the current note and is coherent enough to review or build on later.",
+			"Do not create a Concept from a section heading, organizational label, isolated fact, incidental example, anecdote, background sentence, or repeated paraphrase. Treat examples as evidence or supporting Views unless they express a reusable general concept.",
+			"Compare each candidate with existingConcepts before creating it. Prefer link_existing_concept for the same Concept, update_concept when the source improves its meaning, add_view when the source adds a useful perspective, and merge_concept for redundant existing Concepts. Use new_concept only for a genuinely distinct durable knowledge unit.",
+			"Return an empty proposals array when the Source Note contains no durable knowledge worth creating or linking and no meaningful change to an existing Concept.",
+			"For new_concept payloads, coreMeaning is the compact primary learning content: state what the Concept is and its defining mechanism clearly enough to identify it, without unnecessary background or examples. whyItMatters states only why it is useful, when it matters, or what problem it helps solve. Do not use whyItMatters to repeat or paraphrase coreMeaning.",
 			"For update_concept payloads, proposedCoreMeaning and proposedWhyItMatters follow the same distinction: proposedCoreMeaning explains what the Concept is; proposedWhyItMatters explains its usefulness, relevance, or application.",
 			OBSIDIAN_MATH_MARKDOWN_GUIDANCE,
 			"Follow languageContract exactly for generated Concept text. Evidence quotes must stay exact and must not be translated.",
@@ -179,7 +184,7 @@ function createCardGenerationResponseJsonSchema(): Record<string, unknown> {
 		additionalProperties: false,
 		properties: {
 			confidence: { maximum: 1, minimum: 0, type: "number" },
-			evidence: { items: evidence, type: "array" },
+			evidence: { items: evidence, minItems: 1, type: "array" },
 			kind: { const: "new_card", type: "string" },
 			payload: {
 				additionalProperties: false,
@@ -233,7 +238,7 @@ function createKnowledgeProposalResponseJsonSchema(): Record<string, unknown> {
 	};
 	const proposalBase = {
 		confidence: { maximum: 1, minimum: 0, type: "number" },
-		evidence: { items: evidence, type: "array" },
+		evidence: { items: evidence, minItems: 1, type: "array" },
 		rationale: { type: "string" },
 		title: { type: "string" },
 	};

@@ -97,6 +97,58 @@ const cardGenerationResponse = {
 		...baseResponse,
 		proposals: [{
 			confidence: 0.91,
+			evidence: [],
+			kind: "new_concept",
+			payload: {
+				conceptTitle: "Encapsulation",
+				coreMeaning: "Encapsulation protects internal representation.",
+				learningMode: "reviewable",
+				relatedConceptHints: [],
+				suggestedImportance: "normal",
+				whyItMatters: "It lets implementations evolve without breaking callers.",
+				tags: ["oop"],
+				views: [],
+			},
+			rationale: "The source note introduces a durable concept.",
+			title: "Encapsulation",
+		}],
+	});
+
+	assert.equal(result.valid, false);
+	assert.equal(result.errors.includes("proposals.0.evidence must include at least one Source Note quote."), true);
+}
+
+{
+	const proposal = {
+		confidence: 0.91,
+		evidence,
+		kind: "new_concept",
+		payload: {
+			conceptTitle: "Encapsulation",
+			coreMeaning: "Encapsulation protects internal representation.",
+			learningMode: "reviewable",
+			relatedConceptHints: [],
+			suggestedImportance: "normal",
+			whyItMatters: "It lets implementations evolve without breaking callers.",
+			tags: ["oop"],
+			views: [],
+		},
+		rationale: "The source note introduces a durable concept.",
+		title: "Encapsulation",
+	};
+	const result = validateAiStructuredProposalResponse({
+		...baseResponse,
+		proposals: Array.from({ length: 12 }, () => proposal),
+	});
+
+	assert.equal(result.valid, true);
+}
+
+{
+	const result = validateAiStructuredProposalResponse({
+		...baseResponse,
+		proposals: [{
+			confidence: 0.91,
 			evidence,
 			kind: "new_concept",
 			payload: {

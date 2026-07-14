@@ -123,6 +123,32 @@ async function run(): Promise<void> {
 			title: "Abstraction",
 		}]);
 	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		fixture.provider.responseFactory = (input) => createConceptCaptureResponse(
+			input,
+			"Encapsulation   hides representation behind a public interface.",
+		);
+		const result = await fixture.service.analyze(source);
+		const proposals = await fixture.proposalStore.listActive();
+
+		assert.equal(result.status, "captured");
+		assert.equal(proposals[0]?.evidence?.[0]?.excerpt, source.content);
+	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		fixture.provider.responseFactory = (input) => createConceptCaptureResponse(
+			input,
+			"This sentence does not exist in the Source Note.",
+		);
+		const result = await fixture.service.analyze(source);
+
+		assert.equal(result.status, "invalid_response");
+		assert.equal(result.message, "Every Concept proposal must quote grounding from the current Source Note.");
+		assert.deepEqual(await fixture.proposalStore.listProposals(), []);
+	}
 }
 
 function createFixture(settingsOverrides: Partial<typeof DEFAULT_SETTINGS>) {
@@ -157,6 +183,7 @@ class CountingProvider implements AiProvider {
 	callCount = 0;
 	lastRequest?: AiProposalRequest;
 	response?: unknown;
+	responseFactory?: (input: AiProposalRequest) => unknown;
 
 	constructor(private readonly delegate: AiProvider) {
 	}
@@ -164,8 +191,9 @@ class CountingProvider implements AiProvider {
 	async generateKnowledgeProposals(input: AiProposalRequest): Promise<AiProposalResponse> {
 		this.callCount += 1;
 		this.lastRequest = input;
+		const response = this.responseFactory?.(input) ?? this.response;
 
-		if (this.response) {
+		if (response) {
 			return {
 				diagnostics: {
 					inputChars: input.sourceContent.length,
@@ -184,12 +212,42 @@ class CountingProvider implements AiProvider {
 					warnings: [],
 				},
 				provider: { provider: "mock", structuredOutput: "mock" },
-				structuredResponse: this.response,
+				structuredResponse: response,
 			};
 		}
 
 		return this.delegate.generateKnowledgeProposals(input);
 	}
+}
+
+function createConceptCaptureResponse(input: AiProposalRequest, quote: string): unknown {
+	return {
+		mode: "concept_capture",
+		proposals: [{
+			confidence: 0.9,
+			evidence: [{
+				explanation: "The Source Note states the Concept directly.",
+				quote,
+				sourcePath: input.sourcePath,
+			}],
+			kind: "new_concept",
+			payload: {
+				conceptTitle: "Encapsulation",
+				coreMeaning: "Encapsulation hides representation behind a public interface.",
+				learningMode: "reviewable",
+				relatedConceptHints: [],
+				suggestedImportance: "normal",
+				tags: ["oop"],
+				views: [],
+				whyItMatters: "It protects callers from implementation changes.",
+			},
+			rationale: "The note defines a durable Concept.",
+			title: "Encapsulation",
+		}],
+		schemaVersion: "mneme.ai.proposals.v1",
+		source: { hash: input.sourceHash, path: input.sourcePath },
+		warnings: [],
+	};
 }
 
 class MemoryPluginStorage {
