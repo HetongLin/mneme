@@ -55,7 +55,7 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 ): OpenAiCompatibleStructuredOutputPayload {
 	const sourceContent = input.sourceContent.slice(0, config.maxInputChars);
 	const formattingContract = {
-		mathMarkdown: "Required: wrap inline mathematics in $...$ and standalone mathematics in $$...$$; never return bare formulas in generated payload text.",
+		mathMarkdown: "Required: wrap inline mathematics in $...$ with no spaces immediately inside the delimiters, and standalone mathematics in $$...$$; never return bare formulas in generated payload text.",
 	};
 	const systemPrompt = input.mode === "card_generation"
 		? [

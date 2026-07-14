@@ -147,7 +147,7 @@ In `concept_capture` mode, providers must not return Card-stage proposal kinds:
 
 Generated learning content follows the Source Note's dominant language. For example, Chinese notes may produce Chinese Concept titles, summaries, Core Meaning, Views, Card text, and evidence excerpts. Technical terms should include English names in parentheses when helpful. Evidence quotes must preserve the original source text and must not be translated.
 
-Generated mathematical notation follows Obsidian MathJax Markdown. The provider uses `$...$` for short inline math within a sentence and `$$...$$` on separate lines for standalone, long, emphasized, or multi-line equations. It must not emit bare LaTeX, `\(...\)`, `\[...\]`, or formula code fences. JSON responses escape LaTeX backslashes correctly, while exact evidence quotes remain unchanged.
+Generated mathematical notation follows Obsidian MathJax Markdown. The provider uses `$...$` for short inline math within a sentence and `$$...$$` on separate lines for standalone, long, emphasized, or multi-line equations. It must not emit bare LaTeX, `\(...\)`, `\[...\]`, formula code fences, or spaces immediately inside inline math delimiters. As a deterministic fallback, Mneme removes delimiter-adjacent spaces from likely inline formulas before AI payload Markdown enters Inbox and whenever a Live Preview editor returns to preview. Display math, escaped dollars, code, and exact evidence quotes remain unchanged.
 
 AI should prefer stable English lowercase tag slugs, but the Review Gate preserves user-approved non-English tags. Mneme normalizes tag punctuation without erasing established vault language.
 

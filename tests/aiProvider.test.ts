@@ -166,6 +166,7 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("formula-like expression left outside math delimiters"), true);
 	assert.equal(serialized.includes("rather than leaving P(h|D)"), true);
 	assert.equal(serialized.includes("formattingContract"), true);
+	assert.equal(serialized.includes("no spaces immediately inside the delimiters"), true);
 	assert.equal(serialized.includes("never return bare formulas in generated payload text"), true);
 	assert.equal(serialized.includes("sk-test-value"), false);
 }

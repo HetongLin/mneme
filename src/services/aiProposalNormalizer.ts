@@ -9,6 +9,7 @@ import {
 	AiProposalV1,
 	AiStructuredProposalResponseV1,
 } from "./aiProposalSchema";
+import { normalizeInlineMathDelimiterSpacing } from "./markdownMathNormalizer";
 
 export interface AiProposalNormalizeOptions {
 	idFactory?: (proposal: AiProposalV1, index: number) => string;
@@ -54,18 +55,18 @@ function normalizePayload(
 	switch (proposal.kind) {
 		case "new_concept":
 			return {
-				coreMeaning: proposal.payload.coreMeaning,
+				coreMeaning: normalizeInlineMathDelimiterSpacing(proposal.payload.coreMeaning),
 				learningMode: proposal.payload.learningMode,
 				proposedSourceLinks: [createSourceLinkDraft(response, proposal)],
 				proposedViews: proposal.payload.views.map((view) => ({
-					body: view.body,
+					body: normalizeInlineMathDelimiterSpacing(view.body),
 					evidence: proposal.evidence.map(toSourceEvidence),
 					sourcePath: response.source.path,
 					title: view.title,
 				})),
 				relatedConceptHints: proposal.payload.relatedConceptHints,
 				suggestedImportance: proposal.payload.suggestedImportance,
-				summary: proposal.payload.summary,
+				summary: normalizeInlineMathDelimiterSpacing(proposal.payload.summary),
 				tags: proposal.payload.tags,
 				title: proposal.payload.conceptTitle,
 			};
@@ -81,7 +82,7 @@ function normalizePayload(
 				conceptId: proposal.payload.targetConceptId,
 				conceptTitle: proposal.payload.targetConceptTitle,
 				view: {
-					body: proposal.payload.viewBody,
+					body: normalizeInlineMathDelimiterSpacing(proposal.payload.viewBody),
 					evidence: proposal.evidence.map(toSourceEvidence),
 					sourcePath: response.source.path,
 					title: proposal.payload.viewTitle,
@@ -91,8 +92,8 @@ function normalizePayload(
 			return {
 				conceptId: proposal.payload.targetConceptId,
 				conceptTitle: proposal.payload.targetConceptTitle,
-				proposedCoreMeaning: proposal.payload.proposedCoreMeaning,
-				proposedSummary: proposal.payload.proposedSummary,
+				proposedCoreMeaning: normalizeOptionalMarkdown(proposal.payload.proposedCoreMeaning),
+				proposedSummary: normalizeOptionalMarkdown(proposal.payload.proposedSummary),
 				updateReason: proposal.payload.reason,
 			};
 		case "merge_concept":
@@ -107,17 +108,21 @@ function normalizePayload(
 		case "new_card":
 			return {
 				card: {
-					back: proposal.payload.back,
+					back: normalizeInlineMathDelimiterSpacing(proposal.payload.back),
 					cardType: proposal.payload.cardType,
 					evidence: proposal.evidence.map(toSourceEvidence),
-					front: proposal.payload.front,
-					rubric: proposal.payload.rubric,
+					front: normalizeInlineMathDelimiterSpacing(proposal.payload.front),
+					rubric: normalizeInlineMathDelimiterSpacing(proposal.payload.rubric),
 					sourcePath: response.source.path,
 				},
 				conceptId: proposal.payload.conceptId,
 				conceptTitle: proposal.payload.conceptTitle,
 			};
 	}
+}
+
+function normalizeOptionalMarkdown(value: string | undefined): string | undefined {
+	return value === undefined ? undefined : normalizeInlineMathDelimiterSpacing(value);
 }
 
 function createSourceLinkDraft(

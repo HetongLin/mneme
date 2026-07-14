@@ -1,4 +1,5 @@
 import { App, Component, MarkdownRenderer } from "obsidian";
+import { normalizeInlineMathDelimiterSpacing } from "../services/markdownMathNormalizer";
 
 export interface MarkdownLivePreviewFieldOptions {
 	app: App;
@@ -37,7 +38,7 @@ export function createMarkdownLivePreviewField(
 		},
 		cls: "mneme-proposal-detail-field-textarea mneme-markdown-live-preview-editor",
 	});
-	textareaEl.value = options.value;
+	textareaEl.value = normalizeInlineMathDelimiterSpacing(options.value);
 	textareaEl.hidden = true;
 
 	const renderPreview = async (): Promise<void> => {
@@ -70,6 +71,7 @@ export function createMarkdownLivePreviewField(
 		textareaEl.focus();
 	};
 	const showPreview = (): void => {
+		textareaEl.value = normalizeInlineMathDelimiterSpacing(textareaEl.value);
 		textareaEl.hidden = true;
 		previewEl.hidden = false;
 		void renderPreview();

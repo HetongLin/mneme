@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import type { AiStructuredProposalResponseV1 } from "../src/services/aiProposalSchema";
 import { normalizeAiStructuredProposalResponse } from "../src/services/aiProposalNormalizer";
+import { normalizeInlineMathDelimiterSpacing } from "../src/services/markdownMathNormalizer";
 import { validateAiStructuredProposalResponse } from "../src/services/aiProposalValidator";
 
 const baseResponse: AiStructuredProposalResponseV1 = {
@@ -44,6 +45,27 @@ const cardGenerationResponse = {
 	},
 	warnings: [],
 };
+
+{
+	assert.equal(
+		normalizeInlineMathDelimiterSpacing("Bayes uses $ P(h \\mid D) = \\frac{P(D \\mid h)P(h)}{P(D)} $."),
+		"Bayes uses $P(h \\mid D) = \\frac{P(D \\mid h)P(h)}{P(D)}$.",
+	);
+	assert.equal(normalizeInlineMathDelimiterSpacing("Use $ x$ and $y $."), "Use $x$ and $y$.");
+	assert.equal(normalizeInlineMathDelimiterSpacing("Keep $x + y$ unchanged."), "Keep $x + y$ unchanged.");
+	assert.equal(normalizeInlineMathDelimiterSpacing("Price is \\$ 5 and not math."), "Price is \\$ 5 and not math.");
+	assert.equal(normalizeInlineMathDelimiterSpacing("Costs $ 5 and $ 7."), "Costs $ 5 and $ 7.");
+	assert.equal(normalizeInlineMathDelimiterSpacing("Code: `$ x $`."), "Code: `$ x $`.");
+	assert.equal(
+		normalizeInlineMathDelimiterSpacing("```text\n$ x $\n```\nOutside $ y $."),
+		"```text\n$ x $\n```\nOutside $y$.",
+	);
+	assert.equal(
+		normalizeInlineMathDelimiterSpacing("$$\n E = mc^2 \n$$"),
+		"$$\n E = mc^2 \n$$",
+	);
+	assert.equal(normalizeInlineMathDelimiterSpacing("Display $$ E = mc^2 $$ stays."), "Display $$ E = mc^2 $$ stays.");
+}
 
 {
 	const result = validateAiStructuredProposalResponse({
@@ -389,7 +411,18 @@ const cardGenerationResponse = {
 }
 
 {
-	const validated = validateAiStructuredProposalResponse(cardGenerationResponse);
+	const validated = validateAiStructuredProposalResponse({
+		...cardGenerationResponse,
+		proposals: [{
+			...cardGenerationResponse.proposals[0],
+			payload: {
+				...cardGenerationResponse.proposals[0].payload,
+				back: "The posterior is $ P(h \\mid D) $.",
+				front: "What does $ P(h \\mid D) $ represent?",
+				rubric: "Identifies $ P(h \\mid D) $ as the posterior.",
+			},
+		}],
+	});
 
 	assert.equal(validated.valid, true);
 
@@ -402,7 +435,9 @@ const cardGenerationResponse = {
 		assert.equal(proposals[0]?.kind, "new_card");
 		assert.equal(proposals[0]?.conceptId, "concept-encapsulation");
 		assert.equal(proposals[0]?.payload?.conceptId, "concept-encapsulation");
-		assert.equal(proposals[0]?.payload?.card.front, "What does encapsulation protect?");
+		assert.equal(proposals[0]?.payload?.card.front, "What does $P(h \\mid D)$ represent?");
+		assert.equal(proposals[0]?.payload?.card.back, "The posterior is $P(h \\mid D)$.");
+		assert.equal(proposals[0]?.payload?.card.rubric, "Identifies $P(h \\mid D)$ as the posterior.");
 		assert.equal(proposals[0]?.sourcePath, "Mneme/Concepts/Encapsulation/Concept.md");
 	}
 }
