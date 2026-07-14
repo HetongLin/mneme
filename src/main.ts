@@ -21,6 +21,7 @@ import { FsrsReviewScheduler, FsrsSchedulerConfig } from "./services/fsrsReviewS
 import { ApprovedProposalWriter } from "./services/approvedProposalWriter";
 import { AiCardGenerationService } from "./services/aiCardGenerationService";
 import { AiConceptCaptureService } from "./services/aiConceptCaptureService";
+import { AiGenerationLock } from "./services/aiGenerationLock";
 import { exportCardsToAnkiTsv } from "./services/ankiTsvExporter";
 import { createAiProvider } from "./services/aiProviderFactory";
 import { ConceptSourceLinkStore } from "./services/conceptSourceLinkStore";
@@ -58,6 +59,7 @@ export default class MnemePlugin extends Plugin {
 	private knowledgeProposalStore: KnowledgeProposalStore;
 	private conceptSourceLinkStore: ConceptSourceLinkStore;
 	private approvedProposalWriter: ApprovedProposalWriter;
+	private readonly aiGenerationLock = new AiGenerationLock();
 
 	async onload() {
 		await this.loadSettings();
@@ -376,6 +378,7 @@ export default class MnemePlugin extends Plugin {
 		const service = new AiConceptCaptureService({
 			conceptScanner: this.createConceptScanner(),
 			createProvider: (settings) => createAiProvider(settings, new ObsidianAiHttpClient()),
+			generationLock: this.aiGenerationLock,
 			proposalStore: this.knowledgeProposalStore,
 			readSourceContent,
 			settingsProvider: () => this.settings,
@@ -513,6 +516,7 @@ export default class MnemePlugin extends Plugin {
 			?.cards.filter((card) => card.isValid).map((card) => card.front) ?? [];
 		const service = new AiCardGenerationService({
 			createProvider: (settings) => createAiProvider(settings, new ObsidianAiHttpClient()),
+			generationLock: this.aiGenerationLock,
 			proposalStore: this.knowledgeProposalStore,
 			settingsProvider: () => this.settings,
 			sourceAnalysisStore: this.sourceAnalysisStore,

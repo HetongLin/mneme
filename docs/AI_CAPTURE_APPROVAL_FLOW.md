@@ -83,6 +83,8 @@ AI capture uses a separate fingerprint containing the Source content hash, Sourc
 
 Long Source Notes are never silently truncated. Mneme splits the complete note into contiguous Markdown-aware chunks, preferring heading boundaries and then paragraph boundaries while respecting the configured per-request `AI chunk size`. Every source character belongs to exactly one chunk. Each chunk keeps the full Source hash and path, uses the language detected from the complete Source Note, and is independently validated and grounded against the complete Source Markdown. Mneme writes nothing until every chunk succeeds, then consolidates exact cross-chunk Concept duplicates and writes the final proposal set atomically. The completion notice reports analyzed characters, total characters, and chunk count.
 
+AI proposal generation is single-flight per file for the lifetime of the plugin. A Source Note with an active Concept-capture request rejects another capture request for that same path. A Concept with an active Card-generation request rejects another Card request for that same path. The lock covers validation and proposal persistence as well as the provider call, so a second request cannot pass the duplicate checks before the first result is stored. Every completion path releases the lock, including provider failures and invalid responses.
+
 ## Runtime Foundation
 
 `Mneme: Analyze Current Note` indexes source note metadata and content hash. With AI Capture enabled, it also creates validated Concept-stage proposals in Inbox.

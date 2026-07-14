@@ -550,8 +550,17 @@ export class MnemeConceptLibraryView extends ItemView {
 
 		if (this.actions.generateCards && canGenerateCardsFromConcept(concept)) {
 			actionsEl.createEl("button", { text: "Generate Cards" }, (buttonEl) => {
-				buttonEl.addEventListener("click", () => {
-					void this.actions.generateCards?.(concept);
+				buttonEl.addEventListener("click", async () => {
+					if (buttonEl.disabled) return;
+					buttonEl.disabled = true;
+					buttonEl.textContent = "Generating...";
+
+					try {
+						await this.actions.generateCards?.(concept);
+					} finally {
+						buttonEl.disabled = false;
+						buttonEl.textContent = "Generate Cards";
+					}
 				});
 			});
 		}

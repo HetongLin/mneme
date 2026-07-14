@@ -2,6 +2,7 @@ import type { MnemeSettings } from "../models/settings";
 import type { SourceAnalysisRecord } from "../models/sourceAnalysis";
 import { computeContentHash } from "../utils/sourceHash";
 import type { AiProvider } from "./aiProvider";
+import type { AiGenerationLock } from "./aiGenerationLock";
 import { validateAiProviderConfig, validateCardGenerationResponse } from "./aiProvider";
 import { normalizeAiStructuredProposalResponse } from "./aiProposalNormalizer";
 import { validateAiStructuredProposalResponse } from "./aiProposalValidator";
@@ -26,6 +27,7 @@ export type AiCardGenerationStatus =
 	| "ai_disabled"
 	| "coverage_complete"
 	| "failed"
+	| "generation_in_progress"
 	| "generated"
 	| "invalid_config"
 	| "invalid_response"
@@ -40,6 +42,7 @@ export interface AiCardGenerationResult {
 
 export interface AiCardGenerationServiceOptions {
 	createProvider: (settings: MnemeSettings) => AiProvider;
+	generationLock: AiGenerationLock;
 	proposalStore: KnowledgeProposalStore;
 	settingsProvider: () => MnemeSettings;
 	sourceAnalysisStore?: SourceAnalysisStore;
@@ -51,6 +54,23 @@ export class AiCardGenerationService {
 	}
 
 	async generate(input: AiCardGenerationInput): Promise<AiCardGenerationResult> {
+		const lease = this.options.generationLock.tryAcquire("card_generation", input.conceptPath);
+
+		if (!lease) {
+			return this.result(
+				"generation_in_progress",
+				"Card generation is already in progress for this Concept. Wait for the current request to finish.",
+			);
+		}
+
+		try {
+			return await this.generateWithLock(input);
+		} finally {
+			lease.release();
+		}
+	}
+
+	private async generateWithLock(input: AiCardGenerationInput): Promise<AiCardGenerationResult> {
 		const settings = this.options.settingsProvider();
 
 		if (!settings.aiCaptureEnabled) {

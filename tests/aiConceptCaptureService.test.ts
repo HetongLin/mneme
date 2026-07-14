@@ -4,6 +4,7 @@ import { DEFAULT_SETTINGS } from "../src/models/settings";
 import type { AiProposalRequest, AiProposalResponse, AiProvider } from "../src/services/aiProvider";
 import { createAiConceptCaptureFingerprint } from "../src/services/aiCaptureFingerprint";
 import { AiConceptCaptureService } from "../src/services/aiConceptCaptureService";
+import { AiGenerationLock } from "../src/services/aiGenerationLock";
 import { KnowledgeProposalStore } from "../src/services/knowledgeProposalStore";
 import { MockAiProvider } from "../src/services/mockAiProvider";
 import { SourceAnalysisService } from "../src/services/sourceAnalysisService";
@@ -67,6 +68,43 @@ async function run(): Promise<void> {
 		assert.equal(second.status, "skipped_ai_already_captured");
 		assert.equal(fixture.provider.callCount, 1);
 		assert.equal(second.message.includes(`Last capture analyzed ${source.content.length}/${source.content.length} characters`), true);
+	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		const requestStarted = createDeferred();
+		const releaseRequest = createDeferred();
+		fixture.provider.onCall = () => requestStarted.resolve();
+		fixture.provider.blocker = releaseRequest.promise;
+
+		const firstPromise = fixture.service.analyze(source);
+		await requestStarted.promise;
+		const second = await fixture.service.analyze(source);
+
+		assert.equal(second.status, "generation_in_progress");
+		assert.equal(second.proposalCount, 0);
+		assert.equal(second.message.includes("already in progress for this Source Note"), true);
+		assert.equal(fixture.provider.callCount, 1);
+		assert.equal(fixture.generationLock.isActive("concept_capture", source.path), true);
+
+		releaseRequest.resolve();
+		const first = await firstPromise;
+
+		assert.equal(first.status, "captured");
+		assert.equal(fixture.generationLock.isActive("concept_capture", source.path), false);
+	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		fixture.provider.error = new Error("Temporary provider failure.");
+
+		const failed = await fixture.service.analyze(source);
+		fixture.provider.error = undefined;
+		const retry = await fixture.service.analyze(source);
+
+		assert.equal(failed.status, "failed");
+		assert.equal(retry.status, "captured");
+		assert.equal(fixture.provider.callCount, 2);
 	}
 
 	{
@@ -260,6 +298,7 @@ function createFixture(settingsOverrides: Partial<typeof DEFAULT_SETTINGS>, test
 	const sourceStore = new SourceAnalysisStore(storage);
 	const proposalStore = new KnowledgeProposalStore(storage);
 	const provider = new CountingProvider(new MockAiProvider(settings));
+	const generationLock = new AiGenerationLock();
 	const readContent = async () => testSource.content;
 	const service = new AiConceptCaptureService({
 		conceptScanner: {
@@ -271,6 +310,7 @@ function createFixture(settingsOverrides: Partial<typeof DEFAULT_SETTINGS>, test
 			}],
 		},
 		createProvider: () => provider,
+		generationLock,
 		proposalStore,
 		readSourceContent: readContent,
 		settingsProvider: () => settings,
@@ -279,12 +319,15 @@ function createFixture(settingsOverrides: Partial<typeof DEFAULT_SETTINGS>, test
 		timestampProvider: () => "2026-01-02T12:00:00.000Z",
 	});
 
-	return { proposalStore, provider, service, settings, sourceStore };
+	return { generationLock, proposalStore, provider, service, settings, sourceStore };
 }
 
 class CountingProvider implements AiProvider {
+	blocker?: Promise<void>;
 	callCount = 0;
+	error?: Error;
 	lastRequest?: AiProposalRequest;
+	onCall?: () => void;
 	requests: AiProposalRequest[] = [];
 	response?: unknown;
 	responseFactory?: (input: AiProposalRequest) => unknown;
@@ -296,6 +339,9 @@ class CountingProvider implements AiProvider {
 		this.callCount += 1;
 		this.lastRequest = input;
 		this.requests.push(input);
+		this.onCall?.();
+		if (this.blocker) await this.blocker;
+		if (this.error) throw this.error;
 		const response = this.responseFactory?.(input) ?? this.response;
 
 		if (response) {
@@ -323,6 +369,15 @@ class CountingProvider implements AiProvider {
 
 		return this.delegate.generateKnowledgeProposals(input);
 	}
+}
+
+function createDeferred(): { promise: Promise<void>; resolve(): void } {
+	let resolve!: () => void;
+	const promise = new Promise<void>((resolvePromise) => {
+		resolve = resolvePromise;
+	});
+
+	return { promise, resolve };
 }
 
 function createConceptCaptureResponse(input: AiProposalRequest, quote: string, title = "Encapsulation"): unknown {

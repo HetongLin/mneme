@@ -3,6 +3,7 @@ import type { MnemePluginData } from "../src/models/reviewState";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
 import type { AiProposalRequest, AiProposalResponse, AiProvider } from "../src/services/aiProvider";
 import { AiCardGenerationService } from "../src/services/aiCardGenerationService";
+import { AiGenerationLock } from "../src/services/aiGenerationLock";
 import { resolveGroundingQuote } from "../src/services/proposalGroundingReconciler";
 import { extractConceptLearningContent } from "../src/services/conceptLearningContent";
 import { KnowledgeProposalStore } from "../src/services/knowledgeProposalStore";
@@ -111,6 +112,43 @@ async function run(): Promise<void> {
 
 		assert.equal(second.status, "skipped_active_proposals");
 		assert.equal(fixture.provider.callCount, 1);
+	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		const requestStarted = createDeferred();
+		const releaseRequest = createDeferred();
+		fixture.provider.onCall = () => requestStarted.resolve();
+		fixture.provider.blocker = releaseRequest.promise;
+
+		const firstPromise = fixture.service.generate(concept);
+		await requestStarted.promise;
+		const second = await fixture.service.generate(concept);
+
+		assert.equal(second.status, "generation_in_progress");
+		assert.equal(second.proposalCount, 0);
+		assert.equal(second.message.includes("already in progress for this Concept"), true);
+		assert.equal(fixture.provider.callCount, 1);
+		assert.equal(fixture.generationLock.isActive("card_generation", concept.conceptPath), true);
+
+		releaseRequest.resolve();
+		const first = await firstPromise;
+
+		assert.equal(first.status, "generated");
+		assert.equal(fixture.generationLock.isActive("card_generation", concept.conceptPath), false);
+	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		fixture.provider.error = new Error("Temporary provider failure.");
+
+		const failed = await fixture.service.generate(concept);
+		fixture.provider.error = undefined;
+		const retry = await fixture.service.generate(concept);
+
+		assert.equal(failed.status, "failed");
+		assert.equal(retry.status, "generated");
+		assert.equal(fixture.provider.callCount, 2);
 	}
 
 	{
@@ -404,20 +442,25 @@ function createFixture(settingsOverrides: Partial<typeof DEFAULT_SETTINGS>) {
 	const proposalStore = new KnowledgeProposalStore(storage);
 	const sourceAnalysisStore = new SourceAnalysisStore(storage);
 	const provider = new CountingProvider(new MockAiProvider(settings));
+	const generationLock = new AiGenerationLock();
 	const service = new AiCardGenerationService({
 		createProvider: () => provider,
+		generationLock,
 		proposalStore,
 		settingsProvider: () => settings,
 		sourceAnalysisStore,
 		timestampProvider: () => "2026-01-02T12:00:00.000Z",
 	});
 
-	return { proposalStore, provider, service, sourceAnalysisStore };
+	return { generationLock, proposalStore, provider, service, sourceAnalysisStore };
 }
 
 class CountingProvider implements AiProvider {
+	blocker?: Promise<void>;
 	callCount = 0;
+	error?: Error;
 	lastRequest?: AiProposalRequest;
+	onCall?: () => void;
 	response?: unknown;
 
 	constructor(private readonly delegate: AiProvider) {
@@ -426,6 +469,9 @@ class CountingProvider implements AiProvider {
 	async generateKnowledgeProposals(input: AiProposalRequest): Promise<AiProposalResponse> {
 		this.callCount += 1;
 		this.lastRequest = input;
+		this.onCall?.();
+		if (this.blocker) await this.blocker;
+		if (this.error) throw this.error;
 
 		if (this.response) {
 			return {
@@ -452,6 +498,15 @@ class CountingProvider implements AiProvider {
 
 		return this.delegate.generateKnowledgeProposals(input);
 	}
+}
+
+function createDeferred(): { promise: Promise<void>; resolve(): void } {
+	let resolve!: () => void;
+	const promise = new Promise<void>((resolvePromise) => {
+		resolve = resolvePromise;
+	});
+
+	return { promise, resolve };
 }
 
 class MemoryPluginStorage {

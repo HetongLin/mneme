@@ -2,6 +2,7 @@ import type { ConceptSummary } from "../models/conceptLibrary";
 import type { MnemeSettings } from "../models/settings";
 import type { SourceFileSnapshot } from "./sourceAnalysisDecision";
 import type { AiProposalResponse, AiProvider, ExistingConceptContext } from "./aiProvider";
+import type { AiGenerationLock } from "./aiGenerationLock";
 import { validateAiProviderConfig, validateConceptCaptureResponse } from "./aiProvider";
 import { createAiConceptCaptureFingerprint } from "./aiCaptureFingerprint";
 import { consolidateAiConceptProposals } from "./aiConceptProposalConsolidator";
@@ -17,6 +18,7 @@ import { splitSourceForAiCapture } from "./sourceCaptureChunker";
 export type AiConceptCaptureStatus =
 	| "captured"
 	| "failed"
+	| "generation_in_progress"
 	| "indexed_ai_disabled"
 	| "invalid_config"
 	| "invalid_response"
@@ -27,7 +29,7 @@ export interface AiConceptCaptureResult {
 	chunkCount?: number;
 	message: string;
 	proposalCount: number;
-	sourceAnalysis: AnalyzeSourceResult;
+	sourceAnalysis?: AnalyzeSourceResult;
 	status: AiConceptCaptureStatus;
 	totalChars?: number;
 }
@@ -35,6 +37,7 @@ export interface AiConceptCaptureResult {
 export interface AiConceptCaptureServiceOptions {
 	conceptScanner: { scanConcepts(): Promise<ConceptSummary[]> };
 	createProvider: (settings: MnemeSettings) => AiProvider;
+	generationLock: AiGenerationLock;
 	proposalStore: KnowledgeProposalStore;
 	readSourceContent: (sourcePath: string) => Promise<string>;
 	settingsProvider: () => MnemeSettings;
@@ -48,6 +51,24 @@ export class AiConceptCaptureService {
 	}
 
 	async analyze(snapshot: SourceFileSnapshot): Promise<AiConceptCaptureResult> {
+		const lease = this.options.generationLock.tryAcquire("concept_capture", snapshot.path);
+
+		if (!lease) {
+			return {
+				message: "Concept generation is already in progress for this Source Note. Wait for the current request to finish.",
+				proposalCount: 0,
+				status: "generation_in_progress",
+			};
+		}
+
+		try {
+			return await this.analyzeWithLock(snapshot);
+		} finally {
+			lease.release();
+		}
+	}
+
+	private async analyzeWithLock(snapshot: SourceFileSnapshot): Promise<AiConceptCaptureResult> {
 		const sourceAnalysis = await this.options.sourceAnalysisService.analyzeSource(snapshot);
 
 		if (sourceAnalysis.status === "failed" || !sourceAnalysis.contentHash) {
