@@ -1,6 +1,7 @@
-import { App, Modal, Notice, TFile } from "obsidian";
+import { App, Component, Modal, Notice, TFile } from "obsidian";
 import type { LoadedMnemeCard } from "../models/card";
 import { repairCardMarkers, updateCardMarkers } from "../services/cardMarkerEditor";
+import { createMarkdownLivePreviewField } from "../ui/markdownLivePreviewField";
 
 export interface CardEditModalOptions {
 	card: LoadedMnemeCard;
@@ -10,17 +11,20 @@ export interface CardEditModalOptions {
 
 export class CardEditModal extends Modal {
 	private isSaving = false;
+	private readonly markdownComponent = new Component();
 
 	constructor(app: App, private readonly options: CardEditModalOptions) {
 		super(app);
 	}
 
 	onOpen(): void {
+		this.markdownComponent.load();
 		this.titleEl.setText(this.options.mode === "repair" ? "Repair Card" : "Edit Card");
 		this.renderContent();
 	}
 
 	onClose(): void {
+		this.markdownComponent.unload();
 		this.contentEl.empty();
 	}
 
@@ -36,7 +40,7 @@ export class CardEditModal extends Modal {
 		});
 		contentEl.createEl("p", {
 			cls: "mneme-markdown-edit-hint",
-			text: "Math: use $...$ inside a sentence; use $$...$$ on separate lines for a display equation.",
+			text: "Select a preview to edit its Markdown source. Use $...$ inline and $$...$$ on separate lines for display math.",
 		});
 		const frontInput = this.createTextarea(contentEl, "Front", card.front);
 		const backInput = this.createTextarea(contentEl, "Back", card.back);
@@ -54,15 +58,14 @@ export class CardEditModal extends Modal {
 	}
 
 	private createTextarea(parentEl: HTMLElement, label: string, value: string): HTMLTextAreaElement {
-		const labelEl = parentEl.createEl("label", { cls: "mneme-proposal-detail-field" });
-		labelEl.createEl("span", { text: label });
-		const textarea = labelEl.createEl("textarea", {
-			attr: { spellcheck: "true" },
-			cls: "mneme-proposal-detail-field-textarea",
+		return createMarkdownLivePreviewField({
+			app: this.app,
+			component: this.markdownComponent,
+			label,
+			parentEl,
+			sourcePath: this.options.card.path,
+			value,
 		});
-		textarea.value = value;
-
-		return textarea;
 	}
 
 	private async save(

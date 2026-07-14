@@ -61,7 +61,7 @@ User-facing Markdown must stay concise:
 - Card Markdown is review content, not a provider trace.
 - AI schema fields, provider metadata, prompt text, diagnostics, confidence scores, raw evidence arrays, source hashes, proposal ids, lifecycle metadata, and FSRS state stay in plugin data, proposal internals, diagnostics, or Advanced / Raw JSON.
 
-Inbox acceptance is explicit. `Accept & Next` validates the currently opened proposal, writes clean editable Concept or Card Group Markdown, and marks it `written` only after a successful vault write. Rejected and written proposals are not active Inbox work.
+Inbox acceptance is explicit. `Accept & Next` first persists the currently visible structured editor values, validates that saved proposal, writes clean editable Concept or Card Group Markdown, and marks it `written` only after a successful vault write. Rejected and written proposals are not active Inbox work.
 
 The product-facing Inbox does not present proposal lifecycle states as primary navigation. Its main counters are To Review, Concept Proposals, Card Proposals, and Invalid items. Developer and diagnostic commands are hidden unless Developer Tools is enabled in settings.
 

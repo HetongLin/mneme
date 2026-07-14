@@ -1,4 +1,4 @@
-import { App, Modal, Notice, TFile } from "obsidian";
+import { App, Component, Modal, Notice, TFile } from "obsidian";
 import type {
 	ConceptImportance,
 	ConceptLearningMode,
@@ -14,6 +14,7 @@ import {
 } from "../services/conceptEditConflict";
 import { extractCoreMeaning, extractWhyItMatters } from "../services/conceptMarkdownParser";
 import { updateConceptSections } from "../services/conceptSectionUpdater";
+import { createMarkdownLivePreviewField } from "../ui/markdownLivePreviewField";
 
 export interface ConceptEditModalOptions {
 	concept: ConceptSummary;
@@ -23,17 +24,20 @@ export interface ConceptEditModalOptions {
 export class ConceptEditModal extends Modal {
 	private baseline?: ConceptEditBaseline;
 	private isSaving = false;
+	private readonly markdownComponent = new Component();
 
 	constructor(app: App, private readonly options: ConceptEditModalOptions) {
 		super(app);
 	}
 
 	onOpen(): void {
+		this.markdownComponent.load();
 		this.titleEl.setText("Edit Concept");
 		void this.loadAndRender();
 	}
 
 	onClose(): void {
+		this.markdownComponent.unload();
 		this.contentEl.empty();
 	}
 
@@ -76,7 +80,7 @@ export class ConceptEditModal extends Modal {
 		});
 		contentEl.createEl("p", {
 			cls: "mneme-markdown-edit-hint",
-			text: "Math: use $...$ inside a sentence; use $$...$$ on separate lines for a display equation.",
+			text: "Select a preview to edit its Markdown source. Use $...$ inline and $$...$$ on separate lines for display math.",
 		});
 		const coreMeaningInput = this.createTextarea(contentEl, "Core Meaning", baseline.coreMeaning);
 		const whyInput = this.createTextarea(contentEl, "Why It Matters", baseline.whyItMatters);
@@ -130,15 +134,14 @@ export class ConceptEditModal extends Modal {
 	}
 
 	private createTextarea(parentEl: HTMLElement, label: string, value: string): HTMLTextAreaElement {
-		const labelEl = parentEl.createEl("label", { cls: "mneme-proposal-detail-field" });
-		labelEl.createEl("span", { text: label });
-		const textarea = labelEl.createEl("textarea", {
-			attr: { spellcheck: "true" },
-			cls: "mneme-proposal-detail-field-textarea",
+		return createMarkdownLivePreviewField({
+			app: this.app,
+			component: this.markdownComponent,
+			label,
+			parentEl,
+			sourcePath: this.options.concept.path,
+			value,
 		});
-		textarea.value = value;
-
-		return textarea;
 	}
 
 	private createSelect<T extends string>(

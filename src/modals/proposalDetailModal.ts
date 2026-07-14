@@ -1,4 +1,4 @@
-import { App, Modal, Notice } from "obsidian";
+import { App, Component, Modal, Notice } from "obsidian";
 import type { KnowledgeProposal, KnowledgeProposalPayload } from "../models/knowledgeProposal";
 import { ApprovedProposalWriter } from "../services/approvedProposalWriter";
 import {
@@ -17,6 +17,7 @@ import {
 import { validateKnowledgeProposalPayload } from "../services/knowledgeProposalValidation";
 import { getProposalStageLabel } from "../services/knowledgeProposalStage";
 import { normalizeConceptTags } from "../services/conceptMarkdownRenderer";
+import { createMarkdownLivePreviewField } from "../ui/markdownLivePreviewField";
 
 interface ProposalDetailModalOptions {
 	onChange?(): Promise<void> | void;
@@ -26,7 +27,9 @@ interface ProposalDetailModalOptions {
 }
 
 export class ProposalDetailModal extends Modal {
+	private collectStructuredPayload?: () => KnowledgeProposalPayload;
 	private isActing = false;
+	private markdownComponent = new Component();
 	private proposal: KnowledgeProposal;
 
 	constructor(
@@ -38,18 +41,24 @@ export class ProposalDetailModal extends Modal {
 	}
 
 	onOpen(): void {
+		this.markdownComponent.load();
 		this.titleEl.setText("Proposal Review");
 		void this.markOpenedIfPossible();
 		this.renderContent();
 	}
 
 	onClose(): void {
+		this.markdownComponent.unload();
 		this.contentEl.empty();
 	}
 
 	private renderContent(): void {
 		const { contentEl } = this;
 		const validation = validateKnowledgeProposalPayload(this.proposal);
+		this.collectStructuredPayload = undefined;
+		this.markdownComponent.unload();
+		this.markdownComponent = new Component();
+		this.markdownComponent.load();
 
 		contentEl.empty();
 		contentEl.addClass("mneme-proposal-detail-modal");
@@ -66,7 +75,7 @@ export class ProposalDetailModal extends Modal {
 			actionsEl.createEl("button", { text: "Accept & Next" }, (buttonEl) => {
 				buttonEl.disabled = !this.options.writer;
 				buttonEl.title = this.options.writer
-					? "Validate and write this proposal to Markdown."
+					? "Save current edits, validate, and write this proposal to Markdown."
 					: "Markdown writer is not available.";
 				buttonEl.addEventListener("click", () => {
 					void this.accept();
@@ -153,7 +162,7 @@ export class ProposalDetailModal extends Modal {
 		) {
 			parentEl.createEl("p", {
 				cls: "mneme-markdown-edit-hint",
-				text: "Math: use $...$ inside a sentence; use $$...$$ on separate lines for a display equation.",
+				text: "Select a preview to edit its Markdown source. Accept & Next saves current fields automatically. Use $...$ inline and $$...$$ on separate lines for display math.",
 			});
 		}
 
@@ -195,7 +204,7 @@ export class ProposalDetailModal extends Modal {
 		], "normal");
 		const tagsInput = this.createTextInput(parentEl, "Tags", getStringArray(payload, "tags").join(", "));
 
-		this.createSaveEditsButton(parentEl, () => ({
+		this.collectStructuredPayload = () => ({
 			...payload,
 			coreMeaning: coreMeaningInput.value,
 			learningMode: learningModeInput.value,
@@ -203,7 +212,7 @@ export class ProposalDetailModal extends Modal {
 			summary: summaryInput.value,
 			tags: parseTags(tagsInput.value),
 			title: titleInput.value,
-		}));
+		}) as KnowledgeProposalPayload;
 	}
 
 	private renderNewCardEditor(parentEl: HTMLElement): void {
@@ -214,7 +223,7 @@ export class ProposalDetailModal extends Modal {
 		const rubricInput = this.createTextareaInput(parentEl, "Rubric", getString(card, "rubric"));
 		const cardTypeInput = this.createTextInput(parentEl, "Card Type", getString(card, "cardType"));
 
-		this.createSaveEditsButton(parentEl, () => ({
+		this.collectStructuredPayload = () => ({
 			...payload,
 			card: {
 				...card,
@@ -223,7 +232,7 @@ export class ProposalDetailModal extends Modal {
 				front: frontInput.value,
 				rubric: rubricInput.value,
 			},
-		}));
+		}) as KnowledgeProposalPayload;
 	}
 
 	private renderConceptUpdateEditor(parentEl: HTMLElement): void {
@@ -244,12 +253,12 @@ export class ProposalDetailModal extends Modal {
 			getString(payload, "updateReason"),
 		);
 
-		this.createSaveEditsButton(parentEl, () => ({
+		this.collectStructuredPayload = () => ({
 			...payload,
 			proposedCoreMeaning: coreMeaningInput.value,
 			proposedSummary: summaryInput.value,
 			updateReason: reasonInput.value,
-		}));
+		}) as KnowledgeProposalPayload;
 	}
 
 	private createTextInput(parentEl: HTMLElement, label: string, value = ""): HTMLInputElement {
@@ -295,24 +304,13 @@ export class ProposalDetailModal extends Modal {
 	}
 
 	private createTextareaInput(parentEl: HTMLElement, label: string, value = ""): HTMLTextAreaElement {
-		const labelEl = parentEl.createEl("label", { cls: "mneme-proposal-detail-field" });
-		labelEl.createEl("span", { text: label });
-		const inputEl = labelEl.createEl("textarea", {
-			attr: {
-				spellcheck: "true",
-			},
-			cls: "mneme-proposal-detail-field-textarea",
-		});
-		inputEl.value = value;
-
-		return inputEl;
-	}
-
-	private createSaveEditsButton(parentEl: HTMLElement, getPayload: () => Record<string, unknown>): void {
-		parentEl.createEl("button", { text: "Save Edits" }, (buttonEl) => {
-			buttonEl.addEventListener("click", () => {
-				void this.savePayload(getPayload() as unknown as KnowledgeProposalPayload);
-			});
+		return createMarkdownLivePreviewField({
+			app: this.app,
+			component: this.markdownComponent,
+			label,
+			parentEl,
+			sourcePath: getProposalSourcePath(this.proposal) ?? "",
+			value,
 		});
 	}
 
@@ -385,7 +383,11 @@ export class ProposalDetailModal extends Modal {
 		await this.savePayload(payload as KnowledgeProposalPayload);
 	}
 
-	private async savePayload(payload: KnowledgeProposalPayload): Promise<void> {
+	private async savePayload(
+		payload: KnowledgeProposalPayload,
+		options: { notify?: boolean; render?: boolean } = {},
+	): Promise<void> {
+		if (JSON.stringify(payload) === JSON.stringify(this.proposal.payload)) return;
 		const nextStatus = canTransitionProposalStatus(this.proposal.status, "edited")
 			? "edited"
 			: this.proposal.status;
@@ -399,8 +401,8 @@ export class ProposalDetailModal extends Modal {
 		await this.options.store.upsertProposal(nextProposal);
 		this.proposal = nextProposal;
 		await this.options.onChange?.();
-		new Notice("Mneme: Proposal edits saved.");
-		this.renderContent();
+		if (options.notify !== false) new Notice("Mneme: Proposal edits saved.");
+		if (options.render !== false) this.renderContent();
 	}
 
 	private async accept(): Promise<void> {
@@ -412,6 +414,10 @@ export class ProposalDetailModal extends Modal {
 
 		this.isActing = true;
 		try {
+			const structuredPayload = this.collectStructuredPayload?.();
+			if (structuredPayload) {
+				await this.savePayload(structuredPayload, { notify: false, render: false });
+			}
 			const workflow = new InboxAcceptanceWorkflow({
 				proposalStore: this.options.store,
 				writer: this.options.writer,

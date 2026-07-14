@@ -176,7 +176,7 @@ Knowledge proposals support typed payloads for Concept and Card changes.
 
 The Inbox can open a proposal detail modal. The Inbox list is only a queue: it shows proposal titles and allows `Open` or direct `Reject`; it must not allow acceptance.
 
-The proposal detail modal is the Review Gate. It shows editable proposal-specific fields first, then concrete Source Evidence for Concept proposals or Concept Grounding for Card proposals, then validation and Advanced / Raw JSON. `Accept & Next` and `Reject & Next` continue within the same stage without allowing unseen bulk acceptance.
+The proposal detail modal is the Review Gate. It shows editable proposal-specific fields first, then concrete Source Evidence for Concept proposals or Concept Grounding for Card proposals, then validation and Advanced / Raw JSON. Markdown-bearing fields use Live Preview and expose their original `$...$` / `$$...$$` source when selected. `Accept & Next` auto-saves the current structured fields before validation and writing; no separate `Save Edits` step is required. `Accept & Next` and `Reject & Next` continue within the same stage without allowing unseen bulk acceptance.
 
 `Mneme: Add Sample Knowledge Proposal` is a temporary debug command for manual Inbox validation. It creates proposal data only; it does not call AI or write files.
 
@@ -188,9 +188,9 @@ Proposal acceptance is the explicit commit action:
 Open proposal -> read/edit content -> inspect evidence -> Accept -> Markdown write
 ```
 
-For a Concept proposal, `Accept` validates the proposal, writes `Concept.md`, and marks the proposal `written` only after a successful vault write.
+For a Concept proposal, `Accept` first saves the current structured editor values, validates that saved proposal, writes `Concept.md`, and marks the proposal `written` only after a successful vault write.
 
-For a Card proposal, `Accept & Next` validates the proposal, appends one parser-compatible block to the Concept's Card Group, and marks the proposal `written` only after a successful vault write.
+For a Card proposal, `Accept & Next` first saves the current structured editor values, validates the saved proposal, appends one parser-compatible block to the Concept's Card Group, and marks the proposal `written` only after a successful vault write.
 
 The initial writer supports `new_concept` and `new_card` proposals only. Unsupported proposal kinds stay in Inbox until future structured editors and diff/patch writers exist.
 

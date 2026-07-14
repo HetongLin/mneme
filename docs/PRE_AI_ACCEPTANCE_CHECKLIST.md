@@ -41,8 +41,8 @@ This does not validate:
 7. Confirm lifecycle counters such as approved, rejected, stale, and written are not primary Inbox UI.
 8. Review the concept proposal.
 9. Confirm payload is readable and editable.
-10. Save a small edit.
-11. Click `Accept & Next`.
+10. Make a small edit without looking for a separate save action.
+11. Click `Accept & Next` and confirm the edit is auto-saved into the accepted Concept.
 12. Open generated `Concept.md`.
 13. Confirm `Concept.md` is readable and has minimal frontmatter.
 14. Run `Mneme: Generate Pre-AI Acceptance Cards`.

@@ -102,7 +102,7 @@ Manual Concept creation is a first-class product capability. `Create Concept` wr
 6. Mneme validates JSON with a runtime schema.
 7. Suggestions appear in Inbox.
 8. User accepts, edits, rejects, links, or updates each reviewed proposal.
-9. Accept & Next writes the reviewed Concept.md.
+9. Accept & Next auto-saves the current reviewed fields, then writes the reviewed Concept.md.
 10. User runs Generate Cards from Current Concept.
 11. AI returns Card proposals derived from the written Concept.
 12. User reviews and accepts Card proposals before Card Markdown is written.

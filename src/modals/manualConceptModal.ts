@@ -1,6 +1,7 @@
-import { App, Modal, Notice } from "obsidian";
+import { App, Component, Modal, Notice } from "obsidian";
 import type { ConceptImportance, ConceptLearningMode } from "../models/conceptLibrary";
 import type { ManualConceptInput, ManualConceptResult } from "../services/manualConceptService";
+import { createMarkdownLivePreviewField } from "../ui/markdownLivePreviewField";
 
 export interface ManualConceptModalOptions {
 	create(input: ManualConceptInput): Promise<ManualConceptResult>;
@@ -9,24 +10,27 @@ export interface ManualConceptModalOptions {
 
 export class ManualConceptModal extends Modal {
 	private isSaving = false;
+	private readonly markdownComponent = new Component();
 
 	constructor(app: App, private readonly options: ManualConceptModalOptions) {
 		super(app);
 	}
 
 	onOpen(): void {
+		this.markdownComponent.load();
 		this.titleEl.setText("Create Concept");
 		this.renderForm();
 	}
 
 	onClose(): void {
+		this.markdownComponent.unload();
 		this.contentEl.empty();
 	}
 
 	private renderForm(): void {
 		this.contentEl.createEl("p", {
 			cls: "mneme-markdown-edit-hint",
-			text: "Math: use $...$ inside a sentence; use $$...$$ on separate lines for a display equation.",
+			text: "Select a preview to edit its Markdown source. Use $...$ inline and $$...$$ on separate lines for display math.",
 		});
 		const title = this.createInput("Title", "e.g. Information Gain");
 		const coreMeaning = this.createTextarea("Core Meaning", "Explain the idea in your own words.");
@@ -63,11 +67,14 @@ export class ManualConceptModal extends Modal {
 	}
 
 	private createTextarea(label: string, placeholder: string): HTMLTextAreaElement {
-		const field = this.contentEl.createEl("label", { cls: "mneme-proposal-detail-field" });
-		field.createEl("span", { text: label });
-		return field.createEl("textarea", {
-			attr: { placeholder, spellcheck: "true" },
-			cls: "mneme-proposal-detail-field-textarea",
+		return createMarkdownLivePreviewField({
+			app: this.app,
+			component: this.markdownComponent,
+			label,
+			parentEl: this.contentEl,
+			placeholder,
+			sourcePath: "",
+			value: "",
 		});
 	}
 

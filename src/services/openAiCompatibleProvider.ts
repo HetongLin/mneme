@@ -45,6 +45,8 @@ const OBSIDIAN_MATH_MARKDOWN_GUIDANCE = [
 	"Use $$...$$ on separate lines for a standalone, long, emphasized, or multi-line equation, for example:\n$$\nP(A \\mid B)=\\frac{P(B \\mid A)P(A)}{P(B)}\n$$",
 	"Never emit bare LaTeX, \\(...\\), \\[...\\], or fenced code blocks for formulas, and do not put spaces immediately inside math delimiters.",
 	"Because the response is JSON, encode LaTeX backslashes as valid JSON escapes. Do not alter exact evidence quotes to add math delimiters.",
+	"These delimiter rules are mandatory whenever generated payload text contains mathematical notation. Before returning JSON, inspect every user-facing payload string and fix any formula-like expression left outside math delimiters.",
+	"If the source uses $...$ or $$...$$, preserve valid delimiters when carrying that mathematics into generated content. Write 'Bayes theorem uses $P(h \\mid D)=\\frac{P(D \\mid h)P(h)}{P(D)}$' rather than leaving P(h|D) or the equation as bare text.",
 ].join(" ");
 
 export function buildOpenAiCompatibleKnowledgeProposalPayload(
@@ -52,6 +54,9 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 	config: OpenAiCompatibleProviderConfig,
 ): OpenAiCompatibleStructuredOutputPayload {
 	const sourceContent = input.sourceContent.slice(0, config.maxInputChars);
+	const formattingContract = {
+		mathMarkdown: "Required: wrap inline mathematics in $...$ and standalone mathematics in $$...$$; never return bare formulas in generated payload text.",
+	};
 	const systemPrompt = input.mode === "card_generation"
 		? [
 			"Return one JSON object with schemaVersion 'mneme.ai.proposals.v1', mode 'card_generation', the exact source path/hash, proposals, and string warnings.",
@@ -90,6 +95,7 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 			conceptId: input.conceptId,
 			conceptTitle: input.conceptTitle,
 			existingCardFronts: input.existingCardFronts,
+			formattingContract,
 			mode: input.mode,
 			sourceContent,
 			sourceHash: input.sourceHash,
@@ -97,6 +103,7 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 		}
 		: {
 			existingConceptSummaries: input.existingConceptSummaries,
+			formattingContract,
 			mode: input.mode,
 			sourceContent,
 			sourceHash: input.sourceHash,

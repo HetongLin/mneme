@@ -162,6 +162,11 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("Use $...$ for short inline math"), true);
 	assert.equal(serialized.includes("Use $$...$$ on separate lines"), true);
 	assert.equal(serialized.includes("Never emit bare LaTeX"), true);
+	assert.equal(serialized.includes("delimiter rules are mandatory"), true);
+	assert.equal(serialized.includes("formula-like expression left outside math delimiters"), true);
+	assert.equal(serialized.includes("rather than leaving P(h|D)"), true);
+	assert.equal(serialized.includes("formattingContract"), true);
+	assert.equal(serialized.includes("never return bare formulas in generated payload text"), true);
 	assert.equal(serialized.includes("sk-test-value"), false);
 }
 
@@ -180,6 +185,7 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("Write user-facing Card text in the approved Concept's dominant language"), true);
 	assert.equal(serialized.includes("Use $...$ for short inline math"), true);
 	assert.equal(serialized.includes("Use $$...$$ on separate lines"), true);
+	assert.equal(serialized.includes("delimiter rules are mandatory"), true);
 	assert.equal(serialized.includes("deepseek-test-value"), false);
 }
 
@@ -202,6 +208,7 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("Prefer stable English lowercase slugs"), true);
 	assert.equal(serialized.includes("Use $...$ for short inline math"), true);
 	assert.equal(serialized.includes("Use $$...$$ on separate lines"), true);
+	assert.equal(serialized.includes("delimiter rules are mandatory"), true);
 	assert.equal(serialized.includes("Encapsulation keeps object internals"), false);
 	assert.equal(serialized.includes("Encapsulatio"), true);
 }

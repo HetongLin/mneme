@@ -211,6 +211,8 @@ Preferred order:
 
 `Proposed Change` summaries should not appear above editable Concept fields when they merely duplicate Summary or Core Meaning. For Card proposals, the editable Front / Back / Rubric fields are the primary review content.
 
+Markdown-bearing editor fields use a Live Preview interaction: the inactive field is rendered with Obsidian Markdown, and selecting it reveals the original editable source, including `$...$` and `$$...$$` delimiters. Concept Library remains the dedicated read-only rendered Concept surface.
+
 Concept proposals show concrete Source Evidence excerpts. Card proposals instead show Concept Grounding quoted from the approved Concept. Either surface may show the first few excerpts and place the full structured payload under Advanced / Raw JSON.
 
 Bottom actions:
@@ -220,6 +222,8 @@ Bottom actions:
 - Close
 
 The modal advances within the same proposal stage after a successful action. This reduces approval ceremony without permitting unseen bulk acceptance.
+
+There is no separate `Save Edits` action in the structured Review Gate. `Accept & Next` first snapshots and saves every current structured field, then validates and writes that exact saved payload. `Reject & Next` discards the proposal without saving draft edits. Advanced / Raw JSON keeps its explicit save escape hatch.
 
 ## Card Edit Modal
 
