@@ -200,6 +200,8 @@ Written Cards do not receive FSRS state during writing; they enter the normal pa
 
 Card proposal generation records a Learning Content Fingerprint built from assessable Concept sections and supplies existing Card fronts as a Coverage Map. Active proposals, previously written proposals, or a `coverage_complete` provider result for the same fingerprint block repetition; presentation/provenance edits do not unlock another round, while a fully rejected proposal round may be retried.
 
+Card grounding is anchored back to the current approved Concept before proposals enter Inbox. Exact quotes pass directly. Mneme may conservatively restore a quote when it differs only by whitespace, line breaks, or Obsidian `$` / `$$` math delimiters; the stored Evidence is always replaced with the exact Concept Markdown substring. Unverifiable Evidence is discarded, and a Card proposal with no verified grounding is discarded. One malformed Evidence item or proposal does not reject grounded sibling proposals, but a response with no grounded Card proposals still fails.
+
 Successful `new_concept` writes can also index approved Concept-source links. Mneme stores these links in plugin data and updates the analyzed Source Note's `linkedConceptIds` when source analysis state exists.
 
 Active Inbox shows actionable proposals only: `suggested`, `opened`, `edited`, and `stale`. Written and rejected proposals are not a user-facing history archive; they should disappear from the active Inbox.

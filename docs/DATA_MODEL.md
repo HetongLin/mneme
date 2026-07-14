@@ -55,6 +55,8 @@ AI raw JSON
 
 Knowledge proposals may include typed payloads for proposed Concept and Card changes. These payloads are proposal state only; Markdown content is written only after explicit user acceptance.
 
+Card proposal Evidence must resolve to an exact substring of the current assessable Concept content. Provider quotes that differ only by whitespace, line breaks, or Obsidian math delimiters may be reconciled to the exact stored substring; semantic paraphrases are not accepted as grounding.
+
 User-facing Markdown must stay concise:
 
 - `Concept.md` is a readable learning note, not a database export.

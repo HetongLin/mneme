@@ -3,6 +3,7 @@ import type { MnemePluginData } from "../src/models/reviewState";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
 import type { AiProposalRequest, AiProposalResponse, AiProvider } from "../src/services/aiProvider";
 import { AiCardGenerationService } from "../src/services/aiCardGenerationService";
+import { resolveGroundingQuote } from "../src/services/cardGroundingReconciler";
 import { extractConceptLearningContent } from "../src/services/conceptLearningContent";
 import { KnowledgeProposalStore } from "../src/services/knowledgeProposalStore";
 import { MockAiProvider } from "../src/services/mockAiProvider";
@@ -17,6 +18,64 @@ const concept = {
 };
 
 async function run(): Promise<void> {
+	{
+		const source = "Bayes theorem uses $P(h \\mid D)=\\frac{P(D \\mid h)P(h)}{P(D)}$ to update beliefs.";
+		const quote = "Bayes theorem uses P(h \\mid D)=\\frac{P(D \\mid h)P(h)}{P(D)} to update beliefs.";
+
+		assert.equal(resolveGroundingQuote(source, quote), source);
+	}
+
+	{
+		const source = "Bayes theorem:\n\n$$\nP(h \\mid D)=\\frac{P(D \\mid h)P(h)}{P(D)}\n$$";
+		const quote = "Bayes theorem: P(h \\mid D)=\\frac{P(D \\mid h)P(h)}{P(D)}";
+
+		assert.equal(resolveGroundingQuote(source, quote), source);
+	}
+
+	{
+		const bayesConcept = {
+			conceptId: "concept-bayes",
+			conceptPath: "Mneme/Concepts/Bayes-Theorem.md",
+			conceptTitle: "Bayes Theorem",
+			markdown: "# Bayes Theorem\n\n## Core Meaning\n\nBayes theorem uses $P(h \\mid D)=\\frac{P(D \\mid h)P(h)}{P(D)}$ to update beliefs.",
+		};
+		const learningContent = extractConceptLearningContent(bayesConcept.markdown, bayesConcept.conceptPath);
+		const conceptHash = await computeContentHash(learningContent);
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		fixture.provider.response = {
+			mode: "card_generation",
+			proposals: [{
+				confidence: 0.9,
+				evidence: [{
+					explanation: "Grounded in the approved Core Meaning.",
+					quote: "Bayes theorem uses P(h \\mid D)=\\frac{P(D \\mid h)P(h)}{P(D)} to update beliefs.",
+					sourcePath: bayesConcept.conceptPath,
+				}],
+				kind: "new_card",
+				payload: {
+					back: "$P(h \\mid D)=\\frac{P(D \\mid h)P(h)}{P(D)}$.",
+					cardType: "definition",
+					conceptId: bayesConcept.conceptId,
+					conceptTitle: bayesConcept.conceptTitle,
+					front: "What relationship does Bayes theorem express?",
+					rubric: "States the posterior relationship.",
+				},
+				rationale: "Tests the central equation.",
+				title: "Bayes relationship",
+			}],
+			schemaVersion: "mneme.ai.proposals.v1",
+			source: { hash: conceptHash, path: bayesConcept.conceptPath },
+			warnings: [],
+		};
+
+		const result = await fixture.service.generate(bayesConcept);
+		const proposals = await fixture.proposalStore.listProposals();
+
+		assert.equal(result.status, "generated");
+		assert.equal(result.proposalCount, 1);
+		assert.equal(proposals[0]?.evidence[0]?.excerpt, "Bayes theorem uses $P(h \\mid D)=\\frac{P(D \\mid h)P(h)}{P(D)}$ to update beliefs.");
+	}
+
 	{
 		const fixture = createFixture({ aiCaptureEnabled: false });
 		const result = await fixture.service.generate(concept);
@@ -180,6 +239,27 @@ async function run(): Promise<void> {
 		assert.equal(result.status, "invalid_response");
 		assert.equal(result.message, "Card generation must not return new_concept proposals.");
 		assert.deepEqual(await fixture.proposalStore.listProposals(), []);
+	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		const conceptHash = await conceptFingerprint();
+		const invalidProposal = createCardProposal(0);
+		invalidProposal.evidence[0]!.quote = "This quote is not in the approved Concept.";
+		fixture.provider.response = {
+			mode: "card_generation",
+			proposals: [invalidProposal, createCardProposal(1)],
+			schemaVersion: "mneme.ai.proposals.v1",
+			source: { hash: conceptHash, path: concept.conceptPath },
+			warnings: [],
+		};
+		const result = await fixture.service.generate(concept);
+		const proposals = await fixture.proposalStore.listProposals();
+
+		assert.equal(result.status, "generated");
+		assert.equal(result.proposalCount, 1);
+		assert.equal(proposals.length, 1);
+		assert.equal(proposals[0]?.ai.warnings.some((warning) => warning.includes("ignored 1 ungrounded Card proposal")), true);
 	}
 
 	{

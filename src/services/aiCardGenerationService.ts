@@ -8,6 +8,7 @@ import { validateAiStructuredProposalResponse } from "./aiProposalValidator";
 import type { KnowledgeProposalStore } from "./knowledgeProposalStore";
 import type { SourceAnalysisStore } from "./sourceAnalysisStore";
 import { extractConceptLearningContent } from "./conceptLearningContent";
+import { reconcileCardGrounding } from "./cardGroundingReconciler";
 
 const ACTIVE_STATUSES = new Set(["suggested", "opened", "edited", "stale", "approved"]);
 
@@ -119,21 +120,20 @@ export class AiCardGenerationService {
 				return this.result("invalid_response", "AI response source does not match the written Concept.");
 			}
 
-			const hasInvalidGrounding = validation.data.proposals.some((proposal) => (
-				proposal.evidence.some((evidence) => (
-					evidence.sourcePath !== input.conceptPath
-						|| !learningContent.includes(evidence.quote)
-				))
-			));
+			const grounding = reconcileCardGrounding(
+				validation.data,
+				learningContent,
+				input.conceptPath,
+			);
 
-			if (hasInvalidGrounding) {
+			if (validation.data.proposals.length > 0 && grounding.response.proposals.length === 0) {
 				return this.result(
 					"invalid_response",
 					"Every Card proposal must quote grounding from the current approved Concept.",
 				);
 			}
 
-			const proposals = normalizeAiStructuredProposalResponse(validation.data, {
+			const proposals = normalizeAiStructuredProposalResponse(grounding.response, {
 				now: this.options.timestampProvider?.() ?? new Date().toISOString(),
 			});
 			const stageValidation = validateCardGenerationResponse(proposals);
