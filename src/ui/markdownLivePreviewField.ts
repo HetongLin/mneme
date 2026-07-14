@@ -87,6 +87,9 @@ export function createMarkdownLivePreviewField(
 		showEditor();
 	});
 	textareaEl.addEventListener("blur", () => window.setTimeout(showPreview, 0));
+	textareaEl.addEventListener("input", () => {
+		if (textareaEl.hidden) void renderPreview();
+	});
 	textareaEl.addEventListener("keydown", (event) => {
 		if (event.key === "Escape") textareaEl.blur();
 	});

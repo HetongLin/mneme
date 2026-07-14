@@ -77,7 +77,7 @@ Current progress:
 - Advanced Diagnostics can repair Cards whose FRONT or BACK section is entirely missing while preserving surrounding Markdown and FSRS state.
 - Possible Duplicate detection and transactional Guided Merge are available from Concept Library; one-click Inbox merge remains forbidden.
 - Duplicate markers, malformed wrappers, and stable-ID conflicts still require the broader Repair Flow.
-- Manual Concept creation is available from the command palette and Concept Library. It writes an immediately approved clean Concept without creating a fake proposal or requiring Source Evidence.
+- Manual Concept creation is available from the command palette and Concept Library through a dockable, auto-saving Concept Composer. It can retain the current Source Note as approved provenance or create a clean source-free Concept without manufacturing a proposal or requiring Source Evidence.
 - New accepted Cards append to one canonical Card Group per Concept. Legacy one-Card files remain readable.
 - Card generation uses assessable-content fingerprints and existing Card fronts as a Coverage Map; rejected rounds may be retried without letting metadata edits create duplicate rounds.
 

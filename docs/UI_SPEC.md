@@ -55,7 +55,7 @@ v0.1 includes:
 - Review View
 - Inbox View
 - Card Edit Modal
-- Create Concept Modal
+- Concept Composer View
 - Concept Library
 - Settings View or Settings Tab
 
@@ -261,9 +261,15 @@ Rules:
 
 Back must contain the complete answer. Rubric is an optional scoring checklist and must not introduce knowledge absent from Back; keeping Rubric collapsed is safe only under this invariant.
 
-## Create Concept Modal
+## Concept Composer View
 
-`Create Concept` is available from the command palette and Concept Library. Title and Core Meaning are required; Why It Matters and tags are optional. The student may choose Learning Mode and Importance. Saving writes an immediately approved clean Concept with a stable ID and Card Group link; it does not create an Inbox proposal.
+`Create Concept` is available from the command palette and Concept Library. It opens a dockable right-sidebar View so the student can keep the Source Note visible while writing. When the Composer has no meaningful saved draft, the ordinary Markdown note active at opening becomes Source Note by default. Mneme Concept and Card files are never default sources. The selected source is a draft value and does not silently follow later active-file changes; `Use Current Note` explicitly replaces it and `Clear` creates a source-free Concept.
+
+The primary form shows Source Note, Title, Core Meaning, Why It Matters, and Create Concept. Learning Mode, Importance, and tags live under `More`, with Reviewable and Normal defaults. Draft fields auto-save in plugin data and survive closing the View. After creation, learning fields clear while Source Note remains selected for extracting another Concept from the same note. The Source Note stays open; a success row offers `Open Concept` instead of navigating automatically.
+
+Title and Core Meaning are required. An exact normalized title blocks creation and links to the existing Concept. A possible duplicate must be reviewed before `Create Anyway` becomes available. Saving writes immediately approved user-authored knowledge with a stable ID and Card Group link; it does not create an Inbox proposal.
+
+Manual and AI-accepted Concepts use the same Markdown renderer. `Source Notes` is optional in that canonical format: a selected source writes the standard section and approved provenance index; no source omits the section entirely rather than writing an empty heading or placeholder.
 
 ## Settings
 

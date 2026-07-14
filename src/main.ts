@@ -8,7 +8,6 @@ import {
 } from "./acceptance/preAiAcceptanceFixture";
 import type { KnowledgeProposal } from "./models/knowledgeProposal";
 import { ConfirmClearReviewHistoryModal } from "./modals/confirmClearReviewHistoryModal";
-import { ManualConceptModal } from "./modals/manualConceptModal";
 import {
 	DEFAULT_SETTINGS,
 	getSettingsFromPluginData,
@@ -35,11 +34,13 @@ import {
 import { parseConceptTitle } from "./services/conceptMarkdownParser";
 import { KnowledgeProposalStore } from "./services/knowledgeProposalStore";
 import { createKnowledgeContextPack } from "./services/knowledgeContextPackExporter";
+import { ManualConceptDraftStore } from "./services/manualConceptDraftStore";
+import { ManualConceptProvenanceCommitter, type ManualConceptSourceSnapshot } from "./services/manualConceptProvenanceService";
 import { ObsidianConceptVaultAdapter } from "./services/obsidianConceptVaultAdapter";
 import { ObsidianAiHttpClient } from "./services/obsidianAiHttpClient";
 import { ObsidianVaultAdapter } from "./services/obsidianVaultAdapter";
 import { PreAiAcceptanceFixtureService } from "./services/preAiAcceptanceFixtureService";
-import { createManualConcept } from "./services/manualConceptService";
+import { createManualConcept, type ManualConceptInput, type ManualConceptResult } from "./services/manualConceptService";
 import { ReviewStateStore } from "./services/reviewStateStore";
 import { SourceAnalysisService } from "./services/sourceAnalysisService";
 import { SourceAnalysisStore } from "./services/sourceAnalysisStore";
@@ -47,6 +48,8 @@ import { SourceProvenanceRelinkService } from "./services/sourceProvenanceRelink
 import { SourceProvenanceRemovalService } from "./services/sourceProvenanceRemovalService";
 import { VaultStateReconciler } from "./services/vaultStateReconciler";
 import { buildCardGroupPath, buildConceptPath, normalizeVaultPath } from "./utils/markdownPath";
+import { computeContentHash } from "./utils/sourceHash";
+import { CONCEPT_COMPOSER_VIEW_TYPE, MnemeConceptComposerView } from "./views/conceptComposerView";
 import { CONCEPT_LIBRARY_VIEW_TYPE, MnemeConceptLibraryView } from "./views/conceptLibraryView";
 import { MnemeInboxView, INBOX_VIEW_TYPE, type InboxTab } from "./views/inboxView";
 import { MnemeReviewView, REVIEW_VIEW_TYPE } from "./views/reviewView";
@@ -58,6 +61,7 @@ export default class MnemePlugin extends Plugin {
 	private sourceAnalysisStore: SourceAnalysisStore;
 	private knowledgeProposalStore: KnowledgeProposalStore;
 	private conceptSourceLinkStore: ConceptSourceLinkStore;
+	private manualConceptDraftStore: ManualConceptDraftStore;
 	private approvedProposalWriter: ApprovedProposalWriter;
 	private readonly aiGenerationLock = new AiGenerationLock();
 
@@ -68,6 +72,7 @@ export default class MnemePlugin extends Plugin {
 		this.sourceAnalysisStore = new SourceAnalysisStore(this);
 		this.knowledgeProposalStore = new KnowledgeProposalStore(this);
 		this.conceptSourceLinkStore = new ConceptSourceLinkStore(this);
+		this.manualConceptDraftStore = new ManualConceptDraftStore(this);
 		this.approvedProposalWriter = new ApprovedProposalWriter({
 			conceptSourceLinkStore: this.conceptSourceLinkStore,
 			conceptScanner: this.createConceptScanner(),
@@ -109,7 +114,7 @@ export default class MnemePlugin extends Plugin {
 					new ObsidianVaultAdapter(this.app.vault),
 					this,
 				),
-				createConcept: () => this.openManualConceptModal(),
+				createConcept: () => this.openConceptComposerView(),
 				sourceRelinkService: new SourceProvenanceRelinkService(
 					new ObsidianVaultAdapter(this.app.vault),
 					this,
@@ -121,6 +126,15 @@ export default class MnemePlugin extends Plugin {
 				generateCards: (concept) => this.generateCardsFromConceptPath(concept.path),
 			},
 		));
+		this.registerView(CONCEPT_COMPOSER_VIEW_TYPE, (leaf) => new MnemeConceptComposerView(leaf, {
+			create: (input) => this.createManualConceptFromComposer(input),
+			draftStore: this.manualConceptDraftStore,
+			getCurrentSourcePath: () => this.getCurrentManualConceptSourcePath(),
+			listSourcePaths: () => this.listManualConceptSourcePaths(),
+			onCreated: () => this.refreshOpenConceptLibraryViews(),
+			openConcept: (path) => this.openConceptInTab(path),
+			scanConcepts: () => this.createConceptScanner().scanConcepts(),
+		}));
 
 		this.registerProductCommands();
 		if (this.settings.enableDeveloperTools) {
@@ -149,7 +163,9 @@ export default class MnemePlugin extends Plugin {
 		this.addCommand({
 			id: "mneme-create-concept",
 			name: "Create Concept",
-			callback: () => this.openManualConceptModal(),
+			callback: () => {
+				void this.openConceptComposerView();
+			},
 		});
 
 		this.addCommand({
@@ -215,23 +231,6 @@ export default class MnemePlugin extends Plugin {
 				void this.exportAnkiTsv();
 			},
 		});
-	}
-
-	private openManualConceptModal(): void {
-		new ManualConceptModal(this.app, {
-			create: (input) => createManualConcept(
-				input,
-				this.settings,
-				new ObsidianVaultAdapter(this.app.vault),
-			),
-			onCreated: async (result) => {
-				const file = this.app.vault.getAbstractFileByPath(result.path);
-				if (file instanceof TFile) {
-					await this.app.workspace.getLeaf("tab").openFile(file);
-				}
-				await this.refreshOpenConceptLibraryViews();
-			},
-		}).open();
 	}
 
 	private registerDeveloperCommands(): void {
@@ -893,6 +892,96 @@ export default class MnemePlugin extends Plugin {
 		await Promise.all(refreshes);
 	}
 
+	private async createManualConceptFromComposer(input: ManualConceptInput): Promise<ManualConceptResult> {
+		const source = input.sourcePath
+			? await this.readManualConceptSourceSnapshot(input.sourcePath)
+			: undefined;
+		const committer = source
+			? new ManualConceptProvenanceCommitter(this, source)
+			: undefined;
+
+		return createManualConcept(
+			input,
+			this.settings,
+			new ObsidianVaultAdapter(this.app.vault),
+			undefined,
+			committer,
+		);
+	}
+
+	private getCurrentManualConceptSourcePath(): string | undefined {
+		const activeFile = this.app.workspace.getActiveFile();
+
+		return activeFile && this.isManualConceptSourceFile(activeFile)
+			? activeFile.path
+			: undefined;
+	}
+
+	private listManualConceptSourcePaths(): string[] {
+		return this.app.vault.getMarkdownFiles()
+			.filter((file) => this.isManualConceptSourceFile(file))
+			.map((file) => file.path)
+			.sort((first, second) => first.localeCompare(second));
+	}
+
+	private isManualConceptSourceFile(file: TFile): boolean {
+		if (file.extension !== "md") return false;
+		if (getConceptIdFromFrontmatter(this.app.metadataCache.getFileCache(file)?.frontmatter)) return false;
+
+		return !isPathInsideFolder(file.path, this.settings.conceptsFolder)
+			&& !isPathInsideFolder(file.path, this.settings.cardsFolder);
+	}
+
+	private async readManualConceptSourceSnapshot(sourcePath: string): Promise<ManualConceptSourceSnapshot> {
+		const abstractFile = this.app.vault.getAbstractFileByPath(sourcePath);
+		if (!(abstractFile instanceof TFile) || !this.isManualConceptSourceFile(abstractFile)) {
+			throw new Error("Select an existing Source Note or create the Concept without one.");
+		}
+		const content = await this.app.vault.cachedRead(abstractFile);
+
+		return {
+			contentHash: await computeContentHash(content),
+			mtime: abstractFile.stat.mtime,
+			path: abstractFile.path,
+			size: abstractFile.stat.size,
+		};
+	}
+
+	private async openConceptInTab(path: string): Promise<void> {
+		const abstractFile = this.app.vault.getAbstractFileByPath(path);
+		if (!(abstractFile instanceof TFile)) {
+			new Notice("Mneme: Concept file not found.");
+			return;
+		}
+
+		await this.app.workspace.getLeaf("tab").openFile(abstractFile);
+	}
+
+	private async openConceptComposerView(): Promise<void> {
+		const defaultSourcePath = this.getCurrentManualConceptSourcePath();
+		const existingLeaf = this.app.workspace.getLeavesOfType(CONCEPT_COMPOSER_VIEW_TYPE)[0];
+
+		if (existingLeaf) {
+			if (existingLeaf.view instanceof MnemeConceptComposerView) {
+				await existingLeaf.view.prepare(defaultSourcePath);
+			}
+			await this.app.workspace.revealLeaf(existingLeaf);
+			return;
+		}
+
+		const leaf = this.app.workspace.getRightLeaf(false);
+		if (!leaf) {
+			new Notice("Mneme: could not open Concept Composer.");
+			return;
+		}
+
+		await leaf.setViewState({ active: true, type: CONCEPT_COMPOSER_VIEW_TYPE });
+		if (leaf.view instanceof MnemeConceptComposerView) {
+			await leaf.view.prepare(defaultSourcePath);
+		}
+		await this.app.workspace.revealLeaf(leaf);
+	}
+
 	private async openReviewView() {
 		const existingLeaf = this.app.workspace.getLeavesOfType(REVIEW_VIEW_TYPE)[0];
 
@@ -1050,4 +1139,12 @@ function getPathBasename(path: string): string {
 	const parts = path.split("/").filter((part) => part.length > 0);
 
 	return parts[parts.length - 1] ?? "";
+}
+
+function isPathInsideFolder(path: string, folder: string): boolean {
+	const normalizedPath = normalizeVaultPath(path).toLocaleLowerCase();
+	const normalizedFolder = normalizeVaultPath(folder).replace(/\/$/u, "").toLocaleLowerCase();
+
+	return !!normalizedFolder
+		&& (normalizedPath === normalizedFolder || normalizedPath.startsWith(`${normalizedFolder}/`));
 }

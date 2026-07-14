@@ -14,6 +14,7 @@ import {
 } from "../models/reviewState";
 import { DEFAULT_SETTINGS, MnemeSettings, normalizeSettings } from "../models/settings";
 import { SourceAnalysisRecord } from "../models/sourceAnalysis";
+import type { ManualConceptDraft } from "../models/manualConceptDraft";
 import {
 	ConceptSourceLink,
 	ConceptSourceRelationType,
@@ -613,6 +614,7 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 		conceptMergeRecords: normalizeConceptMergeRecords(conceptMergeRecords),
 		conceptSourceLinks: normalizeConceptSourceLinks(conceptSourceLinks),
 		knowledgeProposals: normalizeKnowledgeProposals(knowledgeProposals),
+		manualConceptDraft: normalizeManualConceptDraft(data.manualConceptDraft),
 		pausedConcepts: normalizePausedConcepts(pausedConcepts),
 		reviewEvents: normalizeReviewEvents(reviewEvents),
 		reviewStates: normalizeReviewStates(reviewStates),
@@ -622,6 +624,35 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 		schemaVersion: CURRENT_SCHEMA_VERSION,
 		settings: normalizeSettings(data.settings),
 		sourceAnalysisRecords: normalizeSourceAnalysisRecords(sourceAnalysisRecords),
+	};
+}
+
+function normalizeManualConceptDraft(value: unknown): ManualConceptDraft | undefined {
+	if (
+		!isObject(value)
+		|| typeof value.title !== "string"
+		|| typeof value.coreMeaning !== "string"
+		|| typeof value.whyItMatters !== "string"
+		|| (value.learningMode !== "reviewable" && value.learningMode !== "exploratory")
+		|| (value.importance !== "low" && value.importance !== "normal" && value.importance !== "high" && value.importance !== "critical")
+		|| !Array.isArray(value.tags)
+		|| !value.tags.every((tag) => typeof tag === "string")
+		|| (value.sourcePath !== undefined && typeof value.sourcePath !== "string")
+		|| typeof value.updatedAt !== "string"
+		|| Number.isNaN(Date.parse(value.updatedAt))
+	) {
+		return undefined;
+	}
+
+	return {
+		coreMeaning: value.coreMeaning,
+		importance: value.importance,
+		learningMode: value.learningMode,
+		...(value.sourcePath?.trim() ? { sourcePath: value.sourcePath } : {}),
+		tags: [...value.tags],
+		title: value.title,
+		updatedAt: value.updatedAt,
+		whyItMatters: value.whyItMatters,
 	};
 }
 

@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
+import type { ConceptSummary } from "../src/models/conceptLibrary";
+import type { MnemePluginData } from "../src/models/reviewState";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
+import { createDefaultPluginData } from "../src/services/reviewStateStore";
+import { assessManualConceptDuplicates } from "../src/services/manualConceptDuplicateCheck";
+import { ManualConceptDraftStore } from "../src/services/manualConceptDraftStore";
 import { createManualConcept } from "../src/services/manualConceptService";
+import { ManualConceptProvenanceCommitter } from "../src/services/manualConceptProvenanceService";
 
 class MemoryVault {
 	files = new Map<string, string>();
@@ -17,6 +23,22 @@ class MemoryVault {
 
 	async exists(path: string): Promise<boolean> {
 		return this.files.has(path) || this.folders.has(path);
+	}
+
+	async remove(path: string): Promise<void> {
+		this.files.delete(path);
+	}
+}
+
+class MemoryPluginStorage {
+	data: MnemePluginData = createDefaultPluginData();
+
+	async loadData(): Promise<unknown> {
+		return this.data;
+	}
+
+	async saveData(data: MnemePluginData): Promise<void> {
+		this.data = data;
 	}
 }
 
@@ -38,17 +60,87 @@ async function run(): Promise<void> {
 	assert.equal(markdown.includes("Source Notes"), false);
 	assert.equal(markdown.includes("Add views here"), false);
 
-	const second = await createManualConcept({
-		coreMeaning: "A separate user-authored Concept.",
-		title: "向量空间",
-	}, DEFAULT_SETTINGS, vault, () => "concept_manual_two");
-	assert.equal(second.path, "Mneme/Concepts/向量空间-2.md");
-	assert.match(vault.files.get(second.path) ?? "", /cards: "\[\[Mneme\/Cards\/向量空间-2\/Cards\|向量空间 Cards\]\]"/);
+	await assert.rejects(
+		createManualConcept({
+			coreMeaning: "A separate user-authored Concept.",
+			title: "向量空间",
+		}, DEFAULT_SETTINGS, vault, () => "concept_manual_two"),
+		/A Concept with this title already exists/,
+	);
+
+	const storage = new MemoryPluginStorage();
+	const sourced = await createManualConcept({
+		coreMeaning: "Entropy measures uncertainty in a probability distribution.",
+		sourcePath: "Notes/Information Theory.md",
+		title: "Entropy",
+	}, DEFAULT_SETTINGS, vault, () => "concept_manual_entropy", new ManualConceptProvenanceCommitter(
+		storage,
+		{
+			contentHash: "source-hash",
+			mtime: 100,
+			path: "Notes/Information Theory.md",
+			size: 200,
+		},
+		() => "2026-07-14T12:00:00.000Z",
+	));
+	const sourcedMarkdown = vault.files.get(sourced.path) ?? "";
+	assert.match(sourcedMarkdown, /## Source Notes/);
+	assert.match(sourcedMarkdown, /> - \[\[Notes\/Information Theory\]\]/);
+	const sourceLinks = Object.values(storage.data.conceptSourceLinks);
+	assert.equal(sourceLinks.length, 1);
+	assert.equal(sourceLinks[0]?.conceptId, sourced.conceptId);
+	assert.equal(sourceLinks[0]?.relationType, "origin");
+	assert.deepEqual(storage.data.sourceAnalysisRecords["Notes/Information Theory.md"]?.linkedConceptIds, [sourced.conceptId]);
+
+	await assert.rejects(
+		createManualConcept({
+			coreMeaning: "Rollback test.",
+			title: "Rollback",
+		}, DEFAULT_SETTINGS, vault, () => "concept_manual_rollback", {
+			commit: async () => {
+				throw new Error("State write failed.");
+			},
+		}),
+		/State write failed/,
+	);
+	assert.equal(vault.files.has("Mneme/Concepts/Rollback.md"), false);
 
 	await assert.rejects(
 		createManualConcept({ coreMeaning: "", title: "Empty" }, DEFAULT_SETTINGS, vault),
 		/Core Meaning is required/,
 	);
+
+	const duplicateConcepts: ConceptSummary[] = [{
+		conceptId: "concept-information-gain",
+		coreMeaning: "Information gain measures the reduction in entropy after a split.",
+		path: "Mneme/Concepts/Information-Gain.md",
+		title: "Information Gain",
+	}];
+	const exact = assessManualConceptDuplicates("information-gain", "Different wording.", duplicateConcepts);
+	assert.equal(exact.exact?.conceptId, "concept-information-gain");
+	const possible = assessManualConceptDuplicates(
+		"Entropy Reduction",
+		"Information gain measures the reduction in entropy after a split.",
+		duplicateConcepts,
+	);
+	assert.equal(possible.possible[0]?.concept.conceptId, "concept-information-gain");
+
+	const draftStore = new ManualConceptDraftStore(storage);
+	await draftStore.saveDraft({
+		coreMeaning: "Draft meaning",
+		importance: "high",
+		learningMode: "reviewable",
+		sourcePath: "Notes/Draft.md",
+		tags: ["draft"],
+		title: "Draft",
+		updatedAt: "2026-07-14T12:30:00.000Z",
+		whyItMatters: "Draft value",
+	});
+	const loadedDraft = await draftStore.getDraft();
+	assert.equal(loadedDraft?.sourcePath, "Notes/Draft.md");
+	assert.deepEqual(loadedDraft?.tags, ["draft"]);
+	await draftStore.clearDraft();
+	assert.equal(await draftStore.getDraft(), undefined);
 }
 
 void run().catch((error) => {

@@ -144,6 +144,10 @@ Generated Concepts include only sections with useful content, except the always-
 - Source Notes
 - Related Concepts, when links exist
 
+`Source Notes` is an optional canonical section, not a separate manual format. AI-accepted and manually authored Concepts use the same renderer. A Concept with approved provenance includes the section; a genuinely source-free manual Concept omits it. Adding provenance later inserts the same standard section and index records.
+
+Plugin data may contain one `manualConceptDraft` for the dockable Concept Composer. It stores editable learning fields, optional Source Note path, organization fields, and an update timestamp. It is draft UI state only: it is not an approved Concept, KnowledgeProposal, or Source evidence record.
+
 Example structure:
 
 ---

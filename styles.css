@@ -663,3 +663,101 @@ If your plugin does not need CSS, delete this file.
 	justify-content: flex-end;
 	margin-top: 18px;
 }
+
+.mneme-concept-composer-view {
+	padding: 20px 16px;
+}
+
+.mneme-concept-composer-header {
+	margin-bottom: 20px;
+}
+
+.mneme-concept-composer-form {
+	display: grid;
+	gap: 14px;
+}
+
+.mneme-concept-composer-form .mneme-proposal-detail-field {
+	margin: 0;
+}
+
+.mneme-concept-composer-form select,
+.mneme-concept-composer-source-row input {
+	width: 100%;
+}
+
+.mneme-concept-composer-source-row,
+.mneme-concept-composer-source-actions,
+.mneme-concept-composer-actions,
+.mneme-concept-composer-created {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.mneme-concept-composer-source-row input {
+	min-width: 0;
+}
+
+.mneme-concept-composer-more {
+	border-top: 1px solid var(--background-modifier-border);
+	padding-top: 10px;
+}
+
+.mneme-concept-composer-more > summary {
+	color: var(--text-muted);
+	cursor: pointer;
+	font-family: var(--font-ui-small);
+}
+
+.mneme-concept-composer-more-fields {
+	display: grid;
+	gap: 10px;
+	padding-top: 10px;
+}
+
+.mneme-concept-composer-duplicates {
+	display: grid;
+	gap: 8px;
+}
+
+.mneme-concept-composer-duplicates:not(:empty) {
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	padding: 12px;
+}
+
+.mneme-concept-composer-duplicate {
+	align-items: center;
+	display: flex;
+	gap: 10px;
+	justify-content: space-between;
+}
+
+.mneme-concept-composer-duplicate span,
+.mneme-concept-composer-duplicate small {
+	display: block;
+}
+
+.mneme-concept-composer-duplicate small {
+	color: var(--text-muted);
+	margin-top: 3px;
+}
+
+.mneme-concept-composer-status {
+	margin: 0;
+}
+
+.mneme-concept-composer-actions {
+	background: var(--background-primary);
+	bottom: 0;
+	padding: 10px 0 4px;
+	position: sticky;
+	z-index: 1;
+}
+
+.mneme-concept-composer-actions button {
+	width: 100%;
+}

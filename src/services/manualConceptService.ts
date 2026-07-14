@@ -1,6 +1,6 @@
 import type { ConceptImportance, ConceptLearningMode } from "../models/conceptLibrary";
 import type { MnemeSettings } from "../models/settings";
-import { buildCardGroupPath, buildConceptPath, ensureUniquePath, normalizeVaultPath, toObsidianInternalLink } from "../utils/markdownPath";
+import { buildCardGroupPath, buildConceptPath, normalizeVaultPath, toObsidianInternalLink } from "../utils/markdownPath";
 import { createStableConceptId } from "./conceptIdEditor";
 import { renderConceptMarkdown } from "./conceptMarkdownRenderer";
 
@@ -8,6 +8,7 @@ export interface ManualConceptInput {
 	coreMeaning: string;
 	importance?: ConceptImportance;
 	learningMode?: ConceptLearningMode;
+	sourcePath?: string;
 	tags?: string[];
 	title: string;
 	whyItMatters?: string;
@@ -22,6 +23,11 @@ export interface ManualConceptVault {
 	create(path: string, content: string): Promise<void>;
 	createFolder(path: string): Promise<void>;
 	exists(path: string): Promise<boolean>;
+	remove(path: string): Promise<void>;
+}
+
+export interface ManualConceptCommitter {
+	commit(input: ManualConceptInput, result: ManualConceptResult): Promise<void>;
 }
 
 export async function createManualConcept(
@@ -29,6 +35,7 @@ export async function createManualConcept(
 	settings: MnemeSettings,
 	vault: ManualConceptVault,
 	createId: () => string = () => createStableConceptId(),
+	committer?: ManualConceptCommitter,
 ): Promise<ManualConceptResult> {
 	const title = input.title.trim();
 	const coreMeaning = input.coreMeaning.trim();
@@ -40,12 +47,10 @@ export async function createManualConcept(
 	}
 
 	const desiredPath = buildConceptPath(settings.conceptsFolder, title);
-	const occupied = new Set<string>();
-	let path = desiredPath;
-	while (await vault.exists(path)) {
-		occupied.add(path);
-		path = ensureUniquePath(occupied, desiredPath);
+	if (await vault.exists(desiredPath)) {
+		throw new Error("A Concept with this title already exists.");
 	}
+	const path = desiredPath;
 	await ensureParentFolders(path, vault);
 
 	const conceptId = createId();
@@ -56,13 +61,22 @@ export async function createManualConcept(
 		coreMeaning,
 		importance: input.importance,
 		learningMode: input.learningMode ?? "reviewable",
+		sourcePath: input.sourcePath?.trim() || undefined,
 		tags: input.tags,
 		title,
 		whyItMatters: input.whyItMatters,
 	});
 	await vault.create(path, markdown);
+	const result = { conceptId, path };
 
-	return { conceptId, path };
+	try {
+		await committer?.commit(input, result);
+	} catch (error) {
+		await vault.remove(path);
+		throw error;
+	}
+
+	return result;
 }
 
 function getMarkdownFileStem(path: string): string {

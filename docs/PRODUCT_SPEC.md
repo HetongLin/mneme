@@ -90,7 +90,7 @@ A structured proposal record produced by AI or developer fixtures and reviewed i
 
 Initial AI capture is concept-first. Source Note analysis may propose Concept-stage changes only; Cards are generated later from written Concept Markdown and require their own review before Card Markdown is written.
 
-Manual Concept creation is a first-class product capability. `Create Concept` writes the same clean approved Concept format as AI acceptance, without manufacturing a proposal or asking the student to approve their own authorship.
+Manual Concept creation is a first-class product capability. `Create Concept` opens a dockable Composer beside the current Source Note and writes the same clean approved Concept format as AI acceptance, without manufacturing a proposal or asking the student to approve their own authorship. Source provenance is optional: the current ordinary Markdown note initializes an empty draft, while a source-free Concept omits the Source Notes section and provenance link entirely.
 
 ## Core Workflow
 

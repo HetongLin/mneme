@@ -950,9 +950,15 @@ Requirements:
 - Produce the same readable Concept Markdown shape as an accepted `new_concept` proposal
 - Assign a stable Concept ID and required Mneme frontmatter
 - Let the student provide title, Core Meaning, Why It Matters, learning mode, importance, and English slug tags
+- Use a dockable Composer so the Source Note remains visible during authorship
+- Initialize an empty draft from the current ordinary Markdown note without silently following later active-file changes
+- Auto-save the draft in plugin data and retain its selected source after successful creation
+- Allow the source to be changed or cleared; omit Source Notes and provenance state entirely when no source is selected
+- Write the canonical Source Notes section and approved provenance indexes when a source is selected
+- Block an exact title duplicate and require explicit review before creating a possible duplicate
 - Treat the resulting Concept as approved user-authored knowledge, not AI proposal data
 - Keep Card generation separate: Cards are still generated later from the written Concept and reviewed through Inbox before Card Markdown is written
-- Do not require Source Evidence when the Concept is manually authored, though optional Source Note links can be considered in a later design
+- Do not require Source Evidence when the Concept is manually authored
 
 Acceptance criteria:
 
@@ -961,3 +967,5 @@ Acceptance criteria:
 - Reviewable manually created Concepts can use Generate Cards from Current Concept
 - Exploratory manually created Concepts remain outside Today’s Focus and cannot generate Cards
 - The manual path does not create KnowledgeProposal records or pretend that AI approved the Concept
+- Closing and reopening the Composer preserves meaningful unfinished work
+- A completed creation keeps the Source Note open and offers an explicit Open Concept action
