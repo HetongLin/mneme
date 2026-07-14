@@ -848,6 +848,10 @@ function isSourceAnalysisRecord(value: unknown): value is SourceAnalysisRecord {
 	return isObject(value)
 		&& typeof value.sourcePath === "string"
 		&& typeof value.contentHash === "string"
+		&& (value.lastAiCaptureAnalyzedChars === undefined || isNonNegativeInteger(value.lastAiCaptureAnalyzedChars))
+		&& (value.lastAiCaptureChunkCount === undefined || isNonNegativeInteger(value.lastAiCaptureChunkCount))
+		&& (value.lastAiCaptureFingerprint === undefined || typeof value.lastAiCaptureFingerprint === "string")
+		&& (value.lastAiCaptureTotalChars === undefined || isNonNegativeInteger(value.lastAiCaptureTotalChars))
 		&& (value.lastCardGenerationFingerprint === undefined || typeof value.lastCardGenerationFingerprint === "string")
 		&& (value.lastCardGenerationOutcome === undefined
 			|| value.lastCardGenerationOutcome === "proposed"

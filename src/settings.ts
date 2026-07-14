@@ -254,8 +254,8 @@ export class MnemeSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName("Max input characters")
-			.setDesc("Caps how much Source Note or Concept text the provider can receive.")
+			.setName("AI chunk size")
+			.setDesc("Maximum characters per AI request. Longer Source Notes are analyzed completely across multiple Markdown-aware chunks.")
 			.addText((text) => {
 				text.inputEl.type = "number";
 				text.inputEl.min = "1";

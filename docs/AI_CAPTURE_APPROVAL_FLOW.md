@@ -60,7 +60,7 @@ Future Scan Vault behavior follows the same rule: first propose Concepts, then g
 
 ## Hash-Based Scanning
 
-Source Notes should be re-analyzed only when changed.
+Source Notes should be re-analyzed when their content or effective AI capture configuration changes.
 
 Store:
 
@@ -69,21 +69,25 @@ Store:
 - size
 - content hash
 
-Fast path:
+Fast path for source indexing:
 
-- if `mtime` and `size` are unchanged, skip reading content if a previous record exists
+- if `mtime` and `size` are unchanged, reuse the existing content hash
 
 Accurate path:
 
 - if metadata changed, read content and compute hash
-- if content hash is unchanged, skip AI analysis
+- if content hash is unchanged, retain the existing source index
 - if content hash changed, mark stale and generate proposals
+
+AI capture uses a separate fingerprint containing the Source content hash, Source path, provider and model identity, per-request chunk size, chunking version, and Concept capture policy version. Skip provider calls only when this full fingerprint matches the last completed capture. Changing `AI chunk size`, provider/model, or the capture policy therefore re-runs the same unchanged Source Note without requiring a fake note edit.
+
+Long Source Notes are never silently truncated. Mneme splits the complete note into contiguous Markdown-aware chunks, preferring heading boundaries and then paragraph boundaries while respecting the configured per-request `AI chunk size`. Every source character belongs to exactly one chunk. Each chunk keeps the full Source hash and path, uses the language detected from the complete Source Note, and is independently validated and grounded against the complete Source Markdown. Mneme writes nothing until every chunk succeeds, then consolidates exact cross-chunk Concept duplicates and writes the final proposal set atomically. The completion notice reports analyzed characters, total characters, and chunk count.
 
 ## Runtime Foundation
 
 `Mneme: Analyze Current Note` indexes source note metadata and content hash. With AI Capture enabled, it also creates validated Concept-stage proposals in Inbox.
 
-It persists a `SourceAnalysisRecord` in plugin data through `SourceAnalysisStore`. This lets Mneme skip unchanged notes before an unnecessary AI call is made.
+It persists a `SourceAnalysisRecord` in plugin data through `SourceAnalysisStore`. This lets Mneme reuse unchanged source indexing while still re-running AI capture when the effective provider, model, chunking, or prompt policy changes.
 
 This command creates Concept proposals only. It does not generate Cards or write Markdown.
 
@@ -149,7 +153,7 @@ Generated learning content follows the Source Note's dominant language. Mneme de
 
 Concept capture has no fixed proposal-count limit because long Source Notes may contain many durable ideas. Quality is constrained per proposal instead: a new Concept represents one independently explainable, reusable knowledge unit; headings, organizational labels, isolated facts, incidental examples, anecdotes, background sentences, and repeated paraphrases do not become standalone Concepts. Mneme compares candidates with existing Concepts and prefers Link, Update, Add View, or Merge over creating a duplicate. The provider returns no proposals when the Source Note contains no durable knowledge worth creating or linking and no meaningful Concept change. Core Meaning stays compact and identifies the Concept and its defining mechanism; Why It Matters contains only usefulness, relevance, or application.
 
-Concept titles use the shortest unambiguous canonical or established name and name the knowledge itself rather than the current note's purpose, application context, domain, tool, course, or lesson. Contextual suffixes such as `for Hypothesis Evaluation`, `in Healthcare`, or `using Python` are not added unless the complete phrase is itself an established, genuinely distinct Concept. For example, Mneme proposes `Bayes Theorem`, not `Bayes Theorem for Hypothesis Evaluation`; hypothesis evaluation belongs in Why It Matters or a View. If the canonical Concept already exists, Mneme prefers Add View, Update, or Link instead of creating a context-qualified duplicate.
+Concept titles use the shortest unambiguous canonical or established name and name the knowledge itself rather than the current note's purpose, application context, domain, tool, course, or lesson. Contextual suffixes such as `for Hypothesis Evaluation`, `in Healthcare`, or `using Python` are not added unless the complete phrase is itself an established, genuinely distinct Concept. For example, Mneme proposes `Bayes Theorem`, not `Bayes Theorem for Hypothesis Evaluation`; hypothesis evaluation belongs in Why It Matters or a View. Reusable relationships name the relationship directly rather than copying a conjunction-style section heading: use `Least Squares as Maximum Likelihood`, not `Maximum Likelihood and Least-Squared Error`. If a relationship is only a perspective on an existing canonical Concept, Mneme proposes Add View. If the canonical Concept already exists, Mneme prefers Add View, Update, or Link instead of creating a context-qualified duplicate.
 
 Every Concept-stage proposal requires at least one exact quote from the current Source Note. Mneme verifies the evidence path and quote before a proposal enters Inbox, conservatively restoring whitespace, line-break, or Obsidian math-delimiter differences to the exact Source Markdown. Unverifiable evidence is discarded, and a proposal with no verified Source grounding is discarded. A response whose non-empty proposal set has no grounded proposal is rejected.
 

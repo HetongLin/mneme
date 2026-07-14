@@ -71,7 +71,7 @@ The product-facing Inbox does not present proposal lifecycle states as primary n
 
 Inbox Refresh and `Mneme: Resync Mneme Index` reconcile plugin data with the current vault. Transient stale proposals and caches may be pruned, but approved Concept-source provenance that points to a deleted Source is retained with `status: stale`. Reconciliation never deletes user Markdown or approved provenance; relinking or removing provenance requires an explicit student action.
 
-Guided Source Relink repairs a retained stale relationship in place at the semantic level. It preserves the relation type, evidence, and original `addedAt`; changes the Source path and content hash; refreshes `lastSeenAt`; and returns the relationship to `approved` only after the student reviews and confirms a zero-write preview. Equivalent target links are deduplicated by Concept, Source, and relation type with evidence union. The old and new `SourceAnalysisRecord.linkedConceptIds` indexes are updated in the same transaction. A pre-existing `lastAiCaptureHash` on the replacement Source remains untouched because relinking identifies provenance—it does not assert that AI has analyzed or approved the replacement content.
+Guided Source Relink repairs a retained stale relationship in place at the semantic level. It preserves the relation type, evidence, and original `addedAt`; changes the Source path and content hash; refreshes `lastSeenAt`; and returns the relationship to `approved` only after the student reviews and confirms a zero-write preview. Equivalent target links are deduplicated by Concept, Source, and relation type with evidence union. The old and new `SourceAnalysisRecord.linkedConceptIds` indexes are updated in the same transaction. A pre-existing `lastAiCaptureFingerprint` on the replacement Source remains untouched because relinking identifies provenance—it does not assert that AI has analyzed or approved the replacement content.
 
 Reviewed Stale Provenance Removal deletes one selected stale link only after a zero-write preview and explicit confirmation. The readable Source entry and `SourceAnalysisRecord.linkedConceptIds` association are removed only when no other relationship still connects the same Concept and Source. This prevents deleting shared presentation/index state when relation types differ.
 
@@ -375,7 +375,10 @@ For each analyzed Source Note, store:
 
 - sourcePath
 - contentHash
-- lastAiCaptureHash (optional; records the hash that completed proposal capture)
+- lastAiCaptureFingerprint (optional; identifies the Source, provider/model, chunk size, chunking version, and prompt policy that completed proposal capture)
+- lastAiCaptureAnalyzedChars (optional)
+- lastAiCaptureTotalChars (optional)
+- lastAiCaptureChunkCount (optional)
 - lastCardGenerationFingerprint (optional; records assessable Concept content that completed Card proposal generation)
 - lastCardGenerationOutcome (optional; `proposed` or `coverage_complete`, so an empty complete-coverage result is not confused with a rejected proposal round)
 - lastCardGenerationHash (deprecated compatibility alias)
@@ -383,7 +386,7 @@ For each analyzed Source Note, store:
 - size
 - lastAnalyzedAt
 
-Skip the AI call only when `contentHash` matches `lastAiCaptureHash`. This lets a note indexed while AI Capture was disabled receive its first later capture without pretending the provider already ran.
+Skip Concept capture only when the newly computed capture fingerprint matches `lastAiCaptureFingerprint`. The complete Source Note is split into contiguous Markdown-aware requests of at most `aiMaxInputChars`; a successful capture records complete character coverage and chunk count. Provider/model changes, chunk-size changes, and capture-policy changes intentionally produce a new fingerprint even when Source Markdown is unchanged.
 
 For written Concepts, compare the Learning Content Fingerprint rather than the whole file. Active proposals, written proposals, and a recorded `coverage_complete` result block duplicate rounds for unchanged learning content; a fully rejected proposal round may be retried. Existing Card fronts are supplied as a Coverage Map so providers can avoid proposing the same outcome again.
 

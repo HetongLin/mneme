@@ -228,6 +228,7 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("shortest unambiguous canonical or established Concept name"), true);
 	assert.equal(serialized.includes("Name the knowledge itself, not the Source Note's purpose"), true);
 	assert.equal(serialized.includes("Prefer 'Bayes Theorem' over 'Bayes Theorem for Hypothesis Evaluation'"), true);
+	assert.equal(serialized.includes("Prefer 'Least Squares as Maximum Likelihood' over 'Maximum Likelihood and Least-Squared Error'"), true);
 	assert.equal(serialized.includes("Put an application context in whyItMatters or a View"), true);
 	assert.equal(serialized.includes("instead of creating a context-qualified duplicate"), true);
 	assert.equal(serialized.includes("Compare each candidate with existingConcepts before creating it"), true);
@@ -243,6 +244,34 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("delimiter rules are mandatory"), true);
 	assert.equal(serialized.includes("Encapsulation keeps object internals"), false);
 	assert.equal(serialized.includes("Encapsulatio"), true);
+}
+
+{
+	const settings = {
+		...DEFAULT_SETTINGS,
+		aiProvider: "openai" as const,
+		openaiApiKey: "sk-secret-value",
+	};
+	const payload = buildOpenAiKnowledgeProposalPayload({
+		...request,
+		languageReferenceContent: "这是一篇以中文为主的完整源笔记，当前分块只包含公式。",
+		sourceChunk: {
+			end: 120,
+			index: 2,
+			start: 60,
+			total: 4,
+			totalChars: 240,
+		},
+		sourceContent: "$P(h \\mid D)$",
+	}, settings);
+	const serialized = JSON.stringify(payload);
+	const requestContext = readRequestContext(payload);
+
+	assert.equal(requestContext.languageContract?.outputLanguageCode, "zh");
+	assert.equal(serialized.includes("sourceChunk"), true);
+	assert.equal(serialized.includes("one exact slice of a longer Source Note"), true);
+	assert.equal(serialized.includes("do not defer useful Concepts"), true);
+	assert.equal(serialized.includes("这是一篇以中文为主的完整源笔记"), false);
 }
 
 {

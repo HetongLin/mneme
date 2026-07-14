@@ -199,7 +199,10 @@ export class AiCardGenerationService {
 		const now = this.options.timestampProvider?.() ?? new Date().toISOString();
 		await this.options.sourceAnalysisStore.upsertRecord({
 			contentHash,
-			lastAiCaptureHash: previous?.lastAiCaptureHash,
+			lastAiCaptureAnalyzedChars: previous?.lastAiCaptureAnalyzedChars,
+			lastAiCaptureChunkCount: previous?.lastAiCaptureChunkCount,
+			lastAiCaptureFingerprint: previous?.lastAiCaptureFingerprint,
+			lastAiCaptureTotalChars: previous?.lastAiCaptureTotalChars,
 			lastAnalyzedAt: now,
 			lastCardGenerationFingerprint: learningFingerprint,
 			lastCardGenerationOutcome: outcome,

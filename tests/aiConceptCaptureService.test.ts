@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import type { MnemePluginData } from "../src/models/reviewState";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
 import type { AiProposalRequest, AiProposalResponse, AiProvider } from "../src/services/aiProvider";
+import { createAiConceptCaptureFingerprint } from "../src/services/aiCaptureFingerprint";
 import { AiConceptCaptureService } from "../src/services/aiConceptCaptureService";
 import { KnowledgeProposalStore } from "../src/services/knowledgeProposalStore";
 import { MockAiProvider } from "../src/services/mockAiProvider";
 import { SourceAnalysisService } from "../src/services/sourceAnalysisService";
 import { SourceAnalysisStore } from "../src/services/sourceAnalysisStore";
+import { splitSourceForAiCapture } from "../src/services/sourceCaptureChunker";
 
 const source = {
 	content: "Encapsulation hides representation behind a public interface.",
@@ -16,6 +18,17 @@ const source = {
 };
 
 async function run(): Promise<void> {
+	{
+		const content = "# First\n\nFirst paragraph.\n\n## Second\n\nSecond paragraph with more text.\n";
+		const chunks = splitSourceForAiCapture(content, 38);
+
+		assert.equal(chunks.length > 1, true);
+		assert.equal(chunks.every((chunk) => chunk.content.length <= 38), true);
+		assert.equal(chunks.map((chunk) => chunk.content).join(""), content);
+		assert.deepEqual(chunks.map((chunk) => chunk.index), chunks.map((_chunk, index) => index + 1));
+		assert.equal(chunks.every((chunk) => chunk.total === chunks.length), true);
+	}
+
 	{
 		const fixture = createFixture({ aiCaptureEnabled: false });
 		const result = await fixture.service.analyze(source);
@@ -38,7 +51,11 @@ async function run(): Promise<void> {
 		assert.equal(proposals.length, 1);
 		assert.equal(proposals[0]?.kind, "new_concept");
 		assert.equal(proposals[0]?.status, "suggested");
-		assert.equal(record?.lastAiCaptureHash, record?.contentHash);
+		assert.equal(typeof record?.lastAiCaptureFingerprint, "string");
+		assert.equal(record?.lastAiCaptureAnalyzedChars, source.content.length);
+		assert.equal(record?.lastAiCaptureTotalChars, source.content.length);
+		assert.equal(record?.lastAiCaptureChunkCount, 1);
+		assert.equal(result.message.includes(`Analyzed ${source.content.length}/${source.content.length} characters across 1 chunk.`), true);
 		assert.deepEqual(record?.pendingProposalIds, [proposals[0]?.id]);
 	}
 
@@ -49,6 +66,30 @@ async function run(): Promise<void> {
 
 		assert.equal(second.status, "skipped_ai_already_captured");
 		assert.equal(fixture.provider.callCount, 1);
+		assert.equal(second.message.includes(`Last capture analyzed ${source.content.length}/${source.content.length} characters`), true);
+	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiMaxInputChars: 30, aiProvider: "mock" });
+		const firstFingerprint = await createAiConceptCaptureFingerprint(
+			"content-hash",
+			source.path,
+			fixture.settings,
+		);
+		await fixture.service.analyze(source);
+		const firstCallCount = fixture.provider.callCount;
+		fixture.settings.aiMaxInputChars = 20;
+		const secondFingerprint = await createAiConceptCaptureFingerprint(
+			"content-hash",
+			source.path,
+			fixture.settings,
+		);
+		const second = await fixture.service.analyze(source);
+
+		assert.notEqual(firstFingerprint, secondFingerprint);
+		assert.equal(second.status, "captured");
+		assert.equal(fixture.provider.callCount, firstCallCount + (second.chunkCount ?? 0));
+		assert.equal((second.chunkCount ?? 0) > 1, true);
 	}
 
 	{
@@ -149,15 +190,77 @@ async function run(): Promise<void> {
 		assert.equal(result.message, "Every Concept proposal must quote grounding from the current Source Note.");
 		assert.deepEqual(await fixture.proposalStore.listProposals(), []);
 	}
+
+	{
+		const longSource = {
+			content: [
+				"# Alpha\n\nAlpha is a durable concept supported by this paragraph.\n\n",
+				"# Beta\n\nBeta is another durable concept supported by this paragraph.\n\n",
+				"# Gamma\n\nGamma is a third durable concept supported by this paragraph.\n",
+			].join(""),
+			mtime: 200,
+			path: "Notes/Long.md",
+			size: 210,
+		};
+		const fixture = createFixture(
+			{ aiCaptureEnabled: true, aiMaxInputChars: 80, aiProvider: "mock" },
+			longSource,
+		);
+		const result = await fixture.service.analyze(longSource);
+		const proposals = await fixture.proposalStore.listActive();
+
+		assert.equal(result.status, "captured");
+		assert.equal(result.chunkCount, fixture.provider.callCount);
+		assert.equal((result.chunkCount ?? 0) > 1, true);
+		assert.equal(result.analyzedChars, longSource.content.length);
+		assert.equal(result.totalChars, longSource.content.length);
+		assert.equal(fixture.provider.requests.map((request) => request.sourceContent).join(""), longSource.content);
+		assert.equal(fixture.provider.requests.every((request) => request.sourceContent.length <= 80), true);
+		assert.equal(fixture.provider.requests.every((request) => (
+			request.mode === "concept_capture" && request.languageReferenceContent === longSource.content
+		)), true);
+		assert.equal(fixture.provider.requests.every((request) => (
+			request.mode !== "concept_capture"
+			|| !Object.prototype.hasOwnProperty.call(request.sourceChunk, "content")
+		)), true);
+		assert.equal(proposals.length, 1);
+		assert.equal(proposals[0]?.ai?.warnings?.some((warning) => warning.includes("duplicate cross-chunk Concept proposal")), true);
+	}
+
+	{
+		const longSource = {
+			content: "# Alpha\n\nAlpha evidence.\n\n# Beta\n\nBeta evidence.\n",
+			mtime: 300,
+			path: "Notes/Atomic.md",
+			size: 60,
+		};
+		const fixture = createFixture(
+			{ aiCaptureEnabled: true, aiMaxInputChars: 30, aiProvider: "mock" },
+			longSource,
+		);
+		fixture.provider.responseFactory = (input) => createConceptCaptureResponse(
+			input,
+			input.mode === "concept_capture" && input.sourceChunk?.index === 2
+				? "This quote is not in the Source Note."
+				: input.sourceContent.trim(),
+			`Chunk ${input.mode === "concept_capture" ? input.sourceChunk?.index : 0}`,
+		);
+		const result = await fixture.service.analyze(longSource);
+
+		assert.equal(result.status, "invalid_response");
+		assert.equal(result.message.startsWith("Chunk 2/"), true);
+		assert.deepEqual(await fixture.proposalStore.listProposals(), []);
+		assert.equal((await fixture.sourceStore.getRecord(longSource.path))?.lastAiCaptureFingerprint, undefined);
+	}
 }
 
-function createFixture(settingsOverrides: Partial<typeof DEFAULT_SETTINGS>) {
+function createFixture(settingsOverrides: Partial<typeof DEFAULT_SETTINGS>, testSource = source) {
 	const settings = { ...DEFAULT_SETTINGS, ...settingsOverrides };
 	const storage = new MemoryPluginStorage();
 	const sourceStore = new SourceAnalysisStore(storage);
 	const proposalStore = new KnowledgeProposalStore(storage);
 	const provider = new CountingProvider(new MockAiProvider(settings));
-	const readContent = async () => source.content;
+	const readContent = async () => testSource.content;
 	const service = new AiConceptCaptureService({
 		conceptScanner: {
 			scanConcepts: async () => [{
@@ -182,6 +285,7 @@ function createFixture(settingsOverrides: Partial<typeof DEFAULT_SETTINGS>) {
 class CountingProvider implements AiProvider {
 	callCount = 0;
 	lastRequest?: AiProposalRequest;
+	requests: AiProposalRequest[] = [];
 	response?: unknown;
 	responseFactory?: (input: AiProposalRequest) => unknown;
 
@@ -191,6 +295,7 @@ class CountingProvider implements AiProvider {
 	async generateKnowledgeProposals(input: AiProposalRequest): Promise<AiProposalResponse> {
 		this.callCount += 1;
 		this.lastRequest = input;
+		this.requests.push(input);
 		const response = this.responseFactory?.(input) ?? this.response;
 
 		if (response) {
@@ -220,7 +325,7 @@ class CountingProvider implements AiProvider {
 	}
 }
 
-function createConceptCaptureResponse(input: AiProposalRequest, quote: string): unknown {
+function createConceptCaptureResponse(input: AiProposalRequest, quote: string, title = "Encapsulation"): unknown {
 	return {
 		mode: "concept_capture",
 		proposals: [{
@@ -232,7 +337,7 @@ function createConceptCaptureResponse(input: AiProposalRequest, quote: string): 
 			}],
 			kind: "new_concept",
 			payload: {
-				conceptTitle: "Encapsulation",
+				conceptTitle: title,
 				coreMeaning: "Encapsulation hides representation behind a public interface.",
 				learningMode: "reviewable",
 				relatedConceptHints: [],
@@ -242,7 +347,7 @@ function createConceptCaptureResponse(input: AiProposalRequest, quote: string): 
 				whyItMatters: "It protects callers from implementation changes.",
 			},
 			rationale: "The note defines a durable Concept.",
-			title: "Encapsulation",
+			title,
 		}],
 		schemaVersion: "mneme.ai.proposals.v1",
 		source: { hash: input.sourceHash, path: input.sourcePath },

@@ -63,7 +63,11 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 	config: OpenAiCompatibleProviderConfig,
 ): OpenAiCompatibleStructuredOutputPayload {
 	const sourceContent = input.sourceContent.slice(0, config.maxInputChars);
-	const languageContract = createLearningContentLanguageContract(input.sourceContent);
+	const languageContract = createLearningContentLanguageContract(
+		input.mode === "concept_capture"
+			? input.languageReferenceContent ?? input.sourceContent
+			: input.sourceContent,
+	);
 	const formattingContract = {
 		mathMarkdown: "Required: wrap inline mathematics in $...$ with no spaces immediately inside the delimiters, and standalone mathematics in $$...$$; never return bare formulas in generated payload text.",
 	};
@@ -89,6 +93,7 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 			"Return one JSON object with schemaVersion 'mneme.ai.proposals.v1', mode 'concept_capture', the exact source path/hash, proposals, and string warnings.",
 			"Copy sourcePath exactly into source.path and sourceHash exactly into source.hash from the user JSON. Do not invent, shorten, or rehash either value.",
 			LANGUAGE_CONTRACT_GUIDANCE,
+			"The user JSON may contain sourceChunk, identifying this sourceContent as one exact slice of a longer Source Note. Analyze every durable knowledge change supported by this slice. Do not treat the slice as the complete note, do not invent missing surrounding content, and do not defer useful Concepts merely because Mneme will consolidate other chunks separately.",
 			"Top-level shape: {\"schemaVersion\":\"mneme.ai.proposals.v1\",\"mode\":\"concept_capture\",\"source\":{\"path\":\"<sourcePath>\",\"hash\":\"<sourceHash>\"},\"warnings\":[],\"proposals\":[]}.",
 			"Concept capture may return only new_concept, link_existing_concept, add_view, update_concept, or merge_concept.",
 			"Do not apply a fixed numerical cap to Concept proposals. Cover every durable knowledge change warranted by the Source Note, while preferring no proposal over a weak one.",
@@ -98,6 +103,7 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 			"Do not create a Concept from a section heading, organizational label, isolated fact, incidental example, anecdote, background sentence, or repeated paraphrase. Treat examples as evidence or supporting Views unless they express a reusable general concept.",
 			"Use the shortest unambiguous canonical or established Concept name for new_concept proposal.title and payload.conceptTitle, and for merge_concept payload.proposedTitle. Name the knowledge itself, not the Source Note's purpose, application context, domain, tool, course, or lesson wording.",
 			"Do not append contextual qualifiers such as 'for Hypothesis Evaluation', 'in Healthcare', or 'using Python' unless the full phrase is itself the established name of a genuinely distinct Concept. Prefer 'Bayes Theorem' over 'Bayes Theorem for Hypothesis Evaluation'.",
+			"For reusable relationships, name the relationship directly instead of copying a conjunction-style section heading. Prefer 'Least Squares as Maximum Likelihood' over 'Maximum Likelihood and Least-Squared Error'. If the relationship is only a perspective on an existing canonical Concept, propose add_view instead of a new Concept.",
 			"Put an application context in whyItMatters or a View. When the canonical Concept already exists, represent a useful contextual perspective with add_view, update_concept, or link_existing_concept instead of creating a context-qualified duplicate.",
 			"Compare each candidate with existingConcepts before creating it. Prefer link_existing_concept for the same Concept, update_concept when the source improves its meaning, add_view when the source adds a useful perspective, and merge_concept for redundant existing Concepts. Use new_concept only for a genuinely distinct durable knowledge unit.",
 			"Return an empty proposals array when the Source Note contains no durable knowledge worth creating or linking and no meaningful change to an existing Concept.",
@@ -130,6 +136,7 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 			formattingContract,
 			mode: input.mode,
 			sourceContent,
+			sourceChunk: input.sourceChunk,
 			sourceHash: input.sourceHash,
 			sourcePath: input.sourcePath,
 		};

@@ -8,6 +8,14 @@ export interface ExistingConceptContext {
 	title: string;
 }
 
+export interface AiSourceChunkContext {
+	end: number;
+	index: number;
+	start: number;
+	total: number;
+	totalChars: number;
+}
+
 interface AiProposalRequestBase {
 	mode: AiProposalMode;
 	sourceContent: string;
@@ -17,7 +25,9 @@ interface AiProposalRequestBase {
 
 export interface AiConceptCaptureRequest extends AiProposalRequestBase {
 	existingConcepts: ExistingConceptContext[];
+	languageReferenceContent?: string;
 	mode: "concept_capture";
+	sourceChunk?: AiSourceChunkContext;
 }
 
 export interface AiCardGenerationRequest extends AiProposalRequestBase {

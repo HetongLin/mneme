@@ -3,11 +3,14 @@ export type CardGenerationOutcome = "proposed" | "coverage_complete";
 
 export interface SourceAnalysisRecord {
 	contentHash: string;
+	lastAiCaptureAnalyzedChars?: number;
+	lastAiCaptureChunkCount?: number;
+	lastAiCaptureFingerprint?: string;
+	lastAiCaptureTotalChars?: number;
 	lastCardGenerationFingerprint?: string;
 	lastCardGenerationOutcome?: CardGenerationOutcome;
 	/** @deprecated Use lastCardGenerationFingerprint. Retained for data compatibility. */
 	lastCardGenerationHash?: string;
-	lastAiCaptureHash?: string;
 	lastAnalyzedAt: string;
 	linkedConceptIds: string[];
 	mtime: number;

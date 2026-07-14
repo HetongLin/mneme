@@ -394,7 +394,7 @@ export default class MnemePlugin extends Plugin {
 				sourcePath: activeFile.path,
 				status: result.status,
 			});
-			new Notice("Mneme: AI capture failed. See console.");
+			new Notice(`Mneme: AI capture failed: ${formatNoticeDetail(result.message)} No proposals added.`);
 			return;
 		}
 

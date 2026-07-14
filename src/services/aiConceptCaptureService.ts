@@ -1,14 +1,18 @@
 import type { ConceptSummary } from "../models/conceptLibrary";
 import type { MnemeSettings } from "../models/settings";
 import type { SourceFileSnapshot } from "./sourceAnalysisDecision";
-import type { AiProvider, ExistingConceptContext } from "./aiProvider";
+import type { AiProposalResponse, AiProvider, ExistingConceptContext } from "./aiProvider";
 import { validateAiProviderConfig, validateConceptCaptureResponse } from "./aiProvider";
+import { createAiConceptCaptureFingerprint } from "./aiCaptureFingerprint";
+import { consolidateAiConceptProposals } from "./aiConceptProposalConsolidator";
 import { normalizeAiStructuredProposalResponse } from "./aiProposalNormalizer";
+import { AI_PROPOSAL_SCHEMA_VERSION, AiConceptCaptureResponseV1 } from "./aiProposalSchema";
 import { validateAiStructuredProposalResponse } from "./aiProposalValidator";
 import type { KnowledgeProposalStore } from "./knowledgeProposalStore";
 import { reconcileConceptGrounding } from "./proposalGroundingReconciler";
 import type { AnalyzeSourceResult, SourceAnalysisService } from "./sourceAnalysisService";
 import type { SourceAnalysisStore } from "./sourceAnalysisStore";
+import { splitSourceForAiCapture } from "./sourceCaptureChunker";
 
 export type AiConceptCaptureStatus =
 	| "captured"
@@ -19,10 +23,13 @@ export type AiConceptCaptureStatus =
 	| "skipped_ai_already_captured";
 
 export interface AiConceptCaptureResult {
+	analyzedChars?: number;
+	chunkCount?: number;
 	message: string;
 	proposalCount: number;
 	sourceAnalysis: AnalyzeSourceResult;
 	status: AiConceptCaptureStatus;
+	totalChars?: number;
 }
 
 export interface AiConceptCaptureServiceOptions {
@@ -65,66 +72,132 @@ export class AiConceptCaptureService {
 
 		const sourceRecord = await this.options.sourceAnalysisStore.getRecord(snapshot.path);
 
-		if (sourceRecord?.lastAiCaptureHash === sourceAnalysis.contentHash) {
-			return this.result(
-				"skipped_ai_already_captured",
-				"No changes since the last AI capture.",
-				sourceAnalysis,
-			);
-		}
-
 		if (!sourceRecord) {
 			return this.result("failed", "Source analysis record was not found after indexing.", sourceAnalysis);
 		}
 
 		try {
+			const captureFingerprint = await createAiConceptCaptureFingerprint(
+				sourceAnalysis.contentHash,
+				snapshot.path,
+				settings,
+			);
+
+			if (sourceRecord.lastAiCaptureFingerprint === captureFingerprint) {
+				return this.result(
+					"skipped_ai_already_captured",
+					formatPreviousCaptureMessage(sourceRecord),
+					sourceAnalysis,
+					{
+						analyzedChars: sourceRecord.lastAiCaptureAnalyzedChars,
+						chunkCount: sourceRecord.lastAiCaptureChunkCount,
+						totalChars: sourceRecord.lastAiCaptureTotalChars,
+					},
+				);
+			}
+
 			const sourceContent = await this.options.readSourceContent(snapshot.path);
+			const chunks = splitSourceForAiCapture(sourceContent, settings.aiMaxInputChars);
 			const concepts = await this.options.conceptScanner.scanConcepts();
+			const existingConcepts = concepts.map(toExistingConceptContext);
 			const provider = this.options.createProvider(settings);
-			const response = await provider.generateKnowledgeProposals({
-				existingConcepts: concepts.map(toExistingConceptContext),
+			const chunkResponses: AiConceptCaptureResponseV1[] = [];
+
+			for (const chunk of chunks) {
+				const chunkPrefix = chunks.length > 1 ? `Chunk ${chunk.index}/${chunk.total}: ` : "";
+				let response: AiProposalResponse;
+
+				try {
+					response = await provider.generateKnowledgeProposals({
+						existingConcepts,
+						languageReferenceContent: sourceContent,
+						mode: "concept_capture",
+						sourceChunk: {
+							end: chunk.end,
+							index: chunk.index,
+							start: chunk.start,
+							total: chunk.total,
+							totalChars: chunk.totalChars,
+						},
+						sourceContent: chunk.content,
+						sourceHash: sourceAnalysis.contentHash,
+						sourcePath: snapshot.path,
+					});
+				} catch (error) {
+					return this.result(
+						"failed",
+						`${chunkPrefix}${error instanceof Error ? error.message : String(error)}`,
+						sourceAnalysis,
+					);
+				}
+
+				const validation = validateAiStructuredProposalResponse(response.structuredResponse);
+
+				if (!validation.valid) {
+					return this.result("invalid_response", `${chunkPrefix}${validation.errors.join(" ")}`, sourceAnalysis);
+				}
+
+				if (
+					validation.data.source.path !== snapshot.path
+					|| validation.data.source.hash !== sourceAnalysis.contentHash
+				) {
+					return this.result(
+						"invalid_response",
+						`${chunkPrefix}AI response source does not match the analyzed note.`,
+						sourceAnalysis,
+					);
+				}
+
+				if (validation.data.mode !== "concept_capture") {
+					return this.result(
+						"invalid_response",
+						`${chunkPrefix}Concept capture must return concept_capture mode.`,
+						sourceAnalysis,
+					);
+				}
+
+				const grounding = reconcileConceptGrounding(validation.data, sourceContent, snapshot.path);
+
+				if (validation.data.proposals.length > 0 && grounding.response.proposals.length === 0) {
+					return this.result(
+						"invalid_response",
+						`${chunkPrefix}Every Concept proposal must quote grounding from the current Source Note.`,
+						sourceAnalysis,
+					);
+				}
+
+				chunkResponses.push(grounding.response);
+			}
+
+			const consolidation = consolidateAiConceptProposals(
+				chunkResponses.flatMap((response) => response.proposals),
+			);
+			const analyzedChars = chunks.reduce((total, chunk) => total + chunk.content.length, 0);
+			const warnings = unique([
+				...chunkResponses.flatMap((response) => response.warnings),
+				`Mneme analyzed ${analyzedChars}/${sourceContent.length} Source Note characters across ${chunks.length} chunk${chunks.length === 1 ? "" : "s"}.`,
+				...(consolidation.deduplicatedCount > 0
+					? [`Mneme consolidated ${consolidation.deduplicatedCount} duplicate cross-chunk Concept proposal${consolidation.deduplicatedCount === 1 ? "" : "s"}.`]
+					: []),
+			]);
+			const aggregatedResponse: AiConceptCaptureResponseV1 = {
 				mode: "concept_capture",
-				sourceContent,
-				sourceHash: sourceAnalysis.contentHash,
-				sourcePath: snapshot.path,
-			});
-			const validation = validateAiStructuredProposalResponse(response.structuredResponse);
-
-			if (!validation.valid) {
-				return this.result("invalid_response", validation.errors.join(" "), sourceAnalysis);
-			}
-
-			if (
-				validation.data.source.path !== snapshot.path
-				|| validation.data.source.hash !== sourceAnalysis.contentHash
-			) {
-				return this.result(
-					"invalid_response",
-					"AI response source does not match the analyzed note.",
-					sourceAnalysis,
-				);
-			}
-
-			if (validation.data.mode !== "concept_capture") {
-				return this.result(
-					"invalid_response",
-					"Concept capture must return concept_capture mode.",
-					sourceAnalysis,
-				);
-			}
-
-			const grounding = reconcileConceptGrounding(validation.data, sourceContent, snapshot.path);
-
-			if (validation.data.proposals.length > 0 && grounding.response.proposals.length === 0) {
-				return this.result(
-					"invalid_response",
-					"Every Concept proposal must quote grounding from the current Source Note.",
-					sourceAnalysis,
-				);
-			}
+				proposals: consolidation.proposals,
+				schemaVersion: AI_PROPOSAL_SCHEMA_VERSION,
+				source: { hash: sourceAnalysis.contentHash, path: snapshot.path },
+				warnings,
+			};
 
 			const now = this.options.timestampProvider?.() ?? new Date().toISOString();
-			const proposals = normalizeAiStructuredProposalResponse(grounding.response, { now });
+			const proposals = normalizeAiStructuredProposalResponse(aggregatedResponse, {
+				idFactory: (_proposal, index) => [
+					"ai-proposal",
+					sourceAnalysis.contentHash?.slice(0, 12),
+					captureFingerprint.slice(0, 12),
+					index + 1,
+				].join("-"),
+				now,
+			});
 			const captureValidation = validateConceptCaptureResponse(proposals);
 
 			if (!captureValidation.valid) {
@@ -135,17 +208,21 @@ export class AiConceptCaptureService {
 
 			await this.options.sourceAnalysisStore.upsertRecord({
 				...sourceRecord,
-				lastAiCaptureHash: sourceAnalysis.contentHash,
+				lastAiCaptureAnalyzedChars: analyzedChars,
+				lastAiCaptureChunkCount: chunks.length,
+				lastAiCaptureFingerprint: captureFingerprint,
+				lastAiCaptureTotalChars: sourceContent.length,
 				pendingProposalIds: unique([...sourceRecord.pendingProposalIds, ...proposals.map(({ id }) => id)]),
 			});
 
 			return {
-				message: proposals.length === 1
-					? "1 Concept proposal added to Inbox."
-					: `${proposals.length} Concept proposals added to Inbox.`,
+				analyzedChars,
+				chunkCount: chunks.length,
+				message: formatCaptureMessage(proposals.length, analyzedChars, sourceContent.length, chunks.length),
 				proposalCount: proposals.length,
 				sourceAnalysis,
 				status: "captured",
+				totalChars: sourceContent.length,
 			};
 		} catch (error) {
 			return this.result(
@@ -160,8 +237,9 @@ export class AiConceptCaptureService {
 		status: AiConceptCaptureStatus,
 		message: string,
 		sourceAnalysis: AnalyzeSourceResult,
+		coverage: Pick<AiConceptCaptureResult, "analyzedChars" | "chunkCount" | "totalChars"> = {},
 	): AiConceptCaptureResult {
-		return { message, proposalCount: 0, sourceAnalysis, status };
+		return { ...coverage, message, proposalCount: 0, sourceAnalysis, status };
 	}
 }
 
@@ -175,4 +253,30 @@ function toExistingConceptContext(concept: ConceptSummary): ExistingConceptConte
 
 function unique(values: string[]): string[] {
 	return [...new Set(values)];
+}
+
+function formatCaptureMessage(proposalCount: number, analyzedChars: number, totalChars: number, chunkCount: number): string {
+	const proposalMessage = proposalCount === 0
+		? "No Concept changes proposed."
+		: proposalCount === 1
+			? "1 Concept proposal added to Inbox."
+			: `${proposalCount} Concept proposals added to Inbox.`;
+
+	return `${proposalMessage} Analyzed ${analyzedChars}/${totalChars} characters across ${chunkCount} chunk${chunkCount === 1 ? "" : "s"}.`;
+}
+
+function formatPreviousCaptureMessage(record: {
+	lastAiCaptureAnalyzedChars?: number;
+	lastAiCaptureChunkCount?: number;
+	lastAiCaptureTotalChars?: number;
+}): string {
+	if (
+		record.lastAiCaptureAnalyzedChars === undefined
+		|| record.lastAiCaptureTotalChars === undefined
+		|| record.lastAiCaptureChunkCount === undefined
+	) {
+		return "No changes since the last AI capture.";
+	}
+
+	return `No changes since the last AI capture. Last capture analyzed ${record.lastAiCaptureAnalyzedChars}/${record.lastAiCaptureTotalChars} characters across ${record.lastAiCaptureChunkCount} chunk${record.lastAiCaptureChunkCount === 1 ? "" : "s"}.`;
 }

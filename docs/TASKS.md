@@ -893,7 +893,7 @@ Requirements:
 - Recompute the replacement Source hash and refresh `lastSeenAt`
 - Update readable links only inside Concept.md `## Source Notes`
 - Migrate and deduplicate Source analysis and Concept-source indexes
-- Keep `lastAiCaptureHash` independent; relinking is not AI approval or AI analysis
+- Keep `lastAiCaptureFingerprint` independent; relinking is not AI approval or AI analysis
 - Verify Concept identity, replacement Source content, and plugin state after preview
 - Reject self-linking and concurrent changes
 - Roll back Concept.md and plugin data when persistence fails

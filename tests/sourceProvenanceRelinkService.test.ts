@@ -82,7 +82,7 @@ class MemoryStorage {
 
 function makeData(): MnemePluginData {
 	const oldRecord = { ...createSourceRecord(oldPath), linkedConceptIds: ["concept-a", "concept-b"] };
-	const newRecord = { ...createSourceRecord(newPath), lastAiCaptureHash: "ai-hash", linkedConceptIds: ["concept-c"] };
+	const newRecord = { ...createSourceRecord(newPath), lastAiCaptureFingerprint: "ai-fingerprint", linkedConceptIds: ["concept-c"] };
 	return createPluginData({}, { [oldPath]: oldRecord, [newPath]: newRecord }, { [staleLink.id]: staleLink });
 }
 
@@ -106,7 +106,7 @@ async function run(): Promise<void> {
 		assert.notEqual(plan.linkAfter.sourceHash, staleLink.sourceHash);
 		assert.deepEqual(plan.nextData.sourceAnalysisRecords[oldPath].linkedConceptIds, ["concept-b"]);
 		assert.deepEqual(plan.nextData.sourceAnalysisRecords[newPath].linkedConceptIds, ["concept-c", "concept-a"]);
-		assert.equal(plan.nextData.sourceAnalysisRecords[newPath].lastAiCaptureHash, "ai-hash");
+		assert.equal(plan.nextData.sourceAnalysisRecords[newPath].lastAiCaptureFingerprint, "ai-fingerprint");
 	}
 
 	{
