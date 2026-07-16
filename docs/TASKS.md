@@ -1112,3 +1112,24 @@ Acceptance criteria:
 - Invalid or mismatched version metadata fails the release check
 - Missing `main.js`, `manifest.json`, or `styles.css` fails the release check
 - The v1 checklist cannot declare completion without both macOS and Windows real-vault evidence
+
+## Task 062: v1 Core Learning Loop Integration
+
+Goal:
+
+Prove the v1 learning loop across real service boundaries instead of inferring it from isolated unit tests.
+
+Requirements:
+
+- Analyze one Source Note through the AI capture service
+- Accept the generated Concept through the same Review Gate and approved writer used by Inbox
+- Generate and accept a grounded Card from the written Concept
+- Parse the resulting Card Group and record a normal FSRS rating
+- Reload persisted review state from the shared plugin data store
+
+Acceptance criteria:
+
+- The complete Source → Concept → Card → FSRS path passes as one integration test
+- Concept and Card proposals both finish in `written` state
+- No actionable proposal remains after both approvals
+- The reviewed Card retains its FSRS state and event after a store reload

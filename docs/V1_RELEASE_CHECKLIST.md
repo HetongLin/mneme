@@ -11,6 +11,7 @@ v1.0 is the stable Concept Review Plugin described in `ROADMAP.md`. Random Conce
 | v1.0 requirement | Automated evidence | Required Obsidian evidence |
 | --- | --- | --- |
 | Stable Analyze Current Note | AI capture, provider, schema, Source analysis, chunk coverage, command-policy tests | English and Chinese Source Notes; long-note coverage; repeat and concurrent generation protection |
+| Complete core learning loop | v1 core-loop integration test crosses AI capture, Review Gate, Concept write, Card generation/write, parser, FSRS review, and persisted reload | Complete the same Source → Concept → Card → Review path in one real vault |
 | Stable Inbox Review Gate | Knowledge Proposal, lifecycle, validation, writer, and acceptance fixture tests | Open/edit/evidence/Accept & Next/Reject & Next; no direct list acceptance |
 | Stable Concept Markdown | Renderer, writer, metadata, Source link, duplicate, merge, and scanner tests | Accepted and manual Concepts remain clean reading notes after reload |
 | Stable Card Group Markdown | Parser, writer, editor, deletion, and stable-ID tests | Multiple accepted Cards append to one group; Edit and conflict protection preserve unrelated Markdown |

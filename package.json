@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-	"check:release": "node scripts/check-release.mjs",
+    "check:release": "node scripts/check-release.mjs",
     "test:all": "node scripts/run-all-tests.mjs",
     "test:concept-view-appender": "node scripts/run-concept-view-appender-tests.mjs",
     "test:concept-source-note-appender": "node scripts/run-concept-source-note-appender-tests.mjs",
@@ -17,6 +17,7 @@
     "test:ai-provider": "node scripts/run-ai-provider-tests.mjs",
     "test:ai-schema": "node scripts/run-ai-schema-tests.mjs",
     "test:acceptance-fixture": "node scripts/run-acceptance-fixture-tests.mjs",
+    "test:v1-core-loop": "node scripts/run-v1-core-learning-loop-tests.mjs",
     "test:concept-library": "node scripts/run-concept-library-tests.mjs",
     "test:concept-memory": "node scripts/run-concept-memory-tests.mjs",
     "test:concept-queue": "node scripts/run-concept-queue-ranker-tests.mjs",
@@ -32,14 +33,14 @@
     "test:review-queue": "node scripts/run-review-queue-tests.mjs",
     "test:review-navigation": "node scripts/run-review-navigation-tests.mjs",
     "test:todays-focus": "node scripts/run-todays-focus-selector-tests.mjs",
-	"test:user-facing-errors": "node scripts/run-user-facing-error-tests.mjs",
+    "test:user-facing-errors": "node scripts/run-user-facing-error-tests.mjs",
     "test:settings": "node scripts/run-settings-tests.mjs",
     "test:source-analysis": "node scripts/run-source-analysis-tests.mjs",
     "test:source-analysis-store": "node scripts/run-source-analysis-store-tests.mjs",
     "test:vault-state": "node scripts/run-vault-state-tests.mjs",
     "test:scheduler": "node scripts/run-placeholder-scheduler-tests.mjs",
     "test:review-state": "node scripts/run-review-state-tests.mjs",
-	"test:release-metadata": "node scripts/run-release-metadata-tests.mjs",
+    "test:release-metadata": "node scripts/run-release-metadata-tests.mjs",
     "version": "node version-bump.mjs && git add manifest.json versions.json"
   },
   "keywords": [
