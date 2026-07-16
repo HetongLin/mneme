@@ -26,12 +26,18 @@ v1.0 is the stable Concept Review Plugin described in `ROADMAP.md`. Random Conce
 
 ## Automated Release Gate
 
-- [ ] `npm run build`
-- [ ] `npm run test:all`
-- [ ] `npm run check:release -- 1.0.0`
-- [ ] `manifest.json`, `package.json`, and `versions.json` all declare `1.0.0`
-- [ ] `main.js`, `manifest.json`, and `styles.css` are non-empty release artifacts
-- [ ] Git contains no unintended files or generated vault data
+- [x] `npm run build`
+- [x] `npm run test:all`
+- [x] `npm run check:release -- 1.0.0`
+- [x] `manifest.json`, `package.json`, and `versions.json` all declare `1.0.0`
+- [x] `main.js`, `manifest.json`, and `styles.css` are non-empty release artifacts
+- [x] Git contains no unintended files or generated vault data; the long-standing untracked `mneme` self-link is intentionally excluded
+
+Recorded on 2026-07-16 against commit `64ff5d6`:
+
+- `main.js`: `479f02bd95875ec2ce4836f99caf5d1c93a448de49b1bfbaf4bdd2b7d4eaf04f`
+- `manifest.json`: `23d6f036fdba51e4b4dc8c29b4ebc0d021fe8dfd506f7037f35ed2ba2cf5a0e8`
+- `styles.css`: `0e0e9dfa074b818c2accfb869019be10c9601180b24776fac24fd0933ec9b4ee`
 
 ## Real Vault Gate
 
