@@ -211,6 +211,7 @@ Current readiness:
 
 - The v0.1 core loop, v0.2 editing flow, v0.3 low-pressure limits, v0.4 explicit retention policy, v0.5 exploratory policy, and v0.6 identity/provenance repair foundations are implemented.
 - Remaining v1.0 work is stabilization and real-vault acceptance testing rather than adding a new learning mode.
+- `V1_RELEASE_CHECKLIST.md` maps every v1.0 requirement to automated and real-vault evidence; all gates must pass against the final `1.0.0` artifacts.
 
 ## v1.1: Random Concept Draw
 

@@ -31,6 +31,7 @@ Mneme is not an Anki clone. It may export approved Cards as isolated Anki-import
 
 - `npm run build` type-checks and creates a production build.
 - `npm run test:all` runs the local test suite.
+- `npm run check:release -- <version>` verifies synchronized metadata and required release artifacts.
 - Product and architecture decisions live in `docs/adr/`.
 - If product docs conflict, ADRs are the decision source of truth.
 

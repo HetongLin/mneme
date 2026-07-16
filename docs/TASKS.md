@@ -1090,3 +1090,25 @@ Acceptance criteria:
 - A duplicate explicit Card ID cannot silently select the first matching block
 - Front, Back, and Rubric all participate in conflict detection
 - Normal successful editing continues to preserve FSRS state
+
+## Task 061: Deterministic v1 Release Gate
+
+Goal:
+
+Make v1.0 version metadata and release readiness mechanically verifiable instead of relying on memory.
+
+Requirements:
+
+- Map every v1.0 roadmap requirement to automated and real-vault evidence
+- Keep package, manifest, and Obsidian version-map metadata synchronized
+- Add the target version even when it shares an existing `minAppVersion`
+- Verify Mneme remains `isDesktopOnly: false`
+- Verify the required Obsidian release artifacts exist and are non-empty
+- Allow the final gate to require an explicit expected version
+
+Acceptance criteria:
+
+- Updating from `0.1.0` to `1.0.0` creates a `versions.json` entry for `1.0.0` even though both use Obsidian `1.5.0`
+- Invalid or mismatched version metadata fails the release check
+- Missing `main.js`, `manifest.json`, or `styles.css` fails the release check
+- The v1 checklist cannot declare completion without both macOS and Windows real-vault evidence

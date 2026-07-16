@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+	"check:release": "node scripts/check-release.mjs",
     "test:all": "node scripts/run-all-tests.mjs",
     "test:concept-view-appender": "node scripts/run-concept-view-appender-tests.mjs",
     "test:concept-source-note-appender": "node scripts/run-concept-source-note-appender-tests.mjs",
@@ -38,6 +39,7 @@
     "test:vault-state": "node scripts/run-vault-state-tests.mjs",
     "test:scheduler": "node scripts/run-placeholder-scheduler-tests.mjs",
     "test:review-state": "node scripts/run-review-state-tests.mjs",
+	"test:release-metadata": "node scripts/run-release-metadata-tests.mjs",
     "version": "node version-bump.mjs && git add manifest.json versions.json"
   },
   "keywords": [
