@@ -889,14 +889,14 @@ export default class MnemePlugin extends Plugin {
 				previousCount,
 			});
 			new Notice("Mneme review history cleared.");
-			await this.refreshOpenReviewViews();
+			await this.refreshReviewViews();
 		} catch (error) {
 			console.error("Mneme: failed to clear review history", error);
 			new Notice("Mneme: failed to clear review history. See console for details.");
 		}
 	}
 
-	private async refreshOpenReviewViews(): Promise<void> {
+	async refreshReviewViews(): Promise<void> {
 		const refreshes = this.app.workspace.getLeavesOfType(REVIEW_VIEW_TYPE)
 			.map((leaf) => leaf.view)
 			.filter((view): view is MnemeReviewView => view instanceof MnemeReviewView)

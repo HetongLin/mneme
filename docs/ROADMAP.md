@@ -89,9 +89,8 @@ Prevent Mneme from becoming a review debt system.
 
 Features:
 
-- Daily Concept Limit
-- Daily Card Limit
-- Cards per Concept Limit
+- Optional FSRS scheduling
+- Complete FSRS-eligible queue without secondary daily caps
 - Pause Concept
 - Suspend Card
 - Review Later
@@ -100,9 +99,9 @@ Features:
 
 Current progress:
 
-- Today’s Focus applies configurable daily Concept, daily Card, and Cards-per-Concept limits after priority ranking.
-- Ranking includes a bounded rotation boost for long-unseen eligible Concepts, while Later remains visible as a calm availability count.
-- Same-day review history is counted across refreshes, and cards outside the focus remain unchanged in Advanced Diagnostics.
+- FSRS scheduling can be disabled without changing review state or history, then resumed with real elapsed time.
+- Today’s Focus includes the complete eligible due/new queue; Concept priority changes order but no longer caps it.
+- Ranking includes a bounded rotation boost for long-unseen eligible Concepts, while non-due Cards remain available in Advanced Diagnostics.
 - Review Later persists a Card-level deferral until the next local day without changing FSRS state.
 - Pause Concept is persisted separately from FSRS and can be resumed from Advanced Diagnostics.
 - Suspend Card is persisted separately from FSRS and can be resumed from Advanced Diagnostics.

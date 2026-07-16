@@ -471,28 +471,30 @@ Acceptance criteria:
 - External changes to edited sections or metadata produce a conflict notice
 - Editing a Concept never changes Card or FSRS state
 
-## Task 037: Bounded Today’s Focus
+## Task 037: Complete FSRS Today’s Focus
 
 Goal:
 
-Make daily review feel like a chosen focus instead of an unlimited debt queue.
+Present FSRS review calmly without introducing a second scheduler above it.
 
 Requirements:
 
-- Add configurable daily Concept, daily Card, and Cards-per-Concept limits
-- Apply limits after Concept priority ranking
-- Prefer due Cards before new Cards within a Concept
-- Count distinct Cards and Concepts already reviewed on the current local day
-- Keep cards outside the focus available later without changing FSRS state or due dates
-- Keep the complete queue visible only through Advanced Diagnostics
+- Make FSRS scheduling optional
+- Preserve review state and history while scheduling is disabled
+- Include every eligible due and new Card when scheduling is enabled
+- Apply Concept priority as ordering only
+- Keep non-due Cards available through Advanced Diagnostics
+- Preserve explicit Review Later, pause, suspension, retirement, deletion, validity, stable-ID, and exploratory exclusions
 
 Acceptance criteria:
 
-- Refreshing cannot reset the same day’s consumed limits
-- Today’s Focus never exceeds any configured limit
-- Reviewed-today Cards are not selected again
-- Hidden Cards remain unchanged in review state
+- Disabling FSRS exposes no Today’s Focus queue or rating controls
+- Re-enabling uses stored due dates and real elapsed time without resetting or shifting state
+- Today’s Focus contains the complete eligible queue
+- Priority never makes a due Card inaccessible
 - Primary summary uses low-pressure focus language rather than overdue debt language
+
+Decision: ADR 0014 supersedes the earlier bounded-limit design.
 
 ## Task 038: Review Later
 

@@ -106,9 +106,9 @@ Manual Concept creation is a first-class product capability. `Create Concept` op
 10. User runs Generate Cards from Current Concept.
 11. AI returns Card proposals derived from the written Concept.
 12. User reviews and accepts Card proposals before Card Markdown is written.
-13. FSRS schedules Cards.
-14. Review View groups due Cards by Concept.
-15. User reviews through Today’s Focus.
+13. If FSRS scheduling is enabled, FSRS schedules Cards.
+14. Review View groups every eligible due or new Card by Concept.
+15. User reviews through Today’s Focus. If scheduling is disabled, Concept Library remains available while review state and history are preserved.
 
 Current implementation note:
 
@@ -126,7 +126,9 @@ Card generation uses a Learning Content Fingerprint rather than a whole-file has
 
 Concept Library is a quick-review card wall: each Concept card shows only its title and Core Meaning, while management actions and diagnostics stay collapsed. It also exposes Generate Cards for reviewable Concepts under each card's `More` menu. Exploratory Concepts intentionally omit this action and remain outside Card/FSRS review.
 
-Today’s Focus is a bounded view over the ranked review queue. User-configured Concept and Card limits apply after priority ranking and include Cards already reviewed that local day; items outside the focus keep their FSRS state unchanged and remain available through diagnostics rather than appearing as debt.
+Today’s Focus is the Concept-grouped view over the complete FSRS-eligible queue. Mneme applies no daily Concept, daily Card, or per-Concept Card cap after FSRS. Priority changes ordering only. Explicit Review Later, pause, suspension, retirement, deletion, validity, stable-ID, and exploratory-Concept rules may still exclude a Card without changing its FSRS due date.
+
+FSRS scheduling is optional. Turning it off removes Today’s Focus and all rating controls but does not alter Card state, due dates, history, or explicit controls. Concept Library browsing and authoring continue normally and do not count as review. Turning FSRS back on makes all currently due and new Cards eligible and continues `ts-fsrs` from the last formal review using the real elapsed time.
 
 Concept `importance` contributes a small, explicit weight to Today’s Focus ranking so must-master knowledge wins ties and near-ties. A bounded rotation boost prevents long-unseen eligible Concepts from starving. Neither mechanism changes Card eligibility, due dates, or FSRS scheduling parameters.
 

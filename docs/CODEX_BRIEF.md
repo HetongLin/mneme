@@ -18,8 +18,8 @@ Source Note
 -> AI proposes Cards grounded in that approved Concept
 -> Student reviews / edits / accepts / rejects
 -> Accepted Cards append to the Concept's Card Group
--> FSRS schedules each Card independently
--> Mneme presents Concept-level learning state and Today’s Focus
+-> Optional FSRS schedules each Card independently
+-> When enabled, Mneme presents Concept-level learning state and Today’s Focus
 ```
 
 Direct authorship is also first class:
@@ -39,14 +39,14 @@ The Review Gate protects AI-proposed knowledge changes. It must not impersonate 
 3. Concept is the primary learning object; Card is an assessment instrument.
 4. Concept Markdown and Card Group Markdown are the content source of truth.
 5. `data.json` stores state, indexes, hashes, proposals, FSRS state, logs, and caches—not Card front/back content.
-6. FSRS fully controls Card scheduling. Concept aggregation cannot reschedule Cards.
+6. FSRS scheduling is optional. When enabled, FSRS fully controls Card scheduling and Concept aggregation cannot reschedule or cap eligible Cards. When disabled, Mneme preserves state and history and records no ratings.
 7. Concept Learning State distinguishes memory risk, assessment coverage, and explicit student signals; it is not a mastery percentage.
 8. Inbox is a review queue, not a debug dashboard. List items can Open or Reject; acceptance happens only inside the complete editable Review Gate.
 9. Fixed product labels are English. Generated learning prose follows the Source Note's detected dominant language. Chinese learning content includes standard English names for technical concepts on first occurrence.
 10. AI should propose stable English tag slugs, but user-approved tags in other scripts remain valid.
 11. Concept capture has no fixed proposal-count cap, but every proposal must represent a durable knowledge change, use a canonical context-independent Concept title, prefer updating or linking existing knowledge over duplication, and carry verified Source Note evidence.
 12. Long Source Notes are analyzed completely through Markdown-aware chunks with visible coverage; no provider request may silently stand in for an unprocessed remainder.
-13. Review should feel like Today’s Focus, not accumulated debt. Non-due FSRS Cards remain Later and cannot be promoted by ranking.
+13. Review should feel like Today’s Focus, not accumulated debt. Non-due FSRS Cards remain Later and cannot be promoted by ranking. Every due or new eligible Card remains accessible; Mneme does not impose daily Concept, daily Card, or per-Concept Card caps.
 14. Never silently discard or destructively migrate user Markdown.
 
 ## Markdown Model
@@ -73,7 +73,7 @@ Existing accepted Card fronts are passed to the provider as a Coverage Map. The 
 
 ## Review UX
 
-The main review flow is deliberately narrow:
+When FSRS scheduling is enabled, the main review flow is deliberately narrow:
 
 1. Show Front.
 2. `Show Answer` reveals Back.
@@ -81,6 +81,8 @@ The main review flow is deliberately narrow:
 4. A rating updates only that Card's FSRS state and advances.
 
 `More` contains Edit, Open Concept, Skip, Review Later, Suspend, Retire, and Delete. Rubric and technical details remain under `Card details` by default. Rubric may guide self-assessment but must not introduce knowledge absent from Back.
+
+When FSRS scheduling is disabled, Review View explains that Card memory state and history are preserved and exposes no review queue or rating controls. Re-enabling resumes from the last formal review using real elapsed time; it does not reset or shift due dates.
 
 ## Scope Boundaries
 

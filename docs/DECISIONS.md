@@ -17,3 +17,4 @@ Current decision records:
 - [0011: AI grading cannot submit FSRS ratings](adr/0011-ai-grading-cannot-submit-fsrs-ratings.md)
 - [0012: Card deletion preserves anonymous review history](adr/0012-card-deletion-preserves-anonymous-history.md)
 - [0013: Store one Card Group per Concept](adr/0013-one-card-group-per-concept.md)
+- [0014: FSRS scheduling is optional](adr/0014-fsrs-scheduling-is-optional.md)

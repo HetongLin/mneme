@@ -272,6 +272,28 @@ async function runAsyncTests(): Promise<void> {
 	}
 
 	{
+		const existingState = createReviewState("paused-scheduling-card", 2);
+		const storage = new MemoryReviewStateStorage({
+			reviewEvents: {},
+			reviewStates: { "paused-scheduling-card": existingState },
+			schemaVersion: 1,
+			settings: { ...DEFAULT_SETTINGS, fsrsEnabled: false },
+		});
+		const scheduler = new FakeReviewScheduler();
+		const store = new ReviewStateStore(storage, scheduler);
+
+		await store.load();
+		await assert.rejects(
+			store.recordReview("paused-scheduling-card", "good"),
+			/FSRS scheduling is disabled/,
+		);
+
+		assert.equal(scheduler.lastInput, undefined);
+		assert.deepEqual(store.getState("paused-scheduling-card"), existingState);
+		assert.deepEqual(store.getReviewEvents(), []);
+	}
+
+	{
 		const storage = new MemoryReviewStateStorage();
 		const scheduler = new FakeReviewScheduler();
 		const store = new ReviewStateStore(storage, scheduler);

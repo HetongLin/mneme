@@ -63,6 +63,9 @@ export class ReviewStateStore {
 	): Promise<CardReviewState> {
 		await this.ensureLoaded();
 		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+		if (!latestData.settings.fsrsEnabled) {
+			throw new Error("FSRS scheduling is disabled. Enable it before rating Cards.");
+		}
 		if (latestData.cardTombstones[cardId]) {
 			throw new Error("Deleted Card IDs cannot receive reviews.");
 		}

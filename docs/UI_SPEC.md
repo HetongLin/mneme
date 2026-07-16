@@ -147,7 +147,11 @@ Today’s Focus
 
 Do not display a scary overdue queue by default.
 
-Today’s Focus is a curated subset of FSRS-eligible Cards. The UI shows a calm `available later` count so work is not silently hidden, and ranking includes a bounded rotation factor so lower-importance eligible Concepts are not starved indefinitely.
+When FSRS scheduling is enabled, Today’s Focus contains all valid due and new Cards that are not explicitly deferred, paused, suspended, retired, deleted, or otherwise ineligible. Concept priority orders the queue but does not truncate it. The primary UI does not display debt-style overdue totals.
+
+When FSRS scheduling is disabled, the Review View subtitle and empty state say `FSRS scheduling is off`. The view shows no Concept review queue, `Show Answer`, or rating controls. It explains that Card memory state and review history are preserved and that enabling FSRS in Mneme settings resumes with real elapsed time. Advanced Diagnostics may remain available for inspection.
+
+Settings contains `Enable FSRS scheduling` before the retention, fuzz, and maximum-interval controls. There are no Daily Concept Limit, Daily Card Limit, or Cards per Concept settings.
 
 ## Concept Library Quick Review
 
@@ -283,15 +287,14 @@ The creation action is single-flight from preflight duplicate scanning through t
 
 ## Settings
 
-v0.1 settings:
+Current settings:
 
 - Concepts folder
 - Cards folder
-- Daily Concept Limit
-- Daily Card Limit
-- Cards per Concept
+- Enable FSRS scheduling
 - Global Retention Target
-- Explicit manual retention override, if implemented later
+- Enable fuzz
+- Maximum interval
 - LLM provider settings
 
 Importance does not silently change FSRS desired retention. Mneme may use Importance to rank already-eligible Concepts, but FSRS keeps a global Retention Target unless the student intentionally chooses a separate scheduling override.

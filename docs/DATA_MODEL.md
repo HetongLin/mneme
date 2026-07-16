@@ -431,7 +431,7 @@ The concept queue remains concept-level. FSRS does not schedule Concepts directl
 
 Existing placeholder review states are treated conservatively: they are not converted into FSRS memory states. Users can run `Mneme: Clear Review History` before FSRS testing if they want a clean reset.
 
-FSRS `dueAt` is the authority for Daily Review eligibility. New Cards enter Daily Review. Reviewed Cards enter Daily Review only when `dueAt <= now`.
+When `fsrsEnabled` is true, FSRS `dueAt` is the authority for review eligibility. New Cards enter review. Reviewed Cards enter review only when `dueAt <= now`. Mneme does not apply daily Concept, daily Card, or per-Concept Card caps after this eligibility decision.
 
 Retrievability remains diagnostic for reviewed FSRS Cards. It may be useful as a secondary signal among already-due Cards, but it must not promote non-due Cards into Daily Review.
 
@@ -439,11 +439,12 @@ Retrievability remains diagnostic for reviewed FSRS Cards. It may be useful as a
 
 Mneme stores minimal FSRS scheduler settings in plugin data alongside review state:
 
+- `fsrsEnabled` controls whether Today’s Focus and FSRS ratings are available. It defaults to `true`.
 - `fsrsRequestRetention` controls the target recall probability. Higher retention usually means shorter intervals and more reviews.
 - `fsrsEnableFuzz` spreads longer-interval reviews with small randomness to reduce review clustering.
 - `fsrsMaximumInterval` caps how far into the future a Card can be scheduled.
 
-Settings affect future reviews only; they do not rewrite existing Card review states. `Mneme: Clear Review History` resets stored review states while preserving settings. Daily Review still respects FSRS `dueAt`.
+Scheduler parameters affect future reviews only; they do not rewrite existing Card review states. Disabling FSRS also leaves states, due dates, and event history untouched. Re-enabling does not shift stored dates or freeze the clock: overdue Cards are immediately eligible, and the next rating uses the real time since `lastReviewedAt`. Cards created while disabled remain new until first rated after re-enabling. `Mneme: Clear Review History` is the only explicit reset command.
 
 ## Concept Memory Aggregation
 
@@ -460,7 +461,7 @@ Concept memory is an aggregation over a Concept's Cards. It distinguishes all-ca
 
 The main review queue is concept-centered.
 
-Concepts are ranked as groups of Daily Review-eligible Cards. The main queue shows only Concepts that contain due or new Cards.
+When FSRS is enabled, Concepts are ranked as groups of review-eligible Cards. The main queue shows every Concept that contains at least one due or new Card after explicit exclusions; ranking never truncates the queue.
 
 Not-due-only Concepts are hidden from the main queue but visible in diagnostics. FSRS remains card-level; concept ranking never overrides FSRS scheduling.
 

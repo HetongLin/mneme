@@ -22,7 +22,6 @@ import { buildReviewQueue } from "../services/reviewQueueBuilder";
 import { ReviewStateStore, startOfNextLocalDay } from "../services/reviewStateStore";
 import { formatReviewCompletion } from "../services/reviewNavigation";
 import {
-	buildTodaysFocusUsage,
 	selectTodaysFocus,
 	TodaysFocusSelection,
 } from "../services/todaysFocusSelector";
@@ -118,11 +117,7 @@ export class MnemeReviewView extends ItemView {
 			);
 			const rankedReviewQueue = rankReviewQueueConcepts(this.reviewQueue.concepts, this.memorySummaries);
 			const settings = this.settingsProvider();
-			this.focusSelection = selectTodaysFocus(rankedReviewQueue, {
-				cardsPerConcept: settings.cardsPerConceptLimit,
-				dailyCards: settings.dailyCardLimit,
-				dailyConcepts: settings.dailyConceptLimit,
-			}, buildTodaysFocusUsage(this.reviewQueue.concepts, reviewStates, now), {
+			this.focusSelection = selectTodaysFocus(rankedReviewQueue, settings.fsrsEnabled, {
 				deferredCardIds: new Set(Object.keys(this.activeDeferrals)),
 				pausedConceptIds: this.pausedConceptIds,
 				retiredCardIds: new Set(Object.keys(this.activeRetirements)),
@@ -132,7 +127,7 @@ export class MnemeReviewView extends ItemView {
 			this.rankedConceptsById = indexRankedConceptsById(rankReviewQueueConcepts(this.reviewQueue.concepts, this.memorySummaries, {
 				includeNonReviewable: true,
 			}));
-			this.statusMessage = formatSummary(loadedConcepts.summary);
+			this.statusMessage = formatSummary(loadedConcepts.summary, settings.fsrsEnabled);
 			this.render();
 			new Notice(`Mneme: scanned ${loadedConcepts.summary.scannedCards} card files, ${loadedConcepts.summary.validCards} valid, ${loadedConcepts.summary.invalidCards} invalid.`);
 		} catch (error) {
@@ -156,6 +151,9 @@ export class MnemeReviewView extends ItemView {
 	private render(): void {
 		this.contentEl.empty();
 		this.contentEl.addClass("mneme-review-view");
+		if (!this.settingsProvider().fsrsEnabled && this.mode === "flashcard") {
+			this.resetReviewState();
+		}
 
 		if (this.mode === "flashcard") {
 			this.renderFlashCardMode();
@@ -166,7 +164,7 @@ export class MnemeReviewView extends ItemView {
 	}
 
 	private renderQueueMode(): void {
-		this.renderHeader("Today’s Focus", true);
+		this.renderHeader(this.settingsProvider().fsrsEnabled ? "Today’s Focus" : "FSRS scheduling is off", true);
 		this.renderSummary();
 		this.renderQueue();
 		this.renderDiagnostics();
@@ -209,12 +207,14 @@ export class MnemeReviewView extends ItemView {
 
 	private renderSummary(): void {
 		const summaryEl = this.contentEl.createDiv({ cls: "mneme-review-summary" });
+		if (!this.settingsProvider().fsrsEnabled) {
+			summaryEl.createEl("span", { text: "FSRS scheduling off" });
+			this.renderStatus();
+			return;
+		}
 
 		summaryEl.createEl("span", { text: `${this.focusSelection.selectedCardCount} cards in focus` });
 		summaryEl.createEl("span", { text: `${this.focusSelection.concepts.length} concepts` });
-		if (this.focusSelection.hiddenCardCount > 0) {
-			summaryEl.createEl("span", { text: `${this.focusSelection.hiddenCardCount} available later` });
-		}
 		this.renderStatus();
 	}
 
@@ -227,6 +227,17 @@ export class MnemeReviewView extends ItemView {
 
 	private renderQueue(): void {
 		const queueEl = this.contentEl.createDiv({ cls: "mneme-review-queue" });
+		if (!this.settingsProvider().fsrsEnabled) {
+			queueEl.createEl("p", {
+				cls: "mneme-review-empty",
+				text: "FSRS scheduling is off.",
+			});
+			queueEl.createEl("p", {
+				cls: "mneme-review-status",
+				text: "Your Card memory state and review history are preserved. Enable FSRS scheduling in Mneme settings to resume using real elapsed time.",
+			});
+			return;
+		}
 		const reviewableConcepts = this.rankedReviewQueue;
 
 		if (reviewableConcepts.length === 0) {
@@ -512,7 +523,7 @@ export class MnemeReviewView extends ItemView {
 		});
 
 		if (this.pausedConceptIds.has(concept.conceptId)) {
-			conceptEl.createEl("p", { text: "Today’s Focus: Paused" });
+			conceptEl.createEl("p", { text: "FSRS Review: Paused" });
 			conceptEl.createEl("button", { text: "Resume Concept" }, (buttonEl) => {
 				buttonEl.addEventListener("click", () => {
 					void this.resumeConcept(concept.conceptId);
@@ -543,7 +554,7 @@ export class MnemeReviewView extends ItemView {
 		memorySummary: ConceptMemorySummary,
 		rankedConcept?: RankedReviewQueueConcept,
 	): void {
-		parentEl.createEl("h5", { text: "Daily Review" });
+		parentEl.createEl("h5", { text: "FSRS Review" });
 		parentEl.createEl("p", { text: `Rank: ${rankedConcept ? `#${rankedConcept.rank}` : "(unranked)"}` });
 		parentEl.createEl("p", { text: `Review priority: ${formatPriorityBand(memorySummary)} (${formatPercent(memorySummary.reviewPriorityScore)})` });
 		parentEl.createEl("p", { text: `Importance: ${memorySummary.importance ?? "normal (default)"}` });
@@ -595,11 +606,11 @@ export class MnemeReviewView extends ItemView {
 		cardEl.createEl("p", { text: `Card ID: ${card.cardId}` });
 		cardEl.createEl("p", { text: `Card index: ${card.cardIndex}` });
 		cardEl.createEl("p", { text: `Due status: ${formatDueStatus(queueCard)}` });
-		cardEl.createEl("p", { text: `Daily Review: ${queueCard.includedInDailyReview ? "included" : "not included"}` });
+		cardEl.createEl("p", { text: `FSRS eligibility: ${queueCard.includedInDailyReview ? "eligible" : "not eligible"}` });
 		cardEl.createEl("p", { text: `Eligibility: ${formatEligibilityReason(queueCard.eligibilityReason)}` });
 		if (queueCard.eligibilityReason === "missing-card-id") {
 			cardEl.createEl("p", {
-				text: "Assign a stable Card ID before this Card can enter Today’s Focus or FSRS review.",
+				text: "Assign a stable Card ID before this Card can enter FSRS review.",
 			});
 		}
 		cardEl.createEl("p", { text: `Review count: ${queueCard.reviewCount}` });
@@ -743,7 +754,7 @@ export class MnemeReviewView extends ItemView {
 		const listEl = parentEl.createEl("ul", { cls: "mneme-review-details-list" });
 		for (const card of cards) {
 			listEl.createEl("li", {
-				text: `${card.cardId} · ${formatDueStatus(card)} · ${formatEligibilityReason(card.eligibilityReason)} · ${card.includedInDailyReview ? "Daily Review" : "Later"} · ${formatReviewCount(card.reviewCount)}`,
+				text: `${card.cardId} · ${formatDueStatus(card)} · ${formatEligibilityReason(card.eligibilityReason)} · ${card.includedInDailyReview ? "FSRS eligible" : "Later"} · ${formatReviewCount(card.reviewCount)}`,
 			});
 		}
 	}
@@ -786,7 +797,7 @@ export class MnemeReviewView extends ItemView {
 		detailsEl.createEl("p", { text: `Card ID: ${card.cardId}` });
 		detailsEl.createEl("p", { text: `Card index: ${card.cardIndex}` });
 		detailsEl.createEl("p", { text: `Due status: ${formatDueStatus(queueCard)}` });
-		detailsEl.createEl("p", { text: `Daily Review: ${queueCard.includedInDailyReview ? "included" : "not included"}` });
+		detailsEl.createEl("p", { text: `FSRS eligibility: ${queueCard.includedInDailyReview ? "eligible" : "not eligible"}` });
 		detailsEl.createEl("p", { text: `Eligibility: ${formatEligibilityReason(queueCard.eligibilityReason)}` });
 		detailsEl.createEl("p", { text: `Review count: ${reviewState?.reviewCount ?? queueCard.reviewCount}` });
 		detailsEl.createEl("p", { text: `Last rating: ${reviewState?.lastRating ?? "(none)"}` });
@@ -818,6 +829,11 @@ export class MnemeReviewView extends ItemView {
 	}
 
 	private startFlashCards(concept: ReviewQueueConcept): void {
+		if (!this.settingsProvider().fsrsEnabled) {
+			new Notice("Mneme: Enable FSRS scheduling before starting a review.");
+			return;
+		}
+
 		this.mode = "flashcard";
 		this.selectedConcept = concept;
 		this.selectedCards = getQueuedReviewCards(concept);
@@ -890,7 +906,7 @@ export class MnemeReviewView extends ItemView {
 				this.isReviewComplete = true;
 			}
 
-			this.statusMessage = `Moved ${card.cardId} out of Today’s Focus until tomorrow.`;
+			this.statusMessage = `Moved ${card.cardId} out of review until tomorrow.`;
 			this.render();
 		} catch (error) {
 			console.error("Mneme: failed to defer Card review", {
@@ -1017,6 +1033,14 @@ export class MnemeReviewView extends ItemView {
 	}
 
 	private async rateCurrentCard(rating: ReviewRating, label: ReviewRatingLabel): Promise<void> {
+		if (!this.settingsProvider().fsrsEnabled) {
+			this.resetReviewState();
+			this.statusMessage = "FSRS scheduling is off. No rating was recorded.";
+			new Notice("Mneme: Enable FSRS scheduling before rating Cards.");
+			this.render();
+			return;
+		}
+
 		const concept = this.selectedConcept;
 		const card = this.getCurrentReviewableCard();
 
@@ -1165,15 +1189,17 @@ function createEmptyReviewQueue(): ReviewQueue {
 	};
 }
 
-function formatSummary(loadSummary: ConceptLoadSummary): string {
-	return `Scanned ${loadSummary.scannedCards} cards across ${loadSummary.concepts} concepts. Focus is based on priority and today’s limits.`;
+function formatSummary(loadSummary: ConceptLoadSummary, fsrsEnabled: boolean): string {
+	const suffix = fsrsEnabled
+		? "All FSRS-eligible Cards are available in priority order."
+		: "Review scheduling is paused; Card state and history are unchanged.";
+
+	return `Scanned ${loadSummary.scannedCards} cards across ${loadSummary.concepts} concepts. ${suffix}`;
 }
 
 function createEmptyFocusSelection(): TodaysFocusSelection {
 	return {
 		concepts: [],
-		hiddenCardCount: 0,
-		hiddenConceptCount: 0,
 		selectedCardCount: 0,
 	};
 }

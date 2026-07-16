@@ -26,6 +26,7 @@ export type { MnemeSettings } from "./models/settings";
 export interface MnemeSettingsHost extends Plugin {
 	settings: MnemeSettings;
 	saveSettings(): Promise<void>;
+	refreshReviewViews?(): Promise<void>;
 	updateFsrsSchedulerConfig?(): void;
 }
 
@@ -67,28 +68,19 @@ export class MnemeSettingTab extends PluginSettingTab {
 				});
 			});
 
-		containerEl.createEl("h3", { text: "Today’s Focus" });
-
-		this.addPositiveIntegerSetting(
-			containerEl,
-			"Daily concept limit",
-			"Maximum Concepts shown in Today’s Focus.",
-			"dailyConceptLimit",
-		);
-		this.addPositiveIntegerSetting(
-			containerEl,
-			"Daily card limit",
-			"Maximum Cards selected across Today’s Focus.",
-			"dailyCardLimit",
-		);
-		this.addPositiveIntegerSetting(
-			containerEl,
-			"Cards per Concept",
-			"Maximum Cards selected from one Concept.",
-			"cardsPerConceptLimit",
-		);
-
 		containerEl.createEl("h3", { text: "FSRS Scheduling" });
+
+		new Setting(containerEl)
+			.setName("Enable FSRS scheduling")
+			.setDesc("When off, Mneme preserves Card memory state and review history but stops Today’s Focus and FSRS ratings. Re-enabling resumes from the last formal review using real elapsed time.")
+			.addToggle((toggle) => {
+				toggle.setValue(this.plugin.settings.fsrsEnabled);
+				toggle.onChange(async (value) => {
+					this.plugin.settings.fsrsEnabled = value;
+					await this.persistSettings();
+					await this.plugin.refreshReviewViews?.();
+				});
+			});
 
 		const retentionSetting = new Setting(containerEl)
 			.setName("Request retention")
@@ -287,27 +279,6 @@ export class MnemeSettingTab extends PluginSettingTab {
 		this.plugin.updateFsrsSchedulerConfig?.();
 	}
 
-	private addPositiveIntegerSetting(
-		containerEl: HTMLElement,
-		name: string,
-		description: string,
-		key: "dailyConceptLimit" | "dailyCardLimit" | "cardsPerConceptLimit",
-	): void {
-		new Setting(containerEl)
-			.setName(name)
-			.setDesc(description)
-			.addText((text) => {
-				text.inputEl.type = "number";
-				text.inputEl.min = "1";
-				text.inputEl.step = "1";
-				text.setValue(String(this.plugin.settings[key]));
-				text.onChange(async (value) => {
-					this.plugin.settings[key] = normalizePositiveInteger(Number(value), DEFAULT_SETTINGS[key]);
-					text.setValue(String(this.plugin.settings[key]));
-					await this.persistSettings();
-				});
-			});
-	}
 }
 
 function formatRetention(value: number): string {

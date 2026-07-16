@@ -59,7 +59,7 @@ Prioritize:
 - Again / Hard / Good / Easy
 - Edit Card
 - Open Concept
-- FSRS card scheduling
+- Optional FSRS card scheduling
 - Concept-based grouping
 
 Do not expand ordinary stabilization work into:
@@ -156,7 +156,7 @@ If a card is invalid, do not crash. Mark it invalid and show a repair option.
 
 ## Review Behavior
 
-Review View must behave like Anki:
+When FSRS scheduling is enabled, Review View must behave like Anki:
 
 1. Show Front.
 2. User clicks Show Answer.
@@ -166,6 +166,8 @@ Review View must behave like Anki:
 6. Move to the next card.
 
 FSRS schedules Cards. Mneme groups due Cards by Concept.
+
+When FSRS scheduling is disabled, preserve Card state and history, show no Today’s Focus queue, and accept no ratings. Re-enabling uses real elapsed time. Do not place daily Concept, daily Card, or per-Concept Card caps above FSRS eligibility.
 
 Use low-pressure language.
 

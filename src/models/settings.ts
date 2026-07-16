@@ -3,16 +3,14 @@ export interface MnemeSettings {
 	aiMaxInputChars: number;
 	aiProvider: AiProviderName;
 	aiRequestTimeoutMs: number;
-	cardsPerConceptLimit: number;
 	cardsFolder: string;
 	conceptsFolder: string;
-	dailyCardLimit: number;
-	dailyConceptLimit: number;
 	deepseekApiKey: string;
 	deepseekBaseUrl: string;
 	deepseekModel: string;
 	enableDeveloperTools: boolean;
 	fsrsEnableFuzz: boolean;
+	fsrsEnabled: boolean;
 	fsrsMaximumInterval: number;
 	fsrsRequestRetention: number;
 	openaiApiKey: string;
@@ -29,16 +27,14 @@ export const DEFAULT_SETTINGS: MnemeSettings = {
 	aiMaxInputChars: 20000,
 	aiProvider: "mock",
 	aiRequestTimeoutMs: 120000,
-	cardsPerConceptLimit: 5,
 	cardsFolder: "Mneme/Cards",
 	conceptsFolder: "Mneme/Concepts",
-	dailyCardLimit: 20,
-	dailyConceptLimit: 5,
 	deepseekApiKey: "",
 	deepseekBaseUrl: "https://api.deepseek.com",
 	deepseekModel: "deepseek-v4-flash",
 	enableDeveloperTools: false,
 	fsrsEnableFuzz: false,
+	fsrsEnabled: true,
 	fsrsMaximumInterval: 36500,
 	fsrsRequestRetention: 0.9,
 	openaiApiKey: "",
@@ -58,11 +54,8 @@ export function normalizeSettings(value: unknown): MnemeSettings {
 		aiMaxInputChars: normalizePositiveInteger(value.aiMaxInputChars, DEFAULT_SETTINGS.aiMaxInputChars),
 		aiProvider: normalizeAiProvider(value.aiProvider),
 		aiRequestTimeoutMs: normalizeAiRequestTimeoutMs(value.aiRequestTimeoutMs),
-		cardsPerConceptLimit: normalizePositiveInteger(value.cardsPerConceptLimit, DEFAULT_SETTINGS.cardsPerConceptLimit),
 		cardsFolder: normalizeFolder(value.cardsFolder, DEFAULT_SETTINGS.cardsFolder),
 		conceptsFolder: normalizeFolder(value.conceptsFolder, DEFAULT_SETTINGS.conceptsFolder),
-		dailyCardLimit: normalizePositiveInteger(value.dailyCardLimit, DEFAULT_SETTINGS.dailyCardLimit),
-		dailyConceptLimit: normalizePositiveInteger(value.dailyConceptLimit, DEFAULT_SETTINGS.dailyConceptLimit),
 		deepseekApiKey: normalizeString(value.deepseekApiKey, DEFAULT_SETTINGS.deepseekApiKey),
 		deepseekBaseUrl: normalizeUrlString(value.deepseekBaseUrl, DEFAULT_SETTINGS.deepseekBaseUrl),
 		deepseekModel: normalizeRequiredString(value.deepseekModel, DEFAULT_SETTINGS.deepseekModel),
@@ -72,6 +65,9 @@ export function normalizeSettings(value: unknown): MnemeSettings {
 		fsrsEnableFuzz: typeof value.fsrsEnableFuzz === "boolean"
 			? value.fsrsEnableFuzz
 			: DEFAULT_SETTINGS.fsrsEnableFuzz,
+		fsrsEnabled: typeof value.fsrsEnabled === "boolean"
+			? value.fsrsEnabled
+			: DEFAULT_SETTINGS.fsrsEnabled,
 		fsrsMaximumInterval: normalizeMaximumInterval(value.fsrsMaximumInterval),
 		fsrsRequestRetention: normalizeRetention(value.fsrsRequestRetention),
 		openaiApiKey: normalizeString(value.openaiApiKey, DEFAULT_SETTINGS.openaiApiKey),

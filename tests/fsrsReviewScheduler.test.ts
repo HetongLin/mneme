@@ -108,6 +108,26 @@ const reviewedAt = "2026-01-01T12:00:00.000Z";
 
 {
 	const scheduler = new FsrsReviewScheduler();
+	const first = scheduler.schedule({
+		cardId: "resumed-after-break",
+		rating: "good",
+		reviewedAt: "2026-01-01T00:00:00.000Z",
+	}).nextState;
+	const resumedAt = "2026-05-01T00:00:00.000Z";
+	const resumed = scheduler.schedule({
+		cardId: "resumed-after-break",
+		previousState: first,
+		rating: "good",
+		reviewedAt: resumedAt,
+	}).nextState;
+
+	assert.equal(first.lastReviewedAt, "2026-01-01T00:00:00.000Z");
+	assert.equal(resumed.lastReviewedAt, resumedAt);
+	assert.equal(resumed.elapsedDays, 120);
+}
+
+{
+	const scheduler = new FsrsReviewScheduler();
 	const previousState = createFsrsReviewState("encapsulation-basic", {
 		createdAt: "2025-12-01T12:00:00.000Z",
 		updatedAt: "2025-12-01T12:00:00.000Z",

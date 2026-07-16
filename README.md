@@ -12,11 +12,13 @@ Source Notes
 -> User reviews / edits / accepts / rejects
 -> Accepted Concepts become clean Concept.md files
 -> Cards are generated later from written Concepts
--> User reviews accepted Cards through FSRS
+-> When enabled, user reviews accepted Cards through FSRS
 -> Mneme tracks Concept-level learning state
 ```
 
 Students may also create clean approved Concepts directly; only AI-proposed knowledge changes require the Inbox Review Gate. Accepted Cards append as independently scheduled blocks to one Card Group Markdown file per Concept.
+
+FSRS scheduling is optional. Disabling it keeps Concept Library and authoring available while preserving every Card's memory state and history. Re-enabling resumes from the last formal review using real elapsed time. When enabled, Today’s Focus includes every due or new eligible Card without separate daily Concept or Card caps.
 
 Mneme is not an Anki clone. It may export approved Cards as isolated Anki-importable copies, but Mneme Markdown and Mneme FSRS remain independent.
 

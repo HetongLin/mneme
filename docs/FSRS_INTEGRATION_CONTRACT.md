@@ -49,6 +49,7 @@ Mneme must not:
 - use concept risk to make non-due FSRS cards enter Daily Review
 - replace `ts-fsrs` `scheduler.next` with custom scheduling logic
 - use retrievability as a Daily Review trigger
+- add daily Concept, daily Card, or per-Concept Card caps above FSRS eligibility
 
 ## Allowed Adaptation
 
@@ -61,15 +62,28 @@ Mneme may:
 - group due and new Cards by Concept
 - rank Concept groups that contain eligible review Cards
 - persist settings used to configure `ts-fsrs`
+- disable the review surface without changing persisted FSRS state
 
-## Daily Review Contract
+## Optional Scheduling Contract
 
-Daily Review includes:
+When `fsrsEnabled` is false:
+
+- Today’s Focus contains no Cards
+- Mneme accepts no FSRS rating
+- reading, editing, and Concept Library browsing create no review event
+- persisted FSRS state, due dates, and history remain unchanged
+- new Cards remain new and have no FSRS state
+
+When it is enabled again, Mneme uses stored due dates immediately and passes the real current review time to `ts-fsrs`. It does not reset state, shift due dates, or subtract the disabled interval.
+
+## FSRS Review Contract
+
+FSRS Review includes:
 
 - new Cards with no review state
 - reviewed Cards with `dueAt <= now`
 
-Daily Review excludes:
+FSRS Review excludes:
 
 - reviewed FSRS Cards with `dueAt > now`
 - Cards promoted only by nonzero retrievability risk
@@ -88,4 +102,4 @@ These modes may intentionally bypass `dueAt` later:
 - Random Concept Draw
 - Concept Activation
 
-Daily Review must not bypass `dueAt`.
+FSRS Review must not bypass `dueAt`.

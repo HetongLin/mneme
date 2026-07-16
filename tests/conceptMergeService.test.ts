@@ -95,7 +95,7 @@ async function runAsyncTests(): Promise<void> {
 		if (prepared.status === "ready") {
 			storage.data = {
 				...storage.data,
-				settings: { ...storage.data.settings, dailyCardLimit: storage.data.settings.dailyCardLimit + 1 },
+				settings: { ...storage.data.settings, fsrsEnabled: false },
 			};
 			const before = { ...vault.files };
 			const finalConcept = prepared.plan.writes.find((write) => write.path === survivor.path)?.after ?? "";

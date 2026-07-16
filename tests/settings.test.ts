@@ -19,16 +19,14 @@ import {
 			aiMaxInputChars: 12000,
 			aiProvider: "deepseek",
 			aiRequestTimeoutMs: 45000,
-			cardsPerConceptLimit: 4,
 			cardsFolder: "Custom/Cards",
 			conceptsFolder: "Custom/Concepts",
-			dailyCardLimit: 18,
-			dailyConceptLimit: 6,
 			deepseekApiKey: "deepseek-test",
 			deepseekBaseUrl: "https://deepseek.example/v1/",
 			deepseekModel: "deepseek-reasoner",
 			enableDeveloperTools: true,
 			fsrsEnableFuzz: true,
+			fsrsEnabled: false,
 			fsrsMaximumInterval: 365,
 			fsrsRequestRetention: 0.85,
 			openaiApiKey: "sk-test",
@@ -42,16 +40,14 @@ import {
 		aiMaxInputChars: 12000,
 		aiProvider: "deepseek",
 		aiRequestTimeoutMs: 45000,
-		cardsPerConceptLimit: 4,
 		cardsFolder: "Custom/Cards",
 		conceptsFolder: "Custom/Concepts",
-		dailyCardLimit: 18,
-		dailyConceptLimit: 6,
 		deepseekApiKey: "deepseek-test",
 		deepseekBaseUrl: "https://deepseek.example/v1",
 		deepseekModel: "deepseek-reasoner",
 		enableDeveloperTools: true,
 		fsrsEnableFuzz: true,
+		fsrsEnabled: false,
 		fsrsMaximumInterval: 365,
 		fsrsRequestRetention: 0.85,
 		openaiApiKey: "sk-test",
@@ -66,16 +62,14 @@ import {
 		aiMaxInputChars: -10,
 		aiProvider: "local",
 		aiRequestTimeoutMs: 0,
-		cardsPerConceptLimit: -5,
 		cardsFolder: "",
 		conceptsFolder: " /Custom//Concepts/ ",
-		dailyCardLimit: 0,
-		dailyConceptLimit: 3.7,
 		deepseekApiKey: 456,
 		deepseekBaseUrl: "",
 		deepseekModel: "",
 		enableDeveloperTools: "yes",
 		fsrsEnableFuzz: "yes",
+		fsrsEnabled: "yes",
 		fsrsMaximumInterval: -10,
 		fsrsRequestRetention: 1.5,
 		openaiApiKey: 123,
@@ -88,16 +82,14 @@ import {
 		aiMaxInputChars: 1,
 		aiProvider: DEFAULT_SETTINGS.aiProvider,
 		aiRequestTimeoutMs: 1,
-		cardsPerConceptLimit: 1,
 		cardsFolder: DEFAULT_SETTINGS.cardsFolder,
 		conceptsFolder: "Custom/Concepts",
-		dailyCardLimit: 1,
-		dailyConceptLimit: 4,
 		deepseekApiKey: DEFAULT_SETTINGS.deepseekApiKey,
 		deepseekBaseUrl: DEFAULT_SETTINGS.deepseekBaseUrl,
 		deepseekModel: DEFAULT_SETTINGS.deepseekModel,
 		enableDeveloperTools: false,
 		fsrsEnableFuzz: DEFAULT_SETTINGS.fsrsEnableFuzz,
+		fsrsEnabled: DEFAULT_SETTINGS.fsrsEnabled,
 		fsrsMaximumInterval: 1,
 		fsrsRequestRetention: 0.98,
 		openaiApiKey: DEFAULT_SETTINGS.openaiApiKey,
@@ -113,6 +105,7 @@ import {
 	assert.equal(settings.aiCaptureEnabled, false);
 	assert.equal(settings.aiProvider, "mock");
 	assert.equal(settings.aiRequestTimeoutMs, 120000);
+	assert.equal(settings.fsrsEnabled, true);
 	assert.equal(settings.deepseekApiKey, "");
 	assert.equal(settings.deepseekBaseUrl, "https://api.deepseek.com");
 	assert.equal(settings.deepseekModel, "deepseek-v4-flash");
@@ -147,6 +140,11 @@ import {
 
 {
 	const data = mergeSettingsIntoPluginData({
+		settings: {
+			dailyCardLimit: 20,
+			dailyConceptLimit: 5,
+			cardsPerConceptLimit: 5,
+		},
 		conceptSourceLinks: {
 			"link-a": {
 				addedAt: "2026-01-01T12:00:00.000Z",
@@ -204,11 +202,16 @@ import {
 		enableDeveloperTools: true,
 		fsrsRequestRetention: 0.82,
 		fsrsEnableFuzz: true,
+		fsrsEnabled: false,
 		openaiApiKey: "sk-updated",
 	});
 
 	assert.equal((data.settings as typeof DEFAULT_SETTINGS).fsrsRequestRetention, 0.82);
 	assert.equal((data.settings as typeof DEFAULT_SETTINGS).fsrsEnableFuzz, true);
+	assert.equal((data.settings as typeof DEFAULT_SETTINGS).fsrsEnabled, false);
+	assert.equal("dailyCardLimit" in (data.settings as Record<string, unknown>), false);
+	assert.equal("dailyConceptLimit" in (data.settings as Record<string, unknown>), false);
+	assert.equal("cardsPerConceptLimit" in (data.settings as Record<string, unknown>), false);
 	assert.equal((data.settings as typeof DEFAULT_SETTINGS).enableDeveloperTools, true);
 	assert.equal((data.settings as typeof DEFAULT_SETTINGS).aiProvider, "deepseek");
 	assert.equal((data.settings as typeof DEFAULT_SETTINGS).aiCaptureEnabled, true);
