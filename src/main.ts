@@ -35,7 +35,7 @@ import { ConceptScanner } from "./services/conceptScanner";
 import { ConceptLoader } from "./services/conceptLoader";
 import { ConceptMergeService } from "./services/conceptMergeService";
 import {
-	getCardGroupLinkFromConceptFrontmatter,
+	getCardGroupPathFromConceptFrontmatter,
 	getConceptIdFromFrontmatter,
 } from "./services/conceptMarkdownIdentity";
 import { parseConceptTitle } from "./services/conceptMarkdownParser";
@@ -490,7 +490,7 @@ export default class MnemePlugin extends Plugin {
 			return;
 		}
 
-		const cardsTarget = parseCardsTargetPath(getCardGroupLinkFromConceptFrontmatter(frontmatter))
+		const cardsTarget = getCardGroupPathFromConceptFrontmatter(frontmatter)
 			?? await this.getDefaultCardFolderForConcept(activeFile);
 
 		await this.openCardTarget(cardsTarget);
@@ -1159,30 +1159,4 @@ function formatNoticeDetail(message: string): string {
 	}
 
 	return `${normalized.slice(0, 137).trim()}...`;
-}
-
-function parseCardsTargetPath(value: string | undefined): string | undefined {
-	if (!value) {
-		return undefined;
-	}
-
-	const internalLinkMatch = value.match(/^\s*\[\[([^\]|]+)(?:\|[^\]]*)?\]\]\s*$/);
-	const rawPath = internalLinkMatch?.[1] ?? value;
-	const path = normalizeVaultPath(rawPath);
-
-	if (!path) {
-		return undefined;
-	}
-
-	if (/\.md$/i.test(path)) {
-		return path;
-	}
-
-	return getPathBasename(path).toLocaleLowerCase() === "card" ? `${path}.md` : path;
-}
-
-function getPathBasename(path: string): string {
-	const parts = path.split("/").filter((part) => part.length > 0);
-
-	return parts[parts.length - 1] ?? "";
 }

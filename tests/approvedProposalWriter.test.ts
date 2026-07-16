@@ -8,6 +8,7 @@ import { SourceAnalysisStore } from "../src/services/sourceAnalysisStore";
 import { createPluginData, createProposal, createSourceRecord, MemoryKnowledgeProposalStorage } from "./knowledgeProposalTestUtils";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
 import type { ConceptSummary } from "../src/models/conceptLibrary";
+import { getCardGroupPathFromConceptFrontmatter } from "../src/services/conceptMarkdownIdentity";
 
 class MemoryVaultAdapter implements MnemeVaultAdapter {
 	createdFolders = new Set<string>();
@@ -258,6 +259,34 @@ async function runAsyncTests(): Promise<void> {
 		const content = await vault.read(declaredCardGroupPath);
 		assert.match(content, /concept: "\[\[Knowledge\/Encapsulation\|Encapsulation as a Boundary\]\]"/);
 		assert.equal(vault.files.has("Mneme/Cards/Renamed-Encapsulation/Cards.md"), false);
+	}
+
+	{
+		const proposal = createApprovedCardProposal("proposal-card-canonical-link");
+		const declaredCardGroupPath = getCardGroupPathFromConceptFrontmatter({
+			cards: "[[Mneme/Cards/Canonical-Concept/Cards|Canonical Concept Cards]]",
+			mneme_id: "concept-encapsulation",
+			mneme_type: "concept",
+		});
+		assert.equal(declaredCardGroupPath, "Mneme/Cards/Canonical-Concept/Cards.md");
+		const vault = new MemoryVaultAdapter();
+		const { writer } = await createWriter(
+			{ [proposal.id]: proposal },
+			vault,
+			undefined,
+			{
+				cardsPath: declaredCardGroupPath,
+				conceptId: "concept-encapsulation",
+				path: "Mneme/Concepts/Canonical-Concept.md",
+				title: "Canonical Concept",
+			},
+		);
+
+		const result = await writer.writeApprovedProposal(proposal.id);
+
+		assert.equal(result.status, "written");
+		assert.deepEqual(result.targetPaths, ["Mneme/Cards/Canonical-Concept/Cards.md"]);
+		assert.equal(vault.files.has("Mneme/Cards/Canonical-Concept/Cards/Cards.md"), false);
 	}
 
 	{

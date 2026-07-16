@@ -8,7 +8,7 @@ import type {
 } from "../models/conceptLibrary";
 import type { ConceptSourceLink } from "../models/conceptSource";
 import {
-	getCardGroupLinkFromConceptFrontmatter,
+	getCardGroupPathFromConceptFrontmatter,
 	getConceptIdFromFrontmatter,
 	isMnemeConceptFrontmatter,
 } from "./conceptMarkdownIdentity";
@@ -68,7 +68,7 @@ export class ConceptScanner {
 
 			const markdown = await this.options.vault.readMarkdown(file.path);
 			candidates.push({
-				cardsPath: parseCardsPath(getCardGroupLinkFromConceptFrontmatter(frontmatter)),
+				cardsPath: getCardGroupPathFromConceptFrontmatter(frontmatter),
 				conceptId: getConceptIdFromFrontmatter(frontmatter),
 				file,
 				frontmatter,
@@ -194,33 +194,7 @@ function normalizeTag(value: string): string {
 		.replace(/\s+/g, "-");
 }
 
-function parseCardsPath(cardsLink: string | undefined): string | undefined {
-	if (!cardsLink) {
-		return undefined;
-	}
-
-	const internalLinkMatch = cardsLink.match(/^\s*\[\[([^\]|]+)(?:\|[^\]]*)?\]\]\s*$/);
-	const rawPath = internalLinkMatch?.[1] ?? cardsLink;
-	const path = rawPath.trim().replace(/\\/g, "/").replace(/\/+/g, "/").replace(/^\/+/, "");
-
-	if (!path) {
-		return undefined;
-	}
-
-	if (/\.md$/i.test(path)) {
-		return path;
-	}
-
-	return getPathBasename(path).toLocaleLowerCase() === "card" ? `${path}.md` : path;
-}
-
 function compareConceptSummariesByTitle(first: ConceptSummary, second: ConceptSummary): number {
 	return first.title.localeCompare(second.title, undefined, { sensitivity: "base" })
 		|| first.path.localeCompare(second.path);
-}
-
-function getPathBasename(path: string): string {
-	const parts = path.split("/").filter((part) => part.length > 0);
-
-	return parts[parts.length - 1] ?? "";
 }

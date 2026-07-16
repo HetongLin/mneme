@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
 	getCardGroupConceptIdFromFrontmatter,
 	getCardGroupLinkFromConceptFrontmatter,
+	getCardGroupPathFromConceptFrontmatter,
 	getConceptIdFromFrontmatter,
 	getConceptLinkFromCardGroupFrontmatter,
 	isMnemeCardGroupFrontmatter,
@@ -53,8 +54,39 @@ import {
 		"[[Mneme/Cards/Information Gain/Card|Information Gain Cards]]",
 	);
 	assert.equal(
+		getCardGroupPathFromConceptFrontmatter(conceptFrontmatter),
+		"Mneme/Cards/Information Gain/Card.md",
+	);
+	assert.equal(
 		getConceptLinkFromCardGroupFrontmatter(cardFrontmatter),
 		"[[Mneme/Concepts/Information Gain/Concept|Information Gain]]",
+	);
+}
+
+{
+	const canonicalFrontmatter = {
+		cards: "[[Mneme/Cards/Spacing Effect/Cards|Spacing Effect Cards]]",
+		cards_folder: "Mneme/Cards/Legacy-Spacing-Effect",
+		mneme_id: "concept-spacing-effect",
+		mneme_type: "concept",
+	};
+	const legacyFrontmatter = {
+		cards_folder: "Mneme\\Cards\\Legacy-Spacing-Effect",
+		mneme_id: "concept-legacy-spacing-effect",
+		mneme_type: "concept",
+	};
+
+	assert.equal(
+		getCardGroupPathFromConceptFrontmatter(canonicalFrontmatter),
+		"Mneme/Cards/Spacing Effect/Cards.md",
+	);
+	assert.equal(
+		getCardGroupLinkFromConceptFrontmatter(canonicalFrontmatter),
+		canonicalFrontmatter.cards,
+	);
+	assert.equal(
+		getCardGroupPathFromConceptFrontmatter(legacyFrontmatter),
+		"Mneme/Cards/Legacy-Spacing-Effect",
 	);
 }
 

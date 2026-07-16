@@ -109,6 +109,24 @@ async function runAsyncTests(): Promise<void> {
 
 	{
 		const scanner = new ConceptScanner({
+			vault: new MemoryConceptVaultAdapter({
+				"Mneme/Concepts/Spacing-Effect.md": {
+					frontmatter: {
+						cards: "[[Mneme/Cards/Spacing-Effect/Cards|Spacing Effect Cards]]",
+						mneme_id: "concept-spacing-effect",
+						mneme_type: "concept",
+					},
+					markdown: "# Spacing Effect",
+				},
+			}),
+		});
+		const concepts = await scanner.scanConcepts();
+
+		assert.equal(concepts[0].cardsPath, "Mneme/Cards/Spacing-Effect/Cards.md");
+	}
+
+	{
+		const scanner = new ConceptScanner({
 			conceptSourceLinkStore: new MemoryConceptSourceLinkReader([
 				createConceptSourceLink("link-a", { conceptId: "concept-a", status: "approved" }),
 				createConceptSourceLink("link-b", { conceptId: "concept-a", status: "suggested" }),
