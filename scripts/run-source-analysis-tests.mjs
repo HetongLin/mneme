@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 const tests = [
+	"tests/currentNoteActionPolicy.test.ts",
 	"tests/sourceHash.test.ts",
 	"tests/sourceAnalysisDecision.test.ts",
 	"tests/conceptSourceModel.test.ts",

@@ -116,7 +116,9 @@ Analyze Current Note indexes the Source Note and, when AI Capture is enabled, as
 
 Generate Cards from Current Concept works only from a written Mneme Concept Markdown file. It sends assessable Concept content plus existing Card fronts as a Coverage Map, accepts only `new_card` responses, and stores validated Card proposals in Inbox. An accepted Card appends one independently identified block to the Concept's Card Group.
 
-Analyze Current Note is for Source Notes, not written Mneme Concepts. Running Source Note analysis on a Concept would re-treat approved knowledge as raw input and can create confusing duplicate proposals, so Mneme blocks it.
+Analyze Current Note is for ordinary Markdown Source Notes, not written Mneme Concepts or Mneme's internal Concept/Card files. Running Source Note analysis on an approved or internal artifact would re-treat Mneme output as raw input and can create circular or duplicate proposals, so Mneme excludes the command in those contexts and retains a runtime guard.
+
+Current-note commands follow the active note: Source Notes offer Concept analysis, reviewable Concepts offer Card generation and Card opening, and exploratory Concepts offer only Card opening. Irrelevant commands stay out of the command palette so the student sees actions that can produce a valid result.
 
 Card generation is coverage-driven and bounded to at most five proposals per run. Each proposal identifies the approved Concept claim or section it tests. If generation reveals missing knowledge, Mneme proposes a Concept update first rather than inserting new knowledge into a Card.
 

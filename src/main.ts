@@ -24,6 +24,13 @@ import { AiGenerationLock } from "./services/aiGenerationLock";
 import { exportCardsToAnkiTsv } from "./services/ankiTsvExporter";
 import { createAiProvider } from "./services/aiProviderFactory";
 import { ConceptSourceLinkStore } from "./services/conceptSourceLinkStore";
+import {
+	canAnalyzeCurrentNote,
+	canGenerateCardsFromCurrentConcept,
+	canOpenCardsForCurrentConcept,
+	classifyCurrentNote,
+	type CurrentNoteKind,
+} from "./services/currentNoteActionPolicy";
 import { ConceptScanner } from "./services/conceptScanner";
 import { ConceptLoader } from "./services/conceptLoader";
 import { ConceptMergeService } from "./services/conceptMergeService";
@@ -171,24 +178,30 @@ export default class MnemePlugin extends Plugin {
 		this.addCommand({
 			id: "mneme-analyze-current-note",
 			name: "Analyze Current Note",
-			callback: () => {
-				void this.analyzeCurrentNote();
+			checkCallback: (checking) => {
+				const available = canAnalyzeCurrentNote(this.getCurrentNoteKind());
+				if (!checking && available) void this.analyzeCurrentNote();
+				return available;
 			},
 		});
 
 		this.addCommand({
 			id: "mneme-generate-cards-from-current-concept",
 			name: "Generate Cards from Current Concept",
-			callback: () => {
-				void this.generateCardsFromCurrentConcept();
+			checkCallback: (checking) => {
+				const available = canGenerateCardsFromCurrentConcept(this.getCurrentNoteKind());
+				if (!checking && available) void this.generateCardsFromCurrentConcept();
+				return available;
 			},
 		});
 
 		this.addCommand({
 			id: "mneme-open-cards-for-current-concept",
 			name: "Open Cards for Current Concept",
-			callback: () => {
-				void this.openCardsForCurrentConcept();
+			checkCallback: (checking) => {
+				const available = canOpenCardsForCurrentConcept(this.getCurrentNoteKind());
+				if (!checking && available) void this.openCardsForCurrentConcept();
+				return available;
 			},
 		});
 
@@ -352,20 +365,25 @@ export default class MnemePlugin extends Plugin {
 
 	private async analyzeCurrentNote(): Promise<void> {
 		const activeFile = this.app.workspace.getActiveFile();
+		const noteKind = this.getCurrentNoteKind();
 
-		if (!activeFile) {
+		if (noteKind === "none" || !activeFile) {
 			new Notice("No active note to analyze.");
 			return;
 		}
 
-		if (activeFile.extension !== "md") {
+		if (noteKind === "non_markdown") {
 			new Notice("Active file is not a Markdown note.");
 			return;
 		}
 
-		const frontmatter = this.app.metadataCache.getFileCache(activeFile)?.frontmatter;
-		if (getConceptIdFromFrontmatter(frontmatter)) {
+		if (noteKind === "reviewable_concept" || noteKind === "exploratory_concept") {
 			new Notice("Mneme: Analyze Current Note cannot be used on Mneme Concepts.");
+			return;
+		}
+
+		if (noteKind === "mneme_internal") {
+			new Notice("Mneme: Analyze Current Note cannot be used on Mneme internal files.");
 			return;
 		}
 
@@ -428,8 +446,14 @@ export default class MnemePlugin extends Plugin {
 
 	private async generateCardsFromCurrentConcept(): Promise<void> {
 		const activeFile = this.app.workspace.getActiveFile();
+		const noteKind = this.getCurrentNoteKind();
 
-		if (!activeFile || activeFile.extension !== "md") {
+		if (noteKind === "exploratory_concept") {
+			new Notice("Mneme: Exploratory Concepts do not generate review Cards.");
+			return;
+		}
+
+		if (!activeFile || !canGenerateCardsFromCurrentConcept(noteKind)) {
 			new Notice("Mneme: Open a written Concept before generating Cards.");
 			return;
 		}
@@ -451,7 +475,7 @@ export default class MnemePlugin extends Plugin {
 	private async openCardsForCurrentConcept(): Promise<void> {
 		const activeFile = this.app.workspace.getActiveFile();
 
-		if (!activeFile || activeFile.extension !== "md") {
+		if (!activeFile || !canOpenCardsForCurrentConcept(this.getCurrentNoteKind())) {
 			new Notice("Mneme: Open a written Concept before opening its Cards.");
 			return;
 		}
@@ -925,11 +949,26 @@ export default class MnemePlugin extends Plugin {
 	}
 
 	private isManualConceptSourceFile(file: TFile): boolean {
-		if (file.extension !== "md") return false;
-		if (getConceptIdFromFrontmatter(this.app.metadataCache.getFileCache(file)?.frontmatter)) return false;
+		return classifyCurrentNote(this.getNoteContext(file)) === "source_note";
+	}
 
-		return !isPathInsideFolder(file.path, this.settings.conceptsFolder)
-			&& !isPathInsideFolder(file.path, this.settings.cardsFolder);
+	private getCurrentNoteKind(): CurrentNoteKind {
+		return classifyCurrentNote(this.getNoteContext(this.app.workspace.getActiveFile()));
+	}
+
+	private getNoteContext(file: TFile | null) {
+		const frontmatter = file
+			? this.app.metadataCache.getFileCache(file)?.frontmatter
+			: undefined;
+
+		return {
+			cardsFolder: this.settings.cardsFolder,
+			conceptsFolder: this.settings.conceptsFolder,
+			extension: file?.extension,
+			hasConceptId: !!getConceptIdFromFrontmatter(frontmatter),
+			learningMode: frontmatter?.learning_mode,
+			path: file?.path,
+		};
 	}
 
 	private async readManualConceptSourceSnapshot(sourcePath: string): Promise<ManualConceptSourceSnapshot> {
@@ -1139,12 +1178,4 @@ function getPathBasename(path: string): string {
 	const parts = path.split("/").filter((part) => part.length > 0);
 
 	return parts[parts.length - 1] ?? "";
-}
-
-function isPathInsideFolder(path: string, folder: string): boolean {
-	const normalizedPath = normalizeVaultPath(path).toLocaleLowerCase();
-	const normalizedFolder = normalizeVaultPath(folder).replace(/\/$/u, "").toLocaleLowerCase();
-
-	return !!normalizedFolder
-		&& (normalizedPath === normalizedFolder || normalizedPath.startsWith(`${normalizedFolder}/`));
 }

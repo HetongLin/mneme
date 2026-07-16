@@ -992,3 +992,27 @@ Acceptance criteria:
 - Existing Source analysis and AI capture metadata survive manual provenance linking
 - Failed provenance persistence leaves no Concept file when rollback succeeds
 - Rollback failure is explicit and does not hide the original persistence failure
+
+## Task 057: Context-Aware Current Note Commands
+
+Goal:
+
+Show only valid learning actions for the active note and prevent Mneme output from being analyzed as Source material.
+
+Requirements:
+
+- Classify the active file consistently as no file, non-Markdown, Source Note, reviewable Concept, exploratory Concept, or Mneme internal file
+- Offer Analyze Current Note only for ordinary Markdown Source Notes
+- Exclude files inside the configured Concepts and Cards folders even when their frontmatter is incomplete
+- Offer Generate Cards from Current Concept only for reviewable Concepts
+- Offer Open Cards for Current Concept for both reviewable and exploratory Concepts
+- Reuse the same Source Note rule in the manual Concept Composer
+- Retain runtime guards in addition to command-palette eligibility
+
+Acceptance criteria:
+
+- Concept and Card Markdown cannot be re-analyzed into Concept proposals
+- Source Notes do not show Concept-only Card actions
+- Exploratory Concepts do not show Card generation
+- Folder matching is normalized, case-insensitive, and does not confuse prefix siblings such as `Cards` and `Cardstock`
+- Command eligibility and Composer source eligibility cannot drift into separate policies

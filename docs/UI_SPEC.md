@@ -10,6 +10,8 @@ Concept titles use the shortest unambiguous canonical name. They identify the re
 
 AI generation is single-flight per file. While Concept generation is running for a Source Note, another Analyze Current Note request for that note is rejected with an in-progress notice. While Card generation is running for a Concept, another Generate Cards request for that Concept is rejected. The Concept Library button is disabled and reads `Generating...` until the request finishes. Success, invalid responses, configuration errors, and provider failures all release the lock so the user can retry.
 
+Current-note commands are context-aware. `Analyze Current Note` appears only for ordinary Markdown Source Notes, never for Concepts or files inside Mneme's Concepts/Cards folders. `Generate Cards from Current Concept` appears only for reviewable Concepts. `Open Cards for Current Concept` appears for any written Concept, including exploratory Concepts that may already have a Card Group. Runtime checks enforce the same rules even when an action is invoked outside the command palette.
+
 AI settings label the per-request limit as `AI chunk size`. Longer Source Notes are analyzed completely across Markdown-aware chunks rather than truncated. A completed capture reports `Analyzed {analyzed}/{total} characters across {count} chunks.` so the student can verify coverage; a failed chunk reports its chunk position and no proposal from that capture is written.
 
 AI should prefer stable English lowercase tag slugs, but user-approved and manually entered tags may use any language already meaningful in the vault. Mneme normalizes whitespace and punctuation without deleting non-Latin text.
