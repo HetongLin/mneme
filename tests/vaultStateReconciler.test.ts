@@ -101,11 +101,22 @@ async function runAsyncTests(): Promise<void> {
 			sourcePath: "Notes/Existing.md",
 			status: "edited",
 		});
+		const sourceRecord = {
+			...createSourceRecord("Notes/Existing.md"),
+			pendingProposalIds: [
+				rejectedProposal.id,
+				writtenProposal.id,
+				approvedProposal.id,
+				activeProposal.id,
+			],
+		};
 		const storage = new MemoryKnowledgeProposalStorage(createPluginData({
 			[rejectedProposal.id]: rejectedProposal,
 			[writtenProposal.id]: writtenProposal,
 			[approvedProposal.id]: approvedProposal,
 			[activeProposal.id]: activeProposal,
+		}, {
+			[sourceRecord.sourcePath]: sourceRecord,
 		}));
 		const vault = new MemoryVaultStateAdapter(new Set(["Notes/Existing.md"]));
 		const result = await createReconciler(storage, vault).reconcile();
@@ -117,6 +128,10 @@ async function runAsyncTests(): Promise<void> {
 			"written-proposal",
 		]);
 		assert.equal(typeof proposals["active-proposal"], "object");
+		assert.deepEqual(
+			storage.savedData?.sourceAnalysisRecords["Notes/Existing.md"]?.pendingProposalIds,
+			["active-proposal"],
+		);
 	}
 
 	{

@@ -38,7 +38,7 @@ export class VaultStateReconciler {
 
 	async reconcile(): Promise<VaultStateReconciliationResult> {
 		const proposalResult = await this.reconcileProposals();
-		const sourceResult = await this.reconcileSourceAnalysisRecords();
+		const sourceResult = await this.reconcileSourceAnalysisRecords(proposalResult.activeProposalIds);
 		const linkResult = await this.reconcileConceptSourceLinks();
 		const removedCount = proposalResult.removedProposalIds.length
 			+ sourceResult.removedSourcePaths.length
@@ -57,7 +57,10 @@ export class VaultStateReconciler {
 		};
 	}
 
-	private async reconcileProposals(): Promise<{ removedProposalIds: string[] }> {
+	private async reconcileProposals(): Promise<{
+		activeProposalIds: Set<string>;
+		removedProposalIds: string[];
+	}> {
 		const proposals = await this.options.knowledgeProposalStore.loadProposals();
 		const activeProposals: Record<string, KnowledgeProposal> = {};
 		const removedProposalIds: string[] = [];
@@ -74,7 +77,10 @@ export class VaultStateReconciler {
 			await this.options.knowledgeProposalStore.replaceProposals(activeProposals);
 		}
 
-		return { removedProposalIds };
+		return {
+			activeProposalIds: new Set(Object.keys(activeProposals)),
+			removedProposalIds,
+		};
 	}
 
 	private async shouldKeepProposal(proposal: KnowledgeProposal): Promise<boolean> {
@@ -89,13 +95,24 @@ export class VaultStateReconciler {
 		return this.options.vault.exists(proposal.sourcePath);
 	}
 
-	private async reconcileSourceAnalysisRecords(): Promise<{ removedSourcePaths: string[] }> {
+	private async reconcileSourceAnalysisRecords(
+		activeProposalIds: Set<string>,
+	): Promise<{ removedSourcePaths: string[] }> {
 		const records = await this.options.sourceAnalysisStore.loadRecords();
 		const activeRecords = { ...records };
 		const removedSourcePaths: string[] = [];
+		let pendingProposalIdsChanged = false;
 
 		for (const [sourcePath, record] of Object.entries(records)) {
 			if (await this.options.vault.exists(record.sourcePath)) {
+				const pendingProposalIds = record.pendingProposalIds.filter((proposalId) => (
+					activeProposalIds.has(proposalId)
+				));
+
+				if (pendingProposalIds.length !== record.pendingProposalIds.length) {
+					activeRecords[sourcePath] = { ...record, pendingProposalIds };
+					pendingProposalIdsChanged = true;
+				}
 				continue;
 			}
 
@@ -103,7 +120,7 @@ export class VaultStateReconciler {
 			removedSourcePaths.push(sourcePath);
 		}
 
-		if (removedSourcePaths.length > 0) {
+		if (removedSourcePaths.length > 0 || pendingProposalIdsChanged) {
 			await this.options.sourceAnalysisStore.replaceRecords(activeRecords);
 		}
 
