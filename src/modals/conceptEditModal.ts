@@ -12,6 +12,12 @@ import {
 	ConceptEditBaseline,
 	hasTargetedConceptEditConflict,
 } from "../services/conceptEditConflict";
+import {
+	formatRetentionTarget,
+	MAX_CONCEPT_RETENTION_TARGET,
+	MIN_CONCEPT_RETENTION_TARGET,
+	parseConceptRetentionTarget,
+} from "../services/conceptRetentionPolicy";
 import { extractCoreMeaning, extractWhyItMatters } from "../services/conceptMarkdownParser";
 import { updateConceptSections } from "../services/conceptSectionUpdater";
 import { createMarkdownLivePreviewField } from "../ui/markdownLivePreviewField";
@@ -19,6 +25,7 @@ import { formatUserFacingError } from "../utils/userFacingError";
 
 export interface ConceptEditModalOptions {
 	concept: ConceptSummary;
+	globalRetentionTarget?: number;
 	onSaved(): Promise<void> | void;
 }
 
@@ -57,6 +64,7 @@ export class ConceptEditModal extends Modal {
 				coreMeaning: extractCoreMeaning(markdown) ?? "",
 				importance: metadata.importance,
 				learningMode: metadata.learningMode,
+				retentionTarget: metadata.retentionTarget,
 				tags: metadata.tags,
 				whyItMatters: extractWhyItMatters(markdown) ?? "",
 			};
@@ -93,6 +101,7 @@ export class ConceptEditModal extends Modal {
 			baseline.importance,
 			[["low", "Low"], ["normal", "Normal"], ["high", "High"], ["critical", "Critical"]],
 		);
+		const retentionTargetInput = this.createRetentionTargetInput(contentEl, baseline.retentionTarget);
 		const tagsInput = this.createTextInput(
 			contentEl,
 			"Tags",
@@ -105,10 +114,16 @@ export class ConceptEditModal extends Modal {
 
 		cancelButton.addEventListener("click", () => this.close());
 		saveButton.addEventListener("click", () => {
+			const retentionTarget = parseConceptRetentionTarget(retentionTargetInput.value);
+			if (retentionTargetInput.value.trim().length > 0 && retentionTarget === undefined) {
+				new Notice("Mneme: Retention Target must be between 0.70 and 0.98.");
+				return;
+			}
 			void this.save({
 				coreMeaning: coreMeaningInput.value,
 				importance: parseImportance(importanceSelect.value),
 				learningMode: parseLearningMode(learningModeSelect.value),
+				retentionTarget,
 				tags: parseTags(tagsInput.value),
 				whyItMatters: whyInput.value,
 			}, saveButton);
@@ -126,6 +141,27 @@ export class ConceptEditModal extends Modal {
 			},
 		});
 		input.value = value;
+
+		return input;
+	}
+
+	private createRetentionTargetInput(parentEl: HTMLElement, value: number | undefined): HTMLInputElement {
+		const globalTarget = this.options.globalRetentionTarget ?? 0.9;
+		const labelEl = parentEl.createEl("label", { cls: "mneme-proposal-detail-field" });
+		labelEl.createEl("span", { text: "Retention Target" });
+		const input = labelEl.createEl("input", {
+			attr: {
+				max: String(MAX_CONCEPT_RETENTION_TARGET),
+				min: String(MIN_CONCEPT_RETENTION_TARGET),
+				placeholder: `Global ${formatRetentionTarget(globalTarget)}`,
+				step: "0.01",
+				type: "number",
+			},
+		});
+		input.value = value === undefined ? "" : formatRetentionTarget(value);
+		labelEl.createEl("small", {
+			text: "Optional FSRS policy for future ratings. Blank uses the global target; existing due dates stay unchanged.",
+		});
 
 		return input;
 	}
@@ -189,6 +225,7 @@ export class ConceptEditModal extends Modal {
 			updatedMarkdown = updateConceptMetadata(updatedMarkdown, {
 				importance: next.importance ?? null,
 				learningMode: next.learningMode ?? null,
+				retentionTarget: next.retentionTarget ?? null,
 				tags: next.tags,
 			});
 

@@ -123,6 +123,7 @@ export default class MnemePlugin extends Plugin {
 					this,
 				),
 				createConcept: () => this.openConceptComposerView(),
+				getGlobalRetentionTarget: () => this.settings.fsrsRequestRetention,
 				sourceRelinkService: new SourceProvenanceRelinkService(
 					new ObsidianVaultAdapter(this.app.vault),
 					this,

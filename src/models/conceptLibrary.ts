@@ -9,6 +9,7 @@ export interface ConceptSummary {
 	importance?: ConceptImportance;
 	learningMode?: ConceptLearningMode;
 	path: string;
+	retentionTarget?: number;
 	sourceCount?: number;
 	tags?: string[];
 	title: string;

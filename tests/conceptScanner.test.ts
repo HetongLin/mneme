@@ -49,6 +49,7 @@ async function runAsyncTests(): Promise<void> {
 						learning_mode: "reviewable",
 						mneme_id: "concept-encapsulation",
 						mneme_type: "concept",
+						retention_target: 0.94,
 						tags: ["oop", "design"],
 					},
 					markdown: [
@@ -79,6 +80,7 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(concepts[0].conceptId, "concept-encapsulation");
 		assert.equal(concepts[0].learningMode, "reviewable");
 		assert.equal(concepts[0].importance, "high");
+		assert.equal(concepts[0].retentionTarget, 0.94);
 		assert.equal(concepts[0].title, "Encapsulation");
 		assert.equal(concepts[0].coreMeaning, "Encapsulation protects representation.");
 		assert.equal(concepts[0].whyItMatters, "It keeps change local.");

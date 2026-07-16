@@ -29,6 +29,7 @@ export const CONCEPT_LIBRARY_VIEW_TYPE = "mneme-concept-library-view";
 export interface ConceptLibraryActions {
 	conceptMergeService?: ConceptMergeService;
 	createConcept?(): Promise<void> | void;
+	getGlobalRetentionTarget?(): number;
 	sourceRelinkService?: SourceProvenanceRelinkService;
 	sourceRemovalService?: SourceProvenanceRemovalService;
 	generateCards?(concept: ConceptSummary): Promise<void> | void;
@@ -570,6 +571,7 @@ export class MnemeConceptLibraryView extends ItemView {
 	private openConceptEditor(concept: ConceptSummary): void {
 		new ConceptEditModal(this.app, {
 			concept,
+			globalRetentionTarget: this.actions.getGlobalRetentionTarget?.(),
 			onSaved: () => this.refresh(),
 		}).open();
 	}

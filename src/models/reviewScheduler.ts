@@ -4,6 +4,7 @@ export interface ReviewScheduleInput {
 	cardId: string;
 	previousState?: CardReviewState;
 	rating: ReviewRating;
+	requestRetention?: number;
 	reviewedAt: string;
 }
 

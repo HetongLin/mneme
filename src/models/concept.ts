@@ -11,6 +11,7 @@ export interface MnemeConcept {
 	importance?: ConceptImportance;
 	isReviewable: boolean;
 	learningMode?: ConceptLearningMode;
+	retentionTarget?: number;
 	sourcePath?: string;
 	title: string;
 	warnings: string[];

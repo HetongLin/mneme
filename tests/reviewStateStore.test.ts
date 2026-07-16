@@ -254,10 +254,13 @@ async function runAsyncTests(): Promise<void> {
 		const store = new ReviewStateStore(storage, scheduler);
 
 		await store.load();
-		const updatedState = await store.recordReview("encapsulation-basic", "good");
+		const updatedState = await store.recordReview("encapsulation-basic", "good", {
+			requestRetention: 0.94,
+		});
 
 		assert.equal(scheduler.lastInput?.cardId, "encapsulation-basic");
 		assert.equal(scheduler.lastInput?.rating, "good");
+		assert.equal(scheduler.lastInput?.requestRetention, 0.94);
 		assert.equal(scheduler.lastInput?.previousState, undefined);
 		assert.equal(updatedState.cardId, "encapsulation-basic");
 		assert.equal(updatedState.reviewCount, 1);

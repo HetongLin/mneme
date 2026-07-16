@@ -5,6 +5,7 @@ import path from "node:path";
 const tests = [
 	"tests/conceptMetadataUpdater.test.ts",
 	"tests/conceptEditConflict.test.ts",
+	"tests/conceptRetentionPolicy.test.ts",
 ];
 
 for (const test of tests) {

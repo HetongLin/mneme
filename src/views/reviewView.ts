@@ -504,6 +504,13 @@ export class MnemeReviewView extends ItemView {
 			conceptEl.createEl("p", { text: `Concept: ${concept.concept.conceptPath}` });
 		}
 
+		conceptEl.createEl("p", {
+			text: formatRetentionPolicy(
+				concept.concept.retentionTarget,
+				this.settingsProvider().fsrsRequestRetention,
+			),
+		});
+
 		if (this.pausedConceptIds.has(concept.conceptId)) {
 			conceptEl.createEl("p", { text: "Today’s Focus: Paused" });
 			conceptEl.createEl("button", { text: "Resume Concept" }, (buttonEl) => {
@@ -694,6 +701,12 @@ export class MnemeReviewView extends ItemView {
 		const memorySummary = this.memorySummaries[concept.conceptId];
 
 		detailsEl.createEl("summary", { text: "Details" });
+		detailsEl.createEl("p", {
+			text: formatRetentionPolicy(
+				concept.concept.retentionTarget,
+				this.settingsProvider().fsrsRequestRetention,
+			),
+		});
 
 		if (memorySummary) {
 			this.renderCompactMemoryDetails(detailsEl, memorySummary, rankedConcept);
@@ -1016,7 +1029,9 @@ export class MnemeReviewView extends ItemView {
 
 		let updatedReviewState: CardReviewState;
 		try {
-			updatedReviewState = await this.reviewStateStore.recordReview(card.cardId, rating);
+			updatedReviewState = await this.reviewStateStore.recordReview(card.cardId, rating, {
+				requestRetention: concept.concept.retentionTarget,
+			});
 		} catch (error) {
 			console.error("Mneme: failed to record review rating", {
 				cardId: card.cardId,
@@ -1268,6 +1283,12 @@ function formatCardMeta(cardNumber: number, cardCount: number, reviewCount = 0):
 	const reviewLabel = reviewCount === 1 ? "Reviewed 1 time" : `Reviewed ${reviewCount} times`;
 
 	return `${cardLabel} · ${reviewLabel}`;
+}
+
+function formatRetentionPolicy(conceptTarget: number | undefined, globalTarget: number): string {
+	return conceptTarget === undefined
+		? `Retention Target: ${globalTarget.toFixed(2)} (global)`
+		: `Retention Target: ${conceptTarget.toFixed(2)} (Concept override)`;
 }
 
 function formatReviewCount(reviewCount: number): string {

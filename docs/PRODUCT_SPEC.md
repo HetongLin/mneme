@@ -141,6 +141,7 @@ User experience is the first requirement. Internal schemas can be strict and det
 - Concept Learning State is a reasoned aggregate of Card evidence, coverage, and student input. Mneme does not claim a mastery percentage.
 - FSRS owns Card scheduling only. Exam Attempts, Use activity, Concept ranking, and AI Rating Suggestions cannot update FSRS without an explicit normal Card review and user-confirmed rating.
 - Importance expresses long-term knowledge value and is independent of the global FSRS Retention Target.
+- A Concept-specific Retention Target exists only when the student explicitly sets it. It affects future FSRS rating transitions for that Concept's Cards, never existing due dates, eligibility, or priority; clearing it restores the global target.
 - Source provenance survives Source deletion as stale evidence until the student explicitly relinks or removes it.
 - Possible Duplicates require a Guided Merge with a final diff; the merged path becomes a Redirect Note.
 - Anki interoperability is a one-way UTF-8 TSV export of active valid approved Cards. Exported cards are independent copies with no sync.

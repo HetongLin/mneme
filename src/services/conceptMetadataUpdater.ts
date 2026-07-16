@@ -1,14 +1,17 @@
 import type { ConceptImportance, ConceptLearningMode } from "../models/conceptLibrary";
+import { formatRetentionTarget, parseConceptRetentionTarget } from "./conceptRetentionPolicy";
 
 export interface ConceptEditableMetadata {
 	importance?: ConceptImportance;
 	learningMode?: ConceptLearningMode;
+	retentionTarget?: number;
 	tags: string[];
 }
 
 export interface ConceptMetadataUpdate {
 	importance?: ConceptImportance | null;
 	learningMode?: ConceptLearningMode | null;
+	retentionTarget?: number | null;
 	tags?: string[] | null;
 }
 
@@ -21,10 +24,12 @@ export function readConceptEditableMetadata(markdown: string): ConceptEditableMe
 
 	const importance = readScalar(frontmatter.lines, "importance");
 	const learningMode = readScalar(frontmatter.lines, "learning_mode");
+	const retentionTarget = parseConceptRetentionTarget(readScalar(frontmatter.lines, "retention_target"));
 
 	return {
 		importance: isImportance(importance) ? importance : undefined,
 		learningMode: isLearningMode(learningMode) ? learningMode : undefined,
+		...(retentionTarget === undefined ? {} : { retentionTarget }),
 		tags: readTags(frontmatter.lines),
 	};
 }
@@ -44,6 +49,17 @@ export function updateConceptMetadata(markdown: string, update: ConceptMetadataU
 
 	if (update.importance !== undefined) {
 		lines = setScalar(lines, "importance", update.importance);
+	}
+
+	if (update.retentionTarget !== undefined) {
+		if (update.retentionTarget !== null && parseConceptRetentionTarget(update.retentionTarget) === undefined) {
+			throw new Error("Retention Target must be between 0.70 and 0.98.");
+		}
+		lines = setScalar(
+			lines,
+			"retention_target",
+			update.retentionTarget === null ? null : formatRetentionTarget(update.retentionTarget),
+		);
 	}
 
 	if (update.tags !== undefined) {

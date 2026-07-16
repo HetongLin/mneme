@@ -60,6 +60,17 @@ This does not validate:
 26. Open Cards from Concept Library if `cardsPath` exists.
 27. Open Review View and confirm Daily Review behavior is unchanged.
 
+## Concept Retention Policy
+
+1. In Concept Library, open `More` → `Edit Concept` for a reviewable Concept.
+2. Confirm blank `Retention Target` identifies the current global value through its placeholder.
+3. Enter `0.94`, save, and confirm `retention_target: 0.94` appears in Concept frontmatter.
+4. Open Review and confirm Details reports `Retention Target: 0.94 (Concept override)`.
+5. Rate one Card and confirm the normal FSRS review advances once.
+6. Reopen Edit Concept, clear Retention Target, and save.
+7. Confirm the frontmatter field is removed and Review Details reports the global target.
+8. Confirm changing Importance never adds or changes `retention_target` and changing Retention Target does not immediately change an existing Card due date.
+
 ## Pass Criteria
 
 Pass:

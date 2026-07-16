@@ -56,7 +56,11 @@ export class ReviewStateStore {
 		return this.data.reviewStates[cardId];
 	}
 
-	async recordReview(cardId: string, rating: ReviewRating): Promise<CardReviewState> {
+	async recordReview(
+		cardId: string,
+		rating: ReviewRating,
+		options: { requestRetention?: number } = {},
+	): Promise<CardReviewState> {
 		await this.ensureLoaded();
 		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
 		if (latestData.cardTombstones[cardId]) {
@@ -67,6 +71,7 @@ export class ReviewStateStore {
 			cardId,
 			previousState: latestData.reviewStates[cardId],
 			rating,
+			requestRetention: options.requestRetention,
 			reviewedAt,
 		});
 		const reviewEvent: CardReviewEvent = {

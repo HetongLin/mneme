@@ -7,6 +7,7 @@ import {
 	fsrsCardToCardReviewState,
 	mapMnemeRatingToFsrsRating,
 	mapMnemeSettingsToFsrsConfig,
+	withRequestRetention,
 } from "../src/services/fsrsReviewScheduler";
 
 const reviewedAt = "2026-01-01T12:00:00.000Z";
@@ -16,6 +17,21 @@ const reviewedAt = "2026-01-01T12:00:00.000Z";
 	assert.equal(mapMnemeRatingToFsrsRating("hard"), Rating.Hard);
 	assert.equal(mapMnemeRatingToFsrsRating("good"), Rating.Good);
 	assert.equal(mapMnemeRatingToFsrsRating("easy"), Rating.Easy);
+}
+
+{
+	const config = {
+		enableFuzz: false,
+		maximumInterval: 365,
+		requestRetention: 0.9,
+	};
+
+	assert.deepEqual(withRequestRetention(config, 0.95), {
+		...config,
+		requestRetention: 0.95,
+	});
+	assert.deepEqual(config.requestRetention, 0.9);
+	assert.throws(() => withRequestRetention(config, 0.99), /between 0\.70 and 0\.98/);
 }
 
 {

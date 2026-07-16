@@ -132,6 +132,7 @@ Minimal generated frontmatter fields:
 - cards: Obsidian link to the Concept's Card Group file
 - learning_mode: optional reviewable | exploratory
 - importance: optional low | normal | high | critical
+- retention_target: optional explicit Concept-level FSRS request retention from 0.70 to 0.98
 - tags: optional user-approved organization tags for Concept Library filtering
 
 Generated Concepts include only sections with useful content, except the always-present Review Cards link. Recommended sections are:
@@ -200,6 +201,10 @@ Controls how the concept is learned.
 
 - exploratory: only for low-stakes exploration
 - reviewable: concept can have Cards reviewed through FSRS
+
+### retention_target
+
+An optional student-authored override for the global FSRS Request Retention setting. It applies to future rated reviews of Cards belonging to this Concept. It does not reschedule existing Cards when edited, and Importance never supplies or changes it. If omitted, Review uses the current global setting.
 
 ### tags
 

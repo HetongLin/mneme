@@ -156,6 +156,8 @@ Concept Library is primarily a visual quick-review surface, not a metadata dashb
 
 Selecting the card opens the clean Concept note. File paths, tags, learning mode, importance, Source counts, Card counts, and Why It Matters do not appear on the card face. Concept management actions such as Edit Concept, Open Cards, and Generate Cards remain available under the card's collapsed `More` control.
 
+Edit Concept contains an optional numeric `Retention Target` field under Concept metadata. Blank means the current global target; values must be between `0.70` and `0.98`. The helper text states that it affects only future rated FSRS reviews and does not rewrite existing due dates. Review `Details` and Advanced Diagnostics identify whether the effective target is global or a Concept override; it is not shown on the Concept Library card face.
+
 Core Meaning is rendered with Obsidian Markdown, including MathJax formulas delimited by `$...$` or `$$...$$`. Selecting a rendered formula opens Edit Concept so the student can inspect and change the original Markdown/LaTeX source.
 
 Search stays visible. Learning mode, importance, tag, and sort controls live under collapsed `Filters`. Identity Repair, Stale Source Provenance, and Possible Duplicates remain available below the card wall under collapsed `Library maintenance`, so diagnostics do not dominate quick review.

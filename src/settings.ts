@@ -315,5 +315,5 @@ function formatRetention(value: number): string {
 }
 
 function formatRetentionDescription(retention: number): string {
-	return `Global FSRS policy. Higher retention means shorter intervals and more reviews. ${getRetentionWorkloadWarning(retention)} Importance does not change this setting.`;
+	return `Global FSRS policy used unless a Concept has an explicit override. Higher retention means shorter intervals and more reviews. ${getRetentionWorkloadWarning(retention)} Importance does not change retention.`;
 }

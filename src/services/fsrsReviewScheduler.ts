@@ -17,6 +17,7 @@ export const DEFAULT_FSRS_SCHEDULER_CONFIG: FsrsSchedulerConfig = {
 };
 
 export class FsrsReviewScheduler implements ReviewScheduler {
+	private config = { ...DEFAULT_FSRS_SCHEDULER_CONFIG };
 	private scheduler = createScheduler(DEFAULT_FSRS_SCHEDULER_CONFIG);
 
 	constructor(config: Partial<FsrsSchedulerConfig> = {}) {
@@ -24,17 +25,22 @@ export class FsrsReviewScheduler implements ReviewScheduler {
 	}
 
 	updateConfig(config: Partial<FsrsSchedulerConfig>): void {
-		this.scheduler = createScheduler({
+		this.config = {
 			...DEFAULT_FSRS_SCHEDULER_CONFIG,
 			...config,
-		});
+		};
+		validateRequestRetention(this.config.requestRetention);
+		this.scheduler = createScheduler(this.config);
 	}
 
 	schedule(input: ReviewScheduleInput): ReviewScheduleResult {
 		const fsrsCard = cardReviewStateToFsrsCard(input.cardId, input.previousState, input.reviewedAt);
+		const scheduler = input.requestRetention === undefined
+			? this.scheduler
+			: createScheduler(withRequestRetention(this.config, input.requestRetention));
 		// FSRS owns the scheduling transition. Mneme only adapts the input and
 		// serializes result.card; do not reimplement due/stability/difficulty here.
-		const result = this.scheduler.next(fsrsCard, new Date(input.reviewedAt), mapMnemeRatingToFsrsRating(input.rating));
+		const result = scheduler.next(fsrsCard, new Date(input.reviewedAt), mapMnemeRatingToFsrsRating(input.rating));
 		const nextState = fsrsCardToCardReviewState(
 			input.cardId,
 			result.card,
@@ -51,6 +57,18 @@ export class FsrsReviewScheduler implements ReviewScheduler {
 	}
 }
 
+export function withRequestRetention(
+	config: FsrsSchedulerConfig,
+	requestRetention: number,
+): FsrsSchedulerConfig {
+	validateRequestRetention(requestRetention);
+
+	return {
+		...config,
+		requestRetention,
+	};
+}
+
 export function mapMnemeSettingsToFsrsConfig(config: FsrsSchedulerConfig) {
 	return {
 		enable_fuzz: config.enableFuzz,
@@ -61,6 +79,12 @@ export function mapMnemeSettingsToFsrsConfig(config: FsrsSchedulerConfig) {
 
 function createScheduler(config: FsrsSchedulerConfig): ReturnType<typeof fsrs> {
 	return fsrs(mapMnemeSettingsToFsrsConfig(config));
+}
+
+function validateRequestRetention(value: number): void {
+	if (!Number.isFinite(value) || value < 0.7 || value > 0.98) {
+		throw new Error("FSRS request retention must be between 0.70 and 0.98.");
+	}
 }
 
 export function mapMnemeRatingToFsrsRating(rating: ReviewRating): Grade {

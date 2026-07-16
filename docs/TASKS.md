@@ -1039,3 +1039,30 @@ Acceptance criteria:
 - Review rating failures expose the reason without advancing the Card
 - Index resync success is not relabeled as failure when only Inbox refresh fails
 - Primary failure messages remain concise and single-line
+
+## Task 059: Explicit Concept Retention Target
+
+Goal:
+
+Complete the v0.4 policy by allowing a student to override global FSRS request retention for one Concept without coupling it to Importance.
+
+Requirements:
+
+- Store an optional `retention_target` in clean Concept frontmatter
+- Accept only explicit values from `0.70` through `0.98`
+- Edit or clear the override through Edit Concept
+- Keep AI generation and initial manual Concept creation from choosing a retention policy
+- Read the override through Concept Library and the Review loader
+- Pass the override to FSRS only during the next normal rated review of a Card in that Concept
+- Keep existing due dates, Card eligibility, Today’s Focus priority, and Importance unchanged when the override is edited
+- Show the effective global or Concept policy only in Review Details and diagnostics
+
+Acceptance criteria:
+
+- A blank Concept override uses the current global setting
+- A valid override is persisted and survives reload
+- Invalid values cannot be saved
+- `Again / Hard / Good / Easy` uses the selected Concept's override without mutating the global scheduler configuration
+- Clearing the override restores global behavior
+- Editing Importance cannot create or alter `retention_target`
+- Concept Library remains a title-and-Core-Meaning quick-review surface

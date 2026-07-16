@@ -125,7 +125,8 @@ Current progress:
 
 - Written Concept importance now feeds an explicit low/normal/high/critical weight into Today’s Focus priority.
 - Importance is visible in review details and does not modify Card FSRS state or eligibility.
-- Global retention settings already affect future FSRS reviews, and the settings UI warns about review workload tradeoffs. An explicit Concept override remains unfinished.
+- Global retention settings affect future FSRS reviews, and the settings UI warns about review workload tradeoffs.
+- Edit Concept supports an explicit optional Retention Target override. Review Details show the effective policy, and the override is passed only into future normal Card ratings without rewriting existing due dates.
 - Importance must never silently change desired retention.
 
 ## v0.5: Exploratory Concepts
@@ -205,6 +206,11 @@ Includes:
 - Low-pressure workload control
 - Exploratory concepts
 - Basic Concept Manager
+
+Current readiness:
+
+- The v0.1 core loop, v0.2 editing flow, v0.3 low-pressure limits, v0.4 explicit retention policy, v0.5 exploratory policy, and v0.6 identity/provenance repair foundations are implemented.
+- Remaining v1.0 work is stabilization and real-vault acceptance testing rather than adding a new learning mode.
 
 ## v1.1: Random Concept Draw
 

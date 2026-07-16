@@ -18,6 +18,7 @@ import {
 	parseConceptTitle,
 } from "./conceptMarkdownParser";
 import { detectConceptDuplicates } from "./conceptDuplicateDetector";
+import { parseConceptRetentionTarget } from "./conceptRetentionPolicy";
 
 export interface ConceptVaultFile {
 	mtime?: number;
@@ -111,6 +112,7 @@ export class ConceptScanner {
 				importance: getImportance(frontmatter),
 				learningMode: getLearningMode(frontmatter),
 				path: file.path,
+				retentionTarget: parseConceptRetentionTarget(frontmatter.retention_target),
 				sourceCount,
 				tags: getTags(frontmatter),
 				title,

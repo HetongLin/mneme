@@ -13,6 +13,7 @@ import { extractFirstConceptSourcePath, parseObsidianLinkPath } from "./reviewNa
 interface ConceptMetadata {
 	importance?: ConceptImportance;
 	learningMode?: ConceptLearningMode;
+	retentionTarget?: number;
 	sourcePath?: string;
 	title?: string;
 	warnings: string[];
@@ -70,6 +71,7 @@ export class ConceptLoader {
 			importance: metadata.importance,
 			isReviewable: validCards.length > 0 && metadata.learningMode !== "exploratory",
 			learningMode: metadata.learningMode,
+			retentionTarget: metadata.retentionTarget,
 			sourcePath: metadata.sourcePath,
 			title: metadata.title || fallbackTitle,
 			warnings: metadata.warnings,
@@ -131,6 +133,7 @@ export class ConceptLoader {
 			return {
 				importance: editableMetadata.importance,
 				learningMode: editableMetadata.learningMode,
+				retentionTarget: editableMetadata.retentionTarget,
 				sourcePath: frontmatter.source ?? extractFirstConceptSourcePath(content),
 				title: frontmatter.title || getFirstHeading(content),
 				warnings: [],
