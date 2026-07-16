@@ -49,6 +49,65 @@ const multiCard = [
 }
 
 {
+	const changedTarget = multiCard.replace("Answer 2", "Answer changed outside Mneme");
+	const result = updateCardMarkers(changedTarget, {
+		back: "Edited answer",
+		cardBlockIndex: 1,
+		expectedBack: "Answer 2",
+		expectedFront: "Question 2",
+		expectedRubric: "Rubric 2",
+		explicitCardId: "card-two",
+		front: "Edited question",
+		rubric: "Edited rubric",
+	});
+
+	assert.equal(result.status, "conflict");
+	if (result.status !== "updated") {
+		assert.match(result.message, /changed while the editor was open/);
+	}
+}
+
+{
+	const changedOtherCard = multiCard.replace("Question 1", "Question 1 changed outside Mneme");
+	const result = updateCardMarkers(changedOtherCard, {
+		back: "Edited answer 2",
+		cardBlockIndex: 1,
+		expectedBack: "Answer 2",
+		expectedFront: "Question 2",
+		expectedRubric: "Rubric 2",
+		explicitCardId: "card-two",
+		front: "Edited question 2",
+		rubric: "Edited rubric 2",
+	});
+
+	assert.equal(result.status, "updated");
+	if (result.status === "updated") {
+		const cards = parseMnemeCards(result.markdown);
+		assert.equal(cards[0]?.front, "Question 1 changed outside Mneme");
+		assert.equal(cards[1]?.front, "Edited question 2");
+	}
+}
+
+{
+	const duplicateId = multiCard.replace("id=card-one", "id=card-two");
+	const result = updateCardMarkers(duplicateId, {
+		back: "Edited answer",
+		cardBlockIndex: 1,
+		expectedBack: "Answer 2",
+		expectedFront: "Question 2",
+		expectedRubric: "Rubric 2",
+		explicitCardId: "card-two",
+		front: "Edited question",
+		rubric: "Edited rubric",
+	});
+
+	assert.equal(result.status, "conflict");
+	if (result.status !== "updated") {
+		assert.match(result.message, /duplicated/);
+	}
+}
+
+{
 	const result = updateCardMarkers(multiCard, {
 		back: "Answer 1",
 		cardBlockIndex: 0,
@@ -140,6 +199,30 @@ const multiCard = [
 		assert.equal(card?.rubric, "Repaired rubric");
 		assert.equal(result.markdown.includes("Keep this user note."), true);
 	}
+}
+
+{
+	const missingBackChangedOutside = [
+		"# Cards",
+		"",
+		"<!-- MNEME:CARD:start id=card-repair -->",
+		"<!-- MNEME:FRONT:start -->",
+		"Question changed outside Mneme",
+		"<!-- MNEME:FRONT:end -->",
+		"<!-- MNEME:CARD:end -->",
+	].join("\n");
+	const result = repairCardMarkers(missingBackChangedOutside, {
+		back: "Repaired answer",
+		cardBlockIndex: 0,
+		expectedBack: "",
+		expectedFront: "Existing question",
+		expectedRubric: "",
+		explicitCardId: "card-repair",
+		front: "Existing question",
+		rubric: "Repaired rubric",
+	});
+
+	assert.equal(result.status, "conflict");
 }
 
 {

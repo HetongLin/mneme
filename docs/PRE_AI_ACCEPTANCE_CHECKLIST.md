@@ -71,6 +71,14 @@ This does not validate:
 7. Confirm the frontmatter field is removed and Review Details reports the global target.
 8. Confirm changing Importance never adds or changes `retention_target` and changing Retention Target does not immediately change an existing Card due date.
 
+## Card Edit Conflict Safety
+
+1. Open a Card in Edit Card and leave the editor open.
+2. Change that Card's Back directly in its Card Group Markdown.
+3. Return to Edit Card and save; confirm Mneme reports a conflict and preserves the direct Markdown change.
+4. Reopen Edit Card, then change a different Card in the same Card Group directly.
+5. Save the selected Card and confirm both edits survive.
+
 ## Pass Criteria
 
 Pass:

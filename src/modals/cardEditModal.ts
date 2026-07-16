@@ -80,6 +80,10 @@ export class CardEditModal extends Modal {
 
 		try {
 			const { card } = this.options;
+			if (card.errors.some((error) => error.startsWith("Duplicate card id:"))) {
+				new Notice("Mneme: Repair the duplicate Card ID before editing Card content.");
+				return;
+			}
 			const abstractFile = this.app.vault.getAbstractFileByPath(card.path);
 
 			if (!(abstractFile instanceof TFile)) {
@@ -92,6 +96,9 @@ export class CardEditModal extends Modal {
 			const result = writeMarkers(currentMarkdown, {
 				back,
 				cardBlockIndex: card.cardIndex,
+				expectedBack: card.back,
+				expectedFront: card.front,
+				expectedRubric: card.rubric ?? "",
 				explicitCardId: card.hasExplicitCardId ? card.cardId : undefined,
 				front,
 				rubric,

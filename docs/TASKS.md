@@ -1066,3 +1066,27 @@ Acceptance criteria:
 - Clearing the override restores global behavior
 - Editing Importance cannot create or alter `retention_target`
 - Concept Library remains a title-and-Core-Meaning quick-review surface
+
+## Task 060: Conflict-Safe Card Content Editing
+
+Goal:
+
+Prevent Card Edit and Repair from overwriting changes made in Obsidian after the editor opened.
+
+Requirements:
+
+- Capture the selected Card's Front, Back, and Rubric as the edit baseline
+- Re-read the latest Card Group immediately before Save
+- Resolve a stable Card ID only when it occurs exactly once in the latest Card Group, and block known vault-wide duplicates
+- Reject a write when the target Card content changed after the editor opened
+- Preserve concurrent edits to other Cards and surrounding Markdown
+- Apply the same protection to missing-section Repair
+- Direct duplicate Card IDs to the existing ID Repair Flow
+
+Acceptance criteria:
+
+- An external edit to the selected Card causes a visible conflict and no Markdown write
+- An external edit to another Card is preserved while the selected Card saves
+- A duplicate explicit Card ID cannot silently select the first matching block
+- Front, Back, and Rubric all participate in conflict detection
+- Normal successful editing continues to preserve FSRS state

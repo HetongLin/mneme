@@ -134,6 +134,8 @@ Primary back-side actions are only the FSRS rating buttons, arranged like an Ank
 - Open Concept opens the approved Concept that grounds the Card. Source Notes remain reachable from that Concept.
 - Review Later, Suspend Card, Retire Card, and Delete Card are available from `More`, not the main review controls.
 
+Card Edit and Repair re-read the latest Card Group before writing. If the selected Card's Front, Back, or Rubric changed after the editor opened, Save stops and asks the student to reopen the latest content. Changes to other Cards or surrounding Markdown are preserved and do not block the targeted edit. A duplicated stable Card ID must be repaired before content editing can choose a target.
+
 ## Today’s Focus
 
 The review home should emphasize Concepts, not raw Card debt.

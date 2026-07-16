@@ -3,6 +3,9 @@ import { parseMnemeCards } from "./cardMarkerParser";
 export interface CardMarkerUpdateInput {
 	back: string;
 	cardBlockIndex: number;
+	expectedBack?: string;
+	expectedFront?: string;
+	expectedRubric?: string;
 	explicitCardId?: string;
 	front: string;
 	rubric: string;
@@ -10,7 +13,7 @@ export interface CardMarkerUpdateInput {
 
 export type CardMarkerUpdateResult =
 	| { markdown: string; status: "updated" }
-	| { message: string; status: "invalid" | "not_found" };
+	| { message: string; status: "conflict" | "invalid" | "not_found" };
 
 interface CardBlockRange {
 	contentEnd: number;
@@ -48,14 +51,28 @@ function writeCardMarkers(
 			return { message: "Card markers were not found.", status: "not_found" };
 		}
 
+		const currentCard = parseMnemeCards(markdown)[0];
+		if (hasTargetedEditConflict(currentCard, input)) {
+			return createEditConflictResult();
+		}
+
 		const updated = writeBlock(markdown, front, back, rubric);
 		if (!updated) {
 			return { message: "Card marker structure is invalid.", status: "invalid" };
 		}
 		updatedMarkdown = updated;
 	} else {
+		const matchingIdBlocks = input.explicitCardId
+			? blocks.filter((block) => block.explicitCardId === input.explicitCardId)
+			: [];
+		if (matchingIdBlocks.length > 1) {
+			return {
+				message: "Card ID is duplicated. Repair the Card ID before editing content.",
+				status: "conflict",
+			};
+		}
 		const target = input.explicitCardId
-			? blocks.find((block) => block.explicitCardId === input.explicitCardId)
+			? matchingIdBlocks[0]
 			: blocks[input.cardBlockIndex];
 
 		if (!target) {
@@ -63,6 +80,10 @@ function writeCardMarkers(
 		}
 
 		const content = markdown.slice(target.contentStart, target.contentEnd);
+		const currentCard = parseMnemeCards(content)[0];
+		if (hasTargetedEditConflict(currentCard, input)) {
+			return createEditConflictResult();
+		}
 		const updated = writeBlock(content, front, back, rubric);
 		if (!updated) {
 			return { message: "Card marker structure is invalid.", status: "invalid" };
@@ -86,6 +107,24 @@ function writeCardMarkers(
 	}
 
 	return { markdown: updatedMarkdown, status: "updated" };
+}
+
+function hasTargetedEditConflict(
+	currentCard: ReturnType<typeof parseMnemeCards>[number] | undefined,
+	input: CardMarkerUpdateInput,
+): boolean {
+	if (!currentCard) return true;
+
+	return (input.expectedFront !== undefined && currentCard.front !== input.expectedFront.trim())
+		|| (input.expectedBack !== undefined && currentCard.back !== input.expectedBack.trim())
+		|| (input.expectedRubric !== undefined && currentCard.rubric !== input.expectedRubric.trim());
+}
+
+function createEditConflictResult(): CardMarkerUpdateResult {
+	return {
+		message: "Card changed while the editor was open. Reopen it to review the latest content.",
+		status: "conflict",
+	};
 }
 
 function repairCardBlock(markdown: string, front: string, back: string, rubric: string): string | undefined {
