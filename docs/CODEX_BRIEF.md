@@ -67,7 +67,7 @@ The Concept's declared `cards` link is the location authority for future Card wr
 
 Cards can be generated only from a written, reviewable Concept—not from a Source Note or a Mneme Concept passed through `Analyze Current Note`.
 
-Duplicate protection uses a Learning Content Fingerprint derived from assessable Concept sections. Metadata-only changes such as tags, paths, provenance, or navigation links do not unlock another generation round.
+Duplicate protection uses a Learning Content Fingerprint derived from assessable Concept sections. After a successful generation call, accepting or rejecting its proposals does not unlock another round for the same fingerprint. Metadata-only changes such as tags, paths, provenance, or navigation links also do not unlock another generation round; assessable learning content must change.
 
 Existing accepted Card fronts are passed to the provider as a Coverage Map. The provider should add missing assessment outcomes or perspectives rather than paraphrasing existing Cards. A fully rejected round may be retried because it wrote no Card content.
 

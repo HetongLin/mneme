@@ -99,17 +99,9 @@ export class AiCardGenerationService {
 			}
 
 			const previousGenerationRecord = await this.options.sourceAnalysisStore?.getRecord(input.conceptPath);
-			const hasWrittenProposal = existing.some((proposal) => (
-				proposal.kind === "new_card"
-					&& proposal.sourceHash === learningFingerprint
-					&& proposal.status === "written"
-			));
 			const previousFingerprint = previousGenerationRecord?.lastCardGenerationFingerprint
 				?? previousGenerationRecord?.lastCardGenerationHash;
-			if (
-				previousFingerprint === learningFingerprint
-				&& (hasWrittenProposal || previousGenerationRecord?.lastCardGenerationOutcome === "coverage_complete")
-			) {
+			if (previousFingerprint === learningFingerprint) {
 				return this.result(
 					"skipped_unchanged_concept",
 					"No new assessable Concept content is available for Card generation.",

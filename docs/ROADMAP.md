@@ -79,7 +79,7 @@ Current progress:
 - Duplicate markers, malformed wrappers, and stable-ID conflicts still require the broader Repair Flow.
 - Manual Concept creation is available from the command palette and Concept Library through a dockable, auto-saving Concept Composer. It can retain the current Source Note as approved provenance or create a clean source-free Concept without manufacturing a proposal or requiring Source Evidence.
 - New accepted Cards append to one canonical Card Group per Concept. Legacy one-Card files remain readable.
-- Card generation uses assessable-content fingerprints and existing Card fronts as a Coverage Map; rejected rounds may be retried without letting metadata edits create duplicate rounds.
+- Card generation uses assessable-content fingerprints and existing Card fronts as a Coverage Map. Any successful generation call closes that fingerprint: resolving or rejecting its proposals does not unlock another round until assessable Concept content changes. Provider failures remain retryable.
 
 ## v0.3: Low-pressure Review
 

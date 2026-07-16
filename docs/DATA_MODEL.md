@@ -18,7 +18,7 @@ Markdown stores approved Concept and Card content. `data.json` stores settings, 
 
 `SourceAnalysisStore` persists `SourceAnalysisRecord` entries in plugin data. `Mneme: Analyze Current Note` always updates source path, metadata, and content hash. When AI Capture is enabled, it may also add validated Concept proposals to Inbox; it never generates Cards or writes Markdown directly.
 
-The same record shape also tracks a written Concept's Learning Content Fingerprint. `lastCardGenerationFingerprint` records the assessable Concept content used by the most recent successful generation call, including a `coverage_complete` result; changes to tags, provenance, frontmatter, or review navigation do not create a new generation round. The legacy `lastCardGenerationHash` field remains readable for data compatibility.
+The same record shape also tracks a written Concept's Learning Content Fingerprint. `lastCardGenerationFingerprint` records the assessable Concept content used by the most recent successful generation call, including a `coverage_complete` result. A matching fingerprint blocks another generation round even after every proposal is accepted or rejected; only assessable Concept content changes unlock a new round. Provider failures remain retryable, while changes to tags, provenance, frontmatter, or review navigation do not create a new generation round. The legacy `lastCardGenerationHash` field remains readable for data compatibility.
 
 AI Capture settings are stored in plugin data under `settings` and configure the provider boundary:
 
@@ -391,7 +391,7 @@ For each analyzed Source Note, store:
 - lastAiCaptureTotalChars (optional)
 - lastAiCaptureChunkCount (optional)
 - lastCardGenerationFingerprint (optional; records assessable Concept content that completed Card proposal generation)
-- lastCardGenerationOutcome (optional; `proposed` or `coverage_complete`, so an empty complete-coverage result is not confused with a rejected proposal round)
+- lastCardGenerationOutcome (optional diagnostic result: `proposed` or `coverage_complete`; both close the recorded fingerprint until assessable Concept content changes)
 - lastCardGenerationHash (deprecated compatibility alias)
 - mtime
 - size

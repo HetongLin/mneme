@@ -183,8 +183,8 @@ async function run(): Promise<void> {
 
 		const retry = await fixture.service.generate(concept);
 
-		assert.equal(retry.status, "generated");
-		assert.equal(fixture.provider.callCount, 2);
+		assert.equal(retry.status, "skipped_unchanged_concept");
+		assert.equal(fixture.provider.callCount, 1);
 	}
 
 	{
