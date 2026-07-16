@@ -26,6 +26,7 @@ import {
 	selectTodaysFocus,
 	TodaysFocusSelection,
 } from "../services/todaysFocusSelector";
+import { formatUserFacingError } from "../utils/userFacingError";
 
 export const REVIEW_VIEW_TYPE = "mneme-review-view";
 
@@ -145,9 +146,10 @@ export class MnemeReviewView extends ItemView {
 			this.activeRetirements = {};
 			this.activeSuspensions = {};
 			this.pausedConceptIds = new Set<string>();
-			this.statusMessage = "Failed to scan concepts. See console for details.";
+			const detail = formatUserFacingError(error, "Try Refresh again.");
+			this.statusMessage = `Failed to scan Concepts: ${detail}`;
 			this.render();
-			new Notice("Mneme: failed to scan concepts. See console for details.");
+			new Notice(`Mneme: Failed to scan Concepts: ${detail}`);
 		}
 	}
 
@@ -1022,8 +1024,9 @@ export class MnemeReviewView extends ItemView {
 				error,
 				rating,
 			});
-			this.statusMessage = "Could not record review. See console for details.";
-			new Notice("Mneme: could not record review. See console for details.");
+			const detail = formatUserFacingError(error, "Try the rating again.");
+			this.statusMessage = `Could not record review: ${detail}`;
+			new Notice(`Mneme: Could not record review: ${detail}`);
 			this.render();
 			return;
 		}

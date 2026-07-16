@@ -22,6 +22,8 @@ The product should feel low-pressure. Avoid debt-like language.
 
 User experience is the first requirement. Primary UI should present concise review content, not AI/provider internals.
 
+User-visible failures must include a short actionable reason rather than requiring the console. If the primary Markdown or review-state write succeeded but a dependent View refresh failed, the UI must say that the action succeeded and identify only the refresh as failed. It must never invite a duplicate Accept, Save, Reject, or Resync because of a secondary UI failure.
+
 Do not expose these in primary UI surfaces:
 
 - AI schema fields

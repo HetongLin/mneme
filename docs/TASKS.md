@@ -1016,3 +1016,26 @@ Acceptance criteria:
 - Exploratory Concepts do not show Card generation
 - Folder matching is normalized, case-insensitive, and does not confuse prefix siblings such as `Cards` and `Cardstock`
 - Command eligibility and Composer source eligibility cannot drift into separate policies
+
+## Task 058: Truthful Core Action Results
+
+Goal:
+
+Make approval, editing, deletion, review, and resync failures understandable without misreporting committed work.
+
+Requirements:
+
+- Show a concise normalized error reason in primary user flows instead of directing students to the console
+- Truncate long runtime messages while retaining full diagnostics in the console
+- Distinguish a completed Markdown/state write from a subsequent View refresh failure
+- Close a completed Proposal Review action after a refresh failure so it cannot be submitted twice
+- Restore Card Markdown when review-state deletion fails
+- Report both the original deletion failure and rollback failure when restoration also fails
+
+Acceptance criteria:
+
+- Accepted or rejected proposals are never reported as uncommitted solely because Inbox refresh failed
+- Saved Concepts and Cards are never reported as unsaved solely because a dependent View refresh failed
+- Review rating failures expose the reason without advancing the Card
+- Index resync success is not relabeled as failure when only Inbox refresh fails
+- Primary failure messages remain concise and single-line

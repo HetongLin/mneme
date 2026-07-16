@@ -22,6 +22,7 @@ import {
 	filterConceptSummaries,
 	sortConceptSummaries,
 } from "../services/conceptLibrarySearch";
+import { formatUserFacingError } from "../utils/userFacingError";
 
 export const CONCEPT_LIBRARY_VIEW_TYPE = "mneme-concept-library-view";
 
@@ -94,7 +95,7 @@ export class MnemeConceptLibraryView extends ItemView {
 			this.duplicateCandidates = [];
 			this.identityIssues = [];
 			this.staleSourceIssues = [];
-			this.statusMessage = "Failed to scan Concept Library. See console for details.";
+			this.statusMessage = `Failed to scan Concept Library: ${formatUserFacingError(error, "Try Refresh again.")}`;
 		}
 
 		this.render();

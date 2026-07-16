@@ -17,6 +17,7 @@ import { validateKnowledgeProposalPayload } from "../services/knowledgeProposalV
 import { getProposalStageLabel } from "../services/knowledgeProposalStage";
 import { normalizeConceptTags } from "../services/conceptMarkdownRenderer";
 import { createMarkdownLivePreviewField } from "../ui/markdownLivePreviewField";
+import { formatUserFacingError, formatUserFacingMessage } from "../utils/userFacingError";
 
 interface ProposalDetailModalOptions {
 	onChange?(): Promise<void> | void;
@@ -407,8 +408,9 @@ export class ProposalDetailModal extends Modal {
 			const result = await workflow.acceptProposal(this.proposal.id);
 
 			if (result.status === "accepted") {
-				new Notice(result.kind === "concept" ? "Mneme: Concept accepted." : "Mneme: Card accepted.");
-				await this.advanceOrClose();
+				await this.finishCompletedAction(
+					result.kind === "concept" ? "Concept accepted." : "Card accepted.",
+				);
 				return;
 			}
 
@@ -420,12 +422,11 @@ export class ProposalDetailModal extends Modal {
 			}
 
 			console.error("Mneme: proposal acceptance failed", result);
-			new Notice(result.kind === "card"
-				? "Mneme: Card write failed. See console."
-				: "Mneme: Concept write failed. See console.");
+			const operation = result.kind === "card" ? "Card write failed" : "Concept write failed";
+			new Notice(`Mneme: ${operation}: ${formatUserFacingMessage(result.message, "Try again.")}`);
 		} catch (error) {
 			console.error("Mneme: proposal acceptance failed", error);
-			new Notice("Mneme: Proposal acceptance failed. See console.");
+			new Notice(`Mneme: Proposal acceptance failed: ${formatUserFacingError(error, "Try again.")}`);
 		} finally {
 			this.isActing = false;
 		}
@@ -446,20 +447,30 @@ export class ProposalDetailModal extends Modal {
 				const result = await workflow.rejectProposal(this.proposal.id);
 
 				if (result.status !== "accepted") {
-					new Notice("Mneme: Proposal could not be rejected.");
+					new Notice(`Mneme: Proposal could not be rejected: ${formatUserFacingMessage(result.message, "Try again.")}`);
 					return;
 				}
 			} else {
 				this.proposal = await this.options.store.updateProposalStatus(this.proposal.id, "rejected");
 			}
 
-			new Notice("Mneme: Proposal rejected.");
-			await this.advanceOrClose();
+			await this.finishCompletedAction("Proposal rejected.");
 		} catch (error) {
 			console.error("Mneme: failed to reject proposal", error);
-			new Notice("Mneme: Proposal could not be rejected.");
+			new Notice(`Mneme: Proposal could not be rejected: ${formatUserFacingError(error, "Try again.")}`);
 		} finally {
 			this.isActing = false;
+		}
+	}
+
+	private async finishCompletedAction(message: string): Promise<void> {
+		try {
+			await this.advanceOrClose();
+			new Notice(`Mneme: ${message}`);
+		} catch (error) {
+			console.error("Mneme: proposal completed but Inbox could not refresh", error);
+			new Notice(`Mneme: ${message} Inbox refresh failed: ${formatUserFacingError(error, "Reopen Inbox.")}`);
+			this.close();
 		}
 	}
 

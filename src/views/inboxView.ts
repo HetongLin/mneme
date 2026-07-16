@@ -21,6 +21,7 @@ import {
 	isConceptStageProposal,
 } from "../services/knowledgeProposalStage";
 import type { VaultStateReconciler } from "../services/vaultStateReconciler";
+import { formatUserFacingError } from "../utils/userFacingError";
 
 export const INBOX_VIEW_TYPE = "mneme-inbox-view";
 export type InboxTab = "concepts" | "cards" | "other";
@@ -79,7 +80,7 @@ export class MnemeInboxView extends ItemView {
 		} catch (error) {
 			console.error("Mneme: failed to load Inbox proposals", error);
 			this.proposals = [];
-			this.statusMessage = "Failed to load Inbox proposals. See console for details.";
+			this.statusMessage = `Failed to load Inbox proposals: ${formatUserFacingError(error, "Try Refresh again.")}`;
 		}
 
 		this.render();

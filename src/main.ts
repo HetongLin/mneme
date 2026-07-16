@@ -56,6 +56,7 @@ import { SourceProvenanceRemovalService } from "./services/sourceProvenanceRemov
 import { VaultStateReconciler } from "./services/vaultStateReconciler";
 import { buildCardGroupPath, buildConceptPath, normalizeVaultPath } from "./utils/markdownPath";
 import { computeContentHash } from "./utils/sourceHash";
+import { formatUserFacingError } from "./utils/userFacingError";
 import { CONCEPT_COMPOSER_VIEW_TYPE, MnemeConceptComposerView } from "./views/conceptComposerView";
 import { CONCEPT_LIBRARY_VIEW_TYPE, MnemeConceptLibraryView } from "./views/conceptLibraryView";
 import { MnemeInboxView, INBOX_VIEW_TYPE, type InboxTab } from "./views/inboxView";
@@ -607,11 +608,16 @@ export default class MnemePlugin extends Plugin {
 		try {
 			const result = await this.createVaultStateReconciler().reconcile();
 			console.info("Mneme: index resync result", result);
-			new Notice(`Mneme: ${result.message}`);
-			await this.refreshOpenInboxViews();
+			try {
+				await this.refreshOpenInboxViews();
+				new Notice(`Mneme: ${result.message}`);
+			} catch (error) {
+				console.error("Mneme: index resynced but Inbox could not refresh", error);
+				new Notice(`Mneme: ${result.message} Inbox refresh failed: ${formatUserFacingError(error, "Reopen Inbox.")}`);
+			}
 		} catch (error) {
 			console.error("Mneme: failed to resync index", error);
-			new Notice("Mneme: failed to resync index. See console.");
+			new Notice(`Mneme: Index resync failed: ${formatUserFacingError(error, "Try again.")}`);
 		}
 	}
 
@@ -667,7 +673,7 @@ export default class MnemePlugin extends Plugin {
 			new Notice(`Mneme: Exported ${pack.conceptCount} Concepts to ${exportFolder}.`);
 		} catch (error) {
 			console.error("Mneme: failed to export Knowledge Context Pack", error);
-			new Notice("Mneme: Knowledge Context Pack export failed. See console.");
+			new Notice(`Mneme: Knowledge Context Pack export failed: ${formatUserFacingError(error, "Try again.")}`);
 		}
 	}
 
@@ -697,7 +703,7 @@ export default class MnemePlugin extends Plugin {
 			new Notice(`Mneme: Exported ${result.exportedCardCount} Cards to ${exportPath}.`);
 		} catch (error) {
 			console.error("Mneme: failed to export Anki TSV", error);
-			new Notice("Mneme: Anki TSV export failed. See console.");
+			new Notice(`Mneme: Anki TSV export failed: ${formatUserFacingError(error, "Try again.")}`);
 		}
 	}
 

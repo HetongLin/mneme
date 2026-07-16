@@ -12,6 +12,7 @@ const testCommands = [
 	["npm", ["run", "test:review-queue"]],
 	["npm", ["run", "test:review-navigation"]],
 	["npm", ["run", "test:todays-focus"]],
+	["npm", ["run", "test:user-facing-errors"]],
 	["npm", ["run", "test:scheduler"]],
 	["npm", ["run", "test:concept-memory"]],
 	["npm", ["run", "test:concept-queue"]],

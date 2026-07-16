@@ -1,6 +1,7 @@
 import { App, Modal, Notice, TFile } from "obsidian";
 import type { LoadedMnemeCard } from "../models/card";
 import { deleteCardBlock } from "../services/cardDeletionEditor";
+import { formatUserFacingError } from "../utils/userFacingError";
 
 export interface CardDeleteModalOptions {
 	card: LoadedMnemeCard;
@@ -60,7 +61,13 @@ export class CardDeleteModal extends Modal {
 			try {
 				await this.options.onDeleted(card.cardId);
 			} catch (error) {
-				await this.app.vault.modify(file, before);
+				try {
+					await this.app.vault.modify(file, before);
+				} catch (rollbackError) {
+					throw new Error(
+						`${formatUserFacingError(error, "Review state update failed.")} Rollback also failed: ${formatUserFacingError(rollbackError, "Card Markdown could not be restored.")}`,
+					);
+				}
 				throw error;
 			}
 
@@ -68,7 +75,7 @@ export class CardDeleteModal extends Modal {
 			this.close();
 		} catch (error) {
 			console.error("Mneme: failed to delete Card", { cardId: this.options.card.cardId, error });
-			new Notice("Mneme: Card could not be deleted. See console.");
+			new Notice(`Mneme: Card could not be deleted: ${formatUserFacingError(error, "Try again.")}`);
 		} finally {
 			this.isDeleting = false;
 			deleteButton.disabled = false;
@@ -104,7 +111,7 @@ export class CardHistoryDeleteModal extends Modal {
 				})
 				.catch((error) => {
 					console.error("Mneme: failed to erase Card history", error);
-					new Notice("Mneme: Card history could not be erased.");
+					new Notice(`Mneme: Card history could not be erased: ${formatUserFacingError(error, "Try again.")}`);
 					confirmButton.disabled = false;
 				});
 		});

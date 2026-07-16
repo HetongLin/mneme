@@ -15,6 +15,7 @@ import {
 import { extractCoreMeaning, extractWhyItMatters } from "../services/conceptMarkdownParser";
 import { updateConceptSections } from "../services/conceptSectionUpdater";
 import { createMarkdownLivePreviewField } from "../ui/markdownLivePreviewField";
+import { formatUserFacingError } from "../utils/userFacingError";
 
 export interface ConceptEditModalOptions {
 	concept: ConceptSummary;
@@ -195,7 +196,14 @@ export class ConceptEditModal extends Modal {
 				await this.app.vault.modify(file, updatedMarkdown);
 			}
 
-			await this.options.onSaved();
+			try {
+				await this.options.onSaved();
+			} catch (error) {
+				console.error("Mneme: Concept saved but dependent views could not refresh", error);
+				new Notice(`Mneme: Concept saved, but view refresh failed: ${formatUserFacingError(error, "Reopen Concept Library.")}`);
+				this.close();
+				return;
+			}
 			new Notice("Mneme: Concept updated.");
 			this.close();
 		} catch (error) {
@@ -203,7 +211,7 @@ export class ConceptEditModal extends Modal {
 				error,
 				path: this.options.concept.path,
 			});
-			new Notice("Mneme: Concept could not be updated. See console.");
+			new Notice(`Mneme: Concept could not be updated: ${formatUserFacingError(error, "Try again.")}`);
 		} finally {
 			this.isSaving = false;
 			saveButton.disabled = false;

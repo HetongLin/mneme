@@ -2,6 +2,7 @@ import { App, Component, Modal, Notice, TFile } from "obsidian";
 import type { LoadedMnemeCard } from "../models/card";
 import { repairCardMarkers, updateCardMarkers } from "../services/cardMarkerEditor";
 import { createMarkdownLivePreviewField } from "../ui/markdownLivePreviewField";
+import { formatUserFacingError } from "../utils/userFacingError";
 
 export interface CardEditModalOptions {
 	card: LoadedMnemeCard;
@@ -102,7 +103,14 @@ export class CardEditModal extends Modal {
 			}
 
 			await this.app.vault.modify(abstractFile, result.markdown);
-			await this.options.onSaved();
+			try {
+				await this.options.onSaved();
+			} catch (error) {
+				console.error("Mneme: Card saved but dependent views could not refresh", error);
+				new Notice(`Mneme: Card saved, but view refresh failed: ${formatUserFacingError(error, "Reopen Review.")}`);
+				this.close();
+				return;
+			}
 			new Notice(this.options.mode === "repair"
 				? "Mneme: Card markers repaired. Review schedule unchanged."
 				: "Mneme: Card updated. Review schedule unchanged.");
@@ -112,7 +120,7 @@ export class CardEditModal extends Modal {
 				error,
 				path: this.options.card.path,
 			});
-			new Notice("Mneme: Card could not be updated. See console.");
+			new Notice(`Mneme: Card could not be updated: ${formatUserFacingError(error, "Try again.")}`);
 		} finally {
 			this.isSaving = false;
 			saveButton.disabled = false;
