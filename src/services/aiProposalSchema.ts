@@ -8,7 +8,6 @@ export const AI_CONCEPT_CAPTURE_KINDS = [
 	"link_existing_concept",
 	"add_view",
 	"update_concept",
-	"merge_concept",
 ] as const;
 
 export const AI_CARD_STAGE_KINDS = [
@@ -82,21 +81,11 @@ export interface AiUpdateConceptProposalV1 extends AiConceptProposalBaseV1 {
 	};
 }
 
-export interface AiMergeConceptProposalV1 extends AiConceptProposalBaseV1 {
-	kind: "merge_concept";
-	payload: {
-		proposedTitle: string;
-		reason: string;
-		sourceConceptIds: string[];
-	};
-}
-
 export type AiConceptProposalV1 =
 	| AiNewConceptProposalV1
 	| AiLinkExistingConceptProposalV1
 	| AiAddViewProposalV1
-	| AiUpdateConceptProposalV1
-	| AiMergeConceptProposalV1;
+	| AiUpdateConceptProposalV1;
 
 export interface AiNewCardProposalV1 extends AiConceptProposalBaseV1 {
 	kind: "new_card";

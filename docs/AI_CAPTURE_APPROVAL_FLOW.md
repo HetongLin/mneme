@@ -42,19 +42,16 @@ Initial source analysis can create Concept-stage proposals only:
 - `link_existing_concept`
 - `add_view`
 - `update_concept`
-- `merge_concept`
 
 It must not create Card proposals during the same initial step.
 
-After a Concept is reviewed, approved, and explicitly written to `Concept.md`, the user can choose a separate Generate Cards action. That later stage may create Card-stage proposals:
+After a Concept is reviewed, approved, and explicitly written to `Concept.md`, the user can choose a separate Generate Cards action. In v1, that later stage creates only:
 
 - `new_card`
-- `revise_card`
-- `split_card`
-- `merge_card`
-- `retire_card`
 
 Card proposals still enter Inbox and require a separate review/edit/acceptance step before any Card Group content is written.
+
+AI-proposed `revise_card`, `split_card`, `merge_card`, and `retire_card` remain excluded until each operation has a dedicated editable preview, conflict check, rollback path, and approved writer.
 
 Future Scan Vault behavior follows the same rule: first propose Concepts, then generate Cards from written Concepts.
 
@@ -133,13 +130,14 @@ Proposal entries may include machine-oriented `confidence`, `rationale`, and sou
 
 The Card-generation response uses the same schema version and source envelope with `mode: "card_generation"`. The current accepted kind is `new_card`, whose payload identifies the written Concept and provides front, back, rubric, and card type.
 
-In `concept_capture` mode, providers may return only Concept-stage proposal kinds:
+In `concept_capture` mode, providers may return only Concept-stage proposal kinds that have a complete Review Gate and approved writer:
 
 - `new_concept`
 - `link_existing_concept`
 - `add_view`
 - `update_concept`
-- `merge_concept`
+
+Providers must not return `merge_concept`. Possible duplicates are handled by the separate reviewed Guided Merge flow so the Inbox never contains an AI change the student cannot safely accept.
 
 In `concept_capture` mode, providers must not return Card-stage proposal kinds:
 
@@ -153,7 +151,7 @@ In `concept_capture` mode, providers must not return Card-stage proposal kinds:
 
 Generated learning content follows the Source Note's dominant language. Mneme detects English or Chinese from the full Source content before truncating provider input and sends an authoritative `languageContract` with every Concept or Card request. Existing Concepts, UI language, tags, filenames, and prompt examples cannot override this contract. English Sources require English generated titles and prose. Chinese Sources require Chinese-first titles and prose; the first occurrence of each technical concept or established proper term includes its standard English name in parentheses, and Concept titles use `中文名称 (English Name)` when a standard English name exists. Other or non-prose Sources fall back to an explicit source-dominant-language instruction. Evidence quotes remain exact and are never translated. In the AI payload, `coreMeaning` states what the Concept is and its defining mechanism, while `whyItMatters` adds usefulness, relevance, or application rather than repeating Core Meaning. Concept updates use `proposedCoreMeaning` and `proposedWhyItMatters` with the same distinction.
 
-Concept capture has no fixed proposal-count limit because long Source Notes may contain many durable ideas. Quality is constrained per proposal instead: a new Concept represents one independently explainable, reusable knowledge unit; headings, organizational labels, isolated facts, incidental examples, anecdotes, background sentences, and repeated paraphrases do not become standalone Concepts. Mneme compares candidates with existing Concepts and prefers Link, Update, Add View, or Merge over creating a duplicate. The provider returns no proposals when the Source Note contains no durable knowledge worth creating or linking and no meaningful Concept change. Core Meaning stays compact and identifies the Concept and its defining mechanism; Why It Matters contains only usefulness, relevance, or application.
+Concept capture has no fixed proposal-count limit because long Source Notes may contain many durable ideas. Quality is constrained per proposal instead: a new Concept represents one independently explainable, reusable knowledge unit; headings, organizational labels, isolated facts, incidental examples, anecdotes, background sentences, and repeated paraphrases do not become standalone Concepts. Mneme compares candidates with existing Concepts and prefers Link, Update, or Add View over creating a duplicate. Potentially redundant existing Concepts are left to the separate Possible Duplicate and Guided Merge flow. The provider returns no proposals when the Source Note contains no durable knowledge worth creating or linking and no meaningful Concept change. Core Meaning stays compact and identifies the Concept and its defining mechanism; Why It Matters contains only usefulness, relevance, or application.
 
 Concept titles use the shortest unambiguous canonical or established name and name the knowledge itself rather than the current note's purpose, application context, domain, tool, course, or lesson. Contextual suffixes such as `for Hypothesis Evaluation`, `in Healthcare`, or `using Python` are not added unless the complete phrase is itself an established, genuinely distinct Concept. For example, Mneme proposes `Bayes Theorem`, not `Bayes Theorem for Hypothesis Evaluation`; hypothesis evaluation belongs in Why It Matters or a View. Reusable relationships name the relationship directly rather than copying a conjunction-style section heading: use `Least Squares as Maximum Likelihood`, not `Maximum Likelihood and Least-Squared Error`. If a relationship is only a perspective on an existing canonical Concept, Mneme proposes Add View. If the canonical Concept already exists, Mneme prefers Add View, Update, or Link instead of creating a context-qualified duplicate.
 
@@ -172,7 +170,7 @@ Current implementation supports two post-review write paths:
 - `update_concept` applies approved Core Meaning and Why It Matters replacements at section boundaries, while preserving unrelated Markdown and recording supplied provenance.
 - `new_card` writes approved Card proposals generated from a written Concept.
 
-AI-proposed merge acceptance and AI-proposed revise, split, merge, or retire Card operations remain future work because their safe approval writers are not implemented yet. Manual stable-ID Card retirement is available from Review. Manual Concept Guided Merge is available from reviewed Possible Duplicate candidates and cannot be executed as one-click Inbox acceptance.
+AI-proposed merge acceptance and AI-proposed revise, split, merge, or retire Card operations remain future work because their safe approval writers are not implemented yet. They are excluded from provider schemas and prompts until those Review Gates exist. Manual stable-ID Card retirement is available from Review. Manual Concept Guided Merge is available from reviewed Possible Duplicate candidates and cannot be executed as one-click Inbox acceptance.
 
 ## Inbox Shell
 

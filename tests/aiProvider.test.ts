@@ -232,6 +232,8 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("Put an application context in whyItMatters or a View"), true);
 	assert.equal(serialized.includes("instead of creating a context-qualified duplicate"), true);
 	assert.equal(serialized.includes("Compare each candidate with existingConcepts before creating it"), true);
+	assert.equal(serialized.includes("merge_concept"), false);
+	assert.equal(serialized.includes("separate reviewed Guided Merge flow"), true);
 	assert.equal(serialized.includes("Return an empty proposals array when the Source Note contains no durable knowledge worth creating or linking"), true);
 	assert.equal(serialized.includes("at least one evidence entry"), true);
 	assert.equal(serialized.includes("coreMeaning is the compact primary learning content"), true);

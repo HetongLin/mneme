@@ -370,9 +370,6 @@ function validateProposal(
 		case "update_concept":
 			validateUpdateConceptPayload(payload, path, errors);
 			break;
-		case "merge_concept":
-			validateMergeConceptPayload(payload, path, errors);
-			break;
 		case "new_card":
 			validateNewCardPayload(payload, path, errors);
 			break;
@@ -454,15 +451,6 @@ function validateUpdateConceptPayload(payload: Record<string, unknown>, path: st
 
 	if (!hasWhyItMatters && !hasCoreMeaning) {
 		errors.push(`${path}.payload requires proposedWhyItMatters or proposedCoreMeaning.`);
-	}
-}
-
-function validateMergeConceptPayload(payload: Record<string, unknown>, path: string, errors: string[]): void {
-	requireNonEmptyString(payload.proposedTitle, `${path}.payload.proposedTitle`, errors);
-	requireNonEmptyString(payload.reason, `${path}.payload.reason`, errors);
-
-	if (!Array.isArray(payload.sourceConceptIds) || payload.sourceConceptIds.length < 2 || !payload.sourceConceptIds.every(isNonEmptyString)) {
-		errors.push(`${path}.payload.sourceConceptIds must include at least two concept ids.`);
 	}
 }
 

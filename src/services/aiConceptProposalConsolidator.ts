@@ -46,8 +46,6 @@ function createProposalKey(proposal: AiConceptProposalV1): string {
 				normalizeText(proposal.payload.proposedCoreMeaning ?? ""),
 				normalizeText(proposal.payload.proposedWhyItMatters ?? ""),
 			].join(":");
-		case "merge_concept":
-			return `merge:${[...proposal.payload.sourceConceptIds].sort().join(":")}`;
 	}
 }
 

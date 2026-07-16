@@ -94,6 +94,8 @@ Possible proposal kinds:
 - `merge_card`
 - `retire_card`
 
+This is the domain-level future catalog, not the active v1 provider contract. v1 AI generation returns only `new_concept`, `link_existing_concept`, `add_view`, `update_concept`, and `new_card`; proposal kinds without a complete Review Gate and approved writer are not requested from providers.
+
 Rules:
 
 - Suggested proposals cannot become permanent Markdown without approval.

@@ -373,7 +373,8 @@ const cardGenerationResponse = {
 		}],
 	});
 
-	assert.equal(result.valid, true);
+	assert.equal(result.valid, false);
+	assert.equal(result.errors.some((error) => error.includes("kind must be supported")), true);
 }
 
 {

@@ -96,15 +96,6 @@ function normalizePayload(
 				proposedWhyItMatters: normalizeOptionalMarkdown(proposal.payload.proposedWhyItMatters),
 				updateReason: proposal.payload.reason,
 			};
-		case "merge_concept":
-			const [targetConceptId, sourceConceptId] = proposal.payload.sourceConceptIds;
-
-			return {
-				mergeReason: proposal.payload.reason,
-				proposedMergedTitle: proposal.payload.proposedTitle,
-				sourceConceptId,
-				targetConceptId: targetConceptId ?? proposal.payload.proposedTitle,
-			};
 		case "new_card":
 			return {
 				card: {

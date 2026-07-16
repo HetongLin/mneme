@@ -104,7 +104,6 @@ export const CONCEPT_CAPTURE_PROPOSAL_KINDS: KnowledgeProposalKind[] = [
 	"link_existing_concept",
 	"add_view",
 	"update_concept",
-	"merge_concept",
 ];
 
 export const CARD_STAGE_PROPOSAL_KINDS: KnowledgeProposalKind[] = [
@@ -184,8 +183,8 @@ export function toLogSafeAiConfig(settings: MnemeSettings): LogSafeAiConfig {
 
 export function validateConceptCaptureResponse(proposals: KnowledgeProposal[]): AiProposalValidationResult {
 	const errors = proposals
-		.filter((proposal) => CARD_STAGE_PROPOSAL_KINDS.includes(proposal.kind))
-		.map((proposal) => `Concept capture must not return ${proposal.kind} proposals.`);
+		.filter((proposal) => !CONCEPT_CAPTURE_PROPOSAL_KINDS.includes(proposal.kind))
+		.map((proposal) => `Concept capture must not return unsupported ${proposal.kind} proposals.`);
 
 	return {
 		errors,
