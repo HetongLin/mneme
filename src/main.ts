@@ -535,7 +535,7 @@ export default class MnemePlugin extends Plugin {
 				conceptPath: conceptFile.path,
 				message: result.message,
 			});
-			new Notice("Mneme: Card generation failed. See console.");
+			new Notice(`Mneme: Card generation failed: ${formatNoticeDetail(result.message)} No Card proposals added.`);
 			return;
 		}
 

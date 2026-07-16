@@ -969,3 +969,26 @@ Acceptance criteria:
 - The manual path does not create KnowledgeProposal records or pretend that AI approved the Concept
 - Closing and reopening the Composer preserves meaningful unfinished work
 - A completed creation keeps the Source Note open and offers an explicit Open Concept action
+
+## Task 056: Concept Composer Creation Reliability
+
+Goal:
+
+Keep direct authorship trustworthy under repeated input and secondary UI failures.
+
+Requirements:
+
+- Treat duplicate preflight and the committed Markdown/provenance write as one guarded creation action
+- Ignore repeated button or keyboard submissions while that action is running
+- Keep `Cmd/Ctrl+Enter` behavior identical to the Create Concept button
+- Distinguish a failed Concept commit from a successful commit followed by draft-reset or Concept Library refresh failure
+- Report Card provider failures in the visible Notice instead of requiring console inspection
+- If provenance commit fails, remove the newly created Concept; if rollback also fails, report both failures
+
+Acceptance criteria:
+
+- One Composer cannot start two simultaneous Concept creation attempts
+- A successfully written Concept is never reported as not created because a dependent View failed to refresh
+- Existing Source analysis and AI capture metadata survive manual provenance linking
+- Failed provenance persistence leaves no Concept file when rollback succeeds
+- Rollback failure is explicit and does not hide the original persistence failure

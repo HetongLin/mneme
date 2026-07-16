@@ -149,6 +149,11 @@ export class MnemeConceptComposerView extends ItemView {
 		const actionsEl = formEl.createDiv({ cls: "mneme-concept-composer-actions" });
 		this.createButtonEl = actionsEl.createEl("button", { cls: "mod-cta", text: "Create Concept" });
 		this.createButtonEl.addEventListener("click", () => void this.createConcept());
+		formEl.addEventListener("keydown", (event) => {
+			if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return;
+			event.preventDefault();
+			void this.createConcept();
+		});
 
 		for (const element of [
 			this.sourcePathEl,
@@ -293,32 +298,33 @@ export class MnemeConceptComposerView extends ItemView {
 			return;
 		}
 
-		await this.flushDraft();
-		const assessment = assessManualConceptDuplicates(
-			draft.title,
-			draft.coreMeaning,
-			await this.options.scanConcepts(),
-		);
-		const duplicateSignature = JSON.stringify([draft.title.trim(), draft.coreMeaning.trim()]);
-
-		if (assessment.exact) {
-			this.renderDuplicates(assessment, false);
-			new Notice("Mneme: A Concept with this title already exists.");
-			return;
-		}
-
-		if (assessment.possible.length > 0 && this.acknowledgedDuplicateSignature !== duplicateSignature) {
-			this.acknowledgedDuplicateSignature = duplicateSignature;
-			this.renderDuplicates(assessment, true);
-			this.createButtonEl.setText("Create Anyway");
-			new Notice("Mneme: Review the possible duplicate before creating another Concept.");
-			return;
-		}
-
 		this.isSaving = true;
 		this.createButtonEl.disabled = true;
-		this.createButtonEl.setText("Creating...");
+		this.createButtonEl.setText("Checking...");
 		try {
+			await this.flushDraft();
+			const assessment = assessManualConceptDuplicates(
+				draft.title,
+				draft.coreMeaning,
+				await this.options.scanConcepts(),
+			);
+			const duplicateSignature = JSON.stringify([draft.title.trim(), draft.coreMeaning.trim()]);
+
+			if (assessment.exact) {
+				this.renderDuplicates(assessment, false);
+				new Notice("Mneme: A Concept with this title already exists.");
+				return;
+			}
+
+			if (assessment.possible.length > 0 && this.acknowledgedDuplicateSignature !== duplicateSignature) {
+				this.acknowledgedDuplicateSignature = duplicateSignature;
+				this.renderDuplicates(assessment, true);
+				this.createButtonEl.setText("Create Anyway");
+				new Notice("Mneme: Review the possible duplicate before creating another Concept.");
+				return;
+			}
+
+			this.createButtonEl.setText("Creating...");
 			const result = await this.options.create({
 				coreMeaning: draft.coreMeaning,
 				importance: draft.importance,
@@ -328,18 +334,30 @@ export class MnemeConceptComposerView extends ItemView {
 				title: draft.title,
 				whyItMatters: draft.whyItMatters,
 			});
-			await this.options.onCreated(result);
 			this.resetAfterCreate(sourcePath);
-			await this.persistCurrentDraft();
+			try {
+				await this.persistCurrentDraft();
+			} catch (error) {
+				console.error("Mneme: Concept created but Composer draft reset could not be saved", error);
+				new Notice("Mneme: Concept created, but the Composer draft could not be reset in plugin data.");
+			}
 			this.showCreatedResult(result);
 			new Notice("Mneme: Concept created.");
+			try {
+				await this.options.onCreated(result);
+			} catch (error) {
+				console.error("Mneme: Concept created but dependent views could not refresh", error);
+				new Notice("Mneme: Concept created, but Concept Library could not refresh.");
+			}
 		} catch (error) {
 			console.error("Mneme: manual Concept creation failed", error);
 			new Notice(`Mneme: ${error instanceof Error ? error.message : "Concept could not be created."}`);
-			this.createButtonEl.setText("Create Concept");
 		} finally {
 			this.isSaving = false;
 			this.createButtonEl.disabled = false;
+			if (this.createButtonEl.textContent === "Checking..." || this.createButtonEl.textContent === "Creating...") {
+				this.createButtonEl.setText(this.acknowledgedDuplicateSignature ? "Create Anyway" : "Create Concept");
+			}
 		}
 	}
 

@@ -72,7 +72,14 @@ export async function createManualConcept(
 	try {
 		await committer?.commit(input, result);
 	} catch (error) {
-		await vault.remove(path);
+		try {
+			await vault.remove(path);
+		} catch (rollbackError) {
+			throw new Error([
+				error instanceof Error ? error.message : String(error),
+				`Rollback also failed: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`,
+			].join(" "));
+		}
 		throw error;
 	}
 

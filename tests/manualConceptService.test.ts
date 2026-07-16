@@ -11,6 +11,7 @@ import { ManualConceptProvenanceCommitter } from "../src/services/manualConceptP
 class MemoryVault {
 	files = new Map<string, string>();
 	folders = new Set<string>();
+	removeError?: Error;
 
 	async create(path: string, content: string): Promise<void> {
 		if (this.files.has(path)) throw new Error("exists");
@@ -26,6 +27,7 @@ class MemoryVault {
 	}
 
 	async remove(path: string): Promise<void> {
+		if (this.removeError) throw this.removeError;
 		this.files.delete(path);
 	}
 }
@@ -69,6 +71,17 @@ async function run(): Promise<void> {
 	);
 
 	const storage = new MemoryPluginStorage();
+	storage.data.sourceAnalysisRecords["Notes/Information Theory.md"] = {
+		contentHash: "source-hash",
+		lastAiCaptureFingerprint: "existing-capture-fingerprint",
+		lastAnalyzedAt: "2026-07-13T12:00:00.000Z",
+		linkedConceptIds: ["concept-existing"],
+		mtime: 90,
+		pendingProposalIds: [],
+		size: 180,
+		sourcePath: "Notes/Information Theory.md",
+		status: "clean",
+	};
 	const sourced = await createManualConcept({
 		coreMeaning: "Entropy measures uncertainty in a probability distribution.",
 		sourcePath: "Notes/Information Theory.md",
@@ -90,7 +103,15 @@ async function run(): Promise<void> {
 	assert.equal(sourceLinks.length, 1);
 	assert.equal(sourceLinks[0]?.conceptId, sourced.conceptId);
 	assert.equal(sourceLinks[0]?.relationType, "origin");
-	assert.deepEqual(storage.data.sourceAnalysisRecords["Notes/Information Theory.md"]?.linkedConceptIds, [sourced.conceptId]);
+	assert.deepEqual(storage.data.sourceAnalysisRecords["Notes/Information Theory.md"]?.linkedConceptIds, [
+		"concept-existing",
+		sourced.conceptId,
+	]);
+	assert.equal(
+		storage.data.sourceAnalysisRecords["Notes/Information Theory.md"]?.lastAiCaptureFingerprint,
+		"existing-capture-fingerprint",
+	);
+	assert.deepEqual(storage.data.knowledgeProposals, {});
 
 	await assert.rejects(
 		createManualConcept({
@@ -104,6 +125,21 @@ async function run(): Promise<void> {
 		/State write failed/,
 	);
 	assert.equal(vault.files.has("Mneme/Concepts/Rollback.md"), false);
+
+	vault.removeError = new Error("Vault rollback failed.");
+	await assert.rejects(
+		createManualConcept({
+			coreMeaning: "Rollback reporting test.",
+			title: "Rollback Reporting",
+		}, DEFAULT_SETTINGS, vault, () => "concept_manual_rollback_reporting", {
+			commit: async () => {
+				throw new Error("State write failed again.");
+			},
+		}),
+		/State write failed again\. Rollback also failed: Vault rollback failed/,
+	);
+	assert.equal(vault.files.has("Mneme/Concepts/Rollback-Reporting.md"), true);
+	vault.removeError = undefined;
 
 	await assert.rejects(
 		createManualConcept({ coreMeaning: "", title: "Empty" }, DEFAULT_SETTINGS, vault),
