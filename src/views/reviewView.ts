@@ -1,4 +1,4 @@
-import { ItemView, MarkdownRenderer, MarkdownView, Notice, TFile, WorkspaceLeaf } from "obsidian";
+import { ItemView, MarkdownRenderer, Notice, WorkspaceLeaf } from "obsidian";
 import { ConceptMemorySummary } from "../models/conceptMemory";
 import { LoadedMnemeCard } from "../models/card";
 import { RankedReviewQueueConcept } from "../models/conceptQueue";
@@ -15,6 +15,7 @@ import { DEFAULT_SETTINGS, MnemeSettings } from "../models/settings";
 import { CardEditModal } from "../modals/cardEditModal";
 import { CardDeleteModal, CardHistoryDeleteModal } from "../modals/cardDeleteModal";
 import { CardIdRepairModal } from "../modals/cardIdRepairModal";
+import { ConceptEditModal } from "../modals/conceptEditModal";
 import { ConceptLoader } from "../services/conceptLoader";
 import { aggregateConceptMemoryById } from "../services/conceptMemoryAggregator";
 import { indexRankedConceptsById, rankReviewQueueConcepts } from "../services/conceptQueueRanker";
@@ -26,6 +27,7 @@ import {
 	TodaysFocusSelection,
 } from "../services/todaysFocusSelector";
 import { formatUserFacingError } from "../utils/userFacingError";
+import type { ConceptSummary } from "../models/conceptLibrary";
 
 export const REVIEW_VIEW_TYPE = "mneme-review-view";
 
@@ -311,9 +313,9 @@ export class MnemeReviewView extends ItemView {
 		actionsEl.createEl("button", { text: "Flash Cards" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => this.startFlashCards(concept));
 		});
-		actionsEl.createEl("button", { text: "Open Concept" }, (buttonEl) => {
+		actionsEl.createEl("button", { text: "View Concept" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
-				void this.openConceptSource(concept.concept);
+				this.viewConcept(concept.concept);
 			});
 		});
 		actionsEl.createEl("button", { text: "Pause Concept" }, (buttonEl) => {
@@ -359,9 +361,9 @@ export class MnemeReviewView extends ItemView {
 				text: "Review complete.",
 			});
 			const actionsEl = cardEl.createDiv({ cls: "mneme-review-actions" });
-			actionsEl.createEl("button", { cls: "mneme-review-source-action", text: "Open Concept" }, (buttonEl) => {
+			actionsEl.createEl("button", { cls: "mneme-review-source-action", text: "View Concept" }, (buttonEl) => {
 				buttonEl.addEventListener("click", () => {
-					void this.openConceptSource(concept.concept);
+					this.viewConcept(concept.concept);
 				});
 			});
 			return;
@@ -413,7 +415,7 @@ export class MnemeReviewView extends ItemView {
 				text: rating.label,
 			}, (buttonEl) => {
 				buttonEl.addEventListener("click", () => {
-					void this.rateCurrentCard(rating.value, rating.label);
+					void this.rateCurrentCard(rating.value);
 				});
 			});
 		}
@@ -461,9 +463,9 @@ export class MnemeReviewView extends ItemView {
 				this.openCardEditor(queueCard.card);
 			});
 		});
-		quickActionsEl.createEl("button", { text: "Open Concept" }, (buttonEl) => {
+		quickActionsEl.createEl("button", { text: "View Concept" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
-				void this.openConceptSource(concept.concept);
+				this.viewConcept(concept.concept);
 			});
 		});
 		quickActionsEl.createEl("button", { text: "Skip" }, (buttonEl) => {
@@ -936,7 +938,7 @@ export class MnemeReviewView extends ItemView {
 		}
 
 		this.skippedCardCount += 1;
-		this.advanceToNextCard(`Skipped ${card.cardId}. FSRS state unchanged.`);
+		this.advanceToNextCard();
 	}
 
 	private async deferCurrentCard(): Promise<void> {
@@ -1090,7 +1092,7 @@ export class MnemeReviewView extends ItemView {
 		}
 	}
 
-	private async rateCurrentCard(rating: ReviewRating, label: ReviewRatingLabel): Promise<void> {
+	private async rateCurrentCard(rating: ReviewRating): Promise<void> {
 		const concept = this.selectedConcept;
 		const card = this.getCurrentReviewableCard();
 
@@ -1129,69 +1131,53 @@ export class MnemeReviewView extends ItemView {
 			updatedReviewState,
 		});
 
-		this.statusMessage = `Recorded ${label} for ${card.cardId}. Reviewed ${updatedReviewState.reviewCount} times.`;
-		this.advanceToNextCard(this.statusMessage);
+		this.advanceToNextCard();
 	}
 
-	private advanceToNextCard(completionStatusMessage?: string): void {
+	private advanceToNextCard(): void {
 		this.isAnswerShown = false;
 		this.isMoreActionsShown = false;
 
 		if (this.selectedCardIndex + 1 < this.selectedCards.length) {
 			this.selectedCardIndex += 1;
+			this.statusMessage = "Flash card ready.";
 		} else {
 			this.isReviewComplete = true;
-			this.statusMessage = completionStatusMessage ?? "Review complete.";
+			this.statusMessage = "Review complete.";
 		}
 
 		this.render();
 	}
 
-	private async openConceptSource(concept: MnemeConcept): Promise<void> {
+	private viewConcept(concept: MnemeConcept): void {
+		const conceptSummary = this.toConceptSummary(concept);
+		if (!conceptSummary) {
+			new Notice("No Concept found for this concept.");
+			return;
+		}
+
+		new ConceptEditModal(this.app, {
+			concept: conceptSummary,
+			globalRetentionTarget: this.settingsProvider().fsrsRequestRetention,
+			onSaved: () => this.refreshCards(),
+		}).open();
+	}
+
+	private toConceptSummary(concept: MnemeConcept): ConceptSummary | undefined {
 		if (!concept.conceptPath) {
-			console.info("Mneme: no Concept.md found for source navigation", {
-				folderPath: concept.folderPath,
-				title: concept.title,
-			});
-			this.statusMessage = "No Concept.md found for this concept.";
-			new Notice("No Concept.md found for this concept.");
-			this.render();
-			return;
+			return undefined;
 		}
 
-		const abstractFile = this.app.vault.getAbstractFileByPath(concept.conceptPath);
-		if (!(abstractFile instanceof TFile)) {
-			console.warn("Mneme: Concept.md path did not resolve to a file", {
-				conceptPath: concept.conceptPath,
-				title: concept.title,
-			});
-			this.statusMessage = "No Concept.md found for this concept.";
-			new Notice("No Concept.md found for this concept.");
-			this.render();
-			return;
-		}
-
-		const existingLeaf = this.findOpenMarkdownLeaf(concept.conceptPath);
-		if (existingLeaf) {
-			await this.app.workspace.revealLeaf(existingLeaf);
-			this.app.workspace.setActiveLeaf(existingLeaf, { focus: true });
-			this.statusMessage = `Opened ${concept.title}.`;
-			new Notice(`Opened ${concept.title}.`);
-			this.render();
-			return;
-		}
-
-		await this.app.workspace.getLeaf("tab").openFile(abstractFile);
-		this.statusMessage = `Opened ${concept.title}.`;
-		new Notice(`Opened ${concept.title}.`);
-		this.render();
-	}
-
-	private findOpenMarkdownLeaf(path: string): WorkspaceLeaf | undefined {
-		return this.app.workspace.getLeavesOfType("markdown").find((leaf) => {
-			const view = leaf.view;
-			return view instanceof MarkdownView && view.file?.path === path;
-		});
+		return {
+			cardCount: concept.cards.length,
+			cardsPath: concept.cardPath,
+			conceptId: concept.id,
+			importance: concept.importance,
+			learningMode: concept.learningMode,
+			path: concept.conceptPath,
+			retentionTarget: concept.retentionTarget,
+			title: concept.title,
+		};
 	}
 
 	private resetReviewState(): void {

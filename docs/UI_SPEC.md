@@ -131,9 +131,10 @@ Primary back-side actions are only the FSRS rating buttons, arranged like an Ank
 - Hard updates FSRS state.
 - Good updates FSRS state.
 - Easy updates FSRS state.
+- After a rating, Mneme advances without showing the previous Card ID or a persistent previous-card status message.
 - Skip does not update FSRS state.
 - Edit opens Card Edit Modal.
-- Open Concept opens the approved Concept that grounds the Card. Source Notes remain reachable from that Concept.
+- View Concept opens Mneme's Concept detail/editor surface for the approved Concept that grounds the Card. Source Notes remain reachable from that Concept. Open Concept Markdown is reserved for the raw Markdown source file.
 - Review Later, Suspend Card, Retire Card, and Delete Card are available from `More`, not the main review controls.
 
 Card Edit and Repair re-read the latest Card Group before writing. If the selected Card's Front, Back, or Rubric changed after the editor opened, Save stops and asks the student to reopen the latest content. Changes to other Cards or surrounding Markdown are preserved and do not block the targeted edit. A duplicated stable Card ID must be repaired before content editing can choose a target.
@@ -162,15 +163,15 @@ Concept Library is primarily a visual quick-review surface, not a metadata dashb
 - Concept title
 - Core Meaning
 
-Selecting the card opens Mneme's Concept detail/editor surface, not the raw Markdown source. File paths, tags, learning mode, importance, Source counts, Card counts, and Why It Matters do not appear on the card face. The collapsed `More` control starts with daily learning actions: `Open Concept` and `Review Cards`.
+Selecting the card opens Mneme's Concept detail/editor surface, not the raw Markdown source. File paths, tags, learning mode, importance, Source counts, Card counts, and Why It Matters do not appear on the card face. The collapsed `More` control starts with daily learning actions: `View Concept` and `Review Cards`.
 
-`Open Concept` uses the same rendered editable surface formerly labeled Edit Concept. The student can read the Concept first and edit only when needed.
+`View Concept` uses the rendered editable Concept surface. The student can read the Concept first and edit only when needed.
 
 `Review Cards` starts Concept-scoped Mneme card review for that Concept. It must not open Card Markdown source files. It uses all valid Cards in the Concept, including Cards that are not due in Today’s Focus, and ratings still update FSRS memory. If the Concept has no Card group yet, Mneme shows a `No cards yet` prompt with `Generate to Review` when the Concept is eligible for Card generation.
 
 Raw file operations are second-level actions under `Source Files`, including `Open Concept Markdown` and `Open Cards Source`. Source files are maintenance/debug affordances, not the daily learning path.
 
-Open Concept contains an optional numeric `Retention Target` field under Concept metadata. Blank means the current global target; values must be between `0.70` and `0.98`. The helper text states that it affects only future rated FSRS reviews and does not rewrite existing due dates. Review `Details` and Advanced Diagnostics identify whether the effective target is global or a Concept override; it is not shown on the Concept Library card face.
+View Concept contains an optional numeric `Retention Target` field under Concept metadata. Blank means the current global target; values must be between `0.70` and `0.98`. The helper text states that it affects only future rated FSRS reviews and does not rewrite existing due dates. Review `Details` and Advanced Diagnostics identify whether the effective target is global or a Concept override; it is not shown on the Concept Library card face.
 
 Core Meaning is rendered with Obsidian Markdown, including MathJax formulas delimited by `$...$` or `$$...$$`. Selecting a rendered formula opens Concept detail/editor so the student can inspect and change the original Markdown/LaTeX source.
 

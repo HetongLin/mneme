@@ -40,7 +40,7 @@ export class ConceptEditModal extends Modal {
 
 	onOpen(): void {
 		this.markdownComponent.load();
-		this.titleEl.setText("Open Concept");
+		this.titleEl.setText("View Concept");
 		void this.loadAndRender();
 	}
 

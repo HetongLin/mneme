@@ -400,7 +400,7 @@ export class MnemeConceptComposerView extends ItemView {
 		this.statusEl.empty();
 		const rowEl = this.statusEl.createDiv({ cls: "mneme-concept-composer-created" });
 		rowEl.createEl("span", { text: "Concept created." });
-		rowEl.createEl("button", { text: "Open Concept" }, (buttonEl) => {
+		rowEl.createEl("button", { text: "Open Concept Markdown" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => void this.options.openConcept(result.path));
 		});
 	}

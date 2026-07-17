@@ -80,7 +80,7 @@ When FSRS scheduling is enabled, the main review flow is deliberately narrow:
 3. Show `Again / Hard / Good / Easy` on one row.
 4. A rating updates only that Card's FSRS state and advances.
 
-`More` contains Edit, Open Concept, Skip, Review Later, Suspend, Retire, and Delete. Rubric and technical details remain under `Card details` by default. Rubric may guide self-assessment but must not introduce knowledge absent from Back.
+`More` contains Edit, View Concept, Skip, Review Later, Suspend, Retire, and Delete. Rubric and technical details remain under `Card details` by default. Rubric may guide self-assessment but must not introduce knowledge absent from Back. Use `Open Concept Markdown` only for the raw Markdown source file.
 
 When Scheduled Review is disabled, Review View explains that Today’s Focus is hidden and exposes no scheduled-review queue or rating controls. Manual Concept Review remains available from Concept Library and updates Card memory. Re-enabling Today’s Focus resumes from the real FSRS history; it does not reset or shift due dates.
 

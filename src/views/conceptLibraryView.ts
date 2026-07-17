@@ -133,7 +133,7 @@ export class MnemeConceptLibraryView extends ItemView {
 				text: `${issue.link.relationType} · ${issue.link.evidence.length} evidence item(s)`,
 			});
 			const actionsEl = mainEl.createDiv({ cls: "mneme-review-actions" });
-			actionsEl.createEl("button", { text: "Open Concept" }, (buttonEl) => {
+			actionsEl.createEl("button", { text: "Open Concept Markdown" }, (buttonEl) => {
 				buttonEl.addEventListener("click", () => void this.openMarkdownPath(issue.conceptPath, "Concept"));
 			});
 			if (this.actions.sourceRelinkService) {
@@ -532,7 +532,7 @@ export class MnemeConceptLibraryView extends ItemView {
 		const moreEl = cardEl.createEl("details", { cls: "mneme-concept-library-card-more" });
 		moreEl.createEl("summary", { text: "More" });
 		const actionsEl = moreEl.createDiv({ cls: "mneme-concept-library-card-actions" });
-		actionsEl.createEl("button", { text: "Open Concept" }, (buttonEl) => {
+		actionsEl.createEl("button", { text: "View Concept" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
 				this.openConceptEditor(concept);
 			});
