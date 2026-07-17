@@ -2,6 +2,7 @@ import type { MnemeSettings } from "../models/settings";
 import type { SourceAnalysisRecord } from "../models/sourceAnalysis";
 import { computeContentHash } from "../utils/sourceHash";
 import type { AiProvider } from "./aiProvider";
+import { createAiCardGenerationFingerprint } from "./aiCaptureFingerprint";
 import type { AiGenerationLock } from "./aiGenerationLock";
 import { validateAiProviderConfig, validateCardGenerationResponse } from "./aiProvider";
 import { normalizeAiStructuredProposalResponse } from "./aiProposalNormalizer";
@@ -86,6 +87,11 @@ export class AiCardGenerationService {
 		try {
 			const learningContent = extractConceptLearningContent(input.markdown, input.conceptPath);
 			const learningFingerprint = await computeContentHash(learningContent);
+			const generationFingerprint = await createAiCardGenerationFingerprint(
+				learningFingerprint,
+				input.conceptPath,
+				settings,
+			);
 			const contentHash = await computeContentHash(input.markdown);
 			const existing = await this.options.proposalStore.listBySourcePath(input.conceptPath);
 			const hasActiveProposal = existing.some((proposal) => (
@@ -101,7 +107,7 @@ export class AiCardGenerationService {
 			const previousGenerationRecord = await this.options.sourceAnalysisStore?.getRecord(input.conceptPath);
 			const previousFingerprint = previousGenerationRecord?.lastCardGenerationFingerprint
 				?? previousGenerationRecord?.lastCardGenerationHash;
-			if (previousFingerprint === learningFingerprint) {
+			if (previousFingerprint === generationFingerprint) {
 				return this.result(
 					"skipped_unchanged_concept",
 					"No new assessable Concept content is available for Card generation.",
@@ -169,7 +175,7 @@ export class AiCardGenerationService {
 			await this.recordCardGeneration(
 				input,
 				contentHash,
-				learningFingerprint,
+				generationFingerprint,
 				proposals.length === 0 ? "coverage_complete" : "proposed",
 				previousGenerationRecord,
 			);
@@ -200,7 +206,7 @@ export class AiCardGenerationService {
 	private async recordCardGeneration(
 		input: AiCardGenerationInput,
 		contentHash: string,
-		learningFingerprint: string,
+		generationFingerprint: string,
 		outcome: "proposed" | "coverage_complete",
 		previous: SourceAnalysisRecord | undefined,
 	): Promise<void> {
@@ -216,9 +222,9 @@ export class AiCardGenerationService {
 			lastAiCaptureFingerprint: previous?.lastAiCaptureFingerprint,
 			lastAiCaptureTotalChars: previous?.lastAiCaptureTotalChars,
 			lastAnalyzedAt: now,
-			lastCardGenerationFingerprint: learningFingerprint,
+			lastCardGenerationFingerprint: generationFingerprint,
 			lastCardGenerationOutcome: outcome,
-			lastCardGenerationHash: learningFingerprint,
+			lastCardGenerationHash: generationFingerprint,
 			linkedConceptIds: previous?.linkedConceptIds ?? [input.conceptId],
 			mtime: input.conceptMtime ?? previous?.mtime ?? 0,
 			pendingProposalIds: previous?.pendingProposalIds ?? [],

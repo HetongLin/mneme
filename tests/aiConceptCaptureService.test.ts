@@ -72,6 +72,16 @@ async function run(): Promise<void> {
 
 	{
 		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		await fixture.service.analyze(source);
+		fixture.settings.aiConceptStyleGuidance = "Prefer fewer, exam-focused Concepts.";
+		const second = await fixture.service.analyze(source);
+
+		assert.equal(second.status, "captured");
+		assert.equal(fixture.provider.callCount, 2);
+	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
 		const requestStarted = createDeferred();
 		const releaseRequest = createDeferred();
 		fixture.provider.onCall = () => requestStarted.resolve();

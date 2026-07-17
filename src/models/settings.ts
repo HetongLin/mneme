@@ -1,5 +1,7 @@
 export interface MnemeSettings {
 	aiCaptureEnabled: boolean;
+	aiCardStyleGuidance: string;
+	aiConceptStyleGuidance: string;
 	aiMaxInputChars: number;
 	aiProvider: AiProviderName;
 	aiRequestTimeoutMs: number;
@@ -24,6 +26,8 @@ const LEGACY_DEFAULT_AI_REQUEST_TIMEOUT_MS = 30000;
 
 export const DEFAULT_SETTINGS: MnemeSettings = {
 	aiCaptureEnabled: false,
+	aiCardStyleGuidance: "",
+	aiConceptStyleGuidance: "",
 	aiMaxInputChars: 20000,
 	aiProvider: "mock",
 	aiRequestTimeoutMs: 120000,
@@ -51,6 +55,8 @@ export function normalizeSettings(value: unknown): MnemeSettings {
 		aiCaptureEnabled: typeof value.aiCaptureEnabled === "boolean"
 			? value.aiCaptureEnabled
 			: DEFAULT_SETTINGS.aiCaptureEnabled,
+		aiCardStyleGuidance: normalizeString(value.aiCardStyleGuidance, DEFAULT_SETTINGS.aiCardStyleGuidance),
+		aiConceptStyleGuidance: normalizeString(value.aiConceptStyleGuidance, DEFAULT_SETTINGS.aiConceptStyleGuidance),
 		aiMaxInputChars: normalizePositiveInteger(value.aiMaxInputChars, DEFAULT_SETTINGS.aiMaxInputChars),
 		aiProvider: normalizeAiProvider(value.aiProvider),
 		aiRequestTimeoutMs: normalizeAiRequestTimeoutMs(value.aiRequestTimeoutMs),

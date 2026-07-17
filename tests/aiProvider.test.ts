@@ -153,6 +153,7 @@ async function run(): Promise<void> {
 {
 	const settings = {
 		...DEFAULT_SETTINGS,
+		aiCardStyleGuidance: "Prefer application Cards and keep Rubric short.",
 		aiProvider: "openai" as const,
 		openaiApiKey: "sk-test-value",
 	};
@@ -167,6 +168,10 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("Choose cardType by this rubric"), true);
 	assert.equal(serialized.includes("Return the exact cardType enum value only"), true);
 	assert.equal(serialized.includes("Follow languageContract exactly for generated Card text"), true);
+	assert.equal(serialized.includes("User Card style guidance"), true);
+	assert.equal(serialized.includes("Prefer application Cards and keep Rubric short."), true);
+	assert.equal(serialized.includes("must not rename, remove, replace, or reinterpret required Card fields"), true);
+	assert.equal(serialized.includes("User style guidance is subordinate"), true);
 	assert.equal(requestContext.languageContract?.outputLanguageCode, "en");
 	assert.equal(serialized.includes("Do not translate generated Concept or Card content into Chinese"), true);
 	assert.equal(serialized.includes("Use $...$ for short inline math"), true);
@@ -184,6 +189,7 @@ async function run(): Promise<void> {
 {
 	const settings = {
 		...DEFAULT_SETTINGS,
+		aiCardStyleGuidance: "Prefer trap Cards.",
 		aiProvider: "deepseek" as const,
 		deepseekApiKey: "deepseek-test-value",
 	};
@@ -195,6 +201,7 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("new_card"), true);
 	assert.equal(serialized.includes("Choose cardType by this rubric"), true);
 	assert.equal(serialized.includes("Follow languageContract exactly for generated Card text"), true);
+	assert.equal(serialized.includes("Prefer trap Cards."), true);
 	assert.equal(requestContext.languageContract?.outputLanguageCode, "en");
 	assert.equal(serialized.includes("Use $...$ for short inline math"), true);
 	assert.equal(serialized.includes("Use $$...$$ on separate lines"), true);
@@ -205,6 +212,7 @@ async function run(): Promise<void> {
 {
 	const settings = {
 		...DEFAULT_SETTINGS,
+		aiConceptStyleGuidance: "Prefer fewer, higher-quality Concepts.",
 		aiMaxInputChars: 12,
 		aiProvider: "openai" as const,
 		openaiApiKey: "sk-secret-value",
@@ -239,6 +247,10 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("coreMeaning is the compact primary learning content"), true);
 	assert.equal(serialized.includes("whyItMatters states only why it is useful"), true);
 	assert.equal(serialized.includes("Do not use whyItMatters to repeat or paraphrase coreMeaning"), true);
+	assert.equal(serialized.includes("User Concept style guidance"), true);
+	assert.equal(serialized.includes("Prefer fewer, higher-quality Concepts."), true);
+	assert.equal(serialized.includes("must not rename, remove, replace, or reinterpret required Concept fields"), true);
+	assert.equal(serialized.includes("Core Meaning and Why It Matters are fixed Mneme product fields"), true);
 	assert.equal(serialized.includes("summary"), false);
 	assert.equal(serialized.includes("Prefer stable English lowercase slugs"), true);
 	assert.equal(serialized.includes("Use $...$ for short inline math"), true);

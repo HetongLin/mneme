@@ -67,9 +67,13 @@ The Concept's declared `cards` link is the location authority for future Card wr
 
 Cards can be generated only from a written, reviewable Concept—not from a Source Note or a Mneme Concept passed through `Analyze Current Note`.
 
-Duplicate protection uses a Learning Content Fingerprint derived from assessable Concept sections. After a successful generation call, accepting or rejecting its proposals does not unlock another round for the same fingerprint. Metadata-only changes such as tags, paths, provenance, or navigation links also do not unlock another generation round; assessable learning content must change.
+Duplicate protection uses a generation fingerprint derived from assessable Concept sections plus Card generation policy/style. After a successful generation call, accepting or rejecting its proposals does not unlock another round for the same fingerprint. Metadata-only changes such as tags, paths, provenance, or navigation links also do not unlock another generation round; assessable learning content or Card style guidance must change.
 
-Existing accepted Card fronts are passed to the provider as a Coverage Map. The provider should add missing assessment outcomes or perspectives rather than paraphrasing existing Cards. A fully rejected round may be retried because it wrote no Card content.
+AI prompts are layered. Mneme owns the protocol and product-policy layers: required JSON shape, proposal kinds, field names, evidence, language contract, source identity, and enum values are not user-editable. Settings expose only Concept/Card style guidance. Style guidance can change emphasis and wording inside fixed fields, but cannot rename Core Meaning, Why It Matters, Front, Back, Rubric, Learning Mode, Importance, Tags, evidence, or `cardType`.
+
+Card generation duplicate protection records a generation fingerprint built from assessable Concept content plus Card generation policy/style. Metadata-only edits still do not unlock a round; Card style guidance changes can unlock a new attempt after existing proposals are resolved.
+
+Existing accepted Card fronts are passed to the provider as a Coverage Map. The provider should add missing assessment outcomes or perspectives rather than paraphrasing existing Cards. A new generation attempt requires changed assessable learning content or changed Card style guidance after existing active proposals are resolved.
 
 ## Review UX
 

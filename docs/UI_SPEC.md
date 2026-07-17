@@ -14,6 +14,8 @@ Current-note commands are context-aware. `Analyze Current Note` appears only for
 
 AI settings label the per-request limit as `AI chunk size`. Longer Source Notes are analyzed completely across Markdown-aware chunks rather than truncated. A completed capture reports `Analyzed {analyzed}/{total} characters across {count} chunks.` so the student can verify coverage; a failed chunk reports its chunk position and no proposal from that capture is written.
 
+AI settings expose optional `Concept style guidance` and `Card style guidance` text areas. These are advanced preference fields for writing style, concept-selection preference, question difficulty, and learning emphasis. Their helper text must state that Mneme's required JSON format, proposal kinds, field names, evidence rules, language contract, and enum values remain fixed. Users may tune content inside fields; they may not rename, remove, reorder, or replace fields such as Core Meaning, Why It Matters, Front, Back, Rubric, Learning Mode, Importance, Tags, evidence, or `cardType`.
+
 AI should prefer stable English lowercase tag slugs, but user-approved and manually entered tags may use any language already meaningful in the vault. Mneme normalizes whitespace and punctuation without deleting non-Latin text.
 
 Generated and manually edited mathematical notation uses Obsidian MathJax Markdown. Use `$...$` for short inline formulas inside a sentence. Use `$$...$$` on separate lines for standalone, long, emphasized, or multi-line equations. Primary Concept and Review Card surfaces render this Markdown through Obsidian; selecting a rendered formula opens the corresponding raw Concept or Card editor.

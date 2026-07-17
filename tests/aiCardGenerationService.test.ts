@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type { MnemePluginData } from "../src/models/reviewState";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
 import type { AiProposalRequest, AiProposalResponse, AiProvider } from "../src/services/aiProvider";
+import { createAiCardGenerationFingerprint } from "../src/services/aiCaptureFingerprint";
 import { AiCardGenerationService } from "../src/services/aiCardGenerationService";
 import { AiGenerationLock } from "../src/services/aiGenerationLock";
 import { resolveGroundingQuote } from "../src/services/proposalGroundingReconciler";
@@ -101,7 +102,7 @@ async function run(): Promise<void> {
 		assert.equal(proposals[0]?.status, "suggested");
 		assert.equal(
 			(await fixture.sourceAnalysisStore.getRecord(concept.conceptPath))?.lastCardGenerationFingerprint,
-			await conceptFingerprint(),
+			await cardGenerationFingerprint(fixture.settings),
 		);
 	}
 
@@ -200,6 +201,22 @@ async function run(): Promise<void> {
 
 		assert.equal(second.status, "skipped_unchanged_concept");
 		assert.equal(fixture.provider.callCount, 1);
+	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		await fixture.service.generate(concept);
+		const proposals = await fixture.proposalStore.loadProposals();
+
+		await fixture.proposalStore.replaceProposals(Object.fromEntries(
+			Object.entries(proposals).map(([id, proposal]) => [id, { ...proposal, status: "written" as const }]),
+		));
+
+		fixture.settings.aiCardStyleGuidance = "Prefer application Cards.";
+		const second = await fixture.service.generate(concept);
+
+		assert.equal(second.status, "generated");
+		assert.equal(fixture.provider.callCount, 2);
 	}
 
 	{
@@ -436,6 +453,10 @@ async function conceptFingerprint(): Promise<string> {
 	return computeContentHash(extractConceptLearningContent(concept.markdown, concept.conceptPath));
 }
 
+async function cardGenerationFingerprint(settings = DEFAULT_SETTINGS): Promise<string> {
+	return createAiCardGenerationFingerprint(await conceptFingerprint(), concept.conceptPath, settings);
+}
+
 function createFixture(settingsOverrides: Partial<typeof DEFAULT_SETTINGS>) {
 	const settings = { ...DEFAULT_SETTINGS, ...settingsOverrides };
 	const storage = new MemoryPluginStorage();
@@ -452,7 +473,7 @@ function createFixture(settingsOverrides: Partial<typeof DEFAULT_SETTINGS>) {
 		timestampProvider: () => "2026-01-02T12:00:00.000Z",
 	});
 
-	return { generationLock, proposalStore, provider, service, sourceAnalysisStore };
+	return { generationLock, proposalStore, provider, service, settings, sourceAnalysisStore };
 }
 
 class CountingProvider implements AiProvider {

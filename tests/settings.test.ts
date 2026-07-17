@@ -16,6 +16,8 @@ import {
 	const settings = getSettingsFromPluginData({
 		settings: {
 			aiCaptureEnabled: true,
+			aiCardStyleGuidance: "Prefer application Cards.",
+			aiConceptStyleGuidance: "Prefer fewer Concepts.",
 			aiMaxInputChars: 12000,
 			aiProvider: "deepseek",
 			aiRequestTimeoutMs: 45000,
@@ -37,6 +39,8 @@ import {
 
 	assert.deepEqual(settings, {
 		aiCaptureEnabled: true,
+		aiCardStyleGuidance: "Prefer application Cards.",
+		aiConceptStyleGuidance: "Prefer fewer Concepts.",
 		aiMaxInputChars: 12000,
 		aiProvider: "deepseek",
 		aiRequestTimeoutMs: 45000,
@@ -79,6 +83,8 @@ import {
 
 	assert.deepEqual(settings, {
 		aiCaptureEnabled: DEFAULT_SETTINGS.aiCaptureEnabled,
+		aiCardStyleGuidance: DEFAULT_SETTINGS.aiCardStyleGuidance,
+		aiConceptStyleGuidance: DEFAULT_SETTINGS.aiConceptStyleGuidance,
 		aiMaxInputChars: 1,
 		aiProvider: DEFAULT_SETTINGS.aiProvider,
 		aiRequestTimeoutMs: 1,
@@ -103,6 +109,8 @@ import {
 
 	assert.equal(settings.enableDeveloperTools, false);
 	assert.equal(settings.aiCaptureEnabled, false);
+	assert.equal(settings.aiCardStyleGuidance, "");
+	assert.equal(settings.aiConceptStyleGuidance, "");
 	assert.equal(settings.aiProvider, "mock");
 	assert.equal(settings.aiRequestTimeoutMs, 120000);
 	assert.equal(settings.fsrsEnabled, true);
@@ -193,6 +201,8 @@ import {
 	}, {
 		...DEFAULT_SETTINGS,
 		aiCaptureEnabled: true,
+		aiCardStyleGuidance: "Prefer traps.",
+		aiConceptStyleGuidance: "Prefer exam Concepts.",
 		aiMaxInputChars: 10000,
 		aiProvider: "deepseek",
 		aiRequestTimeoutMs: 15000,
@@ -215,6 +225,8 @@ import {
 	assert.equal((data.settings as typeof DEFAULT_SETTINGS).enableDeveloperTools, true);
 	assert.equal((data.settings as typeof DEFAULT_SETTINGS).aiProvider, "deepseek");
 	assert.equal((data.settings as typeof DEFAULT_SETTINGS).aiCaptureEnabled, true);
+	assert.equal((data.settings as typeof DEFAULT_SETTINGS).aiCardStyleGuidance, "Prefer traps.");
+	assert.equal((data.settings as typeof DEFAULT_SETTINGS).aiConceptStyleGuidance, "Prefer exam Concepts.");
 	assert.equal((data.settings as typeof DEFAULT_SETTINGS).openaiApiKey, "sk-updated");
 	assert.equal((data.settings as typeof DEFAULT_SETTINGS).deepseekApiKey, "deepseek-updated");
 	assert.equal((data.settings as typeof DEFAULT_SETTINGS).deepseekBaseUrl, "https://deepseek.example");

@@ -279,6 +279,8 @@ Current progress:
 - Exported Concept files omit Source Notes and Review Cards sections and do not include Cards, FSRS state, review history, credentials, diagnostics, or a project request.
 - One-way Anki TSV export creates isolated Card copies without syncing content, scheduling state, or review history.
 - Optional Course/manual filtering remains unfinished.
+- Card customization should add an `Allowed AI Card Types` setting before considering arbitrary card type names. The safer path is enabling or disabling Mneme's built-in types while keeping the internal enum stable.
+- Manual Card creation remains unfinished. It should let a student create a Card for an existing Concept directly, using the same Card Group marker format as AI-accepted Cards and without manufacturing an Inbox approval step.
 
 ## v2.0: AI-native Learning System
 

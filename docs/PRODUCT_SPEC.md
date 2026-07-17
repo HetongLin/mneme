@@ -114,6 +114,8 @@ Current implementation note:
 
 Analyze Current Note indexes the Source Note and, when AI Capture is enabled, asks the selected Mock, OpenAI, or DeepSeek provider for Concept-stage proposals. DeepSeek uses its OpenAI-compatible chat-completions endpoint, while OpenAI uses the Responses API. Provider output remains untrusted until it passes Mneme's structured proposal validation and normalization into `KnowledgeProposal`. The command stores valid proposals in Inbox and never writes Markdown directly.
 
+AI prompts are layered. Mneme owns the protocol layer and product policy layer: JSON shape, proposal kinds, fixed field names, required evidence, language contract, source/hash identity, Concept-first flow, and supported enum values are not user-editable. Settings may expose only a style guidance layer for Concept and Card generation. Style guidance can change wording, emphasis, difficulty, and selection preferences inside fixed fields, but it cannot rename or remove fields such as Core Meaning, Why It Matters, Front, Back, Rubric, learning mode, importance, tags, evidence, or `cardType`.
+
 Generate Cards from Current Concept works only from a written Mneme Concept Markdown file. It sends assessable Concept content plus existing Card fronts as a Coverage Map, accepts only `new_card` responses, and stores validated Card proposals in Inbox. An accepted Card appends one independently identified block to the Concept's Card Group.
 
 Analyze Current Note is for ordinary Markdown Source Notes, not written Mneme Concepts or Mneme's internal Concept/Card files. Running Source Note analysis on an approved or internal artifact would re-treat Mneme output as raw input and can create circular or duplicate proposals, so Mneme excludes the command in those contexts and retains a runtime guard.
@@ -122,7 +124,7 @@ Current-note commands follow the active note: Source Notes offer Concept analysi
 
 Card generation is coverage-driven and bounded to at most five proposals per run. Each proposal identifies the approved Concept claim or section it tests. If generation reveals missing knowledge, Mneme proposes a Concept update first rather than inserting new knowledge into a Card.
 
-Card generation uses a Learning Content Fingerprint rather than a whole-file hash. Presentation, tag, provenance, and navigation edits do not unlock a duplicate round; active or written Cards and a `coverage_complete` result for the same fingerprint block repetition, while a fully rejected proposal round may be tried again.
+Card generation uses a generation fingerprint based on the assessable Learning Content plus Card generation policy/style, rather than a whole-file hash. Presentation, tag, provenance, and navigation edits do not unlock a duplicate round; changing Card style guidance can unlock a new generation attempt after existing proposals are resolved. Active Card proposals for the same learning content still block repetition, and a `coverage_complete` result for the same generation fingerprint blocks another round.
 
 Concept Library is a dockable Obsidian View opened in the main workspace for quick browsing and review. Each Concept card shows only its title and Core Meaning, while management actions and diagnostics stay collapsed. Its `More` menu separates daily learning actions from source maintenance: `View Concept` opens Mneme's rendered editable Concept surface, `Review Cards` starts Concept-scoped Card review over all valid Cards in that Concept, and raw Markdown/file operations live under `Source Files`. `Open Concept Markdown` is reserved for the raw Markdown source file. If a Concept has no Card group, `Review Cards` prompts `Generate to Review` when generation is allowed. Concept-scoped Card review is manual, is not limited to due/new Cards, and still updates FSRS memory.
 
@@ -148,6 +150,8 @@ User experience is the first requirement. Internal schemas can be strict and det
 - Possible Duplicates require a Guided Merge with a final diff; the merged path becomes a Redirect Note.
 - Anki interoperability is a one-way UTF-8 TSV export of active valid approved Cards. Exported cards are independent copies with no sync.
 - Use Mode is project-based. Its first increment is a neutral Knowledge Context Pack containing approved Concepts for an external agent; approved does not mean mastered.
+- Future Card customization should prefer enabling/disabling Mneme's supported built-in `cardType` values over arbitrary user-defined types. Arbitrary type names would weaken parser, review, analytics, and export compatibility.
+- Manual Card creation is a planned first-class capability: students should be able to create a Card for an existing Concept without AI and write it directly to that Concept's Card Group using the same stable Card format.
 - AI scanning is an accelerator, not the only Concept entry path. Manual Concept creation must exist so students can decide what knowledge matters even when AI extraction is incomplete or unwanted.
 
 ## v0.1 Goal

@@ -260,6 +260,32 @@ export class MnemeSettingTab extends PluginSettingTab {
 				});
 			});
 
+		new Setting(containerEl)
+			.setName("Concept style guidance")
+			.setDesc("Optional AI writing preferences for Concept proposals. This may change content style and selection criteria, but Mneme still requires fixed JSON fields such as Core Meaning, Why It Matters, Learning Mode, Importance, Tags, and evidence.")
+			.addTextArea((text) => {
+				text.inputEl.rows = 5;
+				text.inputEl.placeholder = "Example: Prefer fewer, higher-quality Concepts. Keep Core Meaning concise and mechanism-focused. Keep Why It Matters focused on exam use or practical application.";
+				text.setValue(this.plugin.settings.aiConceptStyleGuidance);
+				text.onChange(async (value) => {
+					this.plugin.settings.aiConceptStyleGuidance = value.trim();
+					await this.persistSettings();
+				});
+			});
+
+		new Setting(containerEl)
+			.setName("Card style guidance")
+			.setDesc("Optional AI writing preferences for Card proposals. This may change question style and difficulty, but Mneme still requires fixed front/back/rubric fields, grounding evidence, and supported cardType values.")
+			.addTextArea((text) => {
+				text.inputEl.rows = 5;
+				text.inputEl.placeholder = "Example: Prefer application and trap Cards. Avoid too many pure definition Cards. Keep Back concise and Rubric short.";
+				text.setValue(this.plugin.settings.aiCardStyleGuidance);
+				text.onChange(async (value) => {
+					this.plugin.settings.aiCardStyleGuidance = value.trim();
+					await this.persistSettings();
+				});
+			});
+
 		containerEl.createEl("h3", { text: "Developer Tools" });
 
 		new Setting(containerEl)
