@@ -124,7 +124,7 @@ Card generation is coverage-driven and bounded to at most five proposals per run
 
 Card generation uses a Learning Content Fingerprint rather than a whole-file hash. Presentation, tag, provenance, and navigation edits do not unlock a duplicate round; active or written Cards and a `coverage_complete` result for the same fingerprint block repetition, while a fully rejected proposal round may be tried again.
 
-Concept Library is a quick-review card wall: each Concept card shows only its title and Core Meaning, while management actions and diagnostics stay collapsed. It also exposes Generate Cards for reviewable Concepts under each card's `More` menu. Exploratory Concepts intentionally omit this action and remain outside Card/FSRS review.
+Concept Library is a dockable Obsidian View opened in the main workspace for quick browsing and review. Each Concept card shows only its title and Core Meaning, while management actions and diagnostics stay collapsed. Its `More` menu separates daily learning actions from source maintenance: `Open Concept` opens Mneme's rendered editable Concept surface, `Review Cards` starts Mneme Card review, and raw Markdown/file operations live under `Source Files`. If a Concept has no Card group, `Review Cards` prompts `Generate to Review` when generation is allowed. Exploratory Concepts remain outside Card/FSRS review.
 
 Today’s Focus is the Concept-grouped view over the complete FSRS-eligible queue. Mneme applies no daily Concept, daily Card, or per-Concept Card cap after FSRS. Priority changes ordering only. Explicit Review Later, pause, suspension, retirement, deletion, validity, stable-ID, and exploratory-Concept rules may still exclude a Card without changing its FSRS due date.
 

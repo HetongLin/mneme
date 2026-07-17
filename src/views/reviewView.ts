@@ -148,6 +148,26 @@ export class MnemeReviewView extends ItemView {
 		}
 	}
 
+	async startConceptReview(conceptId: string): Promise<"started" | "not_found" | "no_reviewable_cards"> {
+		await this.refreshCards();
+		const concept = this.reviewQueue.concepts.find((queueConcept) => queueConcept.conceptId === conceptId);
+
+		if (!concept) {
+			this.statusMessage = "Concept not found in Review.";
+			this.render();
+			return "not_found";
+		}
+
+		if (getQueuedReviewCards(concept).length === 0) {
+			this.statusMessage = "No due or new Cards are available for this Concept.";
+			this.render();
+			return "no_reviewable_cards";
+		}
+
+		this.startFlashCards(concept);
+		return "started";
+	}
+
 	private render(): void {
 		this.contentEl.empty();
 		this.contentEl.addClass("mneme-review-view");

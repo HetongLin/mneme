@@ -133,6 +133,7 @@ export default class MnemePlugin extends Plugin {
 					this,
 				),
 				generateCards: (concept) => this.generateCardsFromConceptPath(concept.path),
+				reviewCards: (concept) => this.reviewCardsFromConceptLibrary(concept.conceptId),
 			},
 		));
 		this.registerView(CONCEPT_COMPOSER_VIEW_TYPE, (leaf) => new MnemeConceptComposerView(leaf, {
@@ -1033,13 +1034,13 @@ export default class MnemePlugin extends Plugin {
 
 		if (existingLeaf) {
 			await this.app.workspace.revealLeaf(existingLeaf);
-			return;
+			return existingLeaf;
 		}
 
 		const leaf = this.app.workspace.getRightLeaf(false);
 		if (!leaf) {
 			new Notice("Mneme: could not open Review View.");
-			return;
+			return undefined;
 		}
 
 		await leaf.setViewState({
@@ -1047,6 +1048,25 @@ export default class MnemePlugin extends Plugin {
 			type: REVIEW_VIEW_TYPE,
 		});
 		await this.app.workspace.revealLeaf(leaf);
+		return leaf;
+	}
+
+	private async reviewCardsFromConceptLibrary(conceptId: string): Promise<void> {
+		const leaf = await this.openReviewView();
+		if (!leaf || !(leaf.view instanceof MnemeReviewView)) {
+			new Notice("Mneme: could not open Review Cards.");
+			return;
+		}
+
+		const result = await leaf.view.startConceptReview(conceptId);
+
+		if (result === "not_found") {
+			new Notice("Mneme: Concept not found in Review.");
+		}
+
+		if (result === "no_reviewable_cards") {
+			new Notice("Mneme: this Concept has no due or new Cards right now.");
+		}
 	}
 
 	private async openInboxView(tab: InboxTab = "concepts"): Promise<void> {
@@ -1108,7 +1128,7 @@ export default class MnemePlugin extends Plugin {
 			return;
 		}
 
-		const leaf = this.app.workspace.getRightLeaf(false);
+		const leaf = this.app.workspace.getLeaf("tab");
 		if (!leaf) {
 			new Notice("Mneme: could not open Concept Library.");
 			return;

@@ -415,6 +415,17 @@ If your plugin does not need CSS, delete this file.
 	width: 100%;
 }
 
+.mneme-concept-library-source-files {
+	border-top: 1px solid var(--background-modifier-border);
+	margin-top: 12px;
+	padding-top: 10px;
+}
+
+.mneme-concept-library-source-files > summary {
+	cursor: pointer;
+	font-family: var(--font-ui-medium);
+}
+
 .mneme-concept-library-empty {
 	grid-column: 1 / -1;
 }

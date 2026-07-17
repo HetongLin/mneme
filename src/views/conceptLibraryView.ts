@@ -1,4 +1,4 @@
-import { ItemView, MarkdownRenderer, MarkdownView, Notice, TAbstractFile, TFile, TFolder, WorkspaceLeaf } from "obsidian";
+import { App, ItemView, MarkdownRenderer, MarkdownView, Modal, Notice, TAbstractFile, TFile, TFolder, WorkspaceLeaf } from "obsidian";
 import type {
 	ConceptLibraryFilter,
 	ConceptLibrarySortMode,
@@ -33,6 +33,7 @@ export interface ConceptLibraryActions {
 	sourceRelinkService?: SourceProvenanceRelinkService;
 	sourceRemovalService?: SourceProvenanceRemovalService;
 	generateCards?(concept: ConceptSummary): Promise<void> | void;
+	reviewCards?(concept: ConceptSummary): Promise<void> | void;
 }
 
 export class MnemeConceptLibraryView extends ItemView {
@@ -520,12 +521,12 @@ export class MnemeConceptLibraryView extends ItemView {
 				return;
 			}
 			if (isMarkdownInteractiveTarget(event.target)) return;
-			void this.openMarkdownPath(concept.path, "Concept");
+			this.openConceptEditor(concept);
 		});
 		openEl.addEventListener("keydown", (event) => {
 			if (event.target !== openEl || (event.key !== "Enter" && event.key !== " ")) return;
 			event.preventDefault();
-			void this.openMarkdownPath(concept.path, "Concept");
+			this.openConceptEditor(concept);
 		});
 
 		const moreEl = cardEl.createEl("details", { cls: "mneme-concept-library-card-more" });
@@ -533,39 +534,60 @@ export class MnemeConceptLibraryView extends ItemView {
 		const actionsEl = moreEl.createDiv({ cls: "mneme-concept-library-card-actions" });
 		actionsEl.createEl("button", { text: "Open Concept" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
-				void this.openMarkdownPath(concept.path, "Concept");
+				this.openConceptEditor(concept);
 			});
 		});
-		actionsEl.createEl("button", { text: "Edit Concept" }, (buttonEl) => {
+		actionsEl.createEl("button", { text: "Review Cards" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
-				this.openConceptEditor(concept);
+				void this.reviewConceptCards(concept);
+			});
+		});
+
+		const sourceFilesEl = moreEl.createEl("details", { cls: "mneme-concept-library-source-files" });
+		sourceFilesEl.createEl("summary", { text: "Source Files" });
+		const sourceActionsEl = sourceFilesEl.createDiv({ cls: "mneme-concept-library-card-actions" });
+		sourceActionsEl.createEl("button", { text: "Open Concept Markdown" }, (buttonEl) => {
+			buttonEl.addEventListener("click", () => {
+				void this.openMarkdownPath(concept.path, "Concept");
 			});
 		});
 
 		if (concept.cardsPath) {
-			actionsEl.createEl("button", { text: "Open Cards" }, (buttonEl) => {
+			sourceActionsEl.createEl("button", { text: "Open Cards Source" }, (buttonEl) => {
 				buttonEl.addEventListener("click", () => {
 					void this.openCardTarget(concept.cardsPath);
 				});
 			});
-		}
-
-		if (this.actions.generateCards && canGenerateCardsFromConcept(concept)) {
-			actionsEl.createEl("button", { text: "Generate Cards" }, (buttonEl) => {
-				buttonEl.addEventListener("click", async () => {
-					if (buttonEl.disabled) return;
-					buttonEl.disabled = true;
-					buttonEl.textContent = "Generating...";
-
-					try {
-						await this.actions.generateCards?.(concept);
-					} finally {
-						buttonEl.disabled = false;
-						buttonEl.textContent = "Generate Cards";
-					}
-				});
+		} else {
+			sourceFilesEl.createEl("p", {
+				cls: "mneme-review-status",
+				text: "No Cards source yet.",
 			});
 		}
+	}
+
+	private async reviewConceptCards(concept: ConceptSummary): Promise<void> {
+		if (!concept.cardsPath && (concept.cardCount ?? 0) === 0) {
+			this.openNoCardsModal(concept);
+			return;
+		}
+
+		if (!this.actions.reviewCards) {
+			new Notice("Mneme: Review Cards is not available.");
+			return;
+		}
+
+		await this.actions.reviewCards(concept);
+	}
+
+	private openNoCardsModal(concept: ConceptSummary): void {
+		new ConceptNoCardsModal(this.app, {
+			canGenerate: !!this.actions.generateCards && canGenerateCardsFromConcept(concept),
+			concept,
+			generateCards: async () => {
+				await this.actions.generateCards?.(concept);
+			},
+		}).open();
 	}
 
 	private openConceptEditor(concept: ConceptSummary): void {
@@ -728,4 +750,62 @@ function markRenderedMathEditable(parentEl: HTMLElement): void {
 	parentEl.querySelectorAll<HTMLElement>(".math, mjx-container").forEach((mathEl) => {
 		mathEl.title = "Click to edit formula source";
 	});
+}
+
+interface ConceptNoCardsModalOptions {
+	canGenerate: boolean;
+	concept: ConceptSummary;
+	generateCards(): Promise<void>;
+}
+
+class ConceptNoCardsModal extends Modal {
+	private isGenerating = false;
+
+	constructor(app: App, private readonly options: ConceptNoCardsModalOptions) {
+		super(app);
+	}
+
+	onOpen(): void {
+		this.titleEl.setText("No cards yet");
+		this.render();
+	}
+
+	private render(): void {
+		this.contentEl.empty();
+		this.contentEl.createEl("p", {
+			cls: "mneme-review-status",
+			text: `${this.options.concept.title} does not have review cards yet.`,
+		});
+		this.contentEl.createEl("p", {
+			text: this.options.canGenerate
+				? "Generate cards from this approved Concept to start reviewing."
+				: "This Concept is not eligible for review Card generation.",
+		});
+
+		const actionsEl = this.contentEl.createDiv({ cls: "mneme-proposal-detail-modal-actions" });
+		const cancelButton = actionsEl.createEl("button", { text: "Cancel" });
+		cancelButton.addEventListener("click", () => this.close());
+
+		if (!this.options.canGenerate) {
+			return;
+		}
+
+		const generateButton = actionsEl.createEl("button", { text: "Generate to Review" });
+		generateButton.addEventListener("click", async () => {
+			if (this.isGenerating) return;
+			this.isGenerating = true;
+			generateButton.disabled = true;
+			generateButton.textContent = "Generating...";
+
+			try {
+				await this.options.generateCards();
+				this.close();
+			} catch (error) {
+				console.error("Mneme: failed to generate Cards from no-cards prompt", error);
+				new Notice(`Mneme: could not generate Cards: ${formatUserFacingError(error, "Try again from Concept Library.")}`);
+				this.isGenerating = false;
+				this.render();
+			}
+		});
+	}
 }
