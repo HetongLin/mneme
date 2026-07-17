@@ -62,19 +62,20 @@ Mneme may:
 - group due and new Cards by Concept
 - rank Concept groups that contain eligible review Cards
 - persist settings used to configure `ts-fsrs`
-- disable the review surface without changing persisted FSRS state
+- hide the scheduled review surface without disabling FSRS memory updates
 
 ## Optional Scheduling Contract
 
 When `fsrsEnabled` is false:
 
 - Today’s Focus contains no Cards
-- Mneme accepts no FSRS rating
-- reading, editing, and Concept Library browsing create no review event
-- persisted FSRS state, due dates, and history remain unchanged
-- new Cards remain new and have no FSRS state
+- Mneme Review shows no scheduled Concept queue, `Show Answer`, or rating controls
+- Concept Library `Review Cards` may still start a Concept-scoped Flash Card session
+- Concept-scoped manual ratings still update FSRS state, due dates, and review history
+- reading, editing, and Concept Library browsing alone create no review event
+- new Cards remain new until they are manually reviewed or scheduled review is shown again
 
-When it is enabled again, Mneme uses stored due dates immediately and passes the real current review time to `ts-fsrs`. It does not reset state, shift due dates, or subtract the disabled interval.
+When it is enabled again, Mneme uses stored due dates immediately and passes the real current review time to `ts-fsrs`. It does not reset state, shift due dates, or subtract the disabled interval. Any manual Concept Review events recorded while Today’s Focus was hidden remain part of the same FSRS history.
 
 ## FSRS Review Contract
 

@@ -68,11 +68,11 @@ export class MnemeSettingTab extends PluginSettingTab {
 				});
 			});
 
-		containerEl.createEl("h3", { text: "FSRS Scheduling" });
+		containerEl.createEl("h3", { text: "Scheduled Review" });
 
 		new Setting(containerEl)
-			.setName("Enable FSRS scheduling")
-			.setDesc("When off, Mneme preserves Card memory state and review history but stops Today’s Focus and FSRS ratings. Re-enabling resumes from the last formal review using real elapsed time.")
+			.setName("Show Today’s Focus")
+			.setDesc("When off, Mneme hides the scheduled due-card queue. Manual Concept Review from Concept Library still updates Card memory with FSRS.")
 			.addToggle((toggle) => {
 				toggle.setValue(this.plugin.settings.fsrsEnabled);
 				toggle.onChange(async (value) => {

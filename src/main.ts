@@ -1,4 +1,4 @@
-import { Notice, Plugin, TAbstractFile, TFile, TFolder } from "obsidian";
+import { Notice, Plugin, TAbstractFile, TFile, TFolder, WorkspaceLeaf } from "obsidian";
 import {
 	ACCEPTANCE_CARD_PROPOSAL_ID,
 	ACCEPTANCE_CONCEPT_ID,
@@ -106,6 +106,9 @@ export default class MnemePlugin extends Plugin {
 			leaf,
 			this.reviewStateStore,
 			() => this.settings,
+			{
+				openConceptLibrary: () => this.openConceptLibraryView(),
+			},
 		));
 		this.registerView(INBOX_VIEW_TYPE, (leaf) => new MnemeInboxView(
 			leaf,
@@ -1037,7 +1040,7 @@ export default class MnemePlugin extends Plugin {
 			return existingLeaf;
 		}
 
-		const leaf = this.app.workspace.getRightLeaf(false);
+		const leaf = this.openMnemeWorkspaceLeaf();
 		if (!leaf) {
 			new Notice("Mneme: could not open Review View.");
 			return undefined;
@@ -1065,7 +1068,7 @@ export default class MnemePlugin extends Plugin {
 		}
 
 		if (result === "no_reviewable_cards") {
-			new Notice("Mneme: this Concept has no due or new Cards right now.");
+			new Notice("Mneme: this Concept has no valid Cards to review.");
 		}
 	}
 
@@ -1128,7 +1131,7 @@ export default class MnemePlugin extends Plugin {
 			return;
 		}
 
-		const leaf = this.app.workspace.getLeaf("tab");
+		const leaf = this.openMnemeWorkspaceLeaf();
 		if (!leaf) {
 			new Notice("Mneme: could not open Concept Library.");
 			return;
@@ -1139,6 +1142,15 @@ export default class MnemePlugin extends Plugin {
 			type: CONCEPT_LIBRARY_VIEW_TYPE,
 		});
 		await this.app.workspace.revealLeaf(leaf);
+	}
+
+	private openMnemeWorkspaceLeaf(): WorkspaceLeaf | undefined {
+		try {
+			return this.app.workspace.openPopoutLeaf();
+		} catch (error) {
+			console.info("Mneme: popout window unavailable, opening in a workspace tab", error);
+			return this.app.workspace.getLeaf("tab");
+		}
 	}
 
 	private createConceptScanner(): ConceptScanner {

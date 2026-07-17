@@ -31,6 +31,11 @@ export const REVIEW_VIEW_TYPE = "mneme-review-view";
 
 type ReviewMode = "queue" | "flashcard";
 type ReviewRatingLabel = "Again" | "Hard" | "Good" | "Easy";
+type ReviewSessionSource = "scheduled" | "concept-library";
+
+export interface ReviewViewActions {
+	openConceptLibrary?(): Promise<void> | void;
+}
 
 const REVIEW_RATINGS: Array<{ label: ReviewRatingLabel; value: ReviewRating }> = [
 	{ label: "Again", value: "again" },
@@ -57,6 +62,7 @@ export class MnemeReviewView extends ItemView {
 	private reviewQueue: ReviewQueue = createEmptyReviewQueue();
 	private selectedCardIndex = 0;
 	private sessionCardCount = 0;
+	private sessionSource: ReviewSessionSource = "scheduled";
 	private selectedCards: ReviewQueueCard[] = [];
 	private selectedConcept: ReviewQueueConcept | null = null;
 	private skippedCardCount = 0;
@@ -68,6 +74,7 @@ export class MnemeReviewView extends ItemView {
 		leaf: WorkspaceLeaf,
 		private readonly reviewStateStore: ReviewStateStore,
 		private readonly settingsProvider: () => MnemeSettings = () => DEFAULT_SETTINGS,
+		private readonly actions: ReviewViewActions = {},
 	) {
 		super(leaf);
 		this.loader = new ConceptLoader(this.app);
@@ -158,22 +165,19 @@ export class MnemeReviewView extends ItemView {
 			return "not_found";
 		}
 
-		if (getQueuedReviewCards(concept).length === 0) {
-			this.statusMessage = "No due or new Cards are available for this Concept.";
+		if (getConceptReviewCards(concept, this.getExcludedCardIds()).length === 0) {
+			this.statusMessage = "No valid Cards are available for this Concept.";
 			this.render();
 			return "no_reviewable_cards";
 		}
 
-		this.startFlashCards(concept);
+		this.startFlashCards(concept, "concept-library");
 		return "started";
 	}
 
 	private render(): void {
 		this.contentEl.empty();
 		this.contentEl.addClass("mneme-review-view");
-		if (!this.settingsProvider().fsrsEnabled && this.mode === "flashcard") {
-			this.resetReviewState();
-		}
 
 		if (this.mode === "flashcard") {
 			this.renderFlashCardMode();
@@ -184,14 +188,20 @@ export class MnemeReviewView extends ItemView {
 	}
 
 	private renderQueueMode(): void {
-		this.renderHeader(this.settingsProvider().fsrsEnabled ? "Today’s Focus" : "FSRS scheduling is off", true);
+		if (!this.settingsProvider().fsrsEnabled) {
+			this.renderHeader("Scheduled review is off", true);
+			this.renderSchedulingDisabled();
+			return;
+		}
+
+		this.renderHeader("Today’s Focus", true);
 		this.renderSummary();
 		this.renderQueue();
 		this.renderDiagnostics();
 	}
 
 	private renderFlashCardMode(): void {
-		this.renderHeader("Flash Cards", false);
+		this.renderHeader(this.sessionSource === "concept-library" ? "Concept Review" : "Today’s Focus Review", false);
 		this.renderStatus();
 		this.renderFlashCard();
 	}
@@ -212,7 +222,7 @@ export class MnemeReviewView extends ItemView {
 		const toolbarEl = headerEl.createDiv({ cls: "mneme-review-toolbar" });
 
 		if (!showRefresh) {
-			toolbarEl.createEl("button", { text: "Back to Concepts" }, (buttonEl) => {
+			toolbarEl.createEl("button", { text: this.sessionSource === "concept-library" ? "Back to Concept Library" : "Back to Today’s Focus" }, (buttonEl) => {
 				buttonEl.addEventListener("click", () => this.backToConcepts());
 			});
 			return;
@@ -227,15 +237,28 @@ export class MnemeReviewView extends ItemView {
 
 	private renderSummary(): void {
 		const summaryEl = this.contentEl.createDiv({ cls: "mneme-review-summary" });
-		if (!this.settingsProvider().fsrsEnabled) {
-			summaryEl.createEl("span", { text: "FSRS scheduling off" });
-			this.renderStatus();
-			return;
-		}
 
 		summaryEl.createEl("span", { text: `${this.focusSelection.selectedCardCount} cards in focus` });
 		summaryEl.createEl("span", { text: `${this.focusSelection.concepts.length} concepts` });
 		this.renderStatus();
+	}
+
+	private renderSchedulingDisabled(): void {
+		const emptyEl = this.contentEl.createDiv({ cls: "mneme-review-queue" });
+		emptyEl.createEl("p", {
+			cls: "mneme-review-empty",
+			text: "Today’s Focus is hidden.",
+		});
+		emptyEl.createEl("p", {
+			cls: "mneme-review-status",
+			text: "Mneme will not show a scheduled due-card queue while Scheduled Review is off. Manual Concept Review from Concept Library still updates Card memory.",
+		});
+		const actionsEl = emptyEl.createDiv({ cls: "mneme-review-actions" });
+		actionsEl.createEl("button", { text: "Open Concept Library" }, (buttonEl) => {
+			buttonEl.addEventListener("click", () => {
+				void this.actions.openConceptLibrary?.();
+			});
+		});
 	}
 
 	private renderStatus(): void {
@@ -246,18 +269,7 @@ export class MnemeReviewView extends ItemView {
 	}
 
 	private renderQueue(): void {
-		const queueEl = this.contentEl.createDiv({ cls: "mneme-review-queue" });
-		if (!this.settingsProvider().fsrsEnabled) {
-			queueEl.createEl("p", {
-				cls: "mneme-review-empty",
-				text: "FSRS scheduling is off.",
-			});
-			queueEl.createEl("p", {
-				cls: "mneme-review-status",
-				text: "Your Card memory state and review history are preserved. Enable FSRS scheduling in Mneme settings to resume using real elapsed time.",
-			});
-			return;
-		}
+		const queueEl = this.contentEl.createDiv({ cls: "mneme-review-queue mneme-review-concept-grid" });
 		const reviewableConcepts = this.rankedReviewQueue;
 
 		if (reviewableConcepts.length === 0) {
@@ -443,41 +455,51 @@ export class MnemeReviewView extends ItemView {
 		concept: ReviewQueueConcept,
 		queueCard: ReviewQueueCard,
 	): void {
-		parentEl.createEl("button", { text: "Edit" }, (buttonEl) => {
+		const quickActionsEl = this.createMoreActionGroup(parentEl, "Quick actions");
+		quickActionsEl.createEl("button", { text: "Edit" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
 				this.openCardEditor(queueCard.card);
 			});
 		});
-		parentEl.createEl("button", { text: "Open Concept" }, (buttonEl) => {
+		quickActionsEl.createEl("button", { text: "Open Concept" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
 				void this.openConceptSource(concept.concept);
 			});
 		});
-		parentEl.createEl("button", { text: "Skip" }, (buttonEl) => {
+		quickActionsEl.createEl("button", { text: "Skip" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => this.skipCurrentCard());
 		});
-		parentEl.createEl("button", { text: "Review Later" }, (buttonEl) => {
+
+		const scheduleActionsEl = this.createMoreActionGroup(parentEl, "Schedule");
+		scheduleActionsEl.createEl("button", { text: "Review Later" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
 				void this.deferCurrentCard();
 			});
 		});
-		parentEl.createEl("button", { text: "Suspend Card" }, (buttonEl) => {
+		scheduleActionsEl.createEl("button", { text: "Suspend Card" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
 				void this.suspendCurrentCard();
 			});
 		});
 		if (queueCard.card.hasExplicitCardId) {
-			parentEl.createEl("button", { text: "Retire Card" }, (buttonEl) => {
+			const archiveActionsEl = this.createMoreActionGroup(parentEl, "Archive");
+			archiveActionsEl.createEl("button", { text: "Retire Card" }, (buttonEl) => {
 				buttonEl.addEventListener("click", () => {
 					void this.retireCurrentCard();
 				});
 			});
-			parentEl.createEl("button", { text: "Delete Card" }, (buttonEl) => {
+			archiveActionsEl.createEl("button", { text: "Delete Card" }, (buttonEl) => {
 				buttonEl.addEventListener("click", () => {
 					this.openCardDelete(queueCard.card);
 				});
 			});
 		}
+	}
+
+	private createMoreActionGroup(parentEl: HTMLElement, title: string): HTMLElement {
+		const groupEl = parentEl.createDiv({ cls: "mneme-review-more-action-group" });
+		groupEl.createEl("h4", { text: title });
+		return groupEl.createDiv({ cls: "mneme-review-more-action-row" });
 	}
 
 	private renderDiagnostics(): void {
@@ -848,15 +870,27 @@ export class MnemeReviewView extends ItemView {
 		parentEl.createEl("p", { text: `Learning step: ${formatOptionalNumber(reviewState.learningSteps)}` });
 	}
 
-	private startFlashCards(concept: ReviewQueueConcept): void {
-		if (!this.settingsProvider().fsrsEnabled) {
-			new Notice("Mneme: Enable FSRS scheduling before starting a review.");
+	private startFlashCards(concept: ReviewQueueConcept, source: ReviewSessionSource = "scheduled"): void {
+		if (source === "scheduled" && !this.settingsProvider().fsrsEnabled) {
+			new Notice("Mneme: Scheduled Review is off.");
+			return;
+		}
+
+		const selectedCards = source === "concept-library"
+			? getConceptReviewCards(concept, this.getExcludedCardIds())
+			: getQueuedReviewCards(concept);
+
+		if (selectedCards.length === 0) {
+			new Notice(source === "concept-library"
+				? "Mneme: no valid Cards are available for this Concept."
+				: "Mneme: no due or new Cards are available for this Concept.");
 			return;
 		}
 
 		this.mode = "flashcard";
+		this.sessionSource = source;
 		this.selectedConcept = concept;
-		this.selectedCards = getQueuedReviewCards(concept);
+		this.selectedCards = selectedCards;
 		this.sessionCardCount = this.selectedCards.length;
 		this.selectedCardIndex = 0;
 		this.isAnswerShown = false;
@@ -870,14 +904,18 @@ export class MnemeReviewView extends ItemView {
 	}
 
 	private backToConcepts(): void {
+		const shouldOpenConceptLibrary = this.sessionSource === "concept-library";
 		if (this.shouldRefreshQueueOnBack) {
-			void this.refreshCards();
+			void this.refreshCards().then(() => {
+				if (shouldOpenConceptLibrary) void this.actions.openConceptLibrary?.();
+			});
 			return;
 		}
 
 		this.resetReviewState();
 		this.statusMessage = "Back to concepts.";
 		this.render();
+		if (shouldOpenConceptLibrary) void this.actions.openConceptLibrary?.();
 	}
 
 	private showAnswer(): void {
@@ -1053,14 +1091,6 @@ export class MnemeReviewView extends ItemView {
 	}
 
 	private async rateCurrentCard(rating: ReviewRating, label: ReviewRatingLabel): Promise<void> {
-		if (!this.settingsProvider().fsrsEnabled) {
-			this.resetReviewState();
-			this.statusMessage = "FSRS scheduling is off. No rating was recorded.";
-			new Notice("Mneme: Enable FSRS scheduling before rating Cards.");
-			this.render();
-			return;
-		}
-
 		const concept = this.selectedConcept;
 		const card = this.getCurrentReviewableCard();
 
@@ -1170,6 +1200,7 @@ export class MnemeReviewView extends ItemView {
 		this.selectedCards = [];
 		this.selectedCardIndex = 0;
 		this.sessionCardCount = 0;
+		this.sessionSource = "scheduled";
 		this.isAnswerShown = false;
 		this.isMoreActionsShown = false;
 		this.isReviewComplete = false;
@@ -1181,6 +1212,13 @@ export class MnemeReviewView extends ItemView {
 
 	private getCurrentReviewableCard(): ReviewQueueCard | undefined {
 		return this.selectedCards[this.selectedCardIndex];
+	}
+
+	private getExcludedCardIds(): Set<string> {
+		return new Set([
+			...Object.keys(this.activeRetirements),
+			...Object.keys(this.activeSuspensions),
+		]);
 	}
 
 	private getDiagnosticConcepts(): ReviewQueueConcept[] {
@@ -1229,6 +1267,14 @@ function getQueuedReviewCards(concept: ReviewQueueConcept): ReviewQueueCard[] {
 		...concept.dueCards,
 		...concept.newCards,
 	];
+}
+
+function getConceptReviewCards(concept: ReviewQueueConcept, excludedCardIds = new Set<string>()): ReviewQueueCard[] {
+	return [
+		...concept.dueCards,
+		...concept.newCards,
+		...concept.notDueCards,
+	].filter((card) => !excludedCardIds.has(card.cardId));
 }
 
 function getAllQueueCards(concept: ReviewQueueConcept): ReviewQueueCard[] {

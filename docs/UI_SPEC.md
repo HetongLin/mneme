@@ -71,6 +71,8 @@ Review due Cards grouped by Concept.
 
 FSRS schedules Cards. Mneme groups due Cards by Concept.
 
+Mneme Review and Concept Library are Mneme workspace surfaces, not ordinary note tabs. Opening either surface focuses an existing instance when available; otherwise Mneme opens a popout window when the desktop app supports it, falling back to a normal workspace tab only when popout windows are unavailable.
+
 ### Front State
 
 Display:
@@ -149,9 +151,9 @@ Do not display a scary overdue queue by default.
 
 When FSRS scheduling is enabled, Today’s Focus contains all valid due and new Cards that are not explicitly deferred, paused, suspended, retired, deleted, or otherwise ineligible. Concept priority orders the queue but does not truncate it. The primary UI does not display debt-style overdue totals.
 
-When FSRS scheduling is disabled, the Review View subtitle and empty state say `FSRS scheduling is off`. The view shows no Concept review queue, `Show Answer`, or rating controls. It explains that Card memory state and review history are preserved and that enabling FSRS in Mneme settings resumes with real elapsed time. Advanced Diagnostics may remain available for inspection.
+When Scheduled Review is disabled, the Review View subtitle says `Scheduled review is off`. The view shows no Today’s Focus Concept queue, `Show Answer`, or rating controls. It explains that Today’s Focus is hidden, while manual Concept Review from Concept Library still updates Card memory.
 
-Settings contains `Enable FSRS scheduling` before the retention, fuzz, and maximum-interval controls. There are no Daily Concept Limit, Daily Card Limit, or Cards per Concept settings.
+Settings contains `Show Today’s Focus` before the retention, fuzz, and maximum-interval controls. There are no Daily Concept Limit, Daily Card Limit, or Cards per Concept settings.
 
 ## Concept Library Quick Review
 
@@ -164,7 +166,7 @@ Selecting the card opens Mneme's Concept detail/editor surface, not the raw Mark
 
 `Open Concept` uses the same rendered editable surface formerly labeled Edit Concept. The student can read the Concept first and edit only when needed.
 
-`Review Cards` starts Mneme card review for that Concept. It must not open Card Markdown source files. If the Concept has no Card group yet, Mneme shows a `No cards yet` prompt with `Generate to Review` when the Concept is eligible for Card generation.
+`Review Cards` starts Concept-scoped Mneme card review for that Concept. It must not open Card Markdown source files. It uses all valid Cards in the Concept, including Cards that are not due in Today’s Focus, and ratings still update FSRS memory. If the Concept has no Card group yet, Mneme shows a `No cards yet` prompt with `Generate to Review` when the Concept is eligible for Card generation.
 
 Raw file operations are second-level actions under `Source Files`, including `Open Concept Markdown` and `Open Cards Source`. Source files are maintenance/debug affordances, not the daily learning path.
 
@@ -297,7 +299,7 @@ Current settings:
 
 - Concepts folder
 - Cards folder
-- Enable FSRS scheduling
+- Show Today’s Focus
 - Global Retention Target
 - Enable fuzz
 - Maximum interval

@@ -283,14 +283,14 @@ async function runAsyncTests(): Promise<void> {
 		const store = new ReviewStateStore(storage, scheduler);
 
 		await store.load();
-		await assert.rejects(
-			store.recordReview("paused-scheduling-card", "good"),
-			/FSRS scheduling is disabled/,
-		);
+		const updatedState = await store.recordReview("paused-scheduling-card", "good");
 
-		assert.equal(scheduler.lastInput, undefined);
-		assert.deepEqual(store.getState("paused-scheduling-card"), existingState);
-		assert.deepEqual(store.getReviewEvents(), []);
+		assert.equal(scheduler.lastInput?.cardId, "paused-scheduling-card");
+		assert.equal(scheduler.lastInput?.rating, "good");
+		assert.deepEqual(scheduler.lastInput?.previousState, existingState);
+		assert.deepEqual(store.getState("paused-scheduling-card"), updatedState);
+		assert.equal(store.getReviewEvents().length, 1);
+		assert.equal(store.getReviewEvents()[0]?.cardId, "paused-scheduling-card");
 	}
 
 	{

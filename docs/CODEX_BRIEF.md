@@ -39,7 +39,7 @@ The Review Gate protects AI-proposed knowledge changes. It must not impersonate 
 3. Concept is the primary learning object; Card is an assessment instrument.
 4. Concept Markdown and Card Group Markdown are the content source of truth.
 5. `data.json` stores state, indexes, hashes, proposals, FSRS state, logs, and caches—not Card front/back content.
-6. FSRS scheduling is optional. When enabled, FSRS fully controls Card scheduling and Concept aggregation cannot reschedule or cap eligible Cards. When disabled, Mneme preserves state and history and records no ratings.
+6. Scheduled Review is optional. When enabled, FSRS fully controls Today’s Focus eligibility and Concept aggregation cannot reschedule or cap eligible Cards. When hidden, Mneme preserves scheduled-review state and history, while manual Concept Review from Concept Library still records FSRS ratings.
 7. Concept Learning State distinguishes memory risk, assessment coverage, and explicit student signals; it is not a mastery percentage.
 8. Inbox is a review queue, not a debug dashboard. List items can Open or Reject; acceptance happens only inside the complete editable Review Gate.
 9. Fixed product labels are English. Generated learning prose follows the Source Note's detected dominant language. Chinese learning content includes standard English names for technical concepts on first occurrence.
@@ -82,7 +82,7 @@ When FSRS scheduling is enabled, the main review flow is deliberately narrow:
 
 `More` contains Edit, Open Concept, Skip, Review Later, Suspend, Retire, and Delete. Rubric and technical details remain under `Card details` by default. Rubric may guide self-assessment but must not introduce knowledge absent from Back.
 
-When FSRS scheduling is disabled, Review View explains that Card memory state and history are preserved and exposes no review queue or rating controls. Re-enabling resumes from the last formal review using real elapsed time; it does not reset or shift due dates.
+When Scheduled Review is disabled, Review View explains that Today’s Focus is hidden and exposes no scheduled-review queue or rating controls. Manual Concept Review remains available from Concept Library and updates Card memory. Re-enabling Today’s Focus resumes from the real FSRS history; it does not reset or shift due dates.
 
 ## Scope Boundaries
 

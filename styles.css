@@ -73,6 +73,12 @@ If your plugin does not need CSS, delete this file.
 	margin: 20px 0 28px;
 }
 
+.mneme-review-concept-grid {
+	align-items: stretch;
+	gap: 18px;
+	grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+}
+
 .mneme-review-queue-item,
 .mneme-review-card {
 	background: var(--background-primary);
@@ -93,6 +99,16 @@ If your plugin does not need CSS, delete this file.
 	gap: 18px;
 	justify-content: space-between;
 	width: 100%;
+}
+
+.mneme-review-concept-grid .mneme-review-queue-main {
+	align-items: stretch;
+	flex: 1;
+	flex-direction: column;
+}
+
+.mneme-review-concept-grid .mneme-review-actions {
+	margin-top: auto;
 }
 
 .mneme-review-queue-title {
@@ -217,12 +233,23 @@ If your plugin does not need CSS, delete this file.
 
 .mneme-review-more-actions {
 	display: grid;
-	gap: 10px;
-	max-width: 260px;
+	gap: 14px;
 }
 
-.mneme-review-more-actions button {
-	width: 100%;
+.mneme-review-more-action-group h4 {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	margin: 0 0 8px;
+}
+
+.mneme-review-more-action-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+
+.mneme-review-more-action-row button {
+	min-width: 120px;
 }
 
 .mneme-review-diagnostics {

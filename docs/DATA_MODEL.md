@@ -439,12 +439,12 @@ Retrievability remains diagnostic for reviewed FSRS Cards. It may be useful as a
 
 Mneme stores minimal FSRS scheduler settings in plugin data alongside review state:
 
-- `fsrsEnabled` controls whether Today’s Focus and FSRS ratings are available. It defaults to `true`.
+- `fsrsEnabled` controls whether Today’s Focus scheduled review is shown. It defaults to `true`. Manual Concept Review still records FSRS ratings when this is false.
 - `fsrsRequestRetention` controls the target recall probability. Higher retention usually means shorter intervals and more reviews.
 - `fsrsEnableFuzz` spreads longer-interval reviews with small randomness to reduce review clustering.
 - `fsrsMaximumInterval` caps how far into the future a Card can be scheduled.
 
-Scheduler parameters affect future reviews only; they do not rewrite existing Card review states. Disabling FSRS also leaves states, due dates, and event history untouched. Re-enabling does not shift stored dates or freeze the clock: overdue Cards are immediately eligible, and the next rating uses the real time since `lastReviewedAt`. Cards created while disabled remain new until first rated after re-enabling. `Mneme: Clear Review History` is the only explicit reset command.
+Scheduler parameters affect future reviews only; they do not rewrite existing Card review states. Hiding Today’s Focus also leaves states, due dates, and event history untouched. Re-enabling Today’s Focus does not shift stored dates or freeze the clock: overdue Cards are immediately eligible, and the next rating uses the real time since `lastReviewedAt`. Cards created while Today’s Focus is hidden remain new until first rated from manual Concept Review or scheduled review. `Mneme: Clear Review History` is the only explicit reset command.
 
 ## Concept Memory Aggregation
 
