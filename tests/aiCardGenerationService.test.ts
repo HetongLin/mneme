@@ -290,6 +290,22 @@ async function run(): Promise<void> {
 			Object.entries(proposals).map(([id, proposal]) => [id, { ...proposal, status: "written" as const }]),
 		));
 
+		fixture.settings.aiMaxInputChars = 120;
+		const second = await fixture.service.generate(concept);
+
+		assert.equal(second.status, "generated");
+		assert.equal(fixture.provider.callCount, 2);
+	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		await fixture.service.generate(concept);
+		const proposals = await fixture.proposalStore.loadProposals();
+
+		await fixture.proposalStore.replaceProposals(Object.fromEntries(
+			Object.entries(proposals).map(([id, proposal]) => [id, { ...proposal, status: "written" as const }]),
+		));
+
 		const updatedConcept = {
 			...concept,
 			markdown: `${concept.markdown}\n\n## Why It Matters\n\nUpdated Concept content.`,

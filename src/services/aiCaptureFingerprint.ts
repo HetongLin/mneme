@@ -2,7 +2,7 @@ import type { MnemeSettings } from "../models/settings";
 import { computeContentHash } from "../utils/sourceHash";
 
 export const AI_CONCEPT_CAPTURE_POLICY_VERSION = "mneme.concept-capture.2026-07-18.2";
-export const AI_CARD_GENERATION_POLICY_VERSION = "mneme.card-generation.2026-07-18.2";
+export const AI_CARD_GENERATION_POLICY_VERSION = "mneme.card-generation.2026-07-18.3";
 export const AI_SOURCE_CHUNKING_VERSION = 1;
 
 export async function createAiConceptCaptureFingerprint(
@@ -39,6 +39,8 @@ export async function createAiCardGenerationFingerprint(
 			: { baseUrl: "mock", model: "mock" };
 
 	return computeContentHash(JSON.stringify({
+		chunkSize: settings.aiMaxInputChars,
+		chunkingVersion: AI_SOURCE_CHUNKING_VERSION,
 		conceptPath,
 		learningContentHash,
 		policyVersion: AI_CARD_GENERATION_POLICY_VERSION,
