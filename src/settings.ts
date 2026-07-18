@@ -151,9 +151,48 @@ export class MnemeSettingTab extends PluginSettingTab {
 				dropdown.onChange(async (value) => {
 					this.plugin.settings.aiProvider = value === "deepseek" || value === "openai" ? value : "mock";
 					await this.persistSettings();
+					this.display();
 				});
 			});
 
+		this.renderSelectedProviderSettings(containerEl);
+		this.renderAiRequestOptions(containerEl);
+
+		containerEl.createEl("h3", { text: "Card Generation" });
+
+		this.renderAllowedCardTypes(containerEl);
+
+		containerEl.createEl("h3", { text: "Developer Tools" });
+
+		new Setting(containerEl)
+			.setName("Enable developer tools")
+			.setDesc("Shows acceptance fixtures, debug commands, and diagnostic logging commands. Reload Mneme after changing this setting to update command palette visibility.")
+			.addToggle((toggle) => {
+				toggle.setValue(this.plugin.settings.enableDeveloperTools);
+				toggle.onChange(async (value) => {
+					this.plugin.settings.enableDeveloperTools = value;
+					await this.persistSettings();
+				});
+			});
+	}
+
+	private renderSelectedProviderSettings(containerEl: HTMLElement): void {
+		if (this.plugin.settings.aiProvider === "mock") {
+			new Setting(containerEl)
+				.setName("Mock provider")
+				.setDesc("Uses deterministic offline proposals for testing. No API key or network request is required.");
+			return;
+		}
+
+		if (this.plugin.settings.aiProvider === "openai") {
+			this.renderOpenAiSettings(containerEl);
+			return;
+		}
+
+		this.renderDeepSeekSettings(containerEl);
+	}
+
+	private renderOpenAiSettings(containerEl: HTMLElement): void {
 		new Setting(containerEl)
 			.setName("OpenAI API key")
 			.setDesc("Stored locally in Obsidian plugin data. Mneme does not log this value.")
@@ -192,7 +231,9 @@ export class MnemeSettingTab extends PluginSettingTab {
 					await this.persistSettings();
 				});
 			});
+	}
 
+	private renderDeepSeekSettings(containerEl: HTMLElement): void {
 		new Setting(containerEl)
 			.setName("DeepSeek API key")
 			.setDesc("Stored locally in Obsidian plugin data. Mneme does not log this value.")
@@ -231,8 +272,15 @@ export class MnemeSettingTab extends PluginSettingTab {
 					await this.persistSettings();
 				});
 			});
+	}
 
-		new Setting(containerEl)
+	private renderAiRequestOptions(containerEl: HTMLElement): void {
+		const detailsEl = containerEl.createEl("details", { cls: "mneme-settings-details" });
+		detailsEl.createEl("summary", {
+			text: `Request options · ${this.plugin.settings.aiRequestTimeoutMs} ms · ${this.plugin.settings.aiMaxInputChars} chars`,
+		});
+
+		new Setting(detailsEl)
 			.setName("Request timeout")
 			.setDesc("Maximum provider wait time in milliseconds. Larger notes and structured JSON output may need 120000 ms or more.")
 			.addText((text) => {
@@ -247,7 +295,7 @@ export class MnemeSettingTab extends PluginSettingTab {
 				});
 			});
 
-		new Setting(containerEl)
+		new Setting(detailsEl)
 			.setName("AI chunk size")
 			.setDesc("Maximum characters per AI request. Longer Source Notes are analyzed completely across multiple Markdown-aware chunks.")
 			.addText((text) => {
@@ -261,15 +309,21 @@ export class MnemeSettingTab extends PluginSettingTab {
 					await this.persistSettings();
 				});
 			});
+	}
 
-		containerEl.createEl("h3", { text: "Card Generation" });
-
-		new Setting(containerEl)
-			.setName("Allowed AI card types")
-			.setDesc("Choose which built-in Card types AI may generate. Concept generation uses Mneme’s fixed prompt.");
+	private renderAllowedCardTypes(containerEl: HTMLElement): void {
+		const enabledCount = this.plugin.settings.allowedAiCardTypes.length;
+		const detailsEl = containerEl.createEl("details", { cls: "mneme-settings-details" });
+		const summaryEl = detailsEl.createEl("summary", {
+			text: `Allowed AI card types · ${enabledCount}/${CARD_DRAFT_TYPES.length} enabled`,
+		});
+		detailsEl.createEl("p", {
+			cls: "setting-item-description",
+			text: "Choose which built-in Card types AI may generate. Concept generation uses Mneme’s fixed prompt.",
+		});
 
 		for (const cardType of CARD_DRAFT_TYPES) {
-			new Setting(containerEl)
+			new Setting(detailsEl)
 				.setName(CARD_TYPE_LABELS[cardType])
 				.setDesc(CARD_TYPE_DESCRIPTIONS[cardType])
 				.addToggle((toggle) => {
@@ -283,22 +337,10 @@ export class MnemeSettingTab extends PluginSettingTab {
 						}
 						this.plugin.settings.allowedAiCardTypes = nextTypes;
 						await this.persistSettings();
+						summaryEl.setText(`Allowed AI card types · ${nextTypes.length}/${CARD_DRAFT_TYPES.length} enabled`);
 					});
 				});
 		}
-
-		containerEl.createEl("h3", { text: "Developer Tools" });
-
-		new Setting(containerEl)
-			.setName("Enable developer tools")
-			.setDesc("Shows acceptance fixtures, debug commands, and diagnostic logging commands. Reload Mneme after changing this setting to update command palette visibility.")
-			.addToggle((toggle) => {
-				toggle.setValue(this.plugin.settings.enableDeveloperTools);
-				toggle.onChange(async (value) => {
-					this.plugin.settings.enableDeveloperTools = value;
-					await this.persistSettings();
-				});
-			});
 	}
 
 	private async persistSettings(): Promise<void> {
