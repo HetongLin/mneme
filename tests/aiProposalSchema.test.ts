@@ -242,6 +242,35 @@ const cardGenerationResponse = {
 				conceptTitle: "Encapsulation",
 				coreMeaning: "Encapsulation protects internal representation.",
 				learningMode: "reviewable",
+				relatedConceptHints: ["Abstraction"],
+				suggestedImportance: "normal",
+				whyItMatters: "It lets implementations evolve without breaking callers.",
+				tags: ["Encapsulation", "Learning", "Optimal", "Machine Learning", "Probability"],
+				views: [],
+			},
+			rationale: "The source note introduces a durable concept.",
+			title: "Encapsulation",
+		}],
+	});
+
+	assert.equal(result.valid, true);
+
+	if (result.valid && result.data.proposals[0]?.kind === "new_concept") {
+		assert.deepEqual(result.data.proposals[0].payload.tags, ["machine-learning", "probability"]);
+	}
+}
+
+{
+	const result = validateAiStructuredProposalResponse({
+		...baseResponse,
+		proposals: [{
+			confidence: 0.91,
+			evidence,
+			kind: "new_concept",
+			payload: {
+				conceptTitle: "Encapsulation",
+				coreMeaning: "Encapsulation protects internal representation.",
+				learningMode: "reviewable",
 				relatedConceptHints: [],
 				suggestedImportance: "normal",
 				whyItMatters: "It lets implementations evolve without breaking callers.",

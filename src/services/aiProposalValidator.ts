@@ -93,7 +93,7 @@ function repairCommonAiEnumDrift(value: unknown): unknown {
 
 		const learningMode = coerceLearningMode(proposal.payload.learningMode);
 		const suggestedImportance = coerceSuggestedImportance(proposal.payload.suggestedImportance);
-		const tags = normalizeTags(proposal.payload.tags);
+		const tags = normalizeTags(proposal.payload.tags, proposal.payload.conceptTitle);
 		const views = normalizeConceptViews(proposal.payload.views);
 
 		changed = true;
@@ -260,15 +260,39 @@ function normalizeEnumToken(value: string): string {
 	return value.trim().toLocaleLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 }
 
-function normalizeTags(value: unknown): string[] {
+const AI_TAG_BLOCKLIST = new Set([
+	"a",
+	"an",
+	"basic",
+	"concept",
+	"course",
+	"general",
+	"intro",
+	"introduction",
+	"knowledge",
+	"learn",
+	"learning",
+	"method",
+	"model",
+	"note",
+	"optimal",
+	"overview",
+	"study",
+	"theory",
+	"topic",
+]);
+
+function normalizeTags(value: unknown, conceptTitle: unknown): string[] {
 	if (!Array.isArray(value)) {
 		return [];
 	}
 
+	const conceptTitleSlug = typeof conceptTitle === "string" ? normalizeTag(conceptTitle) : "";
+
 	return [...new Set(value
 		.map((tag) => typeof tag === "string" ? normalizeTag(tag) : "")
-		.filter((tag): tag is string => tag.length > 0))]
-		.slice(0, 5);
+		.filter((tag): tag is string => isValidAiGeneratedTag(tag, conceptTitleSlug)))]
+		.slice(0, 3);
 }
 
 function normalizeTag(value: string): string {
@@ -281,6 +305,28 @@ function normalizeTag(value: string): string {
 		.replace(/[^a-z0-9/_-]+/g, "-")
 		.replace(/-+/g, "-")
 		.replace(/^-|-$/g, "");
+}
+
+function isValidAiGeneratedTag(tag: string, conceptTitleSlug: string): boolean {
+	return tag.length >= 2
+		&& /^[a-z0-9][a-z0-9/_-]*[a-z0-9]$/u.test(tag)
+		&& !AI_TAG_BLOCKLIST.has(tag)
+		&& !isConceptTitleTag(tag, conceptTitleSlug);
+}
+
+function isConceptTitleTag(tag: string, conceptTitleSlug: string): boolean {
+	if (!conceptTitleSlug) {
+		return false;
+	}
+
+	const normalizedTag = normalizeTagForComparison(tag);
+	const normalizedTitle = normalizeTagForComparison(conceptTitleSlug);
+
+	return normalizedTag === normalizedTitle;
+}
+
+function normalizeTagForComparison(value: string): string {
+	return value.replace(/[/_-]+/g, "");
 }
 
 function normalizeConceptViews(value: unknown): Array<{ body: string; title: string }> {
@@ -485,8 +531,8 @@ function validateStringArray(value: unknown, path: string, errors: string[]): vo
 }
 
 function validateTagArray(value: unknown, path: string, errors: string[]): void {
-	if (!Array.isArray(value) || value.length === 0 || value.length > 5 || !value.every(isNonEmptyString)) {
-		errors.push(`${path} must be an array of 1 to 5 non-empty strings.`);
+	if (!Array.isArray(value) || value.length === 0 || value.length > 3 || !value.every(isNonEmptyString)) {
+		errors.push(`${path} must be an array of 1 to 3 non-empty English topic tags.`);
 	}
 }
 

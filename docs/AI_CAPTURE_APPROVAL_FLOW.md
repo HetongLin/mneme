@@ -147,7 +147,7 @@ In `concept_capture` mode, providers must not return Card-stage proposal kinds:
 - `merge_card`
 - `retire_card`
 
-`new_concept` payloads include proposed organization `tags`. Tags are generated with the Concept proposal, shown for user review, and written to `Concept.md` frontmatter only when the Concept proposal is accepted.
+`new_concept` payloads include proposed organization `tags`. Tags are generated with the Concept proposal, shown for user review, and written to `Concept.md` frontmatter only when the Concept proposal is accepted. Mneme sends existing approved English tag slugs to the provider as `existingTags`; AI should reuse them before inventing a new tag.
 
 Generated learning content follows the Source Note's dominant language. Mneme detects English or Chinese from the full Source content before truncating provider input and sends an authoritative `languageContract` with every Concept or Card request. Existing Concepts, UI language, tags, filenames, and prompt examples cannot override this contract. English Sources require English generated titles and prose. Chinese Sources require Chinese-first titles and prose; the first occurrence of each technical concept or established proper term includes its standard English name in parentheses, and Concept titles use `中文名称 (English Name)` when a standard English name exists. Other or non-prose Sources fall back to an explicit source-dominant-language instruction. Evidence quotes remain exact and are never translated. In the AI payload, `coreMeaning` states what the Concept is and its defining mechanism, while `whyItMatters` adds usefulness, relevance, or application rather than repeating Core Meaning. Concept updates use `proposedCoreMeaning` and `proposedWhyItMatters` with the same distinction.
 
@@ -159,7 +159,7 @@ Every Concept-stage proposal requires at least one exact quote from the current 
 
 Generated mathematical notation follows Obsidian MathJax Markdown. The provider uses `$...$` for short inline math within a sentence and `$$...$$` on separate lines for standalone, long, emphasized, or multi-line equations. It must not emit bare LaTeX, `\(...\)`, `\[...\]`, formula code fences, or spaces immediately inside inline math delimiters. As a deterministic fallback, Mneme removes delimiter-adjacent spaces from likely inline formulas before AI payload Markdown enters Inbox and whenever a Live Preview editor returns to preview. Display math, escaped dollars, code, and exact evidence quotes remain unchanged.
 
-AI should prefer stable English lowercase tag slugs, but the Review Gate preserves user-approved non-English tags. Mneme normalizes tag punctuation without erasing established vault language.
+AI-generated tags must be stable English lowercase slugs, limited to at most three broad topic-family tags. The AI should not create near-duplicates, Concept-title tags, isolated adjectives, or overly generic tags such as `learning`, `theory`, `model`, `method`, `concept`, or `optimal`. The Review Gate still preserves user-approved non-English or legacy tags when the student explicitly keeps them; Mneme does not silently rewrite historical Concept Markdown.
 
 Cards are generated later from written `Concept.md`, then reviewed and accepted separately before any Card block is appended.
 

@@ -5,6 +5,7 @@ export type AiProposalMode = "concept_capture" | "card_generation";
 export interface ExistingConceptContext {
 	conceptId: string;
 	coreMeaning?: string;
+	tags?: string[];
 	title: string;
 }
 
@@ -25,6 +26,7 @@ interface AiProposalRequestBase {
 
 export interface AiConceptCaptureRequest extends AiProposalRequestBase {
 	existingConcepts: ExistingConceptContext[];
+	existingTags: string[];
 	languageReferenceContent?: string;
 	mode: "concept_capture";
 	sourceChunk?: AiSourceChunkContext;

@@ -121,6 +121,7 @@ export class AiConceptCaptureService {
 			const chunks = splitSourceForAiCapture(sourceContent, settings.aiMaxInputChars);
 			const concepts = await this.options.conceptScanner.scanConcepts();
 			const existingConcepts = concepts.map(toExistingConceptContext);
+			const existingTags = collectExistingAiTags(concepts);
 			const provider = this.options.createProvider(settings);
 			const chunkResponses: AiConceptCaptureResponseV1[] = [];
 
@@ -131,6 +132,7 @@ export class AiConceptCaptureService {
 				try {
 					response = await provider.generateKnowledgeProposals({
 						existingConcepts,
+						existingTags,
 						languageReferenceContent: sourceContent,
 						mode: "concept_capture",
 						sourceChunk: {
@@ -268,8 +270,45 @@ function toExistingConceptContext(concept: ConceptSummary): ExistingConceptConte
 	return {
 		conceptId: concept.conceptId,
 		coreMeaning: concept.coreMeaning ?? concept.whyItMatters,
+		tags: normalizeExistingAiTags(concept.tags ?? []),
 		title: concept.title,
 	};
+}
+
+function collectExistingAiTags(concepts: ConceptSummary[]): string[] {
+	return unique(concepts.flatMap((concept) => normalizeExistingAiTags(concept.tags ?? [])))
+		.sort((first, second) => first.localeCompare(second))
+		.slice(0, 200);
+}
+
+const AI_EXISTING_TAG_BLOCKLIST = new Set([
+	"a",
+	"an",
+	"basic",
+	"concept",
+	"course",
+	"general",
+	"intro",
+	"introduction",
+	"knowledge",
+	"learn",
+	"learning",
+	"method",
+	"model",
+	"note",
+	"optimal",
+	"overview",
+	"study",
+	"theory",
+	"topic",
+]);
+
+function normalizeExistingAiTags(tags: string[]): string[] {
+	return tags
+		.map((tag) => tag.trim().toLocaleLowerCase())
+		.filter((tag) => tag.length >= 2)
+		.filter((tag) => /^[a-z0-9][a-z0-9/_-]*[a-z0-9]$/u.test(tag))
+		.filter((tag) => !AI_EXISTING_TAG_BLOCKLIST.has(tag));
 }
 
 function unique(values: string[]): string[] {

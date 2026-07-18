@@ -209,8 +209,10 @@ async function run(): Promise<void> {
 		assert.deepEqual(fixture.provider.lastRequest?.existingConcepts, [{
 			conceptId: "concept-abstraction",
 			coreMeaning: "Hides unnecessary detail.",
+			tags: ["machine-learning", "design"],
 			title: "Abstraction",
 		}]);
+		assert.deepEqual(fixture.provider.lastRequest?.existingTags, ["design", "machine-learning"]);
 	}
 
 	{
@@ -316,6 +318,7 @@ function createFixture(settingsOverrides: Partial<typeof DEFAULT_SETTINGS>, test
 				conceptId: "concept-abstraction",
 				coreMeaning: "Hides unnecessary detail.",
 				path: "Mneme/Concepts/Abstraction/Concept.md",
+				tags: ["machine-learning", "learning", "a", "design", "线性代数"],
 				title: "Abstraction",
 			}],
 		},

@@ -16,8 +16,10 @@ const request = {
 	existingConcepts: [{
 		conceptId: "concept-encapsulation",
 		coreMeaning: "Bundles data with behavior.",
+		tags: ["oop", "design"],
 		title: "Encapsulation",
 	}],
+	existingTags: ["design", "machine-learning", "oop"],
 	mode: "concept_capture" as const,
 	sourceContent: "Encapsulation keeps object internals hidden behind a public interface.",
 	sourceHash: "abc123456789",
@@ -252,7 +254,9 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("must not rename, remove, replace, or reinterpret required Concept fields"), true);
 	assert.equal(serialized.includes("Core Meaning and Why It Matters are fixed Mneme product fields"), true);
 	assert.equal(serialized.includes("summary"), false);
-	assert.equal(serialized.includes("Prefer stable English lowercase slugs"), true);
+	assert.equal(serialized.includes("Use existingTags whenever an existing tag reasonably covers the Concept"), true);
+	assert.equal(serialized.includes("Tags are for domain, course, or topic-family filtering"), true);
+	assert.deepEqual(requestContext.existingTags, ["design", "machine-learning", "oop"]);
 	assert.equal(serialized.includes("Use $...$ for short inline math"), true);
 	assert.equal(serialized.includes("Use $$...$$ on separate lines"), true);
 	assert.equal(serialized.includes("delimiter rules are mandatory"), true);
@@ -482,12 +486,14 @@ function readRequestContext(payload: {
 		outputLanguage?: string;
 		outputLanguageCode?: string;
 	};
+	existingTags?: string[];
 } {
 	const content = payload.input?.find(({ content: value }) => value.startsWith("{"))?.content
 		?? payload.messages?.find(({ content: value }) => value.startsWith("{"))?.content
 		?? "{}";
 
 	return JSON.parse(content) as {
+		existingTags?: string[];
 		languageContract?: {
 			outputLanguage?: string;
 			outputLanguageCode?: string;

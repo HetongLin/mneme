@@ -113,6 +113,7 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 		: {
 			languageContract,
 			existingConcepts: input.existingConcepts,
+			existingTags: input.existingTags,
 			formattingContract,
 			mode: input.mode,
 			sourceContent,
@@ -233,7 +234,10 @@ function buildConceptCaptureProductPolicyPrompt(): string[] {
 		"For update_concept payloads, proposedCoreMeaning and proposedWhyItMatters follow the same distinction: proposedCoreMeaning explains what the Concept is; proposedWhyItMatters explains its usefulness, relevance, or application.",
 		OBSIDIAN_MATH_MARKDOWN_GUIDANCE,
 		"Follow languageContract exactly for generated Concept text. Evidence quotes must stay exact and must not be translated.",
-		"For new_concept payloads, suggest 1 to 5 concise organization tags. Prefer stable English lowercase slugs, but preserve an established non-English domain tag when it clearly matches the student's note; do not duplicate meanings or include '#' prefixes.",
+		"For new_concept payloads, choose 1 to 3 broad organization tags. Tags must be stable English lowercase slugs.",
+		"Use existingTags whenever an existing tag reasonably covers the Concept. Create a new tag only when no existing tag fits.",
+		"Tags are for domain, course, or topic-family filtering, not for naming the Concept itself. Do not use a tag that duplicates the Concept title, a near-synonym of another chosen tag, an isolated adjective, or an overly generic word such as learning, theory, model, method, concept, optimal, basic, general, or introduction.",
+		"Prefer broader reusable tags over overly specific algorithm names. For example, prefer machine-learning or feature-selection over forward-search, and prefer memory or cognitive-science over learning.",
 		"For new_concept payloads, views is optional supporting perspective data: return [] unless every view has both a non-empty title and a non-empty body. Never return empty view placeholders.",
 	];
 }
@@ -371,7 +375,7 @@ function createKnowledgeProposalResponseJsonSchema(): Record<string, unknown> {
 							learningMode: { enum: ["reviewable", "exploratory"], type: "string" },
 							relatedConceptHints: { items: { type: "string" }, type: "array" },
 							suggestedImportance: { enum: ["low", "normal", "high", "critical"], type: "string" },
-							tags: { items: { type: "string" }, maxItems: 5, minItems: 1, type: "array" },
+							tags: { items: { type: "string" }, maxItems: 3, minItems: 1, type: "array" },
 							views: {
 								items: {
 									additionalProperties: false,

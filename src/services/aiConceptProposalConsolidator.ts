@@ -67,7 +67,7 @@ function mergeMatchingProposals(
 					...first.payload.relatedConceptHints,
 					...second.payload.relatedConceptHints,
 				]),
-				tags: uniqueStrings([...first.payload.tags, ...second.payload.tags]).slice(0, 5),
+				tags: uniqueStrings([...first.payload.tags, ...second.payload.tags]).slice(0, 3),
 				views: uniqueBy(
 					[...first.payload.views, ...second.payload.views],
 					(view) => `${normalizeText(view.title)}\u0000${normalizeText(view.body)}`,

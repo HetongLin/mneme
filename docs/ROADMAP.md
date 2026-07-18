@@ -281,6 +281,7 @@ Current progress:
 - Optional Course/manual filtering remains unfinished.
 - Card customization should add an `Allowed AI Card Types` setting before considering arbitrary card type names. The safer path is enabling or disabling Mneme's built-in types while keeping the internal enum stable.
 - Manual Card creation remains unfinished. It should let a student create a Card for an existing Concept directly, using the same Card Group marker format as AI-accepted Cards and without manufacturing an Inbox approval step.
+- Tag Manager remains unfinished. It should offer reviewed tag merges/renames for historical tags, such as `learning` -> `machine-learning`, without silently rewriting Concept Markdown.
 
 ## v2.0: AI-native Learning System
 

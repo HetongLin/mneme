@@ -214,7 +214,9 @@ An optional student-authored override for the global FSRS Request Retention sett
 
 Tags are user-approved organization labels for browsing and filtering Concepts. Tags are not Concept relationships and do not imply prerequisites, applications, or similarity. Concept relationships belong in `Related Concepts` as links to existing approved Concepts.
 
-Mneme may help edit or recommend tags later, but accepted `Concept.md` files should only contain tags the user has approved.
+AI-generated tags are constrained at proposal time: they must be English lowercase slugs, at most three per Concept, broad enough for filtering, and selected from existing approved English tags whenever possible. Mneme filters obvious AI tag drift such as non-English generated tags, Concept-title tags, isolated adjectives, and generic tags like `learning`, `theory`, `model`, `method`, `concept`, or `optimal`.
+
+User-authored or explicitly user-approved tags may still use any language meaningful in the vault. Mneme does not silently rewrite existing Concept Markdown; future Tag Manager work may offer reviewed merges such as `learning` -> `machine-learning`.
 
 ## Card Group files
 
