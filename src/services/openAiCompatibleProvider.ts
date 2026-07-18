@@ -205,6 +205,7 @@ function buildConceptCaptureProtocolPrompt(): string[] {
 		"Top-level shape: {\"schemaVersion\":\"mneme.ai.proposals.v1\",\"mode\":\"concept_capture\",\"source\":{\"path\":\"<sourcePath>\",\"hash\":\"<sourceHash>\"},\"warnings\":[],\"proposals\":[]}.",
 		"Concept capture may return only new_concept, link_existing_concept, add_view, or update_concept. Every returned proposal must be fully actionable in Mneme's Review Gate.",
 		"Every proposal requires kind, title, rationale, confidence from 0 to 1, at least one evidence entry with sourcePath/quote/explanation, and a kind-specific payload. Each evidence quote must be an exact, non-empty excerpt from sourceContent and sourcePath must exactly equal the supplied sourcePath.",
+		"Evidence quote must be copied character-for-character from sourceContent. Do not paraphrase, summarize, translate, repair, or quote from your generated Concept text. If no exact sourceContent quote supports a proposal, omit that proposal.",
 		"Payloads: new_concept={conceptTitle,coreMeaning,whyItMatters,learningMode,suggestedImportance,tags,relatedConceptHints,views[{title,body}]}; link_existing_concept={existingConceptId,existingConceptTitle,reason}; add_view={targetConceptId,targetConceptTitle,viewTitle,viewBody}; update_concept={targetConceptId,targetConceptTitle,reason,proposedCoreMeaning and/or proposedWhyItMatters}.",
 		CONCEPT_FIELD_LOCK_GUIDANCE,
 		"For new_concept payloads, learningMode must be exactly 'reviewable' or 'exploratory'; do not use values like definition, application, recall, or understanding.",

@@ -254,6 +254,8 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("separate reviewed Guided Merge flow"), true);
 	assert.equal(serialized.includes("Return an empty proposals array when the Source Note contains no durable knowledge worth creating or linking"), true);
 	assert.equal(serialized.includes("at least one evidence entry"), true);
+	assert.equal(serialized.includes("Evidence quote must be copied character-for-character from sourceContent"), true);
+	assert.equal(serialized.includes("If no exact sourceContent quote supports a proposal, omit that proposal"), true);
 	assert.equal(serialized.includes("coreMeaning is the compact primary learning content"), true);
 	assert.equal(serialized.includes("whyItMatters states only why it is useful"), true);
 	assert.equal(serialized.includes("Do not use whyItMatters to repeat or paraphrase coreMeaning"), true);

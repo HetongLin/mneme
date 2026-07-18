@@ -58,7 +58,7 @@ Knowledge proposals may include typed payloads for proposed Concept and Card cha
 
 Concept proposal content uses the same language as written Concept Markdown: `coreMeaning` and `whyItMatters`. Concept updates use `proposedCoreMeaning` and `proposedWhyItMatters`. There are no `summary` aliases in the AI schema or persisted proposal payload.
 
-Concept-stage proposal Evidence must resolve to an exact substring of the current Source Note, and every Concept-stage proposal requires at least one verified evidence item. Card proposal Evidence must resolve to an exact substring of the current assessable Concept content. In both stages, provider quotes that differ only by whitespace, line breaks, or Obsidian math delimiters may be reconciled to the exact stored substring; semantic paraphrases are not accepted as grounding.
+Concept-stage proposal Evidence must resolve to an exact substring of the current Source Note, and every Concept-stage proposal requires at least one verified evidence item. In chunked Source Note analysis, ungrounded Concept proposals from one chunk are discarded without aborting later chunks; if no returned Concept proposal from the whole capture can be grounded, the capture is rejected and remains retryable. Card proposal Evidence must resolve to an exact substring of the current assessable Concept content. In both stages, provider quotes that differ only by whitespace, line breaks, or Obsidian math delimiters may be reconciled to the exact stored substring; semantic paraphrases are not accepted as grounding.
 
 User-facing Markdown must stay concise:
 

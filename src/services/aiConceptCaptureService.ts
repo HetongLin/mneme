@@ -124,6 +124,7 @@ export class AiConceptCaptureService {
 			const existingTags = collectExistingAiTags(concepts);
 			const provider = this.options.createProvider(settings);
 			const chunkResponses: AiConceptCaptureResponseV1[] = [];
+			let rawProposalCount = 0;
 
 			for (const chunk of chunks) {
 				const chunkPrefix = chunks.length > 1 ? `Chunk ${chunk.index}/${chunk.total}: ` : "";
@@ -179,14 +180,18 @@ export class AiConceptCaptureService {
 					);
 				}
 
+				rawProposalCount += validation.data.proposals.length;
 				const grounding = reconcileConceptGrounding(validation.data, sourceContent, snapshot.path);
 
 				if (validation.data.proposals.length > 0 && grounding.response.proposals.length === 0) {
-					return this.result(
-						"invalid_response",
-						`${chunkPrefix}Every Concept proposal must quote grounding from the current Source Note.`,
-						sourceAnalysis,
-					);
+					chunkResponses.push({
+						...grounding.response,
+						warnings: [
+							...grounding.response.warnings,
+							`${chunkPrefix}Mneme ignored ungrounded Concept proposals from this chunk and continued analyzing the note.`,
+						],
+					});
+					continue;
 				}
 
 				chunkResponses.push(grounding.response);
@@ -210,6 +215,14 @@ export class AiConceptCaptureService {
 				source: { hash: sourceAnalysis.contentHash, path: snapshot.path },
 				warnings,
 			};
+
+			if (rawProposalCount > 0 && aggregatedResponse.proposals.length === 0) {
+				return this.result(
+					"invalid_response",
+					`AI returned ${formatProposalCount(rawProposalCount)} without verifiable Source Note quotes. No proposals added.`,
+					sourceAnalysis,
+				);
+			}
 
 			const now = this.options.timestampProvider?.() ?? new Date().toISOString();
 			const proposals = normalizeAiStructuredProposalResponse(aggregatedResponse, {
@@ -323,6 +336,10 @@ function formatCaptureMessage(proposalCount: number, analyzedChars: number, tota
 			: `${proposalCount} Concept proposals added to Inbox.`;
 
 	return `${proposalMessage} Analyzed ${analyzedChars}/${totalChars} characters across ${chunkCount} chunk${chunkCount === 1 ? "" : "s"}.`;
+}
+
+function formatProposalCount(proposalCount: number): string {
+	return proposalCount === 1 ? "1 Concept proposal" : `${proposalCount} Concept proposals`;
 }
 
 function formatPreviousCaptureMessage(record: {

@@ -227,7 +227,7 @@ async function run(): Promise<void> {
 		const result = await fixture.service.analyze(source);
 
 		assert.equal(result.status, "invalid_response");
-		assert.equal(result.message, "Every Concept proposal must quote grounding from the current Source Note.");
+		assert.equal(result.message, "AI returned 1 Concept proposal without verifiable Source Note quotes. No proposals added.");
 		assert.deepEqual(await fixture.proposalStore.listProposals(), []);
 	}
 
@@ -286,9 +286,35 @@ async function run(): Promise<void> {
 			`Chunk ${input.mode === "concept_capture" ? input.sourceChunk?.index : 0}`,
 		);
 		const result = await fixture.service.analyze(longSource);
+		const proposals = await fixture.proposalStore.listActive();
+		const record = await fixture.sourceStore.getRecord(longSource.path);
+
+		assert.equal(result.status, "captured");
+		assert.equal(proposals.length, 1);
+		assert.equal(proposals[0]?.ai?.warnings?.some((warning) => warning.includes("ignored ungrounded Concept proposals")), true);
+		assert.equal(typeof record?.lastAiCaptureFingerprint, "string");
+	}
+
+	{
+		const longSource = {
+			content: "# Alpha\n\nAlpha evidence.\n\n# Beta\n\nBeta evidence.\n",
+			mtime: 400,
+			path: "Notes/AllUngrounded.md",
+			size: 60,
+		};
+		const fixture = createFixture(
+			{ aiCaptureEnabled: true, aiMaxInputChars: 30, aiProvider: "mock" },
+			longSource,
+		);
+		fixture.provider.responseFactory = (input) => createConceptCaptureResponse(
+			input,
+			"This quote is not in the Source Note.",
+			`Chunk ${input.mode === "concept_capture" ? input.sourceChunk?.index : 0}`,
+		);
+		const result = await fixture.service.analyze(longSource);
 
 		assert.equal(result.status, "invalid_response");
-		assert.equal(result.message.startsWith("Chunk 2/"), true);
+		assert.equal(result.message, "AI returned 2 Concept proposals without verifiable Source Note quotes. No proposals added.");
 		assert.deepEqual(await fixture.proposalStore.listProposals(), []);
 		assert.equal((await fixture.sourceStore.getRecord(longSource.path))?.lastAiCaptureFingerprint, undefined);
 	}
