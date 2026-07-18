@@ -61,8 +61,7 @@ export function buildDeepSeekKnowledgeProposalPayload(
 	settings: MnemeSettings,
 ): DeepSeekStructuredOutputPayload {
 	return buildOpenAiCompatibleKnowledgeProposalPayload(input, {
-		aiCardStyleGuidance: settings.aiCardStyleGuidance,
-		aiConceptStyleGuidance: settings.aiConceptStyleGuidance,
+		allowedAiCardTypes: settings.allowedAiCardTypes,
 		baseUrl: settings.deepseekBaseUrl,
 		endpointPath: "chat/completions",
 		maxInputChars: settings.aiMaxInputChars,

@@ -1,10 +1,10 @@
 import type { AiProposalRequest } from "./aiProvider";
+import { CARD_DRAFT_TYPES, type CardDraftType } from "../models/knowledgeProposal";
 import { AI_CARD_GENERATION_MAX_PROPOSALS } from "./aiProposalSchema";
 import { createLearningContentLanguageContract } from "./learningContentLanguage";
 
 export interface OpenAiCompatibleProviderConfig {
-	aiCardStyleGuidance: string;
-	aiConceptStyleGuidance: string;
+	allowedAiCardTypes: CardDraftType[];
 	baseUrl: string;
 	endpointPath: "responses" | "chat/completions";
 	maxInputChars: number;
@@ -65,28 +65,34 @@ const SHARED_PROTOCOL_PROMPT = [
 	LANGUAGE_CONTRACT_GUIDANCE,
 ].join("\n");
 
-const STYLE_GUIDANCE_PROTOCOL_GUARDRAIL = [
-	"User style guidance is subordinate to Mneme's required JSON schema, proposal kinds, field names, evidence rules, languageContract, and product policy.",
-	"If user style guidance conflicts with any required Mneme protocol or product rule, ignore the conflicting style instruction and keep the response valid.",
-].join(" ");
-
 const CONCEPT_FIELD_LOCK_GUIDANCE = [
-	"Concept style guidance may change wording, tone, selection criteria, detail level, and learning emphasis inside generated fields.",
-	"It must not rename, remove, replace, or reinterpret required Concept fields such as conceptTitle, coreMeaning, whyItMatters, learningMode, suggestedImportance, tags, relatedConceptHints, views, evidence, rationale, or confidence.",
+	"Do not rename, remove, replace, or reinterpret required Concept fields such as conceptTitle, coreMeaning, whyItMatters, learningMode, suggestedImportance, tags, relatedConceptHints, views, evidence, rationale, or confidence.",
 	"Core Meaning and Why It Matters are fixed Mneme product fields: write content inside them, but do not replace them with different field names or a standalone Markdown document.",
 ].join(" ");
 
 const CARD_FIELD_LOCK_GUIDANCE = [
-	"Card style guidance may change wording, difficulty, preferred question shape, and learning emphasis inside generated fields.",
-	"It must not rename, remove, replace, or reinterpret required Card fields such as front, back, rubric, cardType, conceptId, conceptTitle, evidence, rationale, or confidence.",
+	"Do not rename, remove, replace, or reinterpret required Card fields such as front, back, rubric, cardType, conceptId, conceptTitle, evidence, rationale, or confidence.",
 	"Front, Back, Rubric, and cardType are fixed Mneme product fields: write content inside them, but do not invent unsupported cardType values or return an Anki/Markdown document instead of JSON.",
 ].join(" ");
+
+const CARD_TYPE_RUBRIC: Record<CardDraftType, string> = {
+	application: "asks how to use the Concept in a new situation",
+	definition: "asks what the Concept means",
+	distinction: "compares or contrasts Concepts",
+	example: "asks to interpret a concrete case",
+	mastery: "asks for synthesis across multiple ideas",
+	other: "only if none of the enabled specific types fit",
+	procedure: "asks for steps, calculation, or method",
+	proof: "asks for derivation, justification, or theorem logic",
+	trap: "asks about a misconception or common error",
+};
 
 export function buildOpenAiCompatibleKnowledgeProposalPayload(
 	input: AiProposalRequest,
 	config: OpenAiCompatibleProviderConfig,
 ): OpenAiCompatibleStructuredOutputPayload {
 	const sourceContent = input.sourceContent.slice(0, config.maxInputChars);
+	const allowedCardTypes = normalizeAllowedCardTypes(config.allowedAiCardTypes);
 	const languageContract = createLearningContentLanguageContract(
 		input.mode === "concept_capture"
 			? input.languageReferenceContent ?? input.sourceContent
@@ -96,10 +102,11 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 		mathMarkdown: "Required: wrap inline mathematics in $...$ with no spaces immediately inside the delimiters, and standalone mathematics in $$...$$; never return bare formulas in generated payload text.",
 	};
 	const systemPrompt = input.mode === "card_generation"
-		? buildCardGenerationSystemPrompt(config.aiCardStyleGuidance)
-		: buildConceptCaptureSystemPrompt(config.aiConceptStyleGuidance);
+		? buildCardGenerationSystemPrompt(allowedCardTypes)
+		: buildConceptCaptureSystemPrompt();
 	const requestContext = input.mode === "card_generation"
 		? {
+			allowedCardTypes,
 			languageContract,
 			conceptId: input.conceptId,
 			conceptTitle: input.conceptTitle,
@@ -140,7 +147,7 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 
 	if (config.requestShape === "responses") {
 		payload.input = messages;
-		payload.text = { format: createResponsesFormat(input.mode) };
+		payload.text = { format: createResponsesFormat(input.mode, allowedCardTypes) };
 	} else {
 		payload.messages = messages;
 		payload.response_format = { type: "json_object" };
@@ -149,19 +156,17 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 	return payload;
 }
 
-function buildCardGenerationSystemPrompt(styleGuidance: string): string {
+function buildCardGenerationSystemPrompt(allowedCardTypes: CardDraftType[]): string {
 	return [
 		...buildCardGenerationProtocolPrompt(),
-		...buildCardGenerationProductPolicyPrompt(),
-		...buildCardGenerationStylePrompt(styleGuidance),
+		...buildCardGenerationProductPolicyPrompt(allowedCardTypes),
 	].join("\n");
 }
 
-function buildConceptCaptureSystemPrompt(styleGuidance: string): string {
+function buildConceptCaptureSystemPrompt(): string {
 	return [
 		...buildConceptCaptureProtocolPrompt(),
 		...buildConceptCaptureProductPolicyPrompt(),
-		...buildConceptCaptureStylePrompt(styleGuidance),
 	].join("\n");
 }
 
@@ -173,32 +178,22 @@ function buildCardGenerationProtocolPrompt(): string[] {
 		"Every proposal requires kind 'new_card', title, rationale, confidence from 0 to 1, evidence entries with sourcePath/quote/explanation, and payload.",
 		"The payload requires conceptId, conceptTitle, front, back, rubric, and cardType.",
 		CARD_FIELD_LOCK_GUIDANCE,
-		"cardType must be exactly one of: definition, distinction, procedure, example, trap, proof, application, mastery, other. Use 'other' when unsure.",
+		"cardType must be exactly one of the enabled card types listed in the user JSON allowedCardTypes array. Do not use disabled built-in card types.",
 		"Return the exact cardType enum value only, not a natural-language label, phrase, or explanation.",
 		"Do not return a standalone Markdown, Anki, or prose document; return JSON fields only.",
 	];
 }
 
-function buildCardGenerationProductPolicyPrompt(): string[] {
+function buildCardGenerationProductPolicyPrompt(allowedCardTypes: CardDraftType[]): string[] {
 	return [
 		"Generate at most five non-duplicative new_card proposals from the approved written Concept. Do not propose Concepts or return a standalone Markdown document.",
 		"Treat existingCardFronts as the current Coverage Map. Do not repeat the same learning outcome; return an empty proposals array when the approved Concept has no useful uncovered outcome.",
 		"Every Card must test one independently rateable outcome and include at least one exact quote from the written Concept as grounding evidence.",
-		"Choose cardType by this rubric: definition=asks what the Concept means; distinction=compares or contrasts Concepts; procedure=asks for steps, calculation, or method; example=asks to interpret a concrete case; trap=asks about a misconception or common error; proof=asks for derivation, justification, or theorem logic; application=asks how to use the Concept in a new situation; mastery=asks for synthesis across multiple ideas; other=only if none fit.",
+		`Enabled cardType values for this request: ${allowedCardTypes.join(", ")}.`,
+		`Choose cardType by this rubric, using only enabled entries: ${formatAllowedCardTypeRubric(allowedCardTypes)}.`,
 		"Use focused recall questions that test understanding, distinctions, procedures, examples, traps, proofs, applications, or mastery. Avoid trivia and duplicate questions.",
 		OBSIDIAN_MATH_MARKDOWN_GUIDANCE,
 		"Follow languageContract exactly for generated Card text. Evidence quotes must stay exact and must not be translated.",
-	];
-}
-
-function buildCardGenerationStylePrompt(styleGuidance: string): string[] {
-	const normalizedGuidance = normalizeStyleGuidance(styleGuidance);
-
-	return [
-		STYLE_GUIDANCE_PROTOCOL_GUARDRAIL,
-		...(normalizedGuidance
-			? [`User Card style guidance:\n${normalizedGuidance}`]
-			: ["No user Card style guidance was supplied. Use Mneme's default Card writing style."]),
 	];
 }
 
@@ -242,37 +237,37 @@ function buildConceptCaptureProductPolicyPrompt(): string[] {
 	];
 }
 
-function buildConceptCaptureStylePrompt(styleGuidance: string): string[] {
-	const normalizedGuidance = normalizeStyleGuidance(styleGuidance);
-
-	return [
-		STYLE_GUIDANCE_PROTOCOL_GUARDRAIL,
-		...(normalizedGuidance
-			? [`User Concept style guidance:\n${normalizedGuidance}`]
-			: ["No user Concept style guidance was supplied. Use Mneme's default Concept writing style."]),
-	];
+function formatAllowedCardTypeRubric(types: CardDraftType[]): string {
+	return types.map((type) => `${type}=${CARD_TYPE_RUBRIC[type]}`).join("; ");
 }
 
-function normalizeStyleGuidance(value: string): string {
-	return value
-		.trim()
-		.replace(/\r\n?/g, "\n")
-		.replace(/\n{3,}/g, "\n\n")
-		.slice(0, 4000);
+function normalizeAllowedCardTypes(value: readonly CardDraftType[] | undefined): CardDraftType[] {
+	if (!Array.isArray(value)) {
+		return [...CARD_DRAFT_TYPES];
+	}
+
+	const allowed = new Set<CardDraftType>();
+	for (const item of value) {
+		if (CARD_DRAFT_TYPES.some((type) => type === item)) {
+			allowed.add(item);
+		}
+	}
+
+	return allowed.size > 0 ? [...CARD_DRAFT_TYPES].filter((type) => allowed.has(type)) : [...CARD_DRAFT_TYPES];
 }
 
-function createResponsesFormat(mode: AiProposalRequest["mode"]): ResponsesJsonSchemaFormat {
+function createResponsesFormat(mode: AiProposalRequest["mode"], allowedCardTypes: CardDraftType[]): ResponsesJsonSchemaFormat {
 	return {
 		name: "mneme_knowledge_proposals",
 		schema: mode === "card_generation"
-			? createCardGenerationResponseJsonSchema()
+			? createCardGenerationResponseJsonSchema(allowedCardTypes)
 			: createKnowledgeProposalResponseJsonSchema(),
 		strict: true,
 		type: "json_schema",
 	};
 }
 
-function createCardGenerationResponseJsonSchema(): Record<string, unknown> {
+function createCardGenerationResponseJsonSchema(allowedCardTypes: CardDraftType[]): Record<string, unknown> {
 	const evidence = {
 		additionalProperties: false,
 		properties: {
@@ -293,7 +288,7 @@ function createCardGenerationResponseJsonSchema(): Record<string, unknown> {
 				additionalProperties: false,
 				properties: {
 					back: { type: "string" },
-					cardType: { enum: ["definition", "distinction", "procedure", "example", "trap", "proof", "application", "mastery", "other"], type: "string" },
+					cardType: { enum: allowedCardTypes, type: "string" },
 					conceptId: { type: "string" },
 					conceptTitle: { type: "string" },
 					front: { type: "string" },

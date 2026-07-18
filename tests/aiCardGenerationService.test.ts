@@ -212,7 +212,7 @@ async function run(): Promise<void> {
 			Object.entries(proposals).map(([id, proposal]) => [id, { ...proposal, status: "written" as const }]),
 		));
 
-		fixture.settings.aiCardStyleGuidance = "Prefer application Cards.";
+		fixture.settings.allowedAiCardTypes = ["application"];
 		const second = await fixture.service.generate(concept);
 
 		assert.equal(second.status, "generated");
@@ -349,6 +349,23 @@ async function run(): Promise<void> {
 
 		assert.equal(result.status, "invalid_response");
 		assert.equal(result.message, "AI Card proposals do not match the current Concept.");
+		assert.deepEqual(await fixture.proposalStore.listProposals(), []);
+	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock", allowedAiCardTypes: ["application"] });
+		const conceptHash = await conceptFingerprint();
+		fixture.provider.response = {
+			mode: "card_generation",
+			proposals: [createCardProposal(0)],
+			schemaVersion: "mneme.ai.proposals.v1",
+			source: { hash: conceptHash, path: concept.conceptPath },
+			warnings: [],
+		};
+		const result = await fixture.service.generate(concept);
+
+		assert.equal(result.status, "invalid_response");
+		assert.equal(result.message, "AI returned disabled cardType 'definition'.");
 		assert.deepEqual(await fixture.proposalStore.listProposals(), []);
 	}
 
@@ -499,6 +516,7 @@ class CountingProvider implements AiProvider {
 				diagnostics: {
 					inputChars: input.sourceContent.length,
 					logSafeConfig: {
+						allowedAiCardTypes: DEFAULT_SETTINGS.allowedAiCardTypes,
 						aiCaptureEnabled: true,
 						aiMaxInputChars: 20000,
 						aiProvider: "mock",

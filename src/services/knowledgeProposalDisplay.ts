@@ -1,5 +1,6 @@
 import type { KnowledgeProposal } from "../models/knowledgeProposal";
 import type { SourceEvidence } from "../models/conceptSource";
+import { formatCardTypeLabel } from "./cardTypeDisplay";
 import { buildCardGroupPath } from "../utils/markdownPath";
 
 export interface ProposalHighlight {
@@ -23,7 +24,8 @@ export function getProposalTitle(proposal: KnowledgeProposal): string {
 			return getString(payload, "title") ?? "New Concept";
 		case "new_card": {
 			const front = getNestedString(payload, "card", "front");
-			return front ? `Card: ${truncateDisplayText(front, 80)}` : "New Card";
+			const cardType = formatCardTypeLabel(getNestedString(payload, "card", "cardType"));
+			return front ? `${cardType}: ${truncateDisplayText(front, 80)}` : `${cardType} Card`;
 		}
 		case "revise_card":
 			return `Revise Card: ${getString(payload, "cardId") ?? proposal.cardId ?? "Unknown Card"}`;
@@ -61,7 +63,7 @@ export function getProposalHighlights(proposal: KnowledgeProposal): ProposalHigh
 		case "new_card":
 			return compactHighlights([
 				{ label: "Card Group", value: getProposedCardMarkdownFilename(proposal) },
-				{ label: "Card Type", value: getNestedString(payload, "card", "cardType") },
+				{ label: "Card Type", value: formatCardTypeLabel(getNestedString(payload, "card", "cardType")) },
 				{ label: "Front", value: getNestedString(payload, "card", "front") },
 				{ label: "Back", value: getNestedString(payload, "card", "back") },
 				{ label: "Rubric", value: getNestedString(payload, "card", "rubric") },

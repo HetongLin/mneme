@@ -58,6 +58,7 @@ export class MockAiProvider implements AiProvider {
 
 	private generateCardProposal(input: AiProposalRequest & { mode: "card_generation" }): AiProposalResponse {
 		const warnings = ["Mock AI provider returned deterministic card-stage proposals."];
+		const cardType = this.settings.allowedAiCardTypes[0] ?? "definition";
 
 		return {
 			diagnostics: {
@@ -81,7 +82,7 @@ export class MockAiProvider implements AiProvider {
 					kind: "new_card",
 					payload: {
 						back: `Explain the core meaning of ${input.conceptTitle} in your own words.`,
-						cardType: "definition",
+						cardType,
 						conceptId: input.conceptId,
 						conceptTitle: input.conceptTitle,
 						front: `What is the core meaning of ${input.conceptTitle}?`,

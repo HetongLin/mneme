@@ -1,3 +1,4 @@
+import type { CardDraftType, KnowledgeProposal } from "../models/knowledgeProposal";
 import type { MnemeSettings } from "../models/settings";
 import type { SourceAnalysisRecord } from "../models/sourceAnalysis";
 import { computeContentHash } from "../utils/sourceHash";
@@ -160,6 +161,14 @@ export class AiCardGenerationService {
 				return this.result("invalid_response", stageValidation.errors.join(" "));
 			}
 
+			const disabledCardType = proposals
+				.map((proposal) => getGeneratedCardType(proposal))
+				.find((cardType) => cardType !== undefined && !settings.allowedAiCardTypes.includes(cardType));
+
+			if (disabledCardType) {
+				return this.result("invalid_response", `AI returned disabled cardType '${disabledCardType}'.`);
+			}
+
 			const hasTargetMismatch = proposals.some((proposal) => (
 				proposal.kind !== "new_card"
 				|| proposal.conceptId !== input.conceptId
@@ -237,4 +246,8 @@ export class AiCardGenerationService {
 
 function normalizeExistingCardFronts(value: string[] | undefined): string[] {
 	return [...new Set((value ?? []).map((front) => front.trim()).filter(Boolean))].slice(0, 100);
+}
+
+function getGeneratedCardType(proposal: KnowledgeProposal): CardDraftType | undefined {
+	return proposal.kind === "new_card" ? proposal.payload?.card.cardType : undefined;
 }

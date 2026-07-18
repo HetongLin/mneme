@@ -1,4 +1,4 @@
-import type { KnowledgeProposal, KnowledgeProposalKind } from "../models/knowledgeProposal";
+import type { CardDraftType, KnowledgeProposal, KnowledgeProposalKind } from "../models/knowledgeProposal";
 import type { AiProviderName, MnemeSettings } from "../models/settings";
 export type AiProposalMode = "concept_capture" | "card_generation";
 
@@ -76,6 +76,7 @@ export interface AiJsonHttpClient {
 }
 
 export interface LogSafeAiConfig {
+	allowedAiCardTypes: CardDraftType[];
 	aiCaptureEnabled: boolean;
 	aiMaxInputChars: number;
 	aiProvider: AiProviderName;
@@ -170,6 +171,7 @@ export function validateAiProviderConfig(settings: MnemeSettings): AiProviderCon
 
 export function toLogSafeAiConfig(settings: MnemeSettings): LogSafeAiConfig {
 	return {
+		allowedAiCardTypes: [...settings.allowedAiCardTypes],
 		aiCaptureEnabled: settings.aiCaptureEnabled,
 		aiMaxInputChars: settings.aiMaxInputChars,
 		aiProvider: settings.aiProvider,

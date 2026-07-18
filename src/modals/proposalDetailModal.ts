@@ -18,6 +18,7 @@ import { getProposalStageLabel } from "../services/knowledgeProposalStage";
 import { normalizeConceptTags } from "../services/conceptMarkdownRenderer";
 import { createMarkdownLivePreviewField } from "../ui/markdownLivePreviewField";
 import { formatUserFacingError, formatUserFacingMessage } from "../utils/userFacingError";
+import { getCardTypeOptions } from "../services/cardTypeDisplay";
 
 interface ProposalDetailModalOptions {
 	onChange?(): Promise<void> | void;
@@ -209,7 +210,7 @@ export class ProposalDetailModal extends Modal {
 		const frontInput = this.createTextareaInput(parentEl, "Front", getString(card, "front"));
 		const backInput = this.createTextareaInput(parentEl, "Back", getString(card, "back"));
 		const rubricInput = this.createTextareaInput(parentEl, "Rubric", getString(card, "rubric"));
-		const cardTypeInput = this.createTextInput(parentEl, "Card Type", getString(card, "cardType"));
+		const cardTypeInput = this.createSelectInput(parentEl, "Card Type", getString(card, "cardType"), getCardTypeOptions(), "definition");
 
 		this.collectStructuredPayload = () => ({
 			...payload,

@@ -1,7 +1,8 @@
+import { CARD_DRAFT_TYPES, type CardDraftType } from "./knowledgeProposal";
+
 export interface MnemeSettings {
+	allowedAiCardTypes: CardDraftType[];
 	aiCaptureEnabled: boolean;
-	aiCardStyleGuidance: string;
-	aiConceptStyleGuidance: string;
 	aiMaxInputChars: number;
 	aiProvider: AiProviderName;
 	aiRequestTimeoutMs: number;
@@ -25,9 +26,8 @@ export type AiProviderName = "mock" | "openai" | "deepseek";
 const LEGACY_DEFAULT_AI_REQUEST_TIMEOUT_MS = 30000;
 
 export const DEFAULT_SETTINGS: MnemeSettings = {
+	allowedAiCardTypes: [...CARD_DRAFT_TYPES],
 	aiCaptureEnabled: false,
-	aiCardStyleGuidance: "",
-	aiConceptStyleGuidance: "",
 	aiMaxInputChars: 20000,
 	aiProvider: "mock",
 	aiRequestTimeoutMs: 120000,
@@ -52,11 +52,10 @@ export function normalizeSettings(value: unknown): MnemeSettings {
 	}
 
 	return {
+		allowedAiCardTypes: normalizeAllowedAiCardTypes(value.allowedAiCardTypes),
 		aiCaptureEnabled: typeof value.aiCaptureEnabled === "boolean"
 			? value.aiCaptureEnabled
 			: DEFAULT_SETTINGS.aiCaptureEnabled,
-		aiCardStyleGuidance: normalizeString(value.aiCardStyleGuidance, DEFAULT_SETTINGS.aiCardStyleGuidance),
-		aiConceptStyleGuidance: normalizeString(value.aiConceptStyleGuidance, DEFAULT_SETTINGS.aiConceptStyleGuidance),
 		aiMaxInputChars: normalizePositiveInteger(value.aiMaxInputChars, DEFAULT_SETTINGS.aiMaxInputChars),
 		aiProvider: normalizeAiProvider(value.aiProvider),
 		aiRequestTimeoutMs: normalizeAiRequestTimeoutMs(value.aiRequestTimeoutMs),
@@ -131,6 +130,25 @@ function normalizeAiRequestTimeoutMs(value: unknown): number {
 	return normalized === LEGACY_DEFAULT_AI_REQUEST_TIMEOUT_MS
 		? DEFAULT_SETTINGS.aiRequestTimeoutMs
 		: normalized;
+}
+
+function normalizeAllowedAiCardTypes(value: unknown): CardDraftType[] {
+	if (!Array.isArray(value)) {
+		return [...DEFAULT_SETTINGS.allowedAiCardTypes];
+	}
+
+	const allowed = new Set<CardDraftType>();
+	for (const item of value) {
+		if (isCardDraftType(item)) {
+			allowed.add(item);
+		}
+	}
+
+	return allowed.size > 0 ? [...CARD_DRAFT_TYPES].filter((type) => allowed.has(type)) : [...DEFAULT_SETTINGS.allowedAiCardTypes];
+}
+
+function isCardDraftType(value: unknown): value is CardDraftType {
+	return typeof value === "string" && CARD_DRAFT_TYPES.some((type) => type === value);
 }
 
 export function normalizeFolder(value: unknown, fallback: string): string {

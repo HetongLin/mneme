@@ -1,4 +1,5 @@
-import { App, Plugin, PluginSettingTab, Setting } from "obsidian";
+import { App, Notice, Plugin, PluginSettingTab, Setting } from "obsidian";
+import { CARD_DRAFT_TYPES, type CardDraftType } from "./models/knowledgeProposal";
 import {
 	DEFAULT_SETTINGS,
 	getRetentionWorkloadWarning,
@@ -8,6 +9,7 @@ import {
 	normalizePositiveInteger,
 	normalizeRetention,
 } from "./models/settings";
+import { CARD_TYPE_DESCRIPTIONS, CARD_TYPE_LABELS } from "./services/cardTypeDisplay";
 
 export {
 	DEFAULT_SETTINGS,
@@ -260,31 +262,30 @@ export class MnemeSettingTab extends PluginSettingTab {
 				});
 			});
 
-		new Setting(containerEl)
-			.setName("Concept style guidance")
-			.setDesc("Optional AI writing preferences for Concept proposals. This may change content style and selection criteria, but Mneme still requires fixed JSON fields such as Core Meaning, Why It Matters, Learning Mode, Importance, Tags, and evidence.")
-			.addTextArea((text) => {
-				text.inputEl.rows = 5;
-				text.inputEl.placeholder = "Example: Prefer fewer, higher-quality Concepts. Keep Core Meaning concise and mechanism-focused. Keep Why It Matters focused on exam use or practical application.";
-				text.setValue(this.plugin.settings.aiConceptStyleGuidance);
-				text.onChange(async (value) => {
-					this.plugin.settings.aiConceptStyleGuidance = value.trim();
-					await this.persistSettings();
-				});
-			});
+		containerEl.createEl("h3", { text: "Card Generation" });
 
 		new Setting(containerEl)
-			.setName("Card style guidance")
-			.setDesc("Optional AI writing preferences for Card proposals. This may change question style and difficulty, but Mneme still requires fixed front/back/rubric fields, grounding evidence, and supported cardType values.")
-			.addTextArea((text) => {
-				text.inputEl.rows = 5;
-				text.inputEl.placeholder = "Example: Prefer application and trap Cards. Avoid too many pure definition Cards. Keep Back concise and Rubric short.";
-				text.setValue(this.plugin.settings.aiCardStyleGuidance);
-				text.onChange(async (value) => {
-					this.plugin.settings.aiCardStyleGuidance = value.trim();
-					await this.persistSettings();
+			.setName("Allowed AI card types")
+			.setDesc("Choose which built-in Card types AI may generate. Concept generation uses Mneme’s fixed prompt.");
+
+		for (const cardType of CARD_DRAFT_TYPES) {
+			new Setting(containerEl)
+				.setName(CARD_TYPE_LABELS[cardType])
+				.setDesc(CARD_TYPE_DESCRIPTIONS[cardType])
+				.addToggle((toggle) => {
+					toggle.setValue(this.plugin.settings.allowedAiCardTypes.includes(cardType));
+					toggle.onChange(async (value) => {
+						const nextTypes = toggleAllowedCardType(this.plugin.settings.allowedAiCardTypes, cardType, value);
+						if (nextTypes.length === 0) {
+							toggle.setValue(true);
+							new Notice("Mneme: At least one Card type must stay enabled.");
+							return;
+						}
+						this.plugin.settings.allowedAiCardTypes = nextTypes;
+						await this.persistSettings();
+					});
 				});
-			});
+		}
 
 		containerEl.createEl("h3", { text: "Developer Tools" });
 
@@ -305,6 +306,22 @@ export class MnemeSettingTab extends PluginSettingTab {
 		this.plugin.updateFsrsSchedulerConfig?.();
 	}
 
+}
+
+function toggleAllowedCardType(
+	currentTypes: readonly CardDraftType[],
+	cardType: CardDraftType,
+	enabled: boolean,
+): CardDraftType[] {
+	const current = new Set(currentTypes);
+
+	if (enabled) {
+		current.add(cardType);
+	} else {
+		current.delete(cardType);
+	}
+
+	return CARD_DRAFT_TYPES.filter((type) => current.has(type));
 }
 
 function formatRetention(value: number): string {

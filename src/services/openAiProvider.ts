@@ -61,8 +61,7 @@ export function buildOpenAiKnowledgeProposalPayload(
 	settings: MnemeSettings,
 ): OpenAiStructuredOutputPayload {
 	return buildOpenAiCompatibleKnowledgeProposalPayload(input, {
-		aiCardStyleGuidance: settings.aiCardStyleGuidance,
-		aiConceptStyleGuidance: settings.aiConceptStyleGuidance,
+		allowedAiCardTypes: settings.allowedAiCardTypes,
 		baseUrl: settings.openaiBaseUrl,
 		endpointPath: "responses",
 		maxInputChars: settings.aiMaxInputChars,

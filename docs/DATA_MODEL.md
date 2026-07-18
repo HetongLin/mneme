@@ -18,13 +18,12 @@ Markdown stores approved Concept and Card content. `data.json` stores settings, 
 
 `SourceAnalysisStore` persists `SourceAnalysisRecord` entries in plugin data. `Mneme: Analyze Current Note` always updates source path, metadata, and content hash. When AI Capture is enabled, it may also add validated Concept proposals to Inbox; it never generates Cards or writes Markdown directly.
 
-The same record shape also tracks a written Concept's Card generation fingerprint. `lastCardGenerationFingerprint` records the assessable Concept content plus Card generation policy/style used by the most recent successful generation call, including a `coverage_complete` result. A matching fingerprint blocks another generation round even after every proposal is accepted or rejected; assessable Concept content changes or Card style guidance changes can unlock a new round. Provider failures remain retryable, while changes to tags, provenance, frontmatter, or review navigation do not create a new generation round. The legacy `lastCardGenerationHash` field remains readable for data compatibility.
+The same record shape also tracks a written Concept's Card generation fingerprint. `lastCardGenerationFingerprint` records the assessable Concept content plus Card generation policy and enabled Card types used by the most recent successful generation call, including a `coverage_complete` result. A matching fingerprint blocks another generation round even after every proposal is accepted or rejected; assessable Concept content changes or enabled Card type settings can unlock a new round. Provider failures remain retryable, while changes to tags, provenance, frontmatter, or review navigation do not create a new generation round. The legacy `lastCardGenerationHash` field remains readable for data compatibility.
 
 AI Capture settings are stored in plugin data under `settings` and configure the provider boundary:
 
 - `aiCaptureEnabled`
-- `aiConceptStyleGuidance`
-- `aiCardStyleGuidance`
+- `allowedAiCardTypes`
 - `aiProvider`
 - `openaiApiKey`
 - `openaiBaseUrl`
@@ -37,7 +36,7 @@ AI Capture settings are stored in plugin data under `settings` and configure the
 
 Supported provider settings include `mock`, `openai`, and `deepseek`. DeepSeek is modeled as an OpenAI-compatible provider with an editable base URL and model; the default model is `deepseek-v4-flash`, but users may change it.
 
-These settings control AI calls from `Analyze Current Note` and `Generate Cards from Current Concept`. Style guidance is user-authored preference text appended only as a subordinate style layer. It must not alter Mneme's required schema, field names, proposal kinds, evidence requirements, or enum values. Provider diagnostics must use log-safe configuration summaries and must not include raw API keys.
+These settings control AI calls from `Analyze Current Note` and `Generate Cards from Current Concept`. Concept capture uses Mneme's fixed prompt. Card generation exposes only `allowedAiCardTypes`, selected from the built-in Card type enum; free-form prompt/style customization is intentionally not persisted because it can destabilize schema validation. Provider diagnostics must use log-safe configuration summaries and must not include raw API keys.
 
 AI raw JSON is untrusted input. The structured AI proposal contract is:
 
@@ -394,8 +393,8 @@ For each analyzed Source Note, store:
 - lastAiCaptureAnalyzedChars (optional)
 - lastAiCaptureTotalChars (optional)
 - lastAiCaptureChunkCount (optional)
-- lastCardGenerationFingerprint (optional; records assessable Concept content plus Card generation policy/style that completed Card proposal generation)
-- lastCardGenerationOutcome (optional diagnostic result: `proposed` or `coverage_complete`; both close the recorded fingerprint until assessable Concept content or Card generation style changes)
+- lastCardGenerationFingerprint (optional; records assessable Concept content plus Card generation policy and enabled Card types that completed Card proposal generation)
+- lastCardGenerationOutcome (optional diagnostic result: `proposed` or `coverage_complete`; both close the recorded fingerprint until assessable Concept content or enabled Card type settings change)
 - lastCardGenerationHash (deprecated compatibility alias)
 - mtime
 - size
@@ -403,7 +402,7 @@ For each analyzed Source Note, store:
 
 Skip Concept capture only when the newly computed capture fingerprint matches `lastAiCaptureFingerprint`. The complete Source Note is split into contiguous Markdown-aware requests of at most `aiMaxInputChars`; a successful capture records complete character coverage and chunk count. Provider/model changes, chunk-size changes, and capture-policy changes intentionally produce a new fingerprint even when Source Markdown is unchanged.
 
-For written Concepts, compare the Card generation fingerprint rather than the whole file. Active proposals block duplicate Inbox rounds for the same learning content; any successful generation call records a fingerprint that remains closed after proposals are accepted or rejected. Existing Card fronts are supplied as a Coverage Map so providers can avoid proposing the same outcome again. Assessable Concept content changes or Card style guidance changes can unlock a new attempt; metadata-only edits cannot.
+For written Concepts, compare the Card generation fingerprint rather than the whole file. Active proposals block duplicate Inbox rounds for the same learning content; any successful generation call records a fingerprint that remains closed after proposals are accepted or rejected. Existing Card fronts are supplied as a Coverage Map so providers can avoid proposing the same outcome again. Assessable Concept content changes or enabled Card type settings can unlock a new attempt; metadata-only edits cannot.
 
 ## FSRS State
 

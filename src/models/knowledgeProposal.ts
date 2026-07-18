@@ -29,16 +29,18 @@ export type KnowledgeProposalStatus = typeof KNOWLEDGE_PROPOSAL_STATUSES[number]
 
 export type SuggestedImportance = "low" | "normal" | "high" | "critical";
 export type ProposalLearningMode = "reviewable" | "exploratory";
-export type CardDraftType =
-	| "definition"
-	| "distinction"
-	| "procedure"
-	| "example"
-	| "trap"
-	| "proof"
-	| "application"
-	| "mastery"
-	| "other";
+export const CARD_DRAFT_TYPES = [
+	"definition",
+	"distinction",
+	"procedure",
+	"example",
+	"trap",
+	"proof",
+	"application",
+	"mastery",
+	"other",
+] as const;
+export type CardDraftType = typeof CARD_DRAFT_TYPES[number];
 
 export interface ConceptViewDraft {
 	body: string;
