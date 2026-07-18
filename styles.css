@@ -738,23 +738,6 @@ If your plugin does not need CSS, delete this file.
 	min-width: 0;
 }
 
-.mneme-concept-composer-more {
-	border-top: 1px solid var(--background-modifier-border);
-	padding-top: 10px;
-}
-
-.mneme-concept-composer-more > summary {
-	color: var(--text-muted);
-	cursor: pointer;
-	font-family: var(--font-ui-small);
-}
-
-.mneme-concept-composer-more-fields {
-	display: grid;
-	gap: 10px;
-	padding-top: 10px;
-}
-
 .mneme-concept-composer-duplicates {
 	display: grid;
 	gap: 8px;

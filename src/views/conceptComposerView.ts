@@ -129,20 +129,17 @@ export class MnemeConceptComposerView extends ItemView {
 			value: this.draft.whyItMatters,
 		});
 
-		const moreEl = formEl.createEl("details", { cls: "mneme-concept-composer-more" });
-		moreEl.createEl("summary", { text: "More" });
-		const moreFieldsEl = moreEl.createDiv({ cls: "mneme-concept-composer-more-fields" });
-		this.learningModeEl = this.createSelect(moreFieldsEl, "Learning Mode", [
+		this.learningModeEl = this.createSelect(formEl, "Learning Mode", [
 			["reviewable", "Reviewable"],
 			["exploratory", "Exploratory"],
 		], this.draft.learningMode);
-		this.importanceEl = this.createSelect(moreFieldsEl, "Importance", [
+		this.importanceEl = this.createSelect(formEl, "Importance", [
 			["low", "Low"],
 			["normal", "Normal"],
 			["high", "High"],
 			["critical", "Critical"],
 		], this.draft.importance);
-		this.tagsEl = this.createInput(moreFieldsEl, "Tags", "Comma-separated", this.draft.tags.join(", "));
+		this.tagsEl = this.createInput(formEl, "Tags", "Comma-separated", this.draft.tags.join(", "));
 
 		this.duplicateEl = formEl.createDiv({ cls: "mneme-concept-composer-duplicates" });
 		this.statusEl = formEl.createDiv({ cls: "mneme-review-status mneme-concept-composer-status" });
