@@ -190,6 +190,7 @@ function buildCardGenerationProductPolicyPrompt(allowedCardTypes: CardDraftType[
 		"Treat existingCardFronts as the current Coverage Map. Do not repeat the same learning outcome; return an empty proposals array when the approved Concept has no useful uncovered outcome.",
 		"Every Card must test one independently rateable outcome and include at least one exact quote from the written Concept as grounding evidence.",
 		`Enabled cardType values for this request: ${allowedCardTypes.join(", ")}.`,
+		"Enabled cardType values are allowed options, not required quotas. Do not generate a Card for every enabled type. Skip any enabled type that is not naturally supported by this Concept; for example, do not force a proof Card when the Concept does not contain theorem, derivation, or justification content.",
 		`Choose cardType by this rubric, using only enabled entries: ${formatAllowedCardTypeRubric(allowedCardTypes)}.`,
 		"Use focused recall questions that test understanding, distinctions, procedures, examples, traps, proofs, applications, or mastery. Avoid trivia and duplicate questions.",
 		OBSIDIAN_MATH_MARKDOWN_GUIDANCE,

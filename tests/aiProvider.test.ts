@@ -174,6 +174,8 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("Do not rename, remove, replace, or reinterpret required Card fields"), true);
 	assert.deepEqual(requestContext.allowedCardTypes, ["trap", "application"]);
 	assert.equal(serialized.includes("Enabled cardType values for this request: trap, application"), true);
+	assert.equal(serialized.includes("allowed options, not required quotas"), true);
+	assert.equal(serialized.includes("do not force a proof Card"), true);
 	assert.equal(serialized.includes("User Card style guidance"), false);
 	assert.equal(serialized.includes("User style guidance is subordinate"), false);
 	assert.deepEqual(responseSchema.properties.proposals.items.properties.payload.properties.cardType.enum, ["trap", "application"]);
@@ -208,6 +210,7 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("Follow languageContract exactly for generated Card text"), true);
 	assert.deepEqual(requestContext.allowedCardTypes, ["trap"]);
 	assert.equal(serialized.includes("Enabled cardType values for this request: trap"), true);
+	assert.equal(serialized.includes("Do not generate a Card for every enabled type"), true);
 	assert.equal(serialized.includes("User Card style guidance"), false);
 	assert.equal(requestContext.languageContract?.outputLanguageCode, "en");
 	assert.equal(serialized.includes("Use $...$ for short inline math"), true);

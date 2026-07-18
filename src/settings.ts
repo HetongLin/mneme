@@ -319,7 +319,7 @@ export class MnemeSettingTab extends PluginSettingTab {
 		});
 		detailsEl.createEl("p", {
 			cls: "setting-item-description",
-			text: "Choose which built-in Card types AI may generate. Concept generation uses Mneme’s fixed prompt.",
+			text: "Choose which built-in Card types AI may use. Enabled types are allowed options, not required quotas; AI should skip unsuitable types instead of forcing them.",
 		});
 
 		for (const cardType of CARD_DRAFT_TYPES) {
