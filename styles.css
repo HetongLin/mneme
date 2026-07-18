@@ -558,15 +558,32 @@ If your plugin does not need CSS, delete this file.
 	min-height: 92px;
 }
 
+.mneme-concept-title-input {
+	font-family: var(--font-text);
+	font-size: 20px;
+	font-weight: 650;
+	line-height: 1.35;
+	min-height: 52px;
+	padding: 10px 12px;
+}
+
 .mneme-markdown-live-preview {
 	background: var(--background-modifier-form-field);
 	border: var(--input-border-width) solid var(--background-modifier-border);
 	border-radius: var(--input-radius);
 	color: var(--text-normal);
 	cursor: text;
+	font-size: 17px;
 	font-family: var(--font-text);
 	line-height: var(--line-height-normal);
 	min-height: 92px;
+	padding: 10px 12px;
+}
+
+.mneme-markdown-live-preview-editor {
+	font-family: var(--font-text);
+	font-size: 17px;
+	line-height: var(--line-height-normal);
 	padding: 10px 12px;
 }
 

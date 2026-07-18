@@ -238,7 +238,7 @@ Preferred order:
 5. Advanced / Raw JSON
 6. Bottom actions
 
-For a new Concept proposal, editable learning fields appear in this order: Concept title, Core Meaning, Why It Matters, Learning Mode, Importance, and Tags. `Core Meaning` explains what the Concept is and its defining mechanism. `Why It Matters` explains why it is useful, when it matters, or what problem it helps solve. The corresponding proposal fields are `coreMeaning` and `whyItMatters`.
+For a new Concept proposal, editable learning fields appear in this order: Concept title, Core Meaning, Why It Matters, Learning Mode, Importance, and Tags. Concept title uses the same block-like editable field family as Core Meaning and Why It Matters, but is visually larger to read as the Concept's heading rather than ordinary metadata. `Core Meaning` explains what the Concept is and its defining mechanism. `Why It Matters` explains why it is useful, when it matters, or what problem it helps solve. The corresponding proposal fields are `coreMeaning` and `whyItMatters`.
 
 Do not show a separate `Proposed Change` overview above editable Concept fields when it merely duplicates Why It Matters or Core Meaning. For Card proposals, the editable Front / Back / Rubric fields are the primary review content.
 

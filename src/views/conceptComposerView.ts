@@ -110,6 +110,7 @@ export class MnemeConceptComposerView extends ItemView {
 		const formEl = this.contentEl.createDiv({ cls: "mneme-concept-composer-form" });
 		this.renderSourceField(formEl);
 		this.titleEl = this.createInput(formEl, "Title", "e.g. Information Gain", this.draft.title);
+		this.titleEl.addClass("mneme-concept-title-input");
 		this.coreMeaningEl = createMarkdownLivePreviewField({
 			app: this.app,
 			component: this.markdownComponent,
