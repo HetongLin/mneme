@@ -186,7 +186,7 @@ function buildCardGenerationProtocolPrompt(): string[] {
 
 function buildCardGenerationProductPolicyPrompt(allowedCardTypes: CardDraftType[]): string[] {
 	return [
-		"Generate at most five non-duplicative new_card proposals from the approved written Concept. Do not propose Concepts or return a standalone Markdown document.",
+		"Generate only useful, non-duplicative new_card proposals naturally supported by the approved written Concept. Do not propose Concepts or return a standalone Markdown document.",
 		"Treat existingCardFronts as the current Coverage Map. Do not repeat the same learning outcome; return an empty proposals array when the approved Concept has no useful uncovered outcome.",
 		"Every Card must test one independently rateable outcome and include at least one exact quote from the written Concept as grounding evidence.",
 		`Enabled cardType values for this request: ${allowedCardTypes.join(", ")}.`,
