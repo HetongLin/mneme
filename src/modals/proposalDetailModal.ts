@@ -488,6 +488,13 @@ export class ProposalDetailModal extends Modal {
 		this.proposal = next;
 		await this.markOpenedIfPossible();
 		this.renderContent();
+		this.scrollToTop();
+	}
+
+	private scrollToTop(): void {
+		this.contentEl.scrollTo({ top: 0 });
+		const modalContentEl = this.contentEl.closest<HTMLElement>(".modal-content");
+		modalContentEl?.scrollTo({ top: 0 });
 	}
 }
 
