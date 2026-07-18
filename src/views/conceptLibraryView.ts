@@ -529,21 +529,15 @@ export class MnemeConceptLibraryView extends ItemView {
 			this.openConceptEditor(concept);
 		});
 
-		const moreEl = cardEl.createEl("details", { cls: "mneme-concept-library-card-more" });
-		moreEl.createEl("summary", { text: "More" });
-		const actionsEl = moreEl.createDiv({ cls: "mneme-concept-library-card-actions" });
-		actionsEl.createEl("button", { text: "View Concept" }, (buttonEl) => {
-			buttonEl.addEventListener("click", () => {
-				this.openConceptEditor(concept);
-			});
-		});
-		actionsEl.createEl("button", { text: "Review Cards" }, (buttonEl) => {
+		const footerEl = cardEl.createDiv({ cls: "mneme-concept-library-card-footer" });
+		footerEl.createEl("button", { text: getReviewCardsActionLabel(concept) }, (buttonEl) => {
+			buttonEl.addClass("mneme-concept-library-review-button");
 			buttonEl.addEventListener("click", () => {
 				void this.reviewConceptCards(concept);
 			});
 		});
 
-		const sourceFilesEl = moreEl.createEl("details", { cls: "mneme-concept-library-source-files" });
+		const sourceFilesEl = footerEl.createEl("details", { cls: "mneme-concept-library-source-files" });
 		sourceFilesEl.createEl("summary", { text: "Source Files" });
 		const sourceActionsEl = sourceFilesEl.createDiv({ cls: "mneme-concept-library-card-actions" });
 		sourceActionsEl.createEl("button", { text: "Open Concept Markdown" }, (buttonEl) => {
@@ -553,7 +547,7 @@ export class MnemeConceptLibraryView extends ItemView {
 		});
 
 		if (concept.cardsPath) {
-			sourceActionsEl.createEl("button", { text: "Open Cards Source" }, (buttonEl) => {
+			sourceActionsEl.createEl("button", { text: "Open Cards Markdown" }, (buttonEl) => {
 				buttonEl.addEventListener("click", () => {
 					void this.openCardTarget(concept.cardsPath);
 				});
@@ -561,7 +555,7 @@ export class MnemeConceptLibraryView extends ItemView {
 		} else {
 			sourceFilesEl.createEl("p", {
 				cls: "mneme-review-status",
-				text: "No Cards source yet.",
+				text: "No Cards Markdown yet.",
 			});
 		}
 	}
@@ -736,6 +730,10 @@ function formatDuplicateCore(value: string | undefined): string {
 	const normalized = value.replace(/\s+/g, " ").trim();
 
 	return normalized.length <= 320 ? normalized : `${normalized.slice(0, 319).trim()}…`;
+}
+
+function getReviewCardsActionLabel(concept: ConceptSummary): string {
+	return concept.cardsPath || (concept.cardCount ?? 0) > 0 ? "Review Cards" : "Generate to Review";
 }
 
 function isRenderedMathTarget(target: EventTarget | null): boolean {

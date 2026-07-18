@@ -165,13 +165,13 @@ Concept Library is primarily a visual quick-review surface, not a metadata dashb
 - Concept title
 - Core Meaning
 
-Selecting the card opens Mneme's Concept detail/editor surface, not the raw Markdown source. File paths, tags, learning mode, importance, Source counts, Card counts, and Why It Matters do not appear on the card face. The collapsed `More` control starts with daily learning actions: `View Concept` and `Review Cards`.
+Selecting the card opens Mneme's Concept detail/editor surface, not the raw Markdown source. File paths, tags, learning mode, importance, Source counts, Card counts, and Why It Matters do not appear on the card face. Concept Library does not show a top-level `More` menu on each Concept card; the card face itself is the View Concept action.
 
-`View Concept` uses the rendered editable Concept surface. The student can read the Concept first and edit only when needed.
+The rendered editable Concept surface is opened by selecting the Concept card. The student can read the Concept first and edit only when needed.
 
-`Review Cards` starts Concept-scoped Mneme card review for that Concept. It must not open Card Markdown source files. It uses all valid Cards in the Concept, including Cards that are not due in Today’s Focus, and ratings still update FSRS memory. If the Concept has no Card group yet, Mneme shows a `No cards yet` prompt with `Generate to Review` when the Concept is eligible for Card generation.
+Each Concept card shows one directly visible primary learning action. If the Concept has accepted Cards, it reads `Review Cards` and starts Concept-scoped Mneme card review for that Concept. It must not open Card Markdown source files. It uses all valid Cards in the Concept, including Cards that are not due in Today’s Focus, and ratings still update FSRS memory. If the Concept has no Cards Markdown yet, the action reads `Generate to Review` and Mneme shows a `No cards yet` prompt with `Generate to Review` when the Concept is eligible for Card generation.
 
-Raw file operations are second-level actions under `Source Files`, including `Open Concept Markdown` and `Open Cards Source`. Source files are maintenance/debug affordances, not the daily learning path.
+Raw file operations are second-level actions under `Source Files`, including `Open Concept Markdown` and `Open Cards Markdown`. Source files are maintenance/debug affordances, not the daily learning path.
 
 View Concept contains an optional numeric `Retention Target` field under Concept metadata. Blank means the current global target; values must be between `0.70` and `0.98`. The helper text states that it affects only future rated FSRS reviews and does not rewrite existing due dates. Review `Details` and Advanced Diagnostics identify whether the effective target is global or a Concept override; it is not shown on the Concept Library card face.
 

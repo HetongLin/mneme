@@ -332,7 +332,6 @@ If your plugin does not need CSS, delete this file.
 }
 
 .mneme-concept-library-filters > summary,
-.mneme-concept-library-card-more > summary,
 .mneme-concept-library-maintenance > summary {
 	cursor: pointer;
 	font-family: var(--font-ui-medium);
@@ -425,11 +424,15 @@ If your plugin does not need CSS, delete this file.
 	width: 100%;
 }
 
-.mneme-concept-library-card-more {
+.mneme-concept-library-card-footer {
 	border-top: 1px solid var(--background-modifier-border);
 	color: var(--text-muted);
 	font-family: var(--font-ui-small);
 	padding: 10px 16px 12px;
+}
+
+.mneme-concept-library-review-button {
+	width: 100%;
 }
 
 .mneme-concept-library-card-actions {
