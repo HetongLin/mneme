@@ -1,6 +1,5 @@
 import type { AiProposalRequest } from "./aiProvider";
 import { CARD_DRAFT_TYPES, type CardDraftType } from "../models/knowledgeProposal";
-import { AI_CARD_GENERATION_MAX_PROPOSALS } from "./aiProposalSchema";
 import { createLearningContentLanguageContract } from "./learningContentLanguage";
 
 export interface OpenAiCompatibleProviderConfig {
@@ -188,6 +187,9 @@ function buildCardGenerationProductPolicyPrompt(allowedCardTypes: CardDraftType[
 	return [
 		"Generate only useful, non-duplicative new_card proposals naturally supported by the approved written Concept. Do not propose Concepts or return a standalone Markdown document.",
 		"Treat existingCardFronts as the current Coverage Map. Do not repeat the same learning outcome; return an empty proposals array when the approved Concept has no useful uncovered outcome.",
+		"Coverage is based on independently testable learning outcomes, not on the number of enabled Card types. Do not collapse multiple definitions, distinctions, procedures, formulas, traps, or applications into one omnibus Card.",
+		"Generate one Card proposal for each distinct high-value outcome that the student should be able to recall, explain, calculate, distinguish, or apply from this Concept.",
+		"A long or multi-part Concept usually needs multiple Cards. There is no fixed numerical cap or target, but avoid trivial granularity and stop when the meaningful uncovered outcomes are covered.",
 		"Every Card must test one independently rateable outcome and include at least one exact quote from the written Concept as grounding evidence.",
 		`Enabled cardType values for this request: ${allowedCardTypes.join(", ")}.`,
 		"Enabled cardType values are allowed options, not required quotas. Do not generate a Card for every enabled type. Skip any enabled type that is not naturally supported by this Concept; for example, do not force a proof Card when the Concept does not contain theorem, derivation, or justification content.",
@@ -310,7 +312,7 @@ function createCardGenerationResponseJsonSchema(allowedCardTypes: CardDraftType[
 		additionalProperties: false,
 		properties: {
 			mode: { const: "card_generation", type: "string" },
-			proposals: { items: cardProposal, maxItems: AI_CARD_GENERATION_MAX_PROPOSALS, type: "array" },
+			proposals: { items: cardProposal, type: "array" },
 			schemaVersion: { const: "mneme.ai.proposals.v1", type: "string" },
 			source: {
 				additionalProperties: false,

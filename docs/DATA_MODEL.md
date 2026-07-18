@@ -402,7 +402,7 @@ For each analyzed Source Note, store:
 
 Skip Concept capture only when the newly computed capture fingerprint matches `lastAiCaptureFingerprint`. The complete Source Note is split into contiguous Markdown-aware requests of at most `aiMaxInputChars`; a successful capture records complete character coverage and chunk count. Provider/model changes, chunk-size changes, and capture-policy changes intentionally produce a new fingerprint even when Source Markdown is unchanged.
 
-For written Concepts, compare the Card generation fingerprint rather than the whole file. Active proposals block duplicate Inbox rounds for the same learning content; any successful generation call records a fingerprint that remains closed after proposals are accepted or rejected. Existing Card fronts are supplied as a Coverage Map so providers can avoid proposing the same outcome again. Assessable Concept content changes or enabled Card type settings can unlock a new attempt; metadata-only edits cannot.
+For written Concepts, compare the Card generation fingerprint rather than the whole file. Active proposals block duplicate Inbox rounds for the same learning content; any successful generation call records a fingerprint that remains closed after proposals are accepted or rejected. Existing Card fronts are supplied as a Coverage Map so providers can avoid proposing the same outcome again. Long approved Concepts are split into Markdown-aware Card-generation chunks and aggregated across the complete assessable Concept content rather than truncated to one provider request. Assessable Concept content changes or enabled Card type settings can unlock a new attempt; metadata-only edits cannot.
 
 ## FSRS State
 
@@ -491,7 +491,7 @@ Source Note analysis and future vault scanning are Concept-first. They may creat
 
 Card proposals are created later from written Concepts. They remain Inbox proposals until reviewed, approved, and explicitly written to Card Markdown.
 
-Each generation run returns at most five non-duplicative Card proposals and a Coverage Map. Every proposed Card identifies its Card Grounding in approved Concept content. Missing knowledge must become a reviewed Concept proposal before a dependent Card can be written.
+Each generation run returns non-duplicative Card proposals guided by a Coverage Map, with no fixed proposal-count cap. Every proposed Card identifies one independently testable Card Grounding in approved Concept content. Mneme should generate enough Cards to cover distinct high-value learning outcomes without collapsing a multi-part Concept into one omnibus Card or forcing unsuitable Card types. Missing knowledge must become a reviewed Concept proposal before a dependent Card can be written.
 
 This preserves the product model:
 

@@ -2,16 +2,18 @@ import type { CardDraftType, KnowledgeProposal } from "../models/knowledgePropos
 import type { MnemeSettings } from "../models/settings";
 import type { SourceAnalysisRecord } from "../models/sourceAnalysis";
 import { computeContentHash } from "../utils/sourceHash";
-import type { AiProvider } from "./aiProvider";
+import type { AiProposalResponse, AiProvider } from "./aiProvider";
 import { createAiCardGenerationFingerprint } from "./aiCaptureFingerprint";
 import type { AiGenerationLock } from "./aiGenerationLock";
 import { validateAiProviderConfig, validateCardGenerationResponse } from "./aiProvider";
 import { normalizeAiStructuredProposalResponse } from "./aiProposalNormalizer";
+import { AI_PROPOSAL_SCHEMA_VERSION, type AiCardGenerationResponseV1 } from "./aiProposalSchema";
 import { validateAiStructuredProposalResponse } from "./aiProposalValidator";
 import type { KnowledgeProposalStore } from "./knowledgeProposalStore";
 import type { SourceAnalysisStore } from "./sourceAnalysisStore";
 import { extractConceptLearningContent } from "./conceptLearningContent";
 import { reconcileCardGrounding } from "./proposalGroundingReconciler";
+import { splitSourceForAiCapture } from "./sourceCaptureChunker";
 
 const ACTIVE_STATUSES = new Set(["suggested", "opened", "edited", "stale", "approved"]);
 
@@ -116,43 +118,97 @@ export class AiCardGenerationService {
 			}
 
 			const provider = this.options.createProvider(settings);
-			const response = await provider.generateKnowledgeProposals({
-				conceptId: input.conceptId,
-				conceptTitle: input.conceptTitle,
-				existingCardFronts: normalizeExistingCardFronts(input.existingCardFronts),
+			const chunks = splitSourceForAiCapture(learningContent, settings.aiMaxInputChars);
+			const chunkResponses: AiCardGenerationResponseV1[] = [];
+			const generatedFronts: string[] = [];
+			let rawProposalCount = 0;
+
+			for (const chunk of chunks) {
+				const chunkPrefix = chunks.length > 1 ? `Chunk ${chunk.index}/${chunk.total}: ` : "";
+				let response: AiProposalResponse;
+
+				try {
+					response = await provider.generateKnowledgeProposals({
+						conceptId: input.conceptId,
+						conceptTitle: input.conceptTitle,
+						existingCardFronts: normalizeExistingCardFronts([
+							...(input.existingCardFronts ?? []),
+							...generatedFronts,
+						]),
+						mode: "card_generation",
+						sourceContent: chunk.content,
+						sourceHash: learningFingerprint,
+						sourcePath: input.conceptPath,
+					});
+				} catch (error) {
+					return this.result(
+						"failed",
+						`${chunkPrefix}${error instanceof Error ? error.message : String(error)}`,
+					);
+				}
+
+				const validation = validateAiStructuredProposalResponse(response.structuredResponse);
+
+				if (!validation.valid) {
+					return this.result("invalid_response", `${chunkPrefix}${validation.errors.join(" ")}`);
+				}
+
+				if (validation.data.mode !== "card_generation") {
+					return this.result("invalid_response", `${chunkPrefix}AI response mode does not match Card generation.`);
+				}
+
+				if (validation.data.source.path !== input.conceptPath || validation.data.source.hash !== learningFingerprint) {
+					return this.result("invalid_response", `${chunkPrefix}AI response source does not match the written Concept.`);
+				}
+
+				rawProposalCount += validation.data.proposals.length;
+				const grounding = reconcileCardGrounding(
+					validation.data,
+					learningContent,
+					input.conceptPath,
+				);
+
+				if (validation.data.proposals.length > 0 && grounding.response.proposals.length === 0) {
+					chunkResponses.push({
+						...grounding.response,
+						warnings: [
+							...grounding.response.warnings,
+							`${chunkPrefix}Mneme ignored ungrounded Card proposals from this chunk and continued generating Cards.`,
+						],
+					});
+					continue;
+				}
+
+				generatedFronts.push(...grounding.response.proposals.map((proposal) => proposal.payload.front));
+				chunkResponses.push(grounding.response);
+			}
+
+			const analyzedChars = chunks.reduce((total, chunk) => total + chunk.content.length, 0);
+			const aggregatedResponse: AiCardGenerationResponseV1 = {
 				mode: "card_generation",
-				sourceContent: learningContent,
-				sourceHash: learningFingerprint,
-				sourcePath: input.conceptPath,
-			});
-			const validation = validateAiStructuredProposalResponse(response.structuredResponse);
+				proposals: chunkResponses.flatMap((response) => response.proposals),
+				schemaVersion: AI_PROPOSAL_SCHEMA_VERSION,
+				source: { hash: learningFingerprint, path: input.conceptPath },
+				warnings: unique([
+					...chunkResponses.flatMap((response) => response.warnings),
+					`Mneme analyzed ${analyzedChars}/${learningContent.length} approved Concept characters across ${chunks.length} chunk${chunks.length === 1 ? "" : "s"}.`,
+				]),
+			};
 
-			if (!validation.valid) {
-				return this.result("invalid_response", validation.errors.join(" "));
-			}
-
-			if (validation.data.mode !== "card_generation") {
-				return this.result("invalid_response", "AI response mode does not match Card generation.");
-			}
-
-			if (validation.data.source.path !== input.conceptPath || validation.data.source.hash !== learningFingerprint) {
-				return this.result("invalid_response", "AI response source does not match the written Concept.");
-			}
-
-			const grounding = reconcileCardGrounding(
-				validation.data,
-				learningContent,
-				input.conceptPath,
-			);
-
-			if (validation.data.proposals.length > 0 && grounding.response.proposals.length === 0) {
+			if (rawProposalCount > 0 && aggregatedResponse.proposals.length === 0) {
 				return this.result(
 					"invalid_response",
-					"Every Card proposal must quote grounding from the current approved Concept.",
+					`AI returned ${formatCardProposalCount(rawProposalCount)} without verifiable approved Concept quotes. No Card proposals added.`,
 				);
 			}
 
-			const proposals = normalizeAiStructuredProposalResponse(grounding.response, {
+			const proposals = normalizeAiStructuredProposalResponse(aggregatedResponse, {
+				idFactory: (_proposal, index) => [
+					"ai-card-proposal",
+					learningFingerprint.slice(0, 12),
+					generationFingerprint.slice(0, 12),
+					index + 1,
+				].join("-"),
 				now: this.options.timestampProvider?.() ?? new Date().toISOString(),
 			});
 			const stageValidation = validateCardGenerationResponse(proposals);
@@ -198,8 +254,8 @@ export class AiCardGenerationService {
 
 			return {
 				message: proposals.length === 1
-					? "1 Card proposal added to Inbox."
-					: `${proposals.length} Card proposals added to Inbox.`,
+					? `1 Card proposal added to Inbox. Analyzed ${analyzedChars}/${learningContent.length} approved Concept characters across ${chunks.length} chunk${chunks.length === 1 ? "" : "s"}.`
+					: `${proposals.length} Card proposals added to Inbox. Analyzed ${analyzedChars}/${learningContent.length} approved Concept characters across ${chunks.length} chunk${chunks.length === 1 ? "" : "s"}.`,
 				proposalCount: proposals.length,
 				status: "generated",
 			};
@@ -250,4 +306,12 @@ function normalizeExistingCardFronts(value: string[] | undefined): string[] {
 
 function getGeneratedCardType(proposal: KnowledgeProposal): CardDraftType | undefined {
 	return proposal.kind === "new_card" ? proposal.payload?.card.cardType : undefined;
+}
+
+function unique(values: string[]): string[] {
+	return [...new Set(values)];
+}
+
+function formatCardProposalCount(proposalCount: number): string {
+	return proposalCount === 1 ? "1 Card proposal" : `${proposalCount} Card proposals`;
 }

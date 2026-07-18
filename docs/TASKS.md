@@ -645,8 +645,8 @@ Prevent Card generation from producing bulk or ungrounded review content.
 
 Requirements:
 
-- Limit each Card generation response to at most five proposals
-- Encode the limit in provider prompts, structured output schema, and runtime validation
+- Do not impose a fixed proposal-count cap; generate enough Cards to cover distinct high-value learning outcomes without forcing unsuitable Card types
+- Keep provider prompts, structured output schema, and runtime validation aligned with the no-fixed-cap policy
 - Require at least one grounding evidence item for every Card proposal
 - Require grounding evidence to quote the current approved Concept
 - Reject the complete response before Inbox persistence when the contract is violated

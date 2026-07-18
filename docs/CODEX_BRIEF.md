@@ -75,6 +75,8 @@ Card generation duplicate protection records a generation fingerprint built from
 
 Existing accepted Card fronts are passed to the provider as a Coverage Map. The provider should add missing assessment outcomes or perspectives rather than paraphrasing existing Cards. A new generation attempt requires changed assessable learning content or changed enabled Card types after existing active proposals are resolved.
 
+Long approved Concepts are split into Markdown-aware Card-generation chunks instead of being silently truncated. Each chunk sees existing Card fronts plus earlier generated fronts from the same run as the Coverage Map, and the final Inbox result aggregates grounded proposals across the complete assessable Concept content.
+
 ## Review UX
 
 When FSRS scheduling is enabled, the main review flow is deliberately narrow:

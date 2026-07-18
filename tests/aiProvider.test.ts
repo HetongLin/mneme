@@ -168,6 +168,9 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("new_card"), true);
 	assert.equal(serialized.includes("new_concept"), false);
 	assert.equal(serialized.includes("Generate at most five"), false);
+	assert.equal(serialized.includes("no fixed numerical cap or target"), true);
+	assert.equal(serialized.includes("Do not collapse multiple definitions"), true);
+	assert.equal(serialized.includes("one Card proposal for each distinct high-value outcome"), true);
 	assert.equal(serialized.includes("Copy sourcePath exactly into source.path"), true);
 	assert.equal(serialized.includes("Choose cardType by this rubric"), true);
 	assert.equal(serialized.includes("Return the exact cardType enum value only"), true);
@@ -180,6 +183,7 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("User Card style guidance"), false);
 	assert.equal(serialized.includes("User style guidance is subordinate"), false);
 	assert.deepEqual(responseSchema.properties.proposals.items.properties.payload.properties.cardType.enum, ["trap", "application"]);
+	assert.equal(responseSchema.properties.proposals.maxItems, undefined);
 	assert.equal(requestContext.languageContract?.outputLanguageCode, "en");
 	assert.equal(serialized.includes("Do not translate generated Concept or Card content into Chinese"), true);
 	assert.equal(serialized.includes("Use $...$ for short inline math"), true);

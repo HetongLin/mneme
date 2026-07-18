@@ -107,6 +107,68 @@ async function run(): Promise<void> {
 	}
 
 	{
+		const longConcept = {
+			conceptId: "concept-version-space",
+			conceptPath: "Mneme/Concepts/Version-Space.md",
+			conceptTitle: "Version Space",
+			markdown: [
+				"# Version Space",
+				"",
+				"## Core Meaning",
+				"",
+				"Version space is the subset of hypotheses from hypothesis space H that remain consistent with all training examples D.",
+				"",
+				"## Why It Matters",
+				"",
+				"The general boundary G contains maximally general consistent hypotheses.",
+				"",
+				"The specific boundary S contains minimally general consistent hypotheses.",
+				"",
+				"The Candidate-Elimination algorithm updates S and G after each positive or negative training example.",
+			].join("\n"),
+		};
+		const fixture = createFixture({ aiCaptureEnabled: true, aiMaxInputChars: 140, aiProvider: "mock" });
+		fixture.provider.responseFactory = (input) => {
+			const quote = firstSubstantiveLine(input.sourceContent);
+			return {
+				mode: "card_generation",
+				proposals: [{
+					confidence: 0.9,
+					evidence: [{
+						explanation: "Grounded in the approved Concept chunk.",
+						quote,
+						sourcePath: input.sourcePath,
+					}],
+					kind: "new_card",
+					payload: {
+						back: `Explain: ${quote}`,
+						cardType: "definition",
+						conceptId: longConcept.conceptId,
+						conceptTitle: longConcept.conceptTitle,
+						front: `What should you remember from chunk ${fixture.provider.callCount}?`,
+						rubric: "Recalls the chunk's tested learning outcome.",
+					},
+					rationale: "Tests one chunk-level learning outcome.",
+					title: `Version Space chunk ${fixture.provider.callCount}`,
+				}],
+				schemaVersion: "mneme.ai.proposals.v1",
+				source: { hash: input.sourceHash, path: input.sourcePath },
+				warnings: [],
+			};
+		};
+
+		const result = await fixture.service.generate(longConcept);
+		const proposals = await fixture.proposalStore.listProposals();
+
+		assert.equal(result.status, "generated");
+		assert.equal(fixture.provider.callCount > 1, true);
+		assert.equal(result.proposalCount, fixture.provider.callCount);
+		assert.equal(proposals.length, fixture.provider.callCount);
+		assert.equal(result.message.includes("approved Concept characters across"), true);
+		assert.equal(fixture.provider.lastRequest?.sourceContent.length <= fixture.settings.aiMaxInputChars, true);
+	}
+
+	{
 		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
 		await fixture.service.generate(concept);
 		const second = await fixture.service.generate(concept);
@@ -380,10 +442,11 @@ async function run(): Promise<void> {
 			warnings: [],
 		};
 		const result = await fixture.service.generate(concept);
+		const proposals = await fixture.proposalStore.listProposals();
 
-		assert.equal(result.status, "invalid_response");
-		assert.equal(result.message, "Card generation must return at most 5 proposals.");
-		assert.deepEqual(await fixture.proposalStore.listProposals(), []);
+		assert.equal(result.status, "generated");
+		assert.equal(result.proposalCount, 6);
+		assert.equal(proposals.length, 6);
 	}
 
 	{
@@ -401,7 +464,7 @@ async function run(): Promise<void> {
 		const result = await fixture.service.generate(concept);
 
 		assert.equal(result.status, "invalid_response");
-		assert.equal(result.message, "Every Card proposal must quote grounding from the current approved Concept.");
+		assert.equal(result.message, "AI returned 1 Card proposal without verifiable approved Concept quotes. No Card proposals added.");
 		assert.deepEqual(await fixture.proposalStore.listProposals(), []);
 	}
 
@@ -439,7 +502,7 @@ async function run(): Promise<void> {
 		const result = await fixture.service.generate(concept);
 
 		assert.equal(result.status, "invalid_response");
-		assert.equal(result.message, "Every Card proposal must quote grounding from the current approved Concept.");
+		assert.equal(result.message, "AI returned 1 Card proposal without verifiable approved Concept quotes. No Card proposals added.");
 		assert.deepEqual(await fixture.proposalStore.listProposals(), []);
 	}
 }
@@ -464,6 +527,14 @@ function createCardProposal(index: number) {
 		rationale: "Tests the approved Core Meaning.",
 		title: `Encapsulation Card ${index + 1}`,
 	};
+}
+
+function firstSubstantiveLine(markdown: string): string {
+	return markdown
+		.split(/\r?\n/u)
+		.map((line) => line.trim())
+		.find((line) => line.length > 20 && !line.startsWith("#"))
+		?? markdown.trim();
 }
 
 async function conceptFingerprint(): Promise<string> {
@@ -500,6 +571,7 @@ class CountingProvider implements AiProvider {
 	lastRequest?: AiProposalRequest;
 	onCall?: () => void;
 	response?: unknown;
+	responseFactory?: (input: AiProposalRequest) => unknown;
 
 	constructor(private readonly delegate: AiProvider) {
 	}
@@ -511,7 +583,8 @@ class CountingProvider implements AiProvider {
 		if (this.blocker) await this.blocker;
 		if (this.error) throw this.error;
 
-		if (this.response) {
+		const response = this.responseFactory?.(input) ?? this.response;
+		if (response) {
 			return {
 				diagnostics: {
 					inputChars: input.sourceContent.length,
@@ -531,7 +604,7 @@ class CountingProvider implements AiProvider {
 					warnings: [],
 				},
 				provider: { provider: "mock", structuredOutput: "mock" },
-				structuredResponse: this.response,
+				structuredResponse: response,
 			};
 		}
 
