@@ -1,7 +1,8 @@
 import type { MnemeSettings } from "../models/settings";
 import { computeContentHash } from "../utils/sourceHash";
 
-export const AI_CONCEPT_CAPTURE_POLICY_VERSION = "mneme.concept-capture.2026-07-18.2";
+export const AI_CONCEPT_CAPTURE_MAX_CHUNK_CHARS = 6000;
+export const AI_CONCEPT_CAPTURE_POLICY_VERSION = "mneme.concept-capture.2026-07-19.1";
 export const AI_CARD_GENERATION_POLICY_VERSION = "mneme.card-generation.2026-07-18.3";
 export const AI_SOURCE_CHUNKING_VERSION = 1;
 
@@ -17,14 +18,20 @@ export async function createAiConceptCaptureFingerprint(
 			: { baseUrl: "mock", model: "mock" };
 
 	return computeContentHash(JSON.stringify({
-		chunkSize: settings.aiMaxInputChars,
+		configuredChunkSize: settings.aiMaxInputChars,
+		effectiveChunkSize: getEffectiveConceptCaptureChunkSize(settings),
 		chunkingVersion: AI_SOURCE_CHUNKING_VERSION,
 		contentHash,
+		maxExtractionChunkSize: AI_CONCEPT_CAPTURE_MAX_CHUNK_CHARS,
 		policyVersion: AI_CONCEPT_CAPTURE_POLICY_VERSION,
 		provider: settings.aiProvider,
 		providerConfig,
 		sourcePath,
 	}));
+}
+
+export function getEffectiveConceptCaptureChunkSize(settings: MnemeSettings): number {
+	return Math.min(settings.aiMaxInputChars, AI_CONCEPT_CAPTURE_MAX_CHUNK_CHARS);
 }
 
 export async function createAiCardGenerationFingerprint(

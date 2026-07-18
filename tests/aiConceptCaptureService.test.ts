@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import type { MnemePluginData } from "../src/models/reviewState";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
 import type { AiProposalRequest, AiProposalResponse, AiProvider } from "../src/services/aiProvider";
-import { createAiConceptCaptureFingerprint } from "../src/services/aiCaptureFingerprint";
+import {
+	AI_CONCEPT_CAPTURE_MAX_CHUNK_CHARS,
+	createAiConceptCaptureFingerprint,
+	getEffectiveConceptCaptureChunkSize,
+} from "../src/services/aiCaptureFingerprint";
 import { AiConceptCaptureService } from "../src/services/aiConceptCaptureService";
 import { AiGenerationLock } from "../src/services/aiGenerationLock";
 import { KnowledgeProposalStore } from "../src/services/knowledgeProposalStore";
@@ -105,6 +109,36 @@ async function run(): Promise<void> {
 		assert.equal(failed.status, "failed");
 		assert.equal(retry.status, "captured");
 		assert.equal(fixture.provider.callCount, 2);
+	}
+
+	{
+		const longSource = {
+			content: [
+				"# Concept Learning\n\n",
+				"Concept learning infers a boolean-valued function from labeled training examples.\n\n",
+				"# Hypothesis Space\n\n",
+				"Hypothesis space is the set of candidate hypotheses a learner may consider.\n\n",
+				"# Find-S\n\n",
+				"Find-S starts with the most specific hypothesis and generalizes it over positive examples.\n\n",
+				"# Version Space\n\n",
+				"Version space is the subset of hypotheses consistent with all training examples.\n\n",
+			].join("").repeat(40),
+			mtime: 150,
+			path: "Notes/TextbookLong.md",
+			size: 14000,
+		};
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" }, longSource);
+		const result = await fixture.service.analyze(longSource);
+
+		assert.equal(result.status, "captured");
+		assert.equal(getEffectiveConceptCaptureChunkSize(fixture.settings), AI_CONCEPT_CAPTURE_MAX_CHUNK_CHARS);
+		assert.equal((result.chunkCount ?? 0) > 1, true);
+		assert.equal(fixture.provider.callCount, result.chunkCount);
+		assert.equal(fixture.provider.requests.every((request) => (
+			request.sourceContent.length <= AI_CONCEPT_CAPTURE_MAX_CHUNK_CHARS
+		)), true);
+		assert.equal(result.analyzedChars, longSource.content.length);
+		assert.equal(fixture.provider.requests.map((request) => request.sourceContent).join(""), longSource.content);
 	}
 
 	{

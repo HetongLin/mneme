@@ -4,7 +4,7 @@ import type { SourceFileSnapshot } from "./sourceAnalysisDecision";
 import type { AiProposalResponse, AiProvider, ExistingConceptContext } from "./aiProvider";
 import type { AiGenerationLock } from "./aiGenerationLock";
 import { validateAiProviderConfig, validateConceptCaptureResponse } from "./aiProvider";
-import { createAiConceptCaptureFingerprint } from "./aiCaptureFingerprint";
+import { createAiConceptCaptureFingerprint, getEffectiveConceptCaptureChunkSize } from "./aiCaptureFingerprint";
 import { consolidateAiConceptProposals } from "./aiConceptProposalConsolidator";
 import { normalizeAiStructuredProposalResponse } from "./aiProposalNormalizer";
 import { AI_PROPOSAL_SCHEMA_VERSION, AiConceptCaptureResponseV1 } from "./aiProposalSchema";
@@ -118,7 +118,7 @@ export class AiConceptCaptureService {
 			}
 
 			const sourceContent = await this.options.readSourceContent(snapshot.path);
-			const chunks = splitSourceForAiCapture(sourceContent, settings.aiMaxInputChars);
+			const chunks = splitSourceForAiCapture(sourceContent, getEffectiveConceptCaptureChunkSize(settings));
 			const concepts = await this.options.conceptScanner.scanConcepts();
 			const existingConcepts = concepts.map(toExistingConceptContext);
 			const existingTags = collectExistingAiTags(concepts);

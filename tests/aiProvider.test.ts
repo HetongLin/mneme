@@ -245,8 +245,12 @@ async function run(): Promise<void> {
 	assert.equal(requestContext.languageContract?.outputLanguageCode, "en");
 	assert.equal(serialized.includes("existingConcepts, existing Concept titles"), true);
 	assert.equal(serialized.includes("Do not apply a fixed numerical cap to Concept proposals"), true);
+	assert.equal(serialized.includes("Work extraction-first, not summary-first"), true);
+	assert.equal(serialized.includes("Never limit yourself to one Concept per chunk"), true);
+	assert.equal(serialized.includes("textbook, lecture, or course notes"), true);
 	assert.equal(serialized.includes("exactly one independently explainable, durable knowledge unit"), true);
 	assert.equal(serialized.includes("Do not create a Concept from a section heading"), true);
+	assert.equal(serialized.includes("A heading is not enough by itself"), true);
 	assert.equal(serialized.includes("shortest unambiguous canonical or established Concept name"), true);
 	assert.equal(serialized.includes("Name the knowledge itself, not the Source Note's purpose"), true);
 	assert.equal(serialized.includes("Prefer 'Bayes Theorem' over 'Bayes Theorem for Hypothesis Evaluation'"), true);
@@ -266,7 +270,7 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("User Concept style guidance"), false);
 	assert.equal(serialized.includes("Do not rename, remove, replace, or reinterpret required Concept fields"), true);
 	assert.equal(serialized.includes("Core Meaning and Why It Matters are fixed Mneme product fields"), true);
-	assert.equal(serialized.includes("summary"), false);
+	assert.equal(serialized.includes("\"summary\""), false);
 	assert.equal(serialized.includes("Use existingTags whenever an existing tag reasonably covers the Concept"), true);
 	assert.equal(serialized.includes("Tags are for domain, course, or topic-family filtering"), true);
 	assert.deepEqual(requestContext.existingTags, ["design", "machine-learning", "oop"]);
