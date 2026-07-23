@@ -31,6 +31,7 @@ export function createLearningContentLanguageContract(content: string): Learning
 				"Write all generated learning titles and prose in English.",
 				"Do not translate generated Concept or Card content into Chinese.",
 				"Use standard English technical terminology and preserve established abbreviations.",
+				"For each Concept proposal, set englishName to the canonical English term; it normally equals conceptTitle.",
 			],
 		};
 	}
@@ -43,7 +44,7 @@ export function createLearningContentLanguageContract(content: string): Learning
 			rules: [
 				"Write generated learning titles and prose primarily in Chinese.",
 				"On the first occurrence of each technical concept or established proper term, append its standard English name in parentheses.",
-				"For a Concept title with a standard English name, use the form 中文名称 (English Name).",
+				"For each Concept proposal, put only the Chinese name in conceptTitle and the canonical English term in the separate englishName field. Do not append englishName inside conceptTitle.",
 				"Keep established English abbreviations such as MAP, FSRS, and API.",
 			],
 		};

@@ -1,4 +1,4 @@
-import { App, ItemView, MarkdownRenderer, MarkdownView, Modal, Notice, TAbstractFile, TFile, TFolder, WorkspaceLeaf } from "obsidian";
+import { ItemView, MarkdownRenderer, MarkdownView, Notice, TAbstractFile, TFile, TFolder, WorkspaceLeaf } from "obsidian";
 import type {
 	ConceptLibraryFilter,
 	ConceptLibrarySortMode,
@@ -9,36 +9,47 @@ import type {
 } from "../models/conceptLibrary";
 import { ConceptEditModal } from "../modals/conceptEditModal";
 import { ConceptIdRepairModal } from "../modals/conceptIdRepairModal";
-import { ConceptMergeModal } from "../modals/conceptMergeModal";
 import { SourceProvenanceRelinkModal } from "../modals/sourceProvenanceRelinkModal";
 import { SourceProvenanceRemovalModal } from "../modals/sourceProvenanceRemovalModal";
 import { ConceptScanner } from "../services/conceptScanner";
+import { ConceptLoader } from "../services/conceptLoader";
 import { ReviewStateStore } from "../services/reviewStateStore";
-import type { ConceptMergeService } from "../services/conceptMergeService";
 import type { SourceProvenanceRelinkService } from "../services/sourceProvenanceRelinkService";
 import type { SourceProvenanceRemovalService } from "../services/sourceProvenanceRemovalService";
+import type { RelatedConceptService } from "../services/relatedConceptService";
 import {
 	canGenerateCardsFromConcept,
 	filterConceptSummaries,
 	sortConceptSummaries,
 } from "../services/conceptLibrarySearch";
 import { formatUserFacingError } from "../utils/userFacingError";
+import {
+	attachValidCardCounts,
+	hasValidReviewCards,
+} from "../services/conceptCardAvailability";
 
 export const CONCEPT_LIBRARY_VIEW_TYPE = "mneme-concept-library-view";
 
 export interface ConceptLibraryActions {
-	conceptMergeService?: ConceptMergeService;
+	createCard?(concept: ConceptSummary): Promise<void> | void;
 	createConcept?(): Promise<void> | void;
+	deleteConcept?(concept: ConceptSummary): Promise<void> | void;
 	getGlobalRetentionTarget?(): number;
 	sourceRelinkService?: SourceProvenanceRelinkService;
 	sourceRemovalService?: SourceProvenanceRemovalService;
 	generateCards?(concept: ConceptSummary): Promise<void> | void;
-	reviewCards?(concept: ConceptSummary): Promise<void> | void;
+	mergeConcepts?(first?: ConceptSummary, second?: ConceptSummary): Promise<void> | void;
+	reviewCards?(
+		concept: ConceptSummary,
+	): Promise<"failed" | "no_cards" | "started" | void> | "failed" | "no_cards" | "started" | void;
+	relatedConceptService?: RelatedConceptService;
 }
 
 export class MnemeConceptLibraryView extends ItemView {
+	private readonly conceptLoader: ConceptLoader;
 	private concepts: ConceptSummary[] = [];
 	private duplicateCandidates: ConceptDuplicateCandidate[] = [];
+	private readonly generatingCardConceptIds = new Set<string>();
 	private identityIssues: ConceptIdentityIssue[] = [];
 	private staleSourceIssues: ConceptStaleSourceIssue[] = [];
 	private filter: ConceptLibraryFilter = {
@@ -60,6 +71,7 @@ export class MnemeConceptLibraryView extends ItemView {
 		private readonly actions: ConceptLibraryActions = {},
 	) {
 		super(leaf);
+		this.conceptLoader = new ConceptLoader(this.app);
 	}
 
 	getViewType(): string {
@@ -85,8 +97,11 @@ export class MnemeConceptLibraryView extends ItemView {
 
 	async refresh(): Promise<void> {
 		try {
-			const result = await this.scanner.scan();
-			this.concepts = result.concepts;
+			const [result, loadedConcepts] = await Promise.all([
+				this.scanner.scan(),
+				this.conceptLoader.loadConcepts(),
+			]);
+			this.concepts = attachValidCardCounts(result.concepts, loadedConcepts.concepts);
 			this.duplicateCandidates = result.duplicateCandidates;
 			this.identityIssues = result.identityIssues;
 			this.staleSourceIssues = result.staleSourceIssues;
@@ -220,7 +235,6 @@ export class MnemeConceptLibraryView extends ItemView {
 		textEl.createEl("p", { text: `${candidate.first.title}: ${formatDuplicateCore(candidate.first.coreMeaning)}` });
 		textEl.createEl("p", { text: `${candidate.second.title}: ${formatDuplicateCore(candidate.second.coreMeaning)}` });
 		const actionsEl = mainEl.createDiv({ cls: "mneme-review-actions" });
-		const mergeService = this.actions.conceptMergeService;
 		actionsEl.createEl("button", { text: `Open ${candidate.first.title}` }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => void this.openMarkdownPath(candidate.first.path, "Concept"));
 		});
@@ -232,17 +246,10 @@ export class MnemeConceptLibraryView extends ItemView {
 				void this.setDuplicateDismissal(candidate, dismissed);
 			});
 		});
-		if (!dismissed && mergeService) {
+		if (!dismissed && this.actions.mergeConcepts) {
 			actionsEl.createEl("button", { text: "Guided Merge" }, (buttonEl) => {
 				buttonEl.addEventListener("click", () => {
-					new ConceptMergeModal(this.app, {
-						candidate,
-						onMerged: async () => {
-							await this.reviewStateStore.load();
-							await this.refresh();
-						},
-						service: mergeService,
-					}).open();
+					void this.actions.mergeConcepts?.(candidate.first, candidate.second);
 				});
 			});
 		}
@@ -339,6 +346,11 @@ export class MnemeConceptLibraryView extends ItemView {
 		if (this.actions.createConcept) {
 			toolbarEl.createEl("button", { text: "Create Concept" }, (buttonEl) => {
 				buttonEl.addEventListener("click", () => void this.actions.createConcept?.());
+			});
+		}
+		if (this.actions.mergeConcepts) {
+			toolbarEl.createEl("button", { text: "Merge Concepts" }, (buttonEl) => {
+				buttonEl.addEventListener("click", () => void this.actions.mergeConcepts?.());
 			});
 		}
 		toolbarEl.createEl("button", { text: "Refresh" }, (buttonEl) => {
@@ -530,12 +542,21 @@ export class MnemeConceptLibraryView extends ItemView {
 		});
 
 		const footerEl = cardEl.createDiv({ cls: "mneme-concept-library-card-footer" });
-		footerEl.createEl("button", { text: getReviewCardsActionLabel(concept) }, (buttonEl) => {
+		const isGeneratingCards = this.generatingCardConceptIds.has(concept.conceptId);
+		footerEl.createEl("button", {
+			text: isGeneratingCards ? "Generating Cards..." : getReviewCardsActionLabel(concept),
+		}, (buttonEl) => {
 			buttonEl.addClass("mneme-concept-library-review-button");
+			buttonEl.disabled = isGeneratingCards;
 			buttonEl.addEventListener("click", () => {
 				void this.reviewConceptCards(concept);
 			});
 		});
+		if (this.actions.createCard) {
+			footerEl.createEl("button", { text: "Create Card" }, (buttonEl) => {
+				buttonEl.addEventListener("click", () => void this.actions.createCard?.(concept));
+			});
+		}
 
 		const sourceFilesEl = footerEl.createEl("details", { cls: "mneme-concept-library-source-files" });
 		sourceFilesEl.createEl("summary", { text: "Source Files" });
@@ -561,8 +582,8 @@ export class MnemeConceptLibraryView extends ItemView {
 	}
 
 	private async reviewConceptCards(concept: ConceptSummary): Promise<void> {
-		if (!concept.cardsPath && (concept.cardCount ?? 0) === 0) {
-			this.openNoCardsModal(concept);
+		if (!hasValidReviewCards(concept)) {
+			await this.generateConceptCardsForReview(concept);
 			return;
 		}
 
@@ -571,24 +592,41 @@ export class MnemeConceptLibraryView extends ItemView {
 			return;
 		}
 
-		await this.actions.reviewCards(concept);
+		const result = await this.actions.reviewCards(concept);
+
+		if (result === "no_cards") {
+			concept.cardCount = 0;
+			await this.generateConceptCardsForReview(concept);
+		}
 	}
 
-	private openNoCardsModal(concept: ConceptSummary): void {
-		new ConceptNoCardsModal(this.app, {
-			canGenerate: !!this.actions.generateCards && canGenerateCardsFromConcept(concept),
-			concept,
-			generateCards: async () => {
-				await this.actions.generateCards?.(concept);
-			},
-		}).open();
+	private async generateConceptCardsForReview(concept: ConceptSummary): Promise<void> {
+		if (!this.actions.generateCards || !canGenerateCardsFromConcept(concept)) {
+			new Notice("Mneme: this Concept is not eligible for review Card generation.");
+			return;
+		}
+		if (this.generatingCardConceptIds.has(concept.conceptId)) return;
+
+		this.generatingCardConceptIds.add(concept.conceptId);
+		this.render();
+		try {
+			await this.actions.generateCards(concept);
+		} finally {
+			this.generatingCardConceptIds.delete(concept.conceptId);
+			this.render();
+		}
 	}
 
 	private openConceptEditor(concept: ConceptSummary): void {
 		new ConceptEditModal(this.app, {
 			concept,
+			concepts: this.concepts,
+			createCard: this.actions.createCard ? () => this.actions.createCard?.(concept) : undefined,
+			deleteConcept: this.actions.deleteConcept ? () => this.actions.deleteConcept?.(concept) : undefined,
 			globalRetentionTarget: this.actions.getGlobalRetentionTarget?.(),
+			onOpenRelated: (related) => this.openConceptEditor(related),
 			onSaved: () => this.refresh(),
+			relatedConceptService: this.actions.relatedConceptService,
 		}).open();
 	}
 
@@ -733,7 +771,7 @@ function formatDuplicateCore(value: string | undefined): string {
 }
 
 function getReviewCardsActionLabel(concept: ConceptSummary): string {
-	return concept.cardsPath || (concept.cardCount ?? 0) > 0 ? "Review Cards" : "Generate to Review";
+	return hasValidReviewCards(concept) ? "Review Cards" : "Generate to Review";
 }
 
 function isRenderedMathTarget(target: EventTarget | null): boolean {
@@ -748,62 +786,4 @@ function markRenderedMathEditable(parentEl: HTMLElement): void {
 	parentEl.querySelectorAll<HTMLElement>(".math, mjx-container").forEach((mathEl) => {
 		mathEl.title = "Click to edit formula source";
 	});
-}
-
-interface ConceptNoCardsModalOptions {
-	canGenerate: boolean;
-	concept: ConceptSummary;
-	generateCards(): Promise<void>;
-}
-
-class ConceptNoCardsModal extends Modal {
-	private isGenerating = false;
-
-	constructor(app: App, private readonly options: ConceptNoCardsModalOptions) {
-		super(app);
-	}
-
-	onOpen(): void {
-		this.titleEl.setText("No cards yet");
-		this.render();
-	}
-
-	private render(): void {
-		this.contentEl.empty();
-		this.contentEl.createEl("p", {
-			cls: "mneme-review-status",
-			text: `${this.options.concept.title} does not have review cards yet.`,
-		});
-		this.contentEl.createEl("p", {
-			text: this.options.canGenerate
-				? "Generate cards from this approved Concept to start reviewing."
-				: "This Concept is not eligible for review Card generation.",
-		});
-
-		const actionsEl = this.contentEl.createDiv({ cls: "mneme-proposal-detail-modal-actions" });
-		const cancelButton = actionsEl.createEl("button", { text: "Cancel" });
-		cancelButton.addEventListener("click", () => this.close());
-
-		if (!this.options.canGenerate) {
-			return;
-		}
-
-		const generateButton = actionsEl.createEl("button", { text: "Generate to Review" });
-		generateButton.addEventListener("click", async () => {
-			if (this.isGenerating) return;
-			this.isGenerating = true;
-			generateButton.disabled = true;
-			generateButton.textContent = "Generating...";
-
-			try {
-				await this.options.generateCards();
-				this.close();
-			} catch (error) {
-				console.error("Mneme: failed to generate Cards from no-cards prompt", error);
-				new Notice(`Mneme: could not generate Cards: ${formatUserFacingError(error, "Try again from Concept Library.")}`);
-				this.isGenerating = false;
-				this.render();
-			}
-		});
-	}
 }

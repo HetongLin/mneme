@@ -8,6 +8,7 @@ const tests = [
 	"tests/markdownProposalRenderer.test.ts",
 	"tests/approvedProposalWriter.test.ts",
 	"tests/manualConceptService.test.ts",
+	"tests/manualCardService.test.ts",
 	"tests/ankiTsvExporter.test.ts",
 ];
 

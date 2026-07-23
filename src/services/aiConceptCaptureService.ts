@@ -1,7 +1,6 @@
-import type { ConceptSummary } from "../models/conceptLibrary";
 import type { MnemeSettings } from "../models/settings";
 import type { SourceFileSnapshot } from "./sourceAnalysisDecision";
-import type { AiProposalResponse, AiProvider, ExistingConceptContext } from "./aiProvider";
+import type { AiProposalResponse, AiProvider } from "./aiProvider";
 import type { AiGenerationLock } from "./aiGenerationLock";
 import { validateAiProviderConfig, validateConceptCaptureResponse } from "./aiProvider";
 import { createAiConceptCaptureFingerprint, getEffectiveConceptCaptureChunkSize } from "./aiCaptureFingerprint";
@@ -14,6 +13,11 @@ import { reconcileConceptGrounding } from "./proposalGroundingReconciler";
 import type { AnalyzeSourceResult, SourceAnalysisService } from "./sourceAnalysisService";
 import type { SourceAnalysisStore } from "./sourceAnalysisStore";
 import { splitSourceForAiCapture } from "./sourceCaptureChunker";
+import {
+	buildConceptTagCatalogFromTags,
+	reconcileGeneratedConceptTags,
+} from "./conceptTagCatalog";
+import type { KnowledgeProposal } from "../models/knowledgeProposal";
 
 export type AiConceptCaptureStatus =
 	| "captured"
@@ -35,8 +39,8 @@ export interface AiConceptCaptureResult {
 }
 
 export interface AiConceptCaptureServiceOptions {
-	conceptScanner: { scanConcepts(): Promise<ConceptSummary[]> };
 	createProvider: (settings: MnemeSettings) => AiProvider;
+	existingTagsProvider?: () => Promise<string[]>;
 	generationLock: AiGenerationLock;
 	proposalStore: KnowledgeProposalStore;
 	readSourceContent: (sourcePath: string) => Promise<string>;
@@ -119,9 +123,6 @@ export class AiConceptCaptureService {
 
 			const sourceContent = await this.options.readSourceContent(snapshot.path);
 			const chunks = splitSourceForAiCapture(sourceContent, getEffectiveConceptCaptureChunkSize(settings));
-			const concepts = await this.options.conceptScanner.scanConcepts();
-			const existingConcepts = concepts.map(toExistingConceptContext);
-			const existingTags = collectExistingAiTags(concepts);
 			const provider = this.options.createProvider(settings);
 			const chunkResponses: AiConceptCaptureResponseV1[] = [];
 			let rawProposalCount = 0;
@@ -132,8 +133,6 @@ export class AiConceptCaptureService {
 
 				try {
 					response = await provider.generateKnowledgeProposals({
-						existingConcepts,
-						existingTags,
 						languageReferenceContent: sourceContent,
 						mode: "concept_capture",
 						sourceChunk: {
@@ -225,6 +224,7 @@ export class AiConceptCaptureService {
 			}
 
 			const now = this.options.timestampProvider?.() ?? new Date().toISOString();
+			const tagCatalog = buildConceptTagCatalogFromTags(await this.readExistingTags());
 			const proposals = normalizeAiStructuredProposalResponse(aggregatedResponse, {
 				idFactory: (_proposal, index) => [
 					"ai-proposal",
@@ -233,7 +233,7 @@ export class AiConceptCaptureService {
 					index + 1,
 				].join("-"),
 				now,
-			});
+			}).map((proposal) => reconcileProposalTags(proposal, tagCatalog));
 			const captureValidation = validateConceptCaptureResponse(proposals);
 
 			if (!captureValidation.valid) {
@@ -269,6 +269,15 @@ export class AiConceptCaptureService {
 		}
 	}
 
+	private async readExistingTags(): Promise<string[]> {
+		try {
+			return await this.options.existingTagsProvider?.() ?? [];
+		} catch (error) {
+			console.error("Mneme: existing Concept tags could not be loaded for local reconciliation", error);
+			return [];
+		}
+	}
+
 	private result(
 		status: AiConceptCaptureStatus,
 		message: string,
@@ -279,49 +288,20 @@ export class AiConceptCaptureService {
 	}
 }
 
-function toExistingConceptContext(concept: ConceptSummary): ExistingConceptContext {
+function reconcileProposalTags(
+	proposal: KnowledgeProposal,
+	tagCatalog: ReturnType<typeof buildConceptTagCatalogFromTags>,
+): KnowledgeProposal {
+	if (proposal.kind !== "new_concept" || !proposal.payload) return proposal;
+	const reconciled = reconcileGeneratedConceptTags(proposal.payload.tags ?? [], tagCatalog);
+
 	return {
-		conceptId: concept.conceptId,
-		coreMeaning: concept.coreMeaning ?? concept.whyItMatters,
-		tags: normalizeExistingAiTags(concept.tags ?? []),
-		title: concept.title,
+		...proposal,
+		payload: {
+			...proposal.payload,
+			tags: reconciled.tags,
+		},
 	};
-}
-
-function collectExistingAiTags(concepts: ConceptSummary[]): string[] {
-	return unique(concepts.flatMap((concept) => normalizeExistingAiTags(concept.tags ?? [])))
-		.sort((first, second) => first.localeCompare(second))
-		.slice(0, 200);
-}
-
-const AI_EXISTING_TAG_BLOCKLIST = new Set([
-	"a",
-	"an",
-	"basic",
-	"concept",
-	"course",
-	"general",
-	"intro",
-	"introduction",
-	"knowledge",
-	"learn",
-	"learning",
-	"method",
-	"model",
-	"note",
-	"optimal",
-	"overview",
-	"study",
-	"theory",
-	"topic",
-]);
-
-function normalizeExistingAiTags(tags: string[]): string[] {
-	return tags
-		.map((tag) => tag.trim().toLocaleLowerCase())
-		.filter((tag) => tag.length >= 2)
-		.filter((tag) => /^[a-z0-9][a-z0-9/_-]*[a-z0-9]$/u.test(tag))
-		.filter((tag) => !AI_EXISTING_TAG_BLOCKLIST.has(tag));
 }
 
 function unique(values: string[]): string[] {

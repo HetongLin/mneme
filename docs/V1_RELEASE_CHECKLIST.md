@@ -25,7 +25,7 @@ v1.0 is the stable Concept Review Plugin described in `ROADMAP.md`. Random Conce
 | Concept-based Today’s Focus | Review queue, Concept memory, ranking, eligibility, and Today’s Focus tests | Complete due/new queue grouped in priority order; non-due Cards remain Later |
 | Edit Card and Edit Concept | Card editor, Concept metadata, conflict, section, and retention tests | Live Preview math editing; concurrent target changes stop stale writes |
 | Importance and retention policy | Concept memory, metadata, Retention Target, FSRS forwarding tests | Importance affects priority only; explicit Retention Target affects future ratings only |
-| Low-pressure workload controls | Today’s Focus, Review Later, pause, suspension, retirement, deletion tests | Optional FSRS, More actions, resume/restore paths, and no debt-style primary UI |
+| Low-pressure workload controls | Today’s Focus, Review Tomorrow, suspension, archive, deletion tests | Optional FSRS, fixed review bar, More menu, resume/restore paths, and no debt-style primary UI |
 | Exploratory Concepts | AI schema, Concept loader, Card generation, daily eligibility tests | No Card generation or Today’s Focus entry; existing Cards remain diagnostic-only |
 | Basic Concept Manager | Library scanner/search, ID repair, provenance, duplicate, Guided Merge tests | Create/open/edit/search/filter; maintenance stays collapsed and reviewed |
 | Cross-platform release metadata | Release metadata test and `npm run check:release -- 1.0.0` | macOS and Windows manual installation from the same release artifacts |

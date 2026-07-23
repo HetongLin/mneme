@@ -230,13 +230,30 @@ async function run(): Promise<void> {
 		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
 		await fixture.service.analyze(source);
 
-		assert.deepEqual(fixture.provider.lastRequest?.existingConcepts, [{
-			conceptId: "concept-abstraction",
-			coreMeaning: "Hides unnecessary detail.",
-			tags: ["machine-learning", "design"],
-			title: "Abstraction",
-		}]);
-		assert.deepEqual(fixture.provider.lastRequest?.existingTags, ["design", "machine-learning"]);
+		assert.equal(Object.prototype.hasOwnProperty.call(fixture.provider.lastRequest ?? {}, "existingConcepts"), false);
+		assert.equal(Object.prototype.hasOwnProperty.call(fixture.provider.lastRequest ?? {}, "existingTags"), false);
+	}
+
+	{
+		const fixture = createFixture(
+			{ aiCaptureEnabled: true, aiProvider: "mock" },
+			source,
+			["machine-learning", "probability"],
+		);
+		fixture.provider.responseFactory = (input) => createConceptCaptureResponse(
+			input,
+			source.content,
+			"Encapsulation",
+			["Machine_Learning", "new-topic"],
+		);
+		await fixture.service.analyze(source);
+		const proposals = await fixture.proposalStore.listActive();
+
+		assert.deepEqual(proposals[0]?.kind === "new_concept" ? proposals[0].payload?.tags : [], [
+			"machine-learning",
+			"new-topic",
+		]);
+		assert.equal(Object.prototype.hasOwnProperty.call(fixture.provider.lastRequest ?? {}, "existingTags"), false);
 	}
 
 	{
@@ -354,7 +371,11 @@ async function run(): Promise<void> {
 	}
 }
 
-function createFixture(settingsOverrides: Partial<typeof DEFAULT_SETTINGS>, testSource = source) {
+function createFixture(
+	settingsOverrides: Partial<typeof DEFAULT_SETTINGS>,
+	testSource = source,
+	existingTags: string[] = [],
+) {
 	const settings = { ...DEFAULT_SETTINGS, ...settingsOverrides };
 	const storage = new MemoryPluginStorage();
 	const sourceStore = new SourceAnalysisStore(storage);
@@ -363,16 +384,8 @@ function createFixture(settingsOverrides: Partial<typeof DEFAULT_SETTINGS>, test
 	const generationLock = new AiGenerationLock();
 	const readContent = async () => testSource.content;
 	const service = new AiConceptCaptureService({
-		conceptScanner: {
-			scanConcepts: async () => [{
-				conceptId: "concept-abstraction",
-				coreMeaning: "Hides unnecessary detail.",
-				path: "Mneme/Concepts/Abstraction/Concept.md",
-				tags: ["machine-learning", "learning", "a", "design", "线性代数"],
-				title: "Abstraction",
-			}],
-		},
 		createProvider: () => provider,
+		existingTagsProvider: async () => existingTags,
 		generationLock,
 		proposalStore,
 		readSourceContent: readContent,
@@ -443,7 +456,12 @@ function createDeferred(): { promise: Promise<void>; resolve(): void } {
 	return { promise, resolve };
 }
 
-function createConceptCaptureResponse(input: AiProposalRequest, quote: string, title = "Encapsulation"): unknown {
+function createConceptCaptureResponse(
+	input: AiProposalRequest,
+	quote: string,
+	title = "Encapsulation",
+	tags = ["oop"],
+): unknown {
 	return {
 		mode: "concept_capture",
 		proposals: [{
@@ -460,7 +478,7 @@ function createConceptCaptureResponse(input: AiProposalRequest, quote: string, t
 				learningMode: "reviewable",
 				relatedConceptHints: [],
 				suggestedImportance: "normal",
-				tags: ["oop"],
+				tags,
 				views: [],
 				whyItMatters: "It protects callers from implementation changes.",
 			},

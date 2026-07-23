@@ -3,6 +3,7 @@ import type { ConceptSummary } from "../src/models/conceptLibrary";
 import {
 	createConceptDuplicatePairKey,
 	detectConceptDuplicates,
+	rankConceptMergeCandidates,
 } from "../src/services/conceptDuplicateDetector";
 
 {
@@ -52,6 +53,19 @@ assert.notEqual(
 	createConceptDuplicatePairKey("a::b", "c"),
 	createConceptDuplicatePairKey("a", "b::c"),
 );
+
+{
+	const selected = { ...createConcept("concept-a", "Spacing Effect", "Distributed practice improves durable memory."), tags: ["memory"] };
+	const ranked = rankConceptMergeCandidates(selected, [
+		selected,
+		{ ...createConcept("concept-b", "间隔效应 (Spacing Effect)", "Distributed practice improves long-term memory."), englishName: "Spacing Effect", tags: ["memory"] },
+		createConcept("concept-c", "Bayes Theorem", "Updates probability from evidence."),
+	], 1);
+
+	assert.equal(ranked.length, 1);
+	assert.equal(ranked[0]?.concept.conceptId, "concept-b");
+	assert.equal(ranked[0]?.pairKey, '["concept-a","concept-b"]');
+}
 
 function createConcept(conceptId: string, title: string, coreMeaning: string): ConceptSummary {
 	return {

@@ -9,6 +9,7 @@ import {
 	getConceptLinkFromCardGroupFrontmatter,
 } from "./conceptMarkdownIdentity";
 import { extractFirstConceptSourcePath, parseObsidianLinkPath } from "./reviewNavigation";
+import { parseSimpleFrontmatter } from "./simpleFrontmatter";
 
 interface ConceptMetadata {
 	importance?: ConceptImportance;
@@ -89,7 +90,8 @@ export class ConceptLoader {
 			return {};
 		}
 
-		const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+		const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter
+			?? parseSimpleFrontmatter(card.content);
 		const conceptLink = getConceptLinkFromCardGroupFrontmatter(frontmatter);
 
 		return {
@@ -191,36 +193,6 @@ function getFolderTitle(folderPath: string): string {
 	return parts[parts.length - 1] ?? "";
 }
 
-function parseSimpleFrontmatter(content: string): Record<string, string> {
-	if (!content.startsWith("---\n")) {
-		return {};
-	}
-
-	const endIndex = content.indexOf("\n---", 4);
-	if (endIndex === -1) {
-		return {};
-	}
-
-	const frontmatter = content.slice(4, endIndex);
-	const values: Record<string, string> = {};
-
-	for (const line of frontmatter.split("\n")) {
-		const separatorIndex = line.indexOf(":");
-		if (separatorIndex === -1) {
-			continue;
-		}
-
-		const key = line.slice(0, separatorIndex).trim();
-		const value = line.slice(separatorIndex + 1).trim();
-
-		if (key === "title" || key === "source") {
-			values[key] = stripYamlQuotes(value);
-		}
-	}
-
-	return values;
-}
-
 function getFirstHeading(content: string): string | undefined {
 	for (const line of content.split("\n")) {
 		const match = /^#\s+(.+)$/.exec(line.trim());
@@ -231,12 +203,4 @@ function getFirstHeading(content: string): string | undefined {
 	}
 
 	return undefined;
-}
-
-function stripYamlQuotes(value: string): string {
-	if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
-		return value.slice(1, -1);
-	}
-
-	return value;
 }

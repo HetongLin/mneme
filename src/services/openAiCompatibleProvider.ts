@@ -55,7 +55,7 @@ const LANGUAGE_CONTRACT_GUIDANCE = [
 	"The user JSON contains a languageContract computed by Mneme from sourceContent. Treat it as authoritative.",
 	"A response that violates languageContract is invalid. Before returning JSON, verify every generated learning field against it.",
 	"Apply languageContract to every AI-authored natural-language field, including proposal titles, rationales, evidence explanations, new Concept titles, Core Meaning, Why It Matters, View titles and bodies, and Card fronts, backs, and rubrics.",
-	"Do not infer or change the output language based on existingConcepts, existing Concept titles, existingCardFronts, UI language, tags, filenames, or examples elsewhere in this prompt.",
+	"Do not infer or change the output language based on existingCardFronts, UI language, tags, filenames, or examples elsewhere in this prompt.",
 	"Exact evidence quotes and copied identifiers or existing target titles are exempt: preserve them exactly and never translate them.",
 ].join(" ");
 
@@ -65,7 +65,7 @@ const SHARED_PROTOCOL_PROMPT = [
 ].join("\n");
 
 const CONCEPT_FIELD_LOCK_GUIDANCE = [
-	"Do not rename, remove, replace, or reinterpret required Concept fields such as conceptTitle, coreMeaning, whyItMatters, learningMode, suggestedImportance, tags, relatedConceptHints, views, evidence, rationale, or confidence.",
+	"Do not rename, remove, replace, or reinterpret required Concept fields such as conceptTitle, englishName, coreMeaning, whyItMatters, learningMode, suggestedImportance, tags, relatedConceptHints, views, evidence, rationale, or confidence.",
 	"Core Meaning and Why It Matters are fixed Mneme product fields: write content inside them, but do not replace them with different field names or a standalone Markdown document.",
 ].join(" ");
 
@@ -109,6 +109,7 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 			languageContract,
 			conceptId: input.conceptId,
 			conceptTitle: input.conceptTitle,
+			definitionRequired: input.definitionRequired === true,
 			existingCardFronts: input.existingCardFronts,
 			formattingContract,
 			mode: input.mode,
@@ -118,8 +119,6 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 		}
 		: {
 			languageContract,
-			existingConcepts: input.existingConcepts,
-			existingTags: input.existingTags,
 			formattingContract,
 			mode: input.mode,
 			sourceContent,
@@ -193,6 +192,7 @@ function buildCardGenerationProductPolicyPrompt(allowedCardTypes: CardDraftType[
 		"Every Card must test one independently rateable outcome and include at least one exact quote from the written Concept as grounding evidence.",
 		`Enabled cardType values for this request: ${allowedCardTypes.join(", ")}.`,
 		"Enabled cardType values are allowed options, not required quotas. Do not generate a Card for every enabled type. Skip any enabled type that is not naturally supported by this Concept; for example, do not force a proof Card when the Concept does not contain theorem, derivation, or justification content.",
+		"The user JSON includes definitionRequired. When it is true, this generation result must include one grounded definition Card that directly tests the Concept's Core Meaning. This is the only required Card type; when it is false, definition follows the same optional coverage rule as other enabled types.",
 		`Choose cardType by this rubric, using only enabled entries: ${formatAllowedCardTypeRubric(allowedCardTypes)}.`,
 		"Use focused recall questions that test understanding, distinctions, procedures, examples, traps, proofs, applications, or mastery. Avoid trivia and duplicate questions.",
 		OBSIDIAN_MATH_MARKDOWN_GUIDANCE,
@@ -205,14 +205,14 @@ function buildConceptCaptureProtocolPrompt(): string[] {
 		"Return one JSON object with schemaVersion 'mneme.ai.proposals.v1', mode 'concept_capture', the exact source path/hash, proposals, and string warnings.",
 		SHARED_PROTOCOL_PROMPT,
 		"Top-level shape: {\"schemaVersion\":\"mneme.ai.proposals.v1\",\"mode\":\"concept_capture\",\"source\":{\"path\":\"<sourcePath>\",\"hash\":\"<sourceHash>\"},\"warnings\":[],\"proposals\":[]}.",
-		"Concept capture may return only new_concept, link_existing_concept, add_view, or update_concept. Every returned proposal must be fully actionable in Mneme's Review Gate.",
+		"Concept capture may return only new_concept proposals. Every returned proposal must be fully actionable in Mneme's Review Gate.",
 		"Every proposal requires kind, title, rationale, confidence from 0 to 1, at least one evidence entry with sourcePath/quote/explanation, and a kind-specific payload. Each evidence quote must be an exact, non-empty excerpt from sourceContent and sourcePath must exactly equal the supplied sourcePath.",
 		"Evidence quote must be copied character-for-character from sourceContent. Do not paraphrase, summarize, translate, repair, or quote from your generated Concept text. If no exact sourceContent quote supports a proposal, omit that proposal.",
-		"Payloads: new_concept={conceptTitle,coreMeaning,whyItMatters,learningMode,suggestedImportance,tags,relatedConceptHints,views[{title,body}]}; link_existing_concept={existingConceptId,existingConceptTitle,reason}; add_view={targetConceptId,targetConceptTitle,viewTitle,viewBody}; update_concept={targetConceptId,targetConceptTitle,reason,proposedCoreMeaning and/or proposedWhyItMatters}.",
+		"Payloads: new_concept={conceptTitle,englishName,coreMeaning,whyItMatters,learningMode,suggestedImportance,tags,relatedConceptHints,views[{title,body}]}.",
 		CONCEPT_FIELD_LOCK_GUIDANCE,
 		"For new_concept payloads, learningMode must be exactly 'reviewable' or 'exploratory'; do not use values like definition, application, recall, or understanding.",
 		"For new_concept payloads, suggestedImportance must be exactly 'low', 'normal', 'high', or 'critical'; use 'normal' when unsure.",
-		"Never return new_card, revise_card, split_card, merge_card, or retire_card.",
+		"Never return link_existing_concept, add_view, update_concept, merge_concept, new_card, revise_card, split_card, merge_card, or retire_card.",
 		"Do not return a standalone Markdown document; return JSON fields only.",
 	];
 }
@@ -226,18 +226,16 @@ function buildConceptCaptureProductPolicyPrompt(): string[] {
 		"Do not apply a fixed numerical cap to Concept proposals. Cover every durable knowledge change warranted by the Source Note, while preferring no proposal over a weak one.",
 		"A new_concept must represent exactly one independently explainable, durable knowledge unit that remains useful beyond the current note and is coherent enough to review or build on later.",
 		"Do not create a Concept from a section heading, organizational label, isolated fact, incidental example, anecdote, background sentence, or repeated paraphrase. A heading is not enough by itself, but a heading plus a definition, theorem, algorithm, procedure, boundary, contrast, or named hypothesis underneath is strong evidence for an independent Concept. Treat examples as evidence or supporting Views unless they express a reusable general concept.",
-		"Use the shortest unambiguous canonical or established Concept name for new_concept proposal.title and payload.conceptTitle. Name the knowledge itself, not the Source Note's purpose, application context, domain, tool, course, or lesson wording.",
+		"Use the shortest unambiguous canonical or established primary-language name for new_concept proposal.title and payload.conceptTitle. Name the knowledge itself, not the Source Note's purpose, application context, domain, tool, course, or lesson wording.",
+		"For every new_concept, return englishName as the canonical full English term in plain Latin-script text. For English output, englishName normally equals conceptTitle. For Chinese or other non-English output, conceptTitle contains only the primary-language name and englishName contains the separate standard English name; do not append '(English Name)' inside conceptTitle because Mneme composes the bilingual Display Title.",
 		"Do not append contextual qualifiers such as 'for Hypothesis Evaluation', 'in Healthcare', or 'using Python' unless the full phrase is itself the established name of a genuinely distinct Concept. Prefer 'Bayes Theorem' over 'Bayes Theorem for Hypothesis Evaluation'.",
-		"For reusable relationships, name the relationship directly instead of copying a conjunction-style section heading. Prefer 'Least Squares as Maximum Likelihood' over 'Maximum Likelihood and Least-Squared Error'. If the relationship is only a perspective on an existing canonical Concept, propose add_view instead of a new Concept.",
-		"Put an application context in whyItMatters or a View. When the canonical Concept already exists, represent a useful contextual perspective with add_view, update_concept, or link_existing_concept instead of creating a context-qualified duplicate.",
-		"Compare each candidate with existingConcepts before creating it. Prefer link_existing_concept for the same Concept, update_concept when the source improves its meaning, or add_view when the source adds a useful perspective. If multiple existing Concepts appear redundant, do not propose a merge; Mneme handles possible duplicates through its separate reviewed Guided Merge flow. Use new_concept only for a genuinely distinct durable knowledge unit.",
-		"Return an empty proposals array when the Source Note contains no durable knowledge worth creating or linking and no meaningful change to an existing Concept.",
+		"For reusable relationships, name the relationship directly instead of copying a conjunction-style section heading. Prefer 'Least Squares as Maximum Likelihood' over 'Maximum Likelihood and Least-Squared Error'. If the relationship is only a perspective on a canonical Concept, put that context in whyItMatters or a View rather than creating a context-qualified duplicate.",
+		"Concept capture is context-free extraction. The user JSON intentionally does not include the vault's approved Concepts, Inbox proposals, existing Concept names, or existing tags. Do not decide whether a Concept already exists elsewhere in the vault, do not suppress a grounded Concept because it might be a duplicate, and do not propose links, updates, or merges. Mneme handles same-name writes deterministically and offers user-triggered Guided Merge later.",
+		"Return an empty proposals array only when the Source Note contains no durable knowledge worth creating.",
 		"For new_concept payloads, coreMeaning is the compact primary learning content: state what the Concept is and its defining mechanism clearly enough to identify it, without unnecessary background or examples. whyItMatters states only why it is useful, when it matters, or what problem it helps solve. Do not use whyItMatters to repeat or paraphrase coreMeaning.",
-		"For update_concept payloads, proposedCoreMeaning and proposedWhyItMatters follow the same distinction: proposedCoreMeaning explains what the Concept is; proposedWhyItMatters explains its usefulness, relevance, or application.",
 		OBSIDIAN_MATH_MARKDOWN_GUIDANCE,
 		"Follow languageContract exactly for generated Concept text. Evidence quotes must stay exact and must not be translated.",
 		"For new_concept payloads, choose 1 to 3 broad organization tags. Tags must be stable English lowercase slugs.",
-		"Use existingTags whenever an existing tag reasonably covers the Concept. Create a new tag only when no existing tag fits.",
 		"Tags are for domain, course, or topic-family filtering, not for naming the Concept itself. Do not use a tag that duplicates the Concept title, a near-synonym of another chosen tag, an isolated adjective, or an overly generic word such as learning, theory, model, method, concept, optimal, basic, general, or introduction.",
 		"Prefer broader reusable tags over overly specific algorithm names. For example, prefer machine-learning or feature-selection over forward-search, and prefer memory or cognitive-science over learning.",
 		"For new_concept payloads, views is optional supporting perspective data: return [] unless every view has both a non-empty title and a non-empty body. Never return empty view placeholders.",
@@ -368,46 +366,25 @@ function createKnowledgeProposalResponseJsonSchema(): Record<string, unknown> {
 		properties: {
 			mode: { const: "concept_capture", type: "string" },
 			proposals: {
-				items: {
-					anyOf: [
-						proposal("new_concept", {
-							conceptTitle: { type: "string" },
-							coreMeaning: { type: "string" },
-							whyItMatters: { type: "string" },
-							learningMode: { enum: ["reviewable", "exploratory"], type: "string" },
-							relatedConceptHints: { items: { type: "string" }, type: "array" },
-							suggestedImportance: { enum: ["low", "normal", "high", "critical"], type: "string" },
-							tags: { items: { type: "string" }, maxItems: 3, minItems: 1, type: "array" },
-							views: {
-								items: {
-									additionalProperties: false,
-									properties: { body: { type: "string" }, title: { type: "string" } },
-									required: ["body", "title"],
-									type: "object",
-								},
-								type: "array",
-							},
-						}, ["conceptTitle", "coreMeaning", "whyItMatters", "learningMode", "relatedConceptHints", "suggestedImportance", "tags", "views"]),
-						proposal("link_existing_concept", {
-							existingConceptId: { type: "string" },
-							existingConceptTitle: { type: "string" },
-							reason: { type: "string" },
-						}, ["existingConceptId", "existingConceptTitle", "reason"]),
-						proposal("add_view", {
-							targetConceptId: { type: "string" },
-							targetConceptTitle: { type: "string" },
-							viewBody: { type: "string" },
-							viewTitle: { type: "string" },
-						}, ["targetConceptId", "targetConceptTitle", "viewBody", "viewTitle"]),
-						proposal("update_concept", {
-							proposedCoreMeaning: { type: "string" },
-							proposedWhyItMatters: { type: "string" },
-							reason: { type: "string" },
-							targetConceptId: { type: "string" },
-							targetConceptTitle: { type: "string" },
-						}, ["proposedCoreMeaning", "proposedWhyItMatters", "reason", "targetConceptId", "targetConceptTitle"]),
-					],
-				},
+				items: proposal("new_concept", {
+					conceptTitle: { type: "string" },
+					coreMeaning: { type: "string" },
+					englishName: { type: "string" },
+					whyItMatters: { type: "string" },
+					learningMode: { enum: ["reviewable", "exploratory"], type: "string" },
+					relatedConceptHints: { items: { type: "string" }, type: "array" },
+					suggestedImportance: { enum: ["low", "normal", "high", "critical"], type: "string" },
+					tags: { items: { type: "string" }, maxItems: 3, minItems: 1, type: "array" },
+					views: {
+						items: {
+							additionalProperties: false,
+							properties: { body: { type: "string" }, title: { type: "string" } },
+							required: ["body", "title"],
+							type: "object",
+						},
+						type: "array",
+					},
+				}, ["conceptTitle", "englishName", "coreMeaning", "whyItMatters", "learningMode", "relatedConceptHints", "suggestedImportance", "tags", "views"]),
 				type: "array",
 			},
 			schemaVersion: { const: "mneme.ai.proposals.v1", type: "string" },

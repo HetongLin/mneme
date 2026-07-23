@@ -13,6 +13,34 @@ If your plugin does not need CSS, delete this file.
 	padding: 28px;
 }
 
+.mneme-review-view.mneme-review-flashcard-mode {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	overflow: hidden;
+	padding: 0;
+}
+
+.mneme-review-flashcard-mode > .mneme-review-header {
+	flex: 0 0 auto;
+	margin-bottom: 12px;
+	padding: 24px 28px 0;
+}
+
+.mneme-review-flashcard-mode > .mneme-review-status {
+	flex: 0 0 auto;
+	margin: 0;
+	padding: 0 28px 12px;
+}
+
+.mneme-review-study-stage {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+	padding: 8px 28px 32px;
+}
+
 .mneme-review-header {
 	align-items: flex-start;
 	display: flex;
@@ -67,10 +95,34 @@ If your plugin does not need CSS, delete this file.
 	margin: 8px 0 20px;
 }
 
+.mneme-concept-edit-title {
+	color: var(--text-normal);
+	font-size: 26px;
+	font-weight: 650;
+	line-height: 1.2;
+	margin: 4px 0 22px;
+}
+
 .mneme-review-queue {
 	display: grid;
 	gap: 12px;
 	margin: 20px 0 28px;
+}
+
+.mneme-review-queue-layout {
+	align-items: start;
+	display: grid;
+	gap: 20px;
+	grid-template-columns: minmax(0, 1fr);
+	margin: 20px 0 28px;
+}
+
+.mneme-review-queue-layout.has-inspector {
+	grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+}
+
+.mneme-review-queue-layout > .mneme-review-queue {
+	margin: 0;
 }
 
 .mneme-review-concept-grid {
@@ -122,6 +174,153 @@ If your plugin does not need CSS, delete this file.
 	color: var(--text-normal);
 }
 
+.mneme-review-concept-card-content {
+	min-width: 0;
+}
+
+.mneme-review-concept-title-row {
+	align-items: flex-start;
+	display: flex;
+	gap: 10px;
+	justify-content: space-between;
+}
+
+.mneme-review-concept-info-button,
+.mneme-review-inspector-close {
+	align-items: center;
+	background: transparent;
+	border: 0;
+	box-shadow: none;
+	display: inline-flex;
+	flex: 0 0 auto;
+	height: 30px;
+	justify-content: center;
+	padding: 0;
+	width: 30px;
+}
+
+.mneme-review-concept-info-button.is-active {
+	background: var(--background-modifier-hover);
+	color: var(--interactive-accent);
+}
+
+.mneme-review-concept-info-button svg,
+.mneme-review-inspector-close svg {
+	height: 17px;
+	width: 17px;
+}
+
+.mneme-review-concept-inspector {
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-l);
+	box-shadow: var(--shadow-s);
+	max-height: calc(100vh - 56px);
+	overflow-y: auto;
+	padding: 20px;
+	position: sticky;
+	top: 20px;
+}
+
+.mneme-review-inspector-header {
+	align-items: flex-start;
+	display: flex;
+	gap: 16px;
+	justify-content: space-between;
+}
+
+.mneme-review-inspector-eyebrow {
+	color: var(--text-muted);
+	font-family: var(--font-ui-small);
+	font-size: var(--font-ui-smaller);
+	letter-spacing: 0.04em;
+	margin: 0 0 5px;
+	text-transform: uppercase;
+}
+
+.mneme-review-inspector-title {
+	font-size: 20px;
+	line-height: 1.25;
+	margin: 0;
+}
+
+.mneme-review-inspector-section {
+	border-top: 1px solid var(--background-modifier-border);
+	margin-top: 18px;
+	padding-top: 16px;
+}
+
+.mneme-review-inspector-section h4 {
+	font-size: var(--font-ui-medium);
+	margin: 0 0 12px;
+}
+
+.mneme-review-inspector-stats {
+	display: grid;
+	gap: 10px;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mneme-review-inspector-stat {
+	background: var(--background-secondary);
+	border-radius: var(--radius-m);
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	min-width: 0;
+	padding: 10px 12px;
+}
+
+.mneme-review-inspector-stat-label,
+.mneme-review-inspector-card-list span,
+.mneme-review-inspector-empty {
+	color: var(--text-muted);
+	font-family: var(--font-ui-small);
+	font-size: var(--font-ui-smaller);
+}
+
+.mneme-review-inspector-stat strong {
+	overflow-wrap: anywhere;
+}
+
+.mneme-review-inspector-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.mneme-review-inspector-chip {
+	background: var(--background-secondary);
+	border-radius: 999px;
+	color: var(--text-muted);
+	font-family: var(--font-ui-small);
+	padding: 4px 9px;
+}
+
+.mneme-review-inspector-card-list {
+	display: grid;
+	gap: 8px;
+	list-style: none;
+	margin: 0;
+	max-height: 260px;
+	overflow-y: auto;
+	padding: 0 4px 0 0;
+}
+
+.mneme-review-inspector-card-list li {
+	background: var(--background-secondary);
+	border-radius: var(--radius-m);
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	min-width: 0;
+	padding: 9px 11px;
+}
+
+.mneme-review-inspector-card-list strong {
+	overflow-wrap: anywhere;
+}
+
 .mneme-review-queue-meta,
 .mneme-review-card-meta {
 	color: var(--text-muted);
@@ -137,6 +336,13 @@ If your plugin does not need CSS, delete this file.
 	margin: 28px auto;
 	max-width: 760px;
 	padding: 30px;
+}
+
+.mneme-review-study-stage .mneme-review-card {
+	margin: 0 auto;
+	max-width: 1100px;
+	min-height: calc(100% - 1px);
+	width: 100%;
 }
 
 .mneme-review-complete {
@@ -213,43 +419,40 @@ If your plugin does not need CSS, delete this file.
 	width: 100%;
 }
 
-.mneme-review-more {
+.mneme-review-action-bar {
+	align-items: center;
+	background: var(--background-primary);
 	border-top: 1px solid var(--background-modifier-border);
-	margin: 22px 0 0;
-	padding-top: 14px;
-}
-
-.mneme-review-more-row {
-	display: flex;
-	justify-content: center;
-}
-
-.mneme-review-more-panel {
-	background: var(--background-secondary);
-	border-radius: var(--radius-m);
-	margin-top: 14px;
-	padding: 14px;
-}
-
-.mneme-review-more-actions {
 	display: grid;
-	gap: 14px;
+	flex: 0 0 auto;
+	gap: 18px;
+	grid-template-columns: minmax(110px, 1fr) minmax(320px, 4fr) minmax(110px, 1fr);
+	padding: 14px 28px;
+	z-index: 10;
 }
 
-.mneme-review-more-action-group h4 {
-	color: var(--text-muted);
-	font-size: var(--font-ui-small);
-	margin: 0 0 8px;
-}
-
-.mneme-review-more-action-row {
+.mneme-review-action-bar-edge {
 	display: flex;
-	flex-wrap: wrap;
-	gap: 10px;
+	justify-content: flex-start;
 }
 
-.mneme-review-more-action-row button {
-	min-width: 120px;
+.mneme-review-action-bar-end {
+	justify-content: flex-end;
+}
+
+.mneme-review-action-bar-primary {
+	display: grid;
+	gap: 12px;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.mneme-review-action-bar-primary .mneme-review-show-answer-button,
+.mneme-review-action-bar-primary .mneme-review-completion-primary {
+	grid-column: 2 / 4;
+}
+
+.mneme-review-action-bar button {
+	min-width: 100px;
 }
 
 .mneme-review-diagnostics {
@@ -477,9 +680,30 @@ If your plugin does not need CSS, delete this file.
 	}
 }
 
+@media (max-width: 980px) {
+	.mneme-review-queue-layout.has-inspector {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.mneme-review-concept-inspector {
+		bottom: 14px;
+		box-shadow: var(--shadow-l);
+		left: 14px;
+		max-height: min(70vh, 620px);
+		position: fixed;
+		right: 14px;
+		top: auto;
+		z-index: 100;
+	}
+}
+
 @media (max-width: 480px) {
 	.mneme-review-view {
 		padding: 18px;
+	}
+
+	.mneme-review-view.mneme-review-flashcard-mode {
+		padding: 0;
 	}
 
 	.mneme-concept-library-filter-grid {
@@ -488,6 +712,37 @@ If your plugin does not need CSS, delete this file.
 
 	.mneme-concept-library-card {
 		min-height: 210px;
+	}
+}
+
+@media (max-width: 720px) {
+	.mneme-review-flashcard-mode > .mneme-review-header {
+		padding: 16px 16px 0;
+	}
+
+	.mneme-review-flashcard-mode > .mneme-review-status {
+		padding: 0 16px 10px;
+	}
+
+	.mneme-review-study-stage {
+		padding: 6px 16px 20px;
+	}
+
+	.mneme-review-action-bar {
+		gap: 8px;
+		grid-template-columns: auto minmax(220px, 1fr) auto;
+		padding: 10px 12px;
+	}
+
+	.mneme-review-action-bar-primary {
+		gap: 6px;
+	}
+
+	.mneme-review-action-bar button {
+		font-size: var(--font-ui-smaller);
+		min-width: 0;
+		padding-left: 9px;
+		padding-right: 9px;
 	}
 }
 
@@ -552,6 +807,15 @@ If your plugin does not need CSS, delete this file.
 .mneme-proposal-detail-field input,
 .mneme-proposal-detail-field textarea {
 	width: 100%;
+}
+
+.mneme-proposal-detail-readonly {
+	background: var(--background-modifier-form-field);
+	border: var(--input-border-width) solid var(--background-modifier-border);
+	border-radius: var(--input-radius);
+	color: var(--text-normal);
+	font-weight: 600;
+	padding: 8px 10px;
 }
 
 .mneme-proposal-detail-field-textarea {
@@ -657,6 +921,79 @@ If your plugin does not need CSS, delete this file.
 	white-space: pre-wrap;
 }
 
+.mneme-related-concept-list {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin-bottom: 18px;
+}
+
+.mneme-related-concepts {
+	border-top: 1px solid var(--background-modifier-border);
+	margin-top: 20px;
+	padding-top: 14px;
+}
+
+.mneme-related-concepts > summary {
+	cursor: pointer;
+	font-size: 20px;
+	font-weight: 650;
+}
+
+.mneme-related-concepts-body {
+	padding-top: 12px;
+}
+
+.mneme-related-concept-navigation {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	max-height: 240px;
+	overflow-y: auto;
+	padding-right: 6px;
+}
+
+.mneme-concept-edit-modal button.mneme-related-concept-link {
+	align-items: center;
+	align-self: flex-start;
+	background: transparent;
+	border: 0;
+	box-shadow: none;
+	color: var(--link-color);
+	display: flex;
+	font: inherit;
+	gap: 7px;
+	max-width: 100%;
+	padding: 5px 2px;
+	text-align: left;
+}
+
+.mneme-concept-edit-modal button.mneme-related-concept-link:hover {
+	background: transparent;
+	box-shadow: none;
+	color: var(--link-color-hover);
+	text-decoration: underline;
+	transform: none;
+}
+
+.mneme-concept-edit-modal button.mneme-related-concept-link:focus-visible {
+	outline: 2px solid var(--background-modifier-border-focus);
+	outline-offset: 2px;
+}
+
+.mneme-related-concept-management {
+	border-top: 1px solid var(--background-modifier-border);
+	margin-top: 12px;
+	padding-top: 12px;
+}
+
+.mneme-related-concept-list .mneme-review-queue-item {
+	align-items: center;
+	flex-direction: row;
+	justify-content: space-between;
+	padding: 10px 12px;
+}
+
 .mneme-proposal-detail-modal-actions {
 	display: flex;
 	flex-wrap: wrap;
@@ -699,6 +1036,18 @@ If your plugin does not need CSS, delete this file.
 	background: var(--interactive-hover);
 }
 
+.mneme-card-info-grid {
+	display: grid;
+	gap: 8px 18px;
+	grid-template-columns: max-content minmax(0, 1fr);
+	margin: 16px 0 22px;
+}
+
+.mneme-card-info-label {
+	color: var(--text-muted);
+	font-family: var(--font-ui-small);
+}
+
 .mneme-clear-review-history-modal p {
 	color: var(--text-muted);
 	line-height: 1.5;
@@ -730,6 +1079,38 @@ If your plugin does not need CSS, delete this file.
 	margin-bottom: 20px;
 }
 
+.mneme-concept-composer-created-result:empty {
+	display: none;
+}
+
+.mneme-concept-composer-created-result {
+	margin-bottom: 20px;
+}
+
+.mneme-concept-composer-created {
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	justify-content: space-between;
+	padding: 12px 14px;
+}
+
+.mneme-concept-composer-created-message {
+	display: grid;
+	gap: 3px;
+}
+
+.mneme-concept-composer-created-message > span {
+	color: var(--text-muted);
+	font-family: var(--font-ui-small);
+}
+
+.mneme-concept-composer-created-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
 .mneme-concept-composer-form {
 	display: grid;
 	gap: 14px;
@@ -739,9 +1120,102 @@ If your plugin does not need CSS, delete this file.
 	margin: 0;
 }
 
+.mneme-concept-composer-english-name.is-hidden {
+	display: none;
+}
+
+.mneme-concept-composer-english-name-row {
+	align-items: center;
+	display: flex;
+	gap: 8px;
+}
+
+.mneme-concept-composer-english-name-row input {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.mneme-concept-composer-english-name-row button {
+	flex: 0 0 auto;
+}
+
+.mneme-concept-composer-english-name > small {
+	color: var(--text-muted);
+	display: block;
+	font-family: var(--font-ui-small);
+	margin-top: 6px;
+}
+
 .mneme-concept-composer-form select,
 .mneme-concept-composer-source-row input {
 	width: 100%;
+}
+
+.mneme-card-composer-type-description {
+	color: var(--text-muted);
+	font-family: var(--font-ui-small);
+	margin-top: -8px;
+}
+
+.mneme-concept-tag-picker-selected,
+.mneme-concept-tag-picker-suggestion-row,
+.mneme-concept-tag-picker-similar {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.mneme-concept-tag-picker-selected:empty {
+	display: none;
+}
+
+.mneme-concept-tag-picker-selected {
+	margin-bottom: 8px;
+}
+
+.mneme-concept-tag-picker button.mneme-concept-tag-chip {
+	background: var(--interactive-accent);
+	border: 0;
+	border-radius: 999px;
+	box-shadow: none;
+	color: var(--text-on-accent);
+	font-family: var(--font-ui-small);
+	padding: 3px 9px;
+}
+
+.mneme-concept-tag-picker > input {
+	width: 100%;
+}
+
+.mneme-concept-tag-picker > small {
+	color: var(--text-muted);
+	display: block;
+	font-family: var(--font-ui-small);
+	margin-top: 6px;
+}
+
+.mneme-concept-tag-picker-feedback,
+.mneme-concept-tag-picker-suggestions {
+	display: grid;
+	gap: 8px;
+	margin-top: 10px;
+}
+
+.mneme-concept-tag-picker-suggestion-row > span,
+.mneme-concept-tag-picker-similar > span {
+	color: var(--text-muted);
+	font-family: var(--font-ui-small);
+}
+
+.mneme-concept-tag-picker-suggestion-row button,
+.mneme-concept-tag-picker-similar button {
+	color: var(--link-color);
+	font-family: var(--font-ui-small);
+}
+
+.mneme-concept-tag-create {
+	justify-self: start;
 }
 
 .mneme-concept-composer-source-row,
@@ -801,4 +1275,137 @@ If your plugin does not need CSS, delete this file.
 
 .mneme-concept-composer-actions button {
 	width: 100%;
+}
+
+.mneme-concept-merge-shell {
+	margin: 0 auto;
+	max-width: 960px;
+	padding-bottom: 48px;
+}
+
+.mneme-concept-merge-section {
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-l);
+	display: grid;
+	gap: 14px;
+	margin: 18px 0;
+	padding: 18px;
+}
+
+.mneme-concept-merge-section > h3,
+.mneme-concept-merge-section > p {
+	margin: 0;
+}
+
+.mneme-concept-merge-selection {
+	display: grid;
+	gap: 14px;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mneme-concept-merge-identity,
+.mneme-concept-merge-suggestion {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+
+.mneme-concept-merge-identity label {
+	align-items: center;
+	display: flex;
+	gap: 5px;
+}
+
+.mneme-concept-merge-suggestion-list {
+	display: grid;
+	gap: 8px;
+	margin: 10px 0;
+}
+
+.mneme-concept-merge-suggestion {
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	justify-content: space-between;
+	padding: 10px 12px;
+}
+
+.mneme-concept-merge-suggestion strong,
+.mneme-concept-merge-suggestion small {
+	display: block;
+}
+
+.mneme-concept-merge-suggestion small {
+	color: var(--text-muted);
+	margin-top: 4px;
+}
+
+.mneme-concept-merge-original {
+	border-top: 1px solid var(--background-modifier-border);
+	max-height: 360px;
+	overflow: auto;
+	padding: 12px 4px;
+}
+
+.mneme-concept-merge-impact {
+	font-size: var(--font-ui-medium);
+	font-weight: var(--font-semibold);
+}
+
+.mneme-concept-merge-preview pre {
+	max-height: 320px;
+	overflow: auto;
+	white-space: pre-wrap;
+}
+
+.mneme-concept-merge-confirm {
+	align-items: center;
+	display: flex;
+	flex-direction: row;
+	gap: 8px;
+}
+
+.mneme-concept-name-conflict-comparison {
+	display: grid;
+	gap: 12px;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	margin: 16px 0 10px;
+}
+
+.mneme-concept-name-conflict-item {
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-l);
+	min-width: 0;
+	padding: 16px;
+}
+
+.mneme-concept-name-conflict-item h3 {
+	margin: 8px 0;
+	overflow-wrap: anywhere;
+}
+
+.mneme-concept-name-conflict-item p {
+	margin: 6px 0 0;
+}
+
+.mneme-concept-name-conflict-meaning,
+.mneme-concept-name-conflict-reasons {
+	color: var(--text-muted);
+}
+
+.mneme-concept-name-conflict-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 18px;
+}
+
+@media (max-width: 700px) {
+	.mneme-concept-merge-selection,
+	.mneme-concept-name-conflict-comparison {
+		grid-template-columns: 1fr;
+	}
 }

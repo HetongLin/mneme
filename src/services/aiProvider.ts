@@ -2,13 +2,6 @@ import type { CardDraftType, KnowledgeProposal, KnowledgeProposalKind } from "..
 import type { AiProviderName, MnemeSettings } from "../models/settings";
 export type AiProposalMode = "concept_capture" | "card_generation";
 
-export interface ExistingConceptContext {
-	conceptId: string;
-	coreMeaning?: string;
-	tags?: string[];
-	title: string;
-}
-
 export interface AiSourceChunkContext {
 	end: number;
 	index: number;
@@ -25,8 +18,6 @@ interface AiProposalRequestBase {
 }
 
 export interface AiConceptCaptureRequest extends AiProposalRequestBase {
-	existingConcepts: ExistingConceptContext[];
-	existingTags: string[];
 	languageReferenceContent?: string;
 	mode: "concept_capture";
 	sourceChunk?: AiSourceChunkContext;
@@ -35,6 +26,7 @@ export interface AiConceptCaptureRequest extends AiProposalRequestBase {
 export interface AiCardGenerationRequest extends AiProposalRequestBase {
 	conceptId: string;
 	conceptTitle: string;
+	definitionRequired?: boolean;
 	existingCardFronts: string[];
 	mode: "card_generation";
 }
@@ -104,9 +96,6 @@ export interface AiProposalValidationResult {
 
 export const CONCEPT_CAPTURE_PROPOSAL_KINDS: KnowledgeProposalKind[] = [
 	"new_concept",
-	"link_existing_concept",
-	"add_view",
-	"update_concept",
 ];
 
 export const CARD_STAGE_PROPOSAL_KINDS: KnowledgeProposalKind[] = [

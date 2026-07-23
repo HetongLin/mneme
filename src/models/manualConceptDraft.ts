@@ -2,6 +2,7 @@ import type { ConceptImportance, ConceptLearningMode } from "./conceptLibrary";
 
 export interface ManualConceptDraft {
 	coreMeaning: string;
+	englishName: string;
 	importance: ConceptImportance;
 	learningMode: ConceptLearningMode;
 	sourcePath?: string;
@@ -17,6 +18,7 @@ export function createEmptyManualConceptDraft(
 ): ManualConceptDraft {
 	return {
 		coreMeaning: "",
+		englishName: "",
 		importance: "normal",
 		learningMode: "reviewable",
 		...(sourcePath ? { sourcePath } : {}),
@@ -30,6 +32,7 @@ export function createEmptyManualConceptDraft(
 export function isMeaningfulManualConceptDraft(draft: ManualConceptDraft): boolean {
 	return !!(
 		draft.title.trim()
+		|| draft.englishName.trim()
 		|| draft.coreMeaning.trim()
 		|| draft.whyItMatters.trim()
 		|| draft.sourcePath?.trim()

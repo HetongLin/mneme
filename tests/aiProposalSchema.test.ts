@@ -97,6 +97,33 @@ const cardGenerationResponse = {
 		...baseResponse,
 		proposals: [{
 			confidence: 0.91,
+			evidence,
+			kind: "new_concept",
+			payload: {
+				conceptTitle: "间隔效应",
+				coreMeaning: "间隔效应把学习分散到多个时间点。",
+				englishName: "间隔效应",
+				learningMode: "reviewable",
+				relatedConceptHints: [],
+				suggestedImportance: "normal",
+				tags: ["memory"],
+				views: [],
+				whyItMatters: "它有助于长期保持。",
+			},
+			rationale: "The source note introduces a durable concept.",
+			title: "间隔效应",
+		}],
+	});
+
+	assert.equal(result.valid, false);
+	assert.equal(result.errors.some((error) => error.includes("canonical English term")), true);
+}
+
+{
+	const result = validateAiStructuredProposalResponse({
+		...baseResponse,
+		proposals: [{
+			confidence: 0.91,
 			evidence: [],
 			kind: "new_concept",
 			payload: {

@@ -8,6 +8,7 @@ import {
 	AiProposalV1,
 	AiStructuredProposalResponseV1,
 } from "./aiProposalSchema";
+import { isCanonicalEnglishName, resolveConceptEnglishName } from "./conceptNaming";
 
 export type AiProposalValidationResult =
 	| { data: AiStructuredProposalResponseV1; errors: []; valid: true }
@@ -91,6 +92,10 @@ function repairCommonAiEnumDrift(value: unknown): unknown {
 		const suggestedImportance = coerceSuggestedImportance(proposal.payload.suggestedImportance);
 		const tags = normalizeTags(proposal.payload.tags, proposal.payload.conceptTitle);
 		const views = normalizeConceptViews(proposal.payload.views);
+		const englishName = resolveConceptEnglishName(
+			typeof proposal.payload.englishName === "string" ? proposal.payload.englishName : undefined,
+			typeof proposal.payload.conceptTitle === "string" ? proposal.payload.conceptTitle : "",
+		);
 
 		changed = true;
 
@@ -98,6 +103,7 @@ function repairCommonAiEnumDrift(value: unknown): unknown {
 			...proposal,
 			payload: {
 				...proposal.payload,
+				...(englishName ? { englishName } : {}),
 				learningMode,
 				suggestedImportance,
 				tags,
@@ -444,6 +450,10 @@ function validateNewConceptPayload(payload: Record<string, unknown>, path: strin
 
 	requireNonEmptyString(payload.conceptTitle, `${path}.payload.conceptTitle`, errors);
 	requireNonEmptyString(payload.coreMeaning, `${path}.payload.coreMeaning`, errors);
+	requireNonEmptyString(payload.englishName, `${path}.payload.englishName`, errors);
+	if (typeof payload.englishName === "string" && payload.englishName.trim() && !isCanonicalEnglishName(payload.englishName)) {
+		errors.push(`${path}.payload.englishName must be a canonical English term without Chinese characters.`);
+	}
 	requireNonEmptyString(payload.whyItMatters, `${path}.payload.whyItMatters`, errors);
 	requireLiteralOneOf(payload.learningMode, ["reviewable", "exploratory"], `${path}.payload.learningMode`, errors);
 	requireLiteralOneOf(payload.suggestedImportance, ["low", "normal", "high", "critical"], `${path}.payload.suggestedImportance`, errors);

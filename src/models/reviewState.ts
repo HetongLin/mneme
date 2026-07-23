@@ -3,6 +3,7 @@ import type { SourceAnalysisRecord } from "./sourceAnalysis";
 import type { KnowledgeProposal } from "./knowledgeProposal";
 import type { ConceptSourceLink } from "./conceptSource";
 import type { ManualConceptDraft } from "./manualConceptDraft";
+import type { ManualCardDraft } from "./manualCardDraft";
 
 export type ReviewRating = "again" | "hard" | "good" | "easy";
 export type FsrsCardState = "New" | "Learning" | "Review" | "Relearning";
@@ -91,5 +92,6 @@ export interface MnemePluginData {
 	sourceAnalysisRecords: Record<string, SourceAnalysisRecord>;
 	knowledgeProposals: Record<string, KnowledgeProposal>;
 	conceptSourceLinks: Record<string, ConceptSourceLink>;
+	manualCardDraft?: ManualCardDraft;
 	manualConceptDraft?: ManualConceptDraft;
 }

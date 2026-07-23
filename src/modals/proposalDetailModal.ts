@@ -15,20 +15,29 @@ import {
 } from "../services/knowledgeProposalDisplay";
 import { validateKnowledgeProposalPayload } from "../services/knowledgeProposalValidation";
 import { getProposalStageLabel } from "../services/knowledgeProposalStage";
-import { normalizeConceptTags } from "../services/conceptMarkdownRenderer";
 import { createMarkdownLivePreviewField } from "../ui/markdownLivePreviewField";
 import { formatUserFacingError, formatUserFacingMessage } from "../utils/userFacingError";
-import { getCardTypeOptions } from "../services/cardTypeDisplay";
+import { formatCardTypeLabel } from "../services/cardTypeDisplay";
+import { resolveConceptEnglishName, splitLegacyCombinedConceptTitle } from "../services/conceptNaming";
+import { buildConceptTagCatalogFromTags } from "../services/conceptTagCatalog";
+import { createConceptTagPicker } from "../ui/conceptTagPicker";
+import type { ConceptSummary } from "../models/conceptLibrary";
+import { chooseConceptNameConflictResolution } from "./conceptNameConflictModal";
 
 interface ProposalDetailModalOptions {
+	existingTags?: string[];
 	onChange?(): Promise<void> | void;
+	onMergeRequested?(existing: ConceptSummary, newConceptPath: string): Promise<void> | void;
+	onQueueCompleted?(): Promise<void> | void;
 	proposal: KnowledgeProposal;
+	proposalScopeIds?: string[];
 	store: KnowledgeProposalStore;
 	writer?: ApprovedProposalWriter;
 }
 
 export class ProposalDetailModal extends Modal {
 	private collectStructuredPayload?: () => KnowledgeProposalPayload;
+	private conceptTitleInput?: HTMLInputElement;
 	private isActing = false;
 	private markdownComponent = new Component();
 	private proposal: KnowledgeProposal;
@@ -57,6 +66,7 @@ export class ProposalDetailModal extends Modal {
 		const { contentEl } = this;
 		const validation = validateKnowledgeProposalPayload(this.proposal);
 		this.collectStructuredPayload = undefined;
+		this.conceptTitleInput = undefined;
 		this.markdownComponent.unload();
 		this.markdownComponent = new Component();
 		this.markdownComponent.load();
@@ -177,8 +187,23 @@ export class ProposalDetailModal extends Modal {
 
 	private renderNewConceptEditor(parentEl: HTMLElement): void {
 		const payload: Record<string, unknown> = isRecord(this.proposal.payload) ? this.proposal.payload : {};
-		const titleInput = this.createTextInput(parentEl, "Concept title", getString(payload, "title"));
+		const storedTitle = getString(payload, "title") ?? "";
+		const legacyTitle = splitLegacyCombinedConceptTitle(storedTitle);
+		const titleInput = this.createTextInput(parentEl, "Concept title", legacyTitle?.title ?? storedTitle);
+		this.conceptTitleInput = titleInput;
 		titleInput.addClass("mneme-concept-title-input");
+		const englishNameInput = this.createTextInput(
+			parentEl,
+			"English Name",
+			resolveConceptEnglishName(getString(payload, "englishName"), storedTitle) ?? "",
+		);
+		let observedTitle = titleInput.value.trim();
+		titleInput.addEventListener("input", () => {
+			const nextTitle = titleInput.value.trim();
+			if (nextTitle === observedTitle) return;
+			observedTitle = nextTitle;
+			englishNameInput.value = "";
+		});
 		const coreMeaningInput = this.createTextareaInput(parentEl, "Core Meaning", getString(payload, "coreMeaning"));
 		const whyItMattersInput = this.createTextareaInput(parentEl, "Why It Matters", getString(payload, "whyItMatters"));
 		const learningModeInput = this.createSelectInput(parentEl, "Learning Mode", getString(payload, "learningMode"), [
@@ -191,14 +216,22 @@ export class ProposalDetailModal extends Modal {
 			["high", "High"],
 			["critical", "Critical"],
 		], "normal");
-		const tagsInput = this.createTextInput(parentEl, "Tags", getStringArray(payload, "tags").join(", "));
+		const tagPicker = createConceptTagPicker({
+			catalog: buildConceptTagCatalogFromTags(this.options.existingTags ?? []),
+			contextProvider: () => `${titleInput.value}\n${coreMeaningInput.value}`,
+			initialTags: getStringArray(payload, "tags"),
+			parentEl,
+		});
+		titleInput.addEventListener("input", () => tagPicker.refresh());
+		coreMeaningInput.addEventListener("input", () => tagPicker.refresh());
 
 		this.collectStructuredPayload = () => ({
 			...payload,
 			coreMeaning: coreMeaningInput.value,
+			englishName: englishNameInput.value,
 			learningMode: learningModeInput.value,
 			suggestedImportance: importanceInput.value,
-			tags: parseTags(tagsInput.value),
+			tags: tagPicker.getTags(),
 			title: titleInput.value,
 			whyItMatters: whyItMattersInput.value,
 		}) as KnowledgeProposalPayload;
@@ -207,17 +240,25 @@ export class ProposalDetailModal extends Modal {
 	private renderNewCardEditor(parentEl: HTMLElement): void {
 		const payload: Record<string, unknown> = isRecord(this.proposal.payload) ? this.proposal.payload : {};
 		const card: Record<string, unknown> = isRecord(payload.card) ? payload.card : {};
+		const cardType = getString(card, "cardType") ?? "other";
+		const typeFieldEl = parentEl.createDiv({ cls: "mneme-proposal-detail-field" });
+		typeFieldEl.createEl("span", { text: "Card Type" });
+		typeFieldEl.createDiv({
+			attr: { "aria-readonly": "true" },
+			cls: "mneme-proposal-detail-readonly",
+			text: formatCardTypeLabel(cardType),
+		});
+		typeFieldEl.createEl("small", { text: "AI Card Type is fixed. Edit the learning content, not its assessment category." });
 		const frontInput = this.createTextareaInput(parentEl, "Front", getString(card, "front"));
 		const backInput = this.createTextareaInput(parentEl, "Back", getString(card, "back"));
 		const rubricInput = this.createTextareaInput(parentEl, "Rubric", getString(card, "rubric"));
-		const cardTypeInput = this.createSelectInput(parentEl, "Card Type", getString(card, "cardType"), getCardTypeOptions(), "definition");
 
 		this.collectStructuredPayload = () => ({
 			...payload,
 			card: {
 				...card,
 				back: backInput.value,
-				cardType: cardTypeInput.value,
+				cardType,
 				front: frontInput.value,
 				rubric: rubricInput.value,
 			},
@@ -416,6 +457,53 @@ export class ProposalDetailModal extends Modal {
 				return;
 			}
 
+			if (result.status === "name_conflict" && result.conflict) {
+				const resolution = await chooseConceptNameConflictResolution(this.app, result.conflict);
+				if (resolution === "refine_name") {
+					this.focusConceptTitle();
+					return;
+				}
+				if (resolution === "cancel") {
+					return;
+				}
+
+				const resolvedResult = await workflow.acceptProposal(this.proposal.id, {
+					nameConflictResolution: "keep_both",
+				});
+				if (resolvedResult.status !== "accepted") {
+					console.error("Mneme: Concept conflict resolution write failed", resolvedResult);
+					new Notice(`Mneme: Concept write failed: ${formatUserFacingMessage(resolvedResult.message, "Try again.")}`);
+					return;
+				}
+
+				if (resolution === "merge") {
+					const targetPath = resolvedResult.targetPaths?.find((path) => path.endsWith(".md"));
+					if (!targetPath || !this.options.onMergeRequested) {
+						new Notice("Mneme: Concept created, but Merge workspace is unavailable.");
+						await this.finishCompletedAction("Concept accepted.");
+						return;
+					}
+					try {
+						await this.options.onChange?.();
+					} catch (error) {
+						console.error("Mneme: Concept accepted but Inbox could not refresh before Merge", error);
+						new Notice("Mneme: Concept accepted. Inbox refresh failed, but Merge can continue.");
+					}
+					this.close();
+					try {
+						await this.options.onMergeRequested(result.conflict.existing, targetPath);
+						new Notice("Mneme: Concept accepted. Review the proposed Merge before committing it.");
+					} catch (error) {
+						console.error("Mneme: Concept accepted but Merge workspace could not open", error);
+						new Notice("Mneme: Concept accepted, but Merge workspace could not open. Use Merge Concepts to continue.");
+					}
+					return;
+				}
+
+				await this.finishCompletedAction("Concept accepted as a separate copy.");
+				return;
+			}
+
 			if (result.status === "invalid") {
 				console.warn("Mneme: proposal validation failed", result.errors);
 				new Notice("Mneme: Fix proposal errors before accepting.");
@@ -432,6 +520,15 @@ export class ProposalDetailModal extends Modal {
 		} finally {
 			this.isActing = false;
 		}
+	}
+
+	private focusConceptTitle(): void {
+		const input = this.conceptTitleInput;
+		if (!input) return;
+		input.focus();
+		input.select();
+		input.scrollIntoView({ behavior: "smooth", block: "center" });
+		new Notice("Mneme: Refine the Title. Changing it also requires reviewing the English Name.");
 	}
 
 	private async reject(): Promise<void> {
@@ -479,10 +576,18 @@ export class ProposalDetailModal extends Modal {
 	private async advanceOrClose(): Promise<void> {
 		await this.options.onChange?.();
 		const stage = getProposalStageLabel(this.proposal);
+		const proposalScopeIds = this.options.proposalScopeIds
+			? new Set(this.options.proposalScopeIds)
+			: undefined;
 		const next = (await this.options.store.listActive())
-			.find((proposal) => proposal.id !== this.proposal.id && getProposalStageLabel(proposal) === stage);
+			.find((proposal) => (
+				proposal.id !== this.proposal.id
+				&& getProposalStageLabel(proposal) === stage
+				&& (!proposalScopeIds || proposalScopeIds.has(proposal.id))
+			));
 		if (!next) {
 			this.close();
+			await this.options.onQueueCompleted?.();
 			return;
 		}
 
@@ -493,9 +598,40 @@ export class ProposalDetailModal extends Modal {
 	}
 
 	private scrollToTop(): void {
-		this.contentEl.scrollTo({ top: 0 });
-		const modalContentEl = this.contentEl.closest<HTMLElement>(".modal-content");
-		modalContentEl?.scrollTo({ top: 0 });
+		const scroll = () => {
+			for (const element of this.getPotentialScrollContainers()) {
+				element.scrollTop = 0;
+				element.scrollLeft = 0;
+			}
+
+			this.contentEl.firstElementChild?.scrollIntoView({
+				block: "start",
+				inline: "nearest",
+			});
+		};
+
+		scroll();
+		requestAnimationFrame(scroll);
+		setTimeout(scroll, 0);
+	}
+
+	private getPotentialScrollContainers(): HTMLElement[] {
+		const elements = new Set<HTMLElement>();
+		let current: HTMLElement | null = this.contentEl;
+
+		while (current) {
+			elements.add(current);
+			current = current.parentElement;
+		}
+
+		for (const selector of [".modal-content", ".modal", ".modal-container"]) {
+			const element = this.contentEl.closest<HTMLElement>(selector);
+			if (element) {
+				elements.add(element);
+			}
+		}
+
+		return [...elements];
 	}
 }
 
@@ -509,10 +645,6 @@ function getStringArray(record: Record<string, unknown>, key: string): string[] 
 	const value = record[key];
 
 	return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
-}
-
-function parseTags(value: string): string[] {
-	return normalizeConceptTags(value.split(","));
 }
 
 function formatEvidenceMeta(evidence: ProposalEvidenceDisplayItem): string {

@@ -113,7 +113,7 @@ export class ConceptMergeModal extends Modal {
 		});
 		this.contentEl.createEl("p", {
 			cls: "mneme-review-status",
-			text: `${plan.cardsMoved} Card(s) move without changing Card IDs or FSRS history · ${plan.sourceLinksMigrated} Source link(s) migrate and deduplicate.`,
+			text: `${plan.cardsMoved} Card(s) move without changing Card IDs or FSRS history · ${plan.sourceLinksMigrated} Source link(s) migrate and deduplicate · ${plan.relatedConceptsRewired} Related Concept neighbor(s) rewire to the survivor.`,
 		});
 		const stateDetails = this.contentEl.createEl("details", { cls: "mneme-review-details" });
 		stateDetails.createEl("summary", { text: "State and provenance changes" });

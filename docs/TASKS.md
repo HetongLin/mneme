@@ -256,7 +256,7 @@ Requirements:
 
 - Keep source indexing when AI Capture is disabled
 - Skip provider calls only when the current source hash was already captured
-- Send concise existing Concept summaries to the selected provider
+- Send only current Source Note content and request metadata to the selected provider; do not send existing Concepts, Inbox proposals, Concept names, or tags
 - Validate and normalize all provider output
 - Accept Concept-stage proposals only
 - Store valid proposals as active Inbox items
@@ -484,7 +484,7 @@ Requirements:
 - Include every eligible due and new Card when scheduling is enabled
 - Apply Concept priority as ordering only
 - Keep non-due Cards available through Advanced Diagnostics
-- Preserve explicit Review Later, pause, suspension, retirement, deletion, validity, stable-ID, and exploratory exclusions
+- Preserve explicit Review Tomorrow, suspension, archive, deletion, validity, stable-ID, and exploratory exclusions
 
 Acceptance criteria:
 
@@ -497,6 +497,8 @@ Acceptance criteria:
 Decision: ADR 0014 supersedes the earlier bounded-limit design.
 
 ## Task 038: Review Later
+
+Current UI label: `Review Tomorrow`. The persistence model remains `reviewDeferrals`.
 
 Goal:
 
@@ -520,6 +522,8 @@ Acceptance criteria:
 - The Card becomes eligible again when the deferral expires
 
 ## Task 039: Pause Concept
+
+Superseded by ADR 0017. The requirements below are a historical implementation record, not current product behavior. `Pause Concept` and `Resume Concept` are removed from the active UI because Concept is an aggregate rather than a scheduling unit. Persisted pause records remain readable only for compatibility and are cleared without changing Card Markdown, FSRS state, or review history.
 
 Goal:
 
@@ -850,11 +854,14 @@ Let a student reconcile a Possible Duplicate without losing Markdown, provenance
 
 Requirements:
 
+- Expose a dedicated Merge Concepts workspace from Concept Library, Possible Duplicates, and the command palette
+- Keep manual pair selection and Manual Draft available without AI
+- Rank a local shortlist; optional AI inspection may classify at most eight compact candidates but cannot choose a pair
+- Limit optional AI drafting to Title, English Name, Core Meaning, and Why It Matters for the two user-selected full Concepts
 - Require the student to choose the surviving Concept identity and path
 - Build a zero-write preview before confirmation
-- Preserve the merged note's narrative as an editable View by default
-- Let the student edit the final surviving Concept.md
-- Preview every affected Markdown file with Before and After content
+- Let the student edit the structured merged Concept content while preserving deterministic metadata and graph changes
+- Put complete affected-file Before/After content under Advanced and show a compact impact summary by default
 - Require explicit confirmation that all affected Markdown was reviewed
 - Keep the survivor's `mneme_id` and validate its final Card Group link
 - Move complete stable-ID Card blocks without changing Card IDs or FSRS state
@@ -862,6 +869,7 @@ Requirements:
 - Replace a vacated Card Group with a valid empty redirect
 - Replace the merged Concept with a non-Concept Redirect Note
 - Migrate and deduplicate Concept-source links and Source analysis associations
+- Union tags, choose stronger importance, and keep `reviewable` when either input is reviewable
 - Migrate Concept pause and duplicate-dismissal state when ownership is clear
 - Block while actionable Inbox proposals still target the merged Concept
 - Reject shared Card Groups, malformed Cards, missing Card IDs, duplicate Card IDs, or changed associations
@@ -871,6 +879,8 @@ Requirements:
 
 Acceptance criteria:
 
+- Manual Merge completes while AI capture is disabled
+- AI cannot choose a survivor, modify IDs/paths, or decide Cards, Source Notes, Related links, tags, importance, learning mode, or FSRS state
 - Previewing performs no writes
 - Successful merge leaves one active Concept and one Redirect Note
 - Every moved Card keeps its stable ID and all Card-keyed FSRS/control/history state

@@ -29,9 +29,12 @@ async function runAsyncTests(): Promise<void> {
 		}
 		const { plan } = prepared;
 		assert.equal(plan.cardsMoved, 1);
+		assert.equal(plan.cardsPreserved, 2);
 		assert.equal(plan.pauseMigrated, true);
 		assert.equal(plan.duplicateDismissalsMigrated, 1);
 		assert.equal(plan.sourceLinksMigrated, 1);
+		assert.equal(plan.sourceLinksPreserved, 1);
+		assert.equal(plan.relatedConceptsRewired, 0);
 		assert.deepEqual(plan.sourceLinkChanges, [{
 			relationType: "origin",
 			sourcePath: "Notes/Shared.md",
@@ -104,6 +107,40 @@ async function runAsyncTests(): Promise<void> {
 			assert.equal(result.status, "conflict");
 			assert.deepEqual(vault.files, before);
 			assert.equal(storage.saveCount, 0);
+		}
+	}
+
+	{
+		const gamma = createConcept("concept-gamma", "Gamma", "Mneme/Concepts/Gamma.md");
+		const delta = createConcept("concept-delta", "Delta", "Mneme/Concepts/Delta.md");
+		const files = createFiles();
+		files[survivor.path] = `${files[survivor.path]?.trimEnd()}\n\n## Related Concepts\n\n- [[${merged.path.replace(/\.md$/, "")}|Beta]]\n- [[${gamma.path.replace(/\.md$/, "")}|Gamma]]\n`;
+		files[merged.path] = `${files[merged.path]?.trimEnd()}\n\n## Related Concepts\n\n- [[${survivor.path.replace(/\.md$/, "")}|Alpha]]\n- [[${delta.path.replace(/\.md$/, "")}|Delta]]\n- [[External/Unknown|Unknown]]\n`;
+		files[gamma.path] = `${conceptMarkdown(gamma, "Gamma core.").trimEnd()}\n\n## Related Concepts\n\n- [[${merged.path.replace(/\.md$/, "")}|Beta]]\n`;
+		files[delta.path] = `${conceptMarkdown(delta, "Delta core.").trimEnd()}\n\n## Related Concepts\n\n- [[${merged.path.replace(/\.md$/, "")}|Beta]]\n`;
+		const vault = new MemoryMergeVault(files);
+		const service = new ConceptMergeService(vault, new MemoryMergeStorage(createData()));
+		const prepared = await service.prepare({ merged, preserveMergedAsView: true, survivor });
+
+		assert.equal(prepared.status, "ready");
+		if (prepared.status === "ready") {
+			assert.equal(prepared.plan.relatedConceptsRewired, 2);
+			const finalConcept = prepared.plan.writes.find((write) => write.path === survivor.path)?.after ?? "";
+			assert.match(finalConcept, /Mneme\/Concepts\/Gamma\|Gamma/);
+			assert.match(finalConcept, /Mneme\/Concepts\/Delta\|Delta/);
+			assert.match(finalConcept, /External\/Unknown\|Unknown/);
+			assert.doesNotMatch(finalConcept, /Mneme\/Concepts\/Beta\/Concept\|Beta/);
+			assert.doesNotMatch(finalConcept, /#### Related Concepts/);
+
+			const gammaWrite = prepared.plan.writes.find((write) => write.path === gamma.path)?.after ?? "";
+			const deltaWrite = prepared.plan.writes.find((write) => write.path === delta.path)?.after ?? "";
+			assert.match(gammaWrite, /Mneme\/Concepts\/Alpha\/Concept\|Alpha/);
+			assert.match(deltaWrite, /Mneme\/Concepts\/Alpha\/Concept\|Alpha/);
+			assert.doesNotMatch(gammaWrite, /Mneme\/Concepts\/Beta\/Concept/);
+			assert.doesNotMatch(deltaWrite, /Mneme\/Concepts\/Beta\/Concept/);
+			const alteredRelations = finalConcept.replace(/- \[\[Mneme\/Concepts\/Gamma\|Gamma\]\]\n/, "");
+			const alteredResult = await service.execute(prepared.plan, alteredRelations);
+			assert.equal(alteredResult.status, "invalid");
 		}
 	}
 
@@ -214,6 +251,10 @@ class MemoryMergeVault implements ConceptMergeVaultAdapter {
 			throw new Error(`Missing file: ${path}`);
 		}
 		return content;
+	}
+
+	async listMarkdownFiles(): Promise<Array<{ path: string }>> {
+		return Object.keys(this.files).filter((path) => path.endsWith(".md")).map((path) => ({ path }));
 	}
 
 	async modify(path: string, content: string): Promise<void> {

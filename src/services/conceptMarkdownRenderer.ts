@@ -5,11 +5,13 @@ import type {
 	SuggestedImportance,
 } from "../models/knowledgeProposal";
 import { toObsidianInternalLink } from "../utils/markdownPath";
+import { normalizeConceptNames } from "./conceptNaming";
 
 export interface RenderConceptMarkdownInput {
 	cardGroupLink: string;
 	conceptId: string;
 	coreMeaning: string;
+	englishName?: string;
 	importance?: SuggestedImportance;
 	learningMode?: ProposalLearningMode;
 	sourceLinks?: ConceptSourceLinkDraft[];
@@ -22,10 +24,13 @@ export interface RenderConceptMarkdownInput {
 
 export function renderConceptMarkdown(input: RenderConceptMarkdownInput): string {
 	const tags = normalizeConceptTags(input.tags ?? []);
+	const names = normalizeConceptNames(input.title, input.englishName);
 	const lines = [
 		"---",
 		"mneme_type: concept",
 		`mneme_id: ${input.conceptId}`,
+		`mneme_title: "${escapeYamlDoubleQuoted(names.title)}"`,
+		`mneme_english_name: "${escapeYamlDoubleQuoted(names.englishName)}"`,
 		"mneme_version: 1",
 		`cards: "${escapeYamlDoubleQuoted(input.cardGroupLink)}"`,
 		...(input.learningMode ? [`learning_mode: ${input.learningMode}`] : []),
@@ -33,7 +38,7 @@ export function renderConceptMarkdown(input: RenderConceptMarkdownInput): string
 		...(tags.length > 0 ? [`tags: [${tags.join(", ")}]`] : []),
 		"---",
 		"",
-		`# ${input.title.trim()}`,
+		`# ${names.displayTitle}`,
 	];
 	const coreMeaning = input.coreMeaning.trim();
 	const whyItMatters = input.whyItMatters?.trim();

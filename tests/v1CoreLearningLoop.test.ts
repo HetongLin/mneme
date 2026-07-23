@@ -68,12 +68,11 @@ async function run(): Promise<void> {
 	let approvedConcept: ConceptSummary | undefined;
 	const conceptScanner = {
 		scanConcepts: async () => approvedConcept ? [approvedConcept] : [],
-	};
-	const provider = new MockAiProvider(settings);
-	const captureService = new AiConceptCaptureService({
-		conceptScanner,
-		createProvider: () => provider,
-		generationLock,
+		};
+		const provider = new MockAiProvider(settings);
+		const captureService = new AiConceptCaptureService({
+			createProvider: () => provider,
+			generationLock,
 		proposalStore,
 		readSourceContent: async (path) => {
 			assert.equal(path, sourcePath);

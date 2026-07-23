@@ -3,15 +3,21 @@ import type { ApprovedProposalWriter } from "./approvedProposalWriter";
 import { canTransitionProposalStatus } from "./knowledgeProposalLifecycle";
 import type { KnowledgeProposalStore } from "./knowledgeProposalStore";
 import { validateKnowledgeProposalPayload } from "./knowledgeProposalValidation";
+import type { ConceptNameConflict } from "./conceptNameConflict";
 
 export type InboxAcceptanceKind = "concept" | "card";
 
 export interface InboxAcceptanceResult {
+	conflict?: ConceptNameConflict;
 	errors?: string[];
 	kind?: InboxAcceptanceKind;
 	message: string;
-	status: "accepted" | "failed" | "invalid" | "not_found" | "unsupported";
+	status: "accepted" | "failed" | "invalid" | "name_conflict" | "not_found" | "unsupported";
 	targetPaths?: string[];
+}
+
+export interface InboxAcceptanceOptions {
+	nameConflictResolution?: "keep_both";
 }
 
 export interface InboxAcceptanceWorkflowOptions {
@@ -23,7 +29,10 @@ export class InboxAcceptanceWorkflow {
 	constructor(private readonly options: InboxAcceptanceWorkflowOptions) {
 	}
 
-	async acceptProposal(proposalId: string): Promise<InboxAcceptanceResult> {
+	async acceptProposal(
+		proposalId: string,
+		options: InboxAcceptanceOptions = {},
+	): Promise<InboxAcceptanceResult> {
 		const proposal = await this.options.proposalStore.getProposal(proposalId);
 
 		if (!proposal) {
@@ -51,6 +60,26 @@ export class InboxAcceptanceWorkflow {
 				message: "Fix proposal errors before accepting.",
 				status: "invalid",
 			};
+		}
+
+		if (proposal.kind === "new_concept" && options.nameConflictResolution !== "keep_both") {
+			try {
+				const conflict = await this.options.writer.findNewConceptNameConflict(proposal.id);
+				if (conflict) {
+					return {
+						conflict,
+						kind,
+						message: "Choose how to resolve the Concept name conflict.",
+						status: "name_conflict",
+					};
+				}
+			} catch (error) {
+				return {
+					kind,
+					message: error instanceof Error ? error.message : "Concept conflict lookup failed.",
+					status: "failed",
+				};
+			}
 		}
 
 		let approvedProposal: KnowledgeProposal;

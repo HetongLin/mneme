@@ -15,6 +15,8 @@ import {
 import { DEFAULT_SETTINGS, MnemeSettings, normalizeSettings } from "../models/settings";
 import { SourceAnalysisRecord } from "../models/sourceAnalysis";
 import type { ManualConceptDraft } from "../models/manualConceptDraft";
+import type { ManualCardDraft } from "../models/manualCardDraft";
+import { CARD_DRAFT_TYPES } from "../models/knowledgeProposal";
 import {
 	ConceptSourceLink,
 	ConceptSourceRelationType,
@@ -210,6 +212,59 @@ export class ReviewStateStore {
 		this.data = nextData;
 		this.pendingSettings = undefined;
 		return tombstone;
+	}
+
+	async deleteConcept(conceptId: string, cardIds: string[], now = new Date()): Promise<CardTombstone[]> {
+		await this.ensureLoaded();
+		if (!conceptId.trim() || Number.isNaN(now.getTime())) {
+			throw new Error("Concept deletion requires a Concept id and valid time.");
+		}
+
+		const uniqueCardIds = [...new Set(cardIds.map((cardId) => cardId.trim()).filter(Boolean))];
+		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+		const deletedAt = now.toISOString();
+		const tombstones = uniqueCardIds.map((cardId): CardTombstone => {
+			const existing = latestData.cardTombstones[cardId];
+			if (existing) return existing;
+			const reviewState = latestData.reviewStates[cardId];
+			return {
+				cardId,
+				deletedAt,
+				lapseCount: reviewState?.lapseCount ?? 0,
+				reviewCount: reviewState?.reviewCount ?? 0,
+			};
+		});
+		const deletedCardIds = new Set(uniqueCardIds);
+		const omitDeletedCards = <T>(records: Record<string, T>): Record<string, T> => (
+			Object.fromEntries(Object.entries(records).filter(([cardId]) => !deletedCardIds.has(cardId)))
+		);
+		const nextData = {
+			...latestData,
+			cardTombstones: {
+				...latestData.cardTombstones,
+				...Object.fromEntries(tombstones.map((tombstone) => [tombstone.cardId, tombstone])),
+			},
+			conceptDuplicateDismissals: Object.fromEntries(
+				Object.entries(latestData.conceptDuplicateDismissals)
+					.filter(([, dismissal]) => !dismissal.conceptIds.includes(conceptId)),
+			),
+			conceptMergeRecords: Object.fromEntries(
+				Object.entries(latestData.conceptMergeRecords)
+					.filter(([, record]) => (
+						record.mergedConceptId !== conceptId && record.survivorConceptId !== conceptId
+					)),
+			),
+			pausedConcepts: omitKey(latestData.pausedConcepts, conceptId),
+			retiredCards: omitDeletedCards(latestData.retiredCards),
+			reviewDeferrals: omitDeletedCards(latestData.reviewDeferrals),
+			reviewStates: omitDeletedCards(latestData.reviewStates),
+			suspendedCards: omitDeletedCards(latestData.suspendedCards),
+		};
+
+		await this.storage.saveData(nextData);
+		this.data = nextData;
+		this.pendingSettings = undefined;
+		return tombstones;
 	}
 
 	async eraseDeletedCardHistory(cardId: string): Promise<void> {
@@ -478,6 +533,27 @@ export class ReviewStateStore {
 		this.pendingSettings = undefined;
 	}
 
+	async clearConceptPauses(): Promise<number> {
+		await this.ensureLoaded();
+		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+		const pausedCount = Object.keys(latestData.pausedConcepts).length;
+
+		if (pausedCount === 0) {
+			return 0;
+		}
+
+		const nextData = {
+			...latestData,
+			pausedConcepts: {},
+		};
+
+		await this.storage.saveData(nextData);
+		this.data = nextData;
+		this.pendingSettings = undefined;
+
+		return pausedCount;
+	}
+
 	async deferReviewUntil(cardId: string, resumeAt: Date, now = new Date()): Promise<ReviewDeferral> {
 		await this.ensureLoaded();
 
@@ -619,6 +695,7 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 		conceptMergeRecords: normalizeConceptMergeRecords(conceptMergeRecords),
 		conceptSourceLinks: normalizeConceptSourceLinks(conceptSourceLinks),
 		knowledgeProposals: normalizeKnowledgeProposals(knowledgeProposals),
+		manualCardDraft: normalizeManualCardDraft(data.manualCardDraft),
 		manualConceptDraft: normalizeManualConceptDraft(data.manualConceptDraft),
 		pausedConcepts: normalizePausedConcepts(pausedConcepts),
 		reviewEvents: normalizeReviewEvents(reviewEvents),
@@ -632,10 +709,36 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 	};
 }
 
+function normalizeManualCardDraft(value: unknown): ManualCardDraft | undefined {
+	if (
+		!isObject(value)
+		|| (value.conceptId !== undefined && typeof value.conceptId !== "string")
+		|| typeof value.cardType !== "string"
+		|| !CARD_DRAFT_TYPES.some((cardType) => cardType === value.cardType)
+		|| typeof value.front !== "string"
+		|| typeof value.back !== "string"
+		|| typeof value.rubric !== "string"
+		|| typeof value.updatedAt !== "string"
+		|| Number.isNaN(Date.parse(value.updatedAt))
+	) {
+		return undefined;
+	}
+
+	return {
+		back: value.back,
+		cardType: value.cardType as ManualCardDraft["cardType"],
+		...(value.conceptId ? { conceptId: value.conceptId } : {}),
+		front: value.front,
+		rubric: value.rubric,
+		updatedAt: value.updatedAt,
+	};
+}
+
 function normalizeManualConceptDraft(value: unknown): ManualConceptDraft | undefined {
 	if (
 		!isObject(value)
 		|| typeof value.title !== "string"
+		|| (value.englishName !== undefined && typeof value.englishName !== "string")
 		|| typeof value.coreMeaning !== "string"
 		|| typeof value.whyItMatters !== "string"
 		|| (value.learningMode !== "reviewable" && value.learningMode !== "exploratory")
@@ -651,6 +754,7 @@ function normalizeManualConceptDraft(value: unknown): ManualConceptDraft | undef
 
 	return {
 		coreMeaning: value.coreMeaning,
+		englishName: typeof value.englishName === "string" ? value.englishName : "",
 		importance: value.importance,
 		learningMode: value.learningMode,
 		...(value.sourcePath?.trim() ? { sourcePath: value.sourcePath } : {}),

@@ -75,6 +75,7 @@ async function run(): Promise<void> {
 
 		assert.equal(result.status, "generated");
 		assert.equal(result.proposalCount, 1);
+		assert.deepEqual(result.proposalIds, proposals.map((proposal) => proposal.id));
 		assert.equal(proposals[0]?.evidence[0]?.excerpt, "Bayes theorem uses $P(h \\mid D)=\\frac{P(D \\mid h)P(h)}{P(D)}$ to update beliefs.");
 	}
 
@@ -98,12 +99,43 @@ async function run(): Promise<void> {
 		assert.equal(proposals.length, 1);
 		assert.equal(proposals[0]?.kind, "new_card");
 		assert.equal(proposals[0]?.conceptId, concept.conceptId);
+		assert.equal(proposals[0]?.cardId, "encapsulation-definition");
 		assert.equal(proposals[0]?.sourcePath, concept.conceptPath);
 		assert.equal(proposals[0]?.status, "suggested");
 		assert.equal(
 			(await fixture.sourceAnalysisStore.getRecord(concept.conceptPath))?.lastCardGenerationFingerprint,
 			await cardGenerationFingerprint(fixture.settings),
 		);
+	}
+
+	{
+		const bilingualConcept = {
+			conceptId: "concept-spacing-effect",
+			conceptPath: "Mneme/Concepts/间隔效应-(Spacing-Effect).md",
+			conceptTitle: "间隔效应 (Spacing Effect)",
+			markdown: "# 间隔效应 (Spacing Effect)\n\n## Core Meaning\n\n间隔效应把学习分散到多个时间点。",
+		};
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		const result = await fixture.service.generate(bilingualConcept);
+		const proposals = await fixture.proposalStore.listActive();
+
+		assert.equal(result.status, "generated");
+		assert.equal(proposals[0]?.cardId, "spacing-effect-definition");
+	}
+
+	{
+		const conceptLearning = {
+			conceptId: "concept-concept-learning",
+			conceptPath: "Mneme/Concepts/Concept-Learning.md",
+			conceptTitle: "Concept Learning",
+			markdown: "# Concept Learning\n\n## Core Meaning\n\nConcept learning infers a general category from labeled examples.",
+		};
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		const result = await fixture.service.generate(conceptLearning);
+		const proposals = await fixture.proposalStore.listActive();
+
+		assert.equal(result.status, "generated");
+		assert.equal(proposals[0]?.cardId, "concept-learning-definition");
 	}
 
 	{
@@ -164,6 +196,12 @@ async function run(): Promise<void> {
 		assert.equal(fixture.provider.callCount > 1, true);
 		assert.equal(result.proposalCount, fixture.provider.callCount);
 		assert.equal(proposals.length, fixture.provider.callCount);
+		assert.deepEqual(
+			proposals.map((proposal) => proposal.cardId),
+			Array.from({ length: fixture.provider.callCount }, (_, index) => (
+				index === 0 ? "version-space-definition" : `version-space-definition-${index + 1}`
+			)),
+		);
 		assert.equal(result.message.includes("approved Concept characters across"), true);
 		assert.equal(fixture.provider.lastRequest?.sourceContent.length <= fixture.settings.aiMaxInputChars, true);
 	}
@@ -172,8 +210,10 @@ async function run(): Promise<void> {
 		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
 		await fixture.service.generate(concept);
 		const second = await fixture.service.generate(concept);
+		const active = await fixture.proposalStore.listActive();
 
 		assert.equal(second.status, "skipped_active_proposals");
+		assert.deepEqual(second.proposalIds, active.map((proposal) => proposal.id));
 		assert.equal(fixture.provider.callCount, 1);
 	}
 
@@ -225,8 +265,9 @@ async function run(): Promise<void> {
 			warnings: [],
 		};
 
-		const first = await fixture.service.generate(concept);
-		const second = await fixture.service.generate(concept);
+		const coveredConcept = { ...concept, existingCardTypes: ["definition" as const] };
+		const first = await fixture.service.generate(coveredConcept);
+		const second = await fixture.service.generate(coveredConcept);
 		const record = await fixture.sourceAnalysisStore.getRecord(concept.conceptPath);
 
 		assert.equal(first.status, "coverage_complete");
@@ -234,6 +275,29 @@ async function run(): Promise<void> {
 		assert.equal(second.status, "skipped_unchanged_concept");
 		assert.equal(fixture.provider.callCount, 1);
 		assert.equal(record?.lastCardGenerationOutcome, "coverage_complete");
+	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		const conceptHash = await conceptFingerprint();
+		const applicationOnly = createCardProposal(0);
+		applicationOnly.payload.cardType = "application";
+		fixture.provider.response = {
+			mode: "card_generation",
+			proposals: [applicationOnly],
+			schemaVersion: "mneme.ai.proposals.v1",
+			source: { hash: conceptHash, path: concept.conceptPath },
+			warnings: [],
+		};
+
+		const result = await fixture.service.generate(concept);
+
+		assert.equal(result.status, "invalid_response");
+		assert.equal(
+			result.message,
+			"Definition is enabled and this Concept has no Definition Card, but AI did not return one. No Card proposals added.",
+		);
+		assert.deepEqual(await fixture.proposalStore.listProposals(), []);
 	}
 
 	{

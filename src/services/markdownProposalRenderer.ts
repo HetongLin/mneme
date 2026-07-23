@@ -1,15 +1,24 @@
-import type { KnowledgeProposal, NewCardProposalPayload, NewConceptProposalPayload } from "../models/knowledgeProposal";
+import type {
+	CardDraftType,
+	KnowledgeProposal,
+	NewCardProposalPayload,
+	NewConceptProposalPayload,
+} from "../models/knowledgeProposal";
 import type { MarkdownWriteDraft } from "../models/markdownWrite";
 import type { MnemeSettings } from "../models/settings";
 import {
 	buildCardGroupPath,
 	buildConceptPath,
 	createMnemeConceptId,
-	slugifyForFilename,
 	toObsidianInternalLink,
 } from "../utils/markdownPath";
 import { validateKnowledgeProposalPayload } from "./knowledgeProposalValidation";
 import { renderConceptMarkdown } from "./conceptMarkdownRenderer";
+import { createReadableCardId } from "./cardIdNaming";
+import {
+	createReadableConceptId,
+	normalizeConceptNames,
+} from "./conceptNaming";
 
 export type MarkdownProposalRenderResult =
 	| { drafts: MarkdownWriteDraft[]; status: "rendered" }
@@ -62,22 +71,24 @@ function renderNewConceptDraft(
 	settings: MnemeSettings,
 	payload: NewConceptProposalPayload,
 ): MarkdownWriteDraft {
-	const conceptId = proposal.conceptId ?? createMnemeConceptId(payload.title);
-	const conceptPath = buildConceptPath(settings.conceptsFolder, payload.title);
-	const cardGroupPath = buildCardGroupPath(settings.cardsFolder, payload.title);
-	const cardGroupLink = toObsidianInternalLink(cardGroupPath, `${payload.title} Cards`);
+	const names = normalizeConceptNames(payload.title, payload.englishName);
+	const conceptId = createReadableConceptId(names.englishName);
+	const conceptPath = buildConceptPath(settings.conceptsFolder, names.displayTitle);
+	const cardGroupPath = buildCardGroupPath(settings.cardsFolder, names.displayTitle);
+	const cardGroupLink = toObsidianInternalLink(cardGroupPath, `${names.displayTitle} Cards`);
 
 	return {
 		content: renderConceptMarkdown({
 			cardGroupLink,
 			conceptId,
 			coreMeaning: payload.coreMeaning || "",
+			englishName: names.englishName,
 			importance: payload.suggestedImportance,
 			learningMode: payload.learningMode,
 			sourceLinks: payload.proposedSourceLinks,
 			sourcePath: proposal.sourcePath,
 			tags: payload.tags,
-			title: payload.title,
+			title: names.title,
 			views: payload.proposedViews,
 			whyItMatters: payload.whyItMatters,
 		}),
@@ -97,9 +108,40 @@ function renderNewCardDraft(
 	const conceptId = payload.conceptId || proposal.conceptId || createMnemeConceptId(conceptLabel);
 	const conceptPath = buildConceptPath(settings.conceptsFolder, payload.conceptTitle || conceptLabel);
 	const conceptLink = toObsidianInternalLink(conceptPath, payload.conceptTitle || conceptLabel);
-	const cardId = createTemporaryWriterCardId(conceptLabel, payload.card.front, proposal.id);
-	const cardTypeAttribute = payload.card.cardType
-		? ` type="${escapeHtmlAttribute(payload.card.cardType)}"`
+	const cardId = proposal.cardId ?? createReadableCardId(conceptId, payload.card.cardType);
+	return {
+		content: renderCardGroupMarkdown({
+			back: payload.card.back,
+			cardId,
+			cardType: payload.card.cardType,
+			conceptId,
+			conceptLabel,
+			conceptLink,
+			front: payload.card.front,
+			rubric: payload.card.rubric,
+		}),
+		kind: "card",
+		mode: "upsert_card_group",
+		sourceProposalId: proposal.id,
+		targetPath: buildCardGroupPath(settings.cardsFolder, conceptLabel),
+	};
+}
+
+export interface CardGroupMarkdownInput {
+	back: string;
+	cardId: string;
+	cardType?: CardDraftType;
+	conceptId: string;
+	conceptLabel: string;
+	conceptLink: string;
+	front: string;
+	rubric?: string;
+}
+
+export function renderCardGroupMarkdown(input: CardGroupMarkdownInput): string {
+	const { back, cardId, cardType, conceptId, conceptLabel, conceptLink, front, rubric } = input;
+	const cardTypeAttribute = cardType
+		? ` type="${escapeHtmlAttribute(cardType)}"`
 		: "";
 	const lines = [
 		"---",
@@ -115,59 +157,25 @@ function renderNewCardDraft(
 		"",
 		`<!-- MNEME:CARD:start id="${escapeHtmlAttribute(cardId)}"${cardTypeAttribute} -->`,
 		"<!-- MNEME:FRONT:start -->",
-		payload.card.front,
+		front,
 		"<!-- MNEME:FRONT:end -->",
 		"",
 		"<!-- MNEME:BACK:start -->",
-		payload.card.back,
+		back,
 		"<!-- MNEME:BACK:end -->",
 	];
 
-	if (payload.card.rubric) {
+	if (rubric) {
 		lines.push(
 			"",
 			"<!-- MNEME:RUBRIC:start -->",
-			payload.card.rubric,
+			rubric,
 			"<!-- MNEME:RUBRIC:end -->",
 		);
 	}
 
 	lines.push("<!-- MNEME:CARD:end -->", "");
-
-	return {
-		content: lines.join("\n"),
-		kind: "card",
-		mode: "upsert_card_group",
-		sourceProposalId: proposal.id,
-		targetPath: buildCardGroupPath(settings.cardsFolder, conceptLabel),
-	};
-}
-
-export function createTemporaryWriterCardId(
-	conceptTitleOrId: string,
-	front: string,
-	proposalId: string,
-): string {
-	const base = slugifyForFilename(`${conceptTitleOrId} ${front}`)
-		.toLowerCase()
-		.replace(/[^a-z0-9-]/g, "-")
-		.replace(/-+/g, "-")
-		.replace(/^-|-$/g, "");
-
-	const proposalSuffix = `p${stableStringHash(proposalId)}`;
-	const readableBase = (base || "mneme-card").slice(0, Math.max(1, 95 - proposalSuffix.length));
-
-	return `${readableBase}-${proposalSuffix}`;
-}
-
-function stableStringHash(value: string): string {
-	let hash = 2166136261;
-	for (let index = 0; index < value.length; index += 1) {
-		hash ^= value.charCodeAt(index);
-		hash = Math.imul(hash, 16777619);
-	}
-
-	return (hash >>> 0).toString(36);
+	return lines.join("\n");
 }
 
 function escapeHtmlAttribute(value: string): string {

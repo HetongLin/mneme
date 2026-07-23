@@ -2,6 +2,9 @@ import { App, TFile } from "obsidian";
 import { LoadedMnemeCard } from "../models/card";
 import type { CardDraftType } from "../models/knowledgeProposal";
 import { ParsedCardMarkers, parseMnemeCards } from "./cardMarkerParser";
+import { isCardFile } from "./cardFileRecognition";
+
+export { isCardFile } from "./cardFileRecognition";
 
 const FALLBACK_ID_WARNING = "Card has no explicit id; using fallback identity.";
 
@@ -21,7 +24,10 @@ export class CardFileLoader {
 
 	private async loadCardFile(file: TFile): Promise<LoadedMnemeCard[]> {
 		try {
-			const content = await this.app.vault.cachedRead(file);
+			// Review can start immediately after Inbox appends a newly accepted Card.
+			// cachedRead() may still expose the pre-write Card Group at that point, so
+			// review scans must read the current vault contents directly.
+			const content = await this.app.vault.read(file);
 			const parsedCards = parseMnemeCards(content);
 			const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
 
@@ -50,14 +56,6 @@ export class CardFileLoader {
 			}];
 		}
 	}
-}
-
-export function isCardFile(file: Pick<TFile, "name">, frontmatter?: unknown): boolean {
-	return file.name === "Card.md" || isMnemeCardFrontmatter(frontmatter);
-}
-
-function isMnemeCardFrontmatter(frontmatter: unknown): boolean {
-	return isRecord(frontmatter) && (frontmatter.mneme_type === "card" || frontmatter.mneme_type === "card_group");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

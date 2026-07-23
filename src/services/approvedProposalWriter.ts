@@ -2,7 +2,13 @@ import type { ConceptSummary } from "../models/conceptLibrary";
 import type { KnowledgeProposal } from "../models/knowledgeProposal";
 import type { MarkdownWriteDraft, MarkdownWriteResult } from "../models/markdownWrite";
 import type { MnemeSettings } from "../models/settings";
-import { buildCardGroupPath, ensureUniquePath, normalizeVaultPath, toObsidianInternalLink } from "../utils/markdownPath";
+import {
+	buildCardGroupPath,
+	createMnemeConceptId,
+	ensureUniquePath,
+	normalizeVaultPath,
+	toObsidianInternalLink,
+} from "../utils/markdownPath";
 import {
 	buildConceptSourceLinksFromNewConceptProposal,
 	buildConceptUpdateSourceLinks,
@@ -20,6 +26,21 @@ import { appendConceptSourceNote } from "./conceptSourceNoteAppender";
 import { updateConceptSections } from "./conceptSectionUpdater";
 import { validateKnowledgeProposalPayload } from "./knowledgeProposalValidation";
 import { appendCardGroupDraft } from "./cardGroupWriter";
+import { parseMnemeCards } from "./cardMarkerParser";
+import {
+	createReadableCardIdBase,
+	createReadableCardIdBaseFromStem,
+	createUniqueReadableCardId,
+} from "./cardIdNaming";
+import {
+	composeConceptDisplayTitle,
+	getConceptIdStem,
+	resolveConceptEnglishName,
+} from "./conceptNaming";
+import {
+	findConceptNameConflict,
+	type ConceptNameConflict,
+} from "./conceptNameConflict";
 
 export interface MnemeVaultAdapter {
 	append(path: string, content: string): Promise<void>;
@@ -50,6 +71,26 @@ export class ApprovedProposalWriter {
 
 	constructor(private readonly options: ApprovedProposalWriterOptions) {
 		this.now = options.now ?? (() => new Date().toISOString());
+	}
+
+	async findNewConceptNameConflict(proposalId: string): Promise<ConceptNameConflict | undefined> {
+		const proposal = await this.options.proposalStore.getProposal(proposalId);
+		if (
+			proposal?.kind !== "new_concept"
+			|| !proposal.payload
+			|| !this.options.conceptScanner
+		) {
+			return undefined;
+		}
+
+		return findConceptNameConflict(
+			{
+				englishName: proposal.payload.englishName,
+				title: proposal.payload.title,
+			},
+			this.options.settingsProvider(),
+			await this.options.conceptScanner.scanConcepts(),
+		);
 	}
 
 	async writeApprovedProposal(proposalId: string): Promise<MarkdownWriteResult> {
@@ -85,20 +126,6 @@ export class ApprovedProposalWriter {
 			return this.writeConceptViewProposal(proposal);
 		}
 
-		if (proposal.kind === "new_concept" && this.options.isConceptIdReserved) {
-			const conceptId = normalizeConceptIdForWrittenConcept({ proposal, targetPaths: [] });
-			try {
-				if (await this.options.isConceptIdReserved(conceptId)) {
-					return this.failedResult(proposal.id, `Concept ID is already active or reserved: ${conceptId}`);
-				}
-			} catch (error) {
-				return this.failedResult(
-					proposal.id,
-					error instanceof Error ? error.message : "Concept identity lookup failed.",
-				);
-			}
-		}
-
 		const renderResult = renderMarkdownProposal(proposal, this.options.settingsProvider());
 
 		if (renderResult.status !== "rendered") {
@@ -117,9 +144,34 @@ export class ApprovedProposalWriter {
 				? await this.alignCardDraftWithConcept(renderResult.drafts, proposal.payload?.conceptId)
 				: renderResult.drafts;
 			const assignedDrafts = await this.assignUniqueTargetPaths(preparedDrafts);
-			const drafts = proposal.kind === "new_concept" && proposal.payload
+			let drafts = proposal.kind === "new_concept" && proposal.payload
 				? this.alignNewConceptDraftWithUniquePath(assignedDrafts, proposal.payload.title)
 				: assignedDrafts;
+			if (proposal.kind === "new_concept" && proposal.payload && this.options.isConceptIdReserved) {
+				drafts = await this.assignAvailableNewConceptIdentity(
+					drafts,
+					renderResult.drafts,
+					proposal.payload.title,
+				);
+			}
+			if (proposal.kind === "new_card") {
+				drafts = await this.assignReadableCardIdsToCardDrafts(drafts);
+			}
+
+			if (proposal.kind === "new_concept" && this.options.isConceptIdReserved) {
+				const conceptId = this.extractConceptIdFromDrafts(drafts)
+					?? normalizeConceptIdForWrittenConcept({ proposal, targetPaths: drafts.map((draft) => draft.targetPath) });
+				try {
+					if (await this.options.isConceptIdReserved(conceptId)) {
+						return this.failedResult(proposal.id, `Concept ID is already active or reserved: ${conceptId}`);
+					}
+				} catch (error) {
+					return this.failedResult(
+						proposal.id,
+						error instanceof Error ? error.message : "Concept identity lookup failed.",
+					);
+				}
+			}
 
 			for (const draft of drafts) {
 				await this.ensureParentFolders(draft.targetPath);
@@ -144,6 +196,42 @@ export class ApprovedProposalWriter {
 				targetPaths,
 			};
 		}
+	}
+
+	private async assignAvailableNewConceptIdentity(
+		alignedDrafts: MarkdownWriteDraft[],
+		originalDrafts: MarkdownWriteDraft[],
+		conceptTitle: string,
+	): Promise<MarkdownWriteDraft[]> {
+		if (!this.options.isConceptIdReserved) return alignedDrafts;
+		const alignedId = this.extractConceptIdFromDrafts(alignedDrafts);
+		if (!alignedId || !(await this.options.isConceptIdReserved(alignedId))) return alignedDrafts;
+
+		const originalConceptDraft = originalDrafts.find((draft) => draft.kind === "concept");
+		const baseId = this.extractConceptIdFromDrafts(originalDrafts);
+		if (!originalConceptDraft || !baseId) return alignedDrafts;
+
+		const extensionIndex = originalConceptDraft.targetPath.lastIndexOf(".");
+		const basePath = extensionIndex >= 0
+			? originalConceptDraft.targetPath.slice(0, extensionIndex)
+			: originalConceptDraft.targetPath;
+		const extension = extensionIndex >= 0 ? originalConceptDraft.targetPath.slice(extensionIndex) : "";
+
+		for (let suffix = 2; suffix < 10_000; suffix += 1) {
+			const candidateId = `${baseId}-${suffix}`;
+			const candidatePath = `${basePath}-${suffix}${extension}`;
+			if (await this.options.vaultAdapter.exists(candidatePath)) continue;
+			if (await this.options.isConceptIdReserved(candidateId)) continue;
+
+			return this.alignNewConceptDraftWithUniquePath(
+				originalDrafts.map((draft) => draft.kind === "concept"
+					? { ...draft, targetPath: candidatePath }
+					: draft),
+				conceptTitle,
+			);
+		}
+
+		throw new Error("No available readable Concept identity could be allocated.");
 	}
 
 	private async writeConceptUpdateProposal(
@@ -441,15 +529,97 @@ export class ApprovedProposalWriter {
 		return drafts.map((draft) => {
 			if (draft.kind !== "concept") return draft;
 			const stem = normalizeVaultPath(draft.targetPath).split("/").pop()?.replace(/\.md$/i, "") ?? conceptTitle;
+			const currentConceptId = draft.content.match(/^mneme_id:\s*(.+)$/m)?.[1]?.trim()
+				.replace(/^['"]|['"]$/g, "") ?? createMnemeConceptId(stem);
+			const suffix = stem.match(/-(\d+)$/)?.[1];
+			const conceptId = suffix ? `${currentConceptId}-${suffix}` : currentConceptId;
+			const storedPrimaryTitle = readYamlString(draft.content, "mneme_title") ?? conceptTitle;
+			const primaryTitle = suffix ? `${storedPrimaryTitle} - ${suffix}` : storedPrimaryTitle;
+			const englishName = resolveConceptEnglishName(
+				readYamlString(draft.content, "mneme_english_name"),
+				storedPrimaryTitle,
+			) ?? storedPrimaryTitle;
+			const baseDisplayTitle = composeConceptDisplayTitle(storedPrimaryTitle, englishName);
+			const displayTitle = baseDisplayTitle === storedPrimaryTitle
+				? primaryTitle
+				: composeConceptDisplayTitle(primaryTitle, englishName);
 			const cardGroupPath = buildCardGroupPath(this.options.settingsProvider().cardsFolder, stem);
-			const cardGroupLink = toObsidianInternalLink(cardGroupPath, `${conceptTitle} Cards`);
+			const cardGroupLink = toObsidianInternalLink(cardGroupPath, `${displayTitle} Cards`);
 			return {
 				...draft,
 				content: draft.content
+					.replace(/^mneme_id:\s*.*$/m, `mneme_id: ${conceptId}`)
+					.replace(/^mneme_title:\s*.*$/m, `mneme_title: "${escapeYamlDoubleQuoted(primaryTitle)}"`)
+					.replace(/^#\s+.*$/m, `# ${displayTitle}`)
 					.replace(/^cards:\s*.*$/m, `cards: "${escapeYamlDoubleQuoted(cardGroupLink)}"`)
 					.replace(/^Cards:\s*.*$/m, `Cards: ${cardGroupLink}`),
 			};
 		});
+	}
+
+	private async assignReadableCardIdsToCardDrafts(drafts: MarkdownWriteDraft[]): Promise<MarkdownWriteDraft[]> {
+		const reservedByTarget = new Map<string, Set<string>>();
+		const assignedDrafts: MarkdownWriteDraft[] = [];
+
+		for (const draft of drafts) {
+			if (draft.mode !== "upsert_card_group") {
+				assignedDrafts.push(draft);
+				continue;
+			}
+
+			const targetPath = normalizeVaultPath(draft.targetPath);
+			let reservedIds = reservedByTarget.get(targetPath);
+
+			if (!reservedIds) {
+				reservedIds = new Set<string>();
+				if (await this.options.vaultAdapter.exists(targetPath)) {
+					for (const card of parseMnemeCards(await this.options.vaultAdapter.read(targetPath))) {
+						if (card.explicitCardId) {
+							reservedIds.add(card.explicitCardId);
+						}
+					}
+				}
+				reservedByTarget.set(targetPath, reservedIds);
+			}
+
+			const draftCards = parseMnemeCards(draft.content);
+			const draftCard = draftCards.length === 1 ? draftCards[0] : undefined;
+
+			if (!draftCard?.isValid) {
+				assignedDrafts.push(draft);
+				continue;
+			}
+
+			const conceptId = draft.content.match(/^mneme_concept_id:\s*(.+)$/m)?.[1]?.trim()
+				.replace(/^['"]|['"]$/g, "");
+			const cardIdBase = conceptId
+				? createReadableCardIdBase(conceptId, draftCard.cardType)
+				: createReadableCardIdBaseFromStem(draftCard.explicitCardId ?? "concept", draftCard.cardType);
+			const cardId = createUniqueReadableCardId(cardIdBase, reservedIds);
+			reservedIds.add(cardId);
+
+			assignedDrafts.push({
+				...draft,
+				content: replaceCardIdInDraft(draft.content, cardId),
+				targetPath,
+			});
+		}
+
+		return assignedDrafts;
+	}
+
+	private extractConceptIdFromDrafts(drafts: MarkdownWriteDraft[]): string | undefined {
+		for (const draft of drafts) {
+			if (draft.kind !== "concept") continue;
+			const match = draft.content.match(/^mneme_id:\s*(.+)$/m);
+			const conceptId = match?.[1]?.trim();
+
+			if (conceptId) {
+				return conceptId.replace(/^['"]|['"]$/g, "");
+			}
+		}
+
+		return undefined;
 	}
 
 	private failedResult(proposalId: string, message: string): MarkdownWriteResult {
@@ -575,4 +745,27 @@ export class ApprovedProposalWriter {
 
 function escapeYamlDoubleQuoted(value: string): string {
 	return value.replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
+}
+
+function readYamlString(markdown: string, key: string): string | undefined {
+	const match = markdown.match(new RegExp(`^${key}:\\s*(.+)$`, "m"));
+	const value = match?.[1]?.trim().replace(/^['"]|['"]$/g, "");
+
+	return value || undefined;
+}
+
+function replaceCardIdInDraft(markdown: string, cardId: string): string {
+	const withReplacedId = markdown.replace(
+		/(<!--\s*MNEME:CARD:start\b[^>]*\bid=")[^"]*(")/,
+		`$1${cardId}$2`,
+	);
+
+	if (withReplacedId !== markdown) {
+		return withReplacedId;
+	}
+
+	return markdown.replace(
+		/(<!--\s*MNEME:CARD:start\b[^>]*)(\s*-->)/,
+		`$1 id="${cardId}"$2`,
+	);
 }

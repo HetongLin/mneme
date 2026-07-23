@@ -75,6 +75,35 @@ import {
 
 async function runAsyncTests(): Promise<void> {
 	{
+		const cardState = createReviewState("concept-a-definition", 3);
+		const storage = new MemoryReviewStateStorage({
+			...createDefaultPluginData(),
+			pausedConcepts: {
+				"concept-a": {
+					conceptId: "concept-a",
+					pausedAt: "2026-07-08T10:00:00.000Z",
+				},
+			},
+			reviewStates: {
+				"concept-a-definition": cardState,
+			},
+		});
+		const store = new ReviewStateStore(storage, new FakeReviewScheduler());
+
+		await store.load();
+		const tombstones = await store.deleteConcept(
+			"concept-a",
+			["concept-a-definition"],
+			new Date("2026-07-09T10:00:00.000Z"),
+		);
+
+		assert.equal(tombstones[0]?.reviewCount, 3);
+		assert.equal(storage.savedData?.reviewStates["concept-a-definition"], undefined);
+		assert.equal(storage.savedData?.pausedConcepts["concept-a"], undefined);
+		assert.equal(storage.savedData?.cardTombstones["concept-a-definition"]?.deletedAt, "2026-07-09T10:00:00.000Z");
+	}
+
+	{
 		const storage = new MemoryReviewStateStorage();
 		const store = new ReviewStateStore(storage, new FakeReviewScheduler());
 
@@ -200,6 +229,34 @@ async function runAsyncTests(): Promise<void> {
 		await store.resumeConcept("concept-encapsulation");
 		assert.deepEqual(store.getPausedConcepts(), {});
 		assert.deepEqual(storage.savedData?.reviewStates["encapsulation-basic"], existingState);
+	}
+
+	{
+		const existingState = createReviewState("preserve-card-state", 4);
+		const storage = new MemoryReviewStateStorage({
+			pausedConcepts: {
+				"concept-a": {
+					conceptId: "concept-a",
+					pausedAt: "2026-07-07T12:00:00.000Z",
+				},
+				"concept-b": {
+					conceptId: "concept-b",
+					pausedAt: "2026-07-07T13:00:00.000Z",
+				},
+			},
+			reviewStates: { "preserve-card-state": existingState },
+			schemaVersion: 1,
+			settings: DEFAULT_SETTINGS,
+		});
+		const scheduler = new FakeReviewScheduler();
+		const store = new ReviewStateStore(storage, scheduler);
+
+		await store.load();
+		assert.equal(await store.clearConceptPauses(), 2);
+		assert.deepEqual(store.getPausedConcepts(), {});
+		assert.deepEqual(storage.savedData?.reviewStates["preserve-card-state"], existingState);
+		assert.equal(scheduler.lastInput, undefined);
+		assert.equal(await store.clearConceptPauses(), 0);
 	}
 
 	{

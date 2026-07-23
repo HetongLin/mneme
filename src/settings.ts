@@ -165,6 +165,18 @@ export class MnemeSettingTab extends PluginSettingTab {
 		containerEl.createEl("h3", { text: "Developer Tools" });
 
 		new Setting(containerEl)
+			.setName("Show advanced diagnostics")
+			.setDesc("Shows Card scheduling, repair, archive, and deletion diagnostics at the bottom of Mneme Review. Keep this off for ordinary review.")
+			.addToggle((toggle) => {
+				toggle.setValue(this.plugin.settings.showAdvancedDiagnostics);
+				toggle.onChange(async (value) => {
+					this.plugin.settings.showAdvancedDiagnostics = value;
+					await this.persistSettings();
+					await this.plugin.refreshReviewViews?.();
+				});
+			});
+
+		new Setting(containerEl)
 			.setName("Enable developer tools")
 			.setDesc("Shows acceptance fixtures, debug commands, and diagnostic logging commands. Reload Mneme after changing this setting to update command palette visibility.")
 			.addToggle((toggle) => {

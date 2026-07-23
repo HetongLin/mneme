@@ -179,12 +179,13 @@ import { createProposal, createSourceRecord } from "./knowledgeProposalTestUtils
 	assert.notEqual(updatedRecord, record);
 }
 
-{
-	const proposal = createProposal("proposal-d", {
-		conceptId: "concept-existing",
-	});
+	{
+		const proposal = createProposal("proposal-d", {
+			conceptId: "concept-existing",
+			kind: "new_card",
+		});
 
-	assert.equal(normalizeConceptIdForWrittenConcept({
+		assert.equal(normalizeConceptIdForWrittenConcept({
 		proposal,
 		targetPaths: ["Mneme/Concepts/Encapsulation/Concept.md"],
 	}), "concept-existing");
@@ -196,7 +197,7 @@ import { createProposal, createSourceRecord } from "./knowledgeProposalTestUtils
 	assert.equal(normalizeConceptIdForWrittenConcept({
 		proposal,
 		targetPaths: ["Mneme/Concepts/Encapsulation/Concept.md"],
-	}), "Mneme/Concepts/Encapsulation/Concept.md");
+	}), "concept-encapsulation");
 }
 
 {
@@ -209,8 +210,8 @@ import { createProposal, createSourceRecord } from "./knowledgeProposalTestUtils
 
 	assert.equal(normalizeConceptIdForWrittenConcept({
 		proposal,
-		targetPaths: ["Mneme/Concepts/Encapsulation/Concept.md"],
-	}), "concept-encapsulation");
-}
+		targetPaths: ["Mneme/Concepts/Encapsulation-2.md"],
+	}), "concept-encapsulation-2");
+	}
 
 console.log("Concept-source linking tests passed.");

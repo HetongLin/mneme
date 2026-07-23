@@ -8,31 +8,50 @@ import {
 import type { ManualConceptDraftStore } from "../services/manualConceptDraftStore";
 import type { ManualConceptInput, ManualConceptResult } from "../services/manualConceptService";
 import { assessManualConceptDuplicates, type ManualConceptDuplicateAssessment } from "../services/manualConceptDuplicateCheck";
+import { buildConceptTagCatalog, type ConceptTagCatalogEntry } from "../services/conceptTagCatalog";
+import { createConceptTagPicker, type ConceptTagPicker } from "../ui/conceptTagPicker";
 import { createMarkdownLivePreviewField } from "../ui/markdownLivePreviewField";
+import type {
+	ConceptNameConflict,
+	ConceptNameConflictResolution,
+} from "../services/conceptNameConflict";
+import { chooseConceptNameConflictResolution } from "../modals/conceptNameConflictModal";
 
 export const CONCEPT_COMPOSER_VIEW_TYPE = "mneme-concept-composer-view";
 let sourceListId = 0;
 
 export interface ConceptComposerOptions {
+	canSuggestEnglishName(): boolean;
 	create(input: ManualConceptInput): Promise<ManualConceptResult>;
 	draftStore: ManualConceptDraftStore;
+	findNameConflict(input: Pick<ManualConceptInput, "englishName" | "title">): Promise<ConceptNameConflict | undefined>;
 	getCurrentSourcePath(): string | undefined;
 	listSourcePaths(): string[];
 	onCreated(result: ManualConceptResult): Promise<void> | void;
-	openConcept(path: string): Promise<void> | void;
+	openMerge(existing: ConceptSummary, created: ManualConceptResult): Promise<void> | void;
+	openConceptMarkdown(path: string): Promise<void> | void;
 	scanConcepts(): Promise<ConceptSummary[]>;
+	suggestEnglishName(title: string, coreMeaning: string): Promise<{ englishName: string }>;
+	viewConcept(result: ManualConceptResult): Promise<void> | void;
 }
 
 export class MnemeConceptComposerView extends ItemView {
 	private acknowledgedDuplicateSignature?: string;
 	private coreMeaningEl!: HTMLTextAreaElement;
 	private createButtonEl!: HTMLButtonElement;
+	private createdResultEl!: HTMLElement;
 	private draft = createEmptyManualConceptDraft();
 	private duplicateEl!: HTMLElement;
+	private englishNameAssistEl!: HTMLElement;
+	private englishNameButtonEl!: HTMLButtonElement;
+	private englishNameEl!: HTMLInputElement;
+	private englishNameFieldEl!: HTMLElement;
+	private englishNameRequest = 0;
 	private importanceEl!: HTMLSelectElement;
 	private hasRendered = false;
 	private isReady = false;
 	private isSaving = false;
+	private lastObservedTitle = "";
 	private learningModeEl!: HTMLSelectElement;
 	private readonly markdownComponent = new Component();
 	private pendingDefaultSourcePath?: string;
@@ -40,7 +59,8 @@ export class MnemeConceptComposerView extends ItemView {
 	private saveTimer?: number;
 	private sourcePathEl!: HTMLInputElement;
 	private statusEl!: HTMLElement;
-	private tagsEl!: HTMLInputElement;
+	private tagCatalog: ConceptTagCatalogEntry[] = [];
+	private tagPicker!: ConceptTagPicker;
 	private titleEl!: HTMLInputElement;
 	private whyItMattersEl!: HTMLTextAreaElement;
 
@@ -71,12 +91,14 @@ export class MnemeConceptComposerView extends ItemView {
 			console.error("Mneme: failed to load Concept Composer draft", error);
 			this.draft = createEmptyManualConceptDraft(this.pendingDefaultSourcePath);
 		}
+		await this.refreshTagCatalog();
 
 		this.render();
 		this.isReady = true;
 	}
 
 	protected async onClose(): Promise<void> {
+		this.englishNameRequest += 1;
 		if (this.isReady) {
 			try {
 				await this.flushDraft();
@@ -92,7 +114,9 @@ export class MnemeConceptComposerView extends ItemView {
 
 	async prepare(defaultSourcePath?: string): Promise<void> {
 		this.pendingDefaultSourcePath = defaultSourcePath;
-		if (!this.isReady || !defaultSourcePath || isMeaningfulManualConceptDraft(this.readDraft())) return;
+		if (!this.isReady) return;
+		await this.refreshTagCatalog();
+		if (!defaultSourcePath || isMeaningfulManualConceptDraft(this.readDraft())) return;
 
 		this.sourcePathEl.value = defaultSourcePath;
 		await this.persistCurrentDraft();
@@ -106,6 +130,7 @@ export class MnemeConceptComposerView extends ItemView {
 			cls: "mneme-review-subtitle",
 			text: "Write the durable idea while keeping the Source Note visible.",
 		});
+		this.createdResultEl = this.contentEl.createDiv({ cls: "mneme-concept-composer-created-result" });
 
 		const formEl = this.contentEl.createDiv({ cls: "mneme-concept-composer-form" });
 		this.renderSourceField(formEl);
@@ -116,7 +141,7 @@ export class MnemeConceptComposerView extends ItemView {
 			component: this.markdownComponent,
 			label: "Core Meaning",
 			parentEl: formEl,
-			placeholder: "Explain the idea in your own words.",
+			placeholder: "What is this Concept, and how does it work?",
 			sourcePath: "",
 			value: this.draft.coreMeaning,
 		});
@@ -125,7 +150,7 @@ export class MnemeConceptComposerView extends ItemView {
 			component: this.markdownComponent,
 			label: "Why It Matters",
 			parentEl: formEl,
-			placeholder: "Optional",
+			placeholder: "Why is it useful, important, or worth remembering?",
 			sourcePath: "",
 			value: this.draft.whyItMatters,
 		});
@@ -140,7 +165,14 @@ export class MnemeConceptComposerView extends ItemView {
 			["high", "High"],
 			["critical", "Critical"],
 		], this.draft.importance);
-		this.tagsEl = this.createInput(formEl, "Tags", "Comma-separated", this.draft.tags.join(", "));
+		this.tagPicker = createConceptTagPicker({
+			catalog: this.tagCatalog,
+			contextProvider: () => `${this.titleEl.value}\n${this.coreMeaningEl.value}`,
+			initialTags: this.draft.tags,
+			onChange: () => this.onDraftChanged(),
+			parentEl: formEl,
+		});
+		this.renderEnglishNameField(formEl);
 
 		this.duplicateEl = formEl.createDiv({ cls: "mneme-concept-composer-duplicates" });
 		this.statusEl = formEl.createDiv({ cls: "mneme-review-status mneme-concept-composer-status" });
@@ -153,19 +185,60 @@ export class MnemeConceptComposerView extends ItemView {
 			void this.createConcept();
 		});
 
+		this.titleEl.addEventListener("input", () => {
+			this.tagPicker.refresh();
+			this.onTitleChanged();
+		});
+		this.titleEl.addEventListener("change", () => this.onTitleChanged());
+		this.englishNameEl.addEventListener("input", () => {
+			this.onDraftChanged();
+		});
+		this.englishNameEl.addEventListener("change", () => this.onDraftChanged());
+
 		for (const element of [
 			this.sourcePathEl,
-			this.titleEl,
 			this.coreMeaningEl,
 			this.whyItMattersEl,
 			this.learningModeEl,
 			this.importanceEl,
-			this.tagsEl,
 		]) {
-			element.addEventListener("input", () => this.onDraftChanged());
+			element.addEventListener("input", () => {
+				if (element === this.coreMeaningEl) this.tagPicker.refresh();
+				if (element === this.coreMeaningEl) this.updateEnglishNameUi();
+				this.onDraftChanged();
+			});
 			element.addEventListener("change", () => this.onDraftChanged());
 		}
 		this.hasRendered = true;
+		this.lastObservedTitle = this.titleEl.value.trim();
+		this.updateEnglishNameUi();
+	}
+
+	private renderEnglishNameField(parentEl: HTMLElement): void {
+		this.englishNameFieldEl = parentEl.createEl("label", {
+			cls: "mneme-proposal-detail-field mneme-concept-composer-english-name",
+		});
+		this.englishNameFieldEl.createEl("span", { text: "English Name" });
+		const rowEl = this.englishNameFieldEl.createDiv({
+			cls: "mneme-concept-composer-english-name-row",
+		});
+		this.englishNameEl = rowEl.createEl("input", {
+			attr: {
+				placeholder: "Canonical English name",
+				type: "text",
+			},
+		});
+		this.englishNameEl.value = containsNonLatinLetter(this.draft.title)
+			? this.draft.englishName
+			: "";
+		this.englishNameButtonEl = rowEl.createEl("button", {
+			attr: { type: "button" },
+			text: "Generate with AI",
+		});
+		this.englishNameButtonEl.addEventListener("click", () => void this.generateEnglishName());
+		this.englishNameAssistEl = this.englishNameFieldEl.createEl("small", {
+			text: "Required for a non-English Title. Enter it manually or generate a suggestion.",
+		});
 	}
 
 	private renderSourceField(parentEl: HTMLElement): void {
@@ -231,11 +304,94 @@ export class MnemeConceptComposerView extends ItemView {
 	}
 
 	private onDraftChanged(): void {
+		this.createdResultEl.empty();
 		this.acknowledgedDuplicateSignature = undefined;
 		this.duplicateEl.empty();
 		this.createButtonEl.setText("Create Concept");
 		this.statusEl.empty();
 		this.scheduleDraftSave();
+	}
+
+	private onTitleChanged(): void {
+		const title = this.titleEl.value.trim();
+		if (title === this.lastObservedTitle) {
+			this.updateEnglishNameUi();
+			return;
+		}
+		this.lastObservedTitle = title;
+		// Title and English Name are one reviewed naming pair. Never keep an
+		// English Name after the primary Title changes.
+		this.englishNameEl.value = "";
+		this.englishNameRequest += 1;
+		this.updateEnglishNameUi();
+		this.onDraftChanged();
+	}
+
+	private async generateEnglishName(): Promise<void> {
+		const title = this.titleEl.value.trim();
+		const coreMeaning = this.coreMeaningEl.value.trim();
+		if (!title || !coreMeaning) {
+			new Notice("Mneme: Complete Title and Core Meaning before generating an English Name.");
+			return;
+		}
+		if (!this.options.canSuggestEnglishName()) {
+			new Notice("Mneme: Configure and enable AI capture, or enter the English Name manually.");
+			return;
+		}
+
+		const request = this.englishNameRequest += 1;
+		this.englishNameButtonEl.disabled = true;
+		this.englishNameButtonEl.setText("Generating...");
+		this.englishNameAssistEl.setText("Generating a canonical English Name from Title and Core Meaning…");
+		try {
+			const suggestion = await this.options.suggestEnglishName(title, coreMeaning);
+			if (
+				request !== this.englishNameRequest
+				|| title !== this.titleEl.value.trim()
+				|| coreMeaning !== this.coreMeaningEl.value.trim()
+			) return;
+			this.englishNameEl.value = suggestion.englishName;
+			this.englishNameAssistEl.setText("AI suggestion. Review or edit it before creating the Concept.");
+			this.createdResultEl.empty();
+			this.acknowledgedDuplicateSignature = undefined;
+			this.duplicateEl.empty();
+			this.createButtonEl.setText("Create Concept");
+			this.statusEl.empty();
+			this.scheduleDraftSave();
+		} catch (error) {
+			if (request !== this.englishNameRequest) return;
+			console.error("Mneme: English Name generation failed", error);
+			this.englishNameAssistEl.setText("AI generation failed. Enter the English Name manually or try again.");
+			new Notice(`Mneme: ${error instanceof Error ? error.message : "English Name could not be generated."}`);
+		} finally {
+			if (request === this.englishNameRequest) {
+				this.englishNameButtonEl.setText("Generate with AI");
+				this.updateEnglishNameUi(false);
+			}
+		}
+	}
+
+	private updateEnglishNameUi(resetHelp = true): void {
+		const title = this.titleEl.value.trim();
+		const shouldShow = !!title && containsNonLatinLetter(title);
+		this.englishNameFieldEl.toggleClass("is-hidden", !shouldShow);
+		if (!shouldShow) return;
+		const canGenerate = !!this.coreMeaningEl.value.trim() && this.options.canSuggestEnglishName();
+		this.englishNameButtonEl.disabled = !canGenerate || this.englishNameButtonEl.textContent === "Generating...";
+		if (!resetHelp) return;
+		if (!this.options.canSuggestEnglishName()) {
+			this.englishNameAssistEl.setText(
+				"Required for a non-English Title. Enter it manually, or enable AI capture to generate it.",
+			);
+		} else if (!this.coreMeaningEl.value.trim()) {
+			this.englishNameAssistEl.setText(
+				"Required for a non-English Title. Complete Core Meaning to enable AI generation, or enter it manually.",
+			);
+		} else {
+			this.englishNameAssistEl.setText(
+				"Required for a non-English Title. Enter it manually or generate a suggestion.",
+			);
+		}
 	}
 
 	private scheduleDraftSave(): void {
@@ -270,13 +426,15 @@ export class MnemeConceptComposerView extends ItemView {
 	private readDraft(): ManualConceptDraft {
 		if (!this.hasRendered) return this.draft;
 		const sourcePath = this.sourcePathEl.value.trim();
+		const title = this.titleEl.value;
 		return {
 			coreMeaning: this.coreMeaningEl.value,
+			englishName: containsNonLatinLetter(title) ? this.englishNameEl.value : "",
 			importance: this.importanceEl.value as ConceptImportance,
 			learningMode: this.learningModeEl.value as ConceptLearningMode,
 			...(sourcePath ? { sourcePath } : {}),
-			tags: parseTags(this.tagsEl.value),
-			title: this.titleEl.value,
+			tags: this.tagPicker.getTags(),
+			title,
 			updatedAt: new Date().toISOString(),
 			whyItMatters: this.whyItMattersEl.value,
 		};
@@ -284,7 +442,7 @@ export class MnemeConceptComposerView extends ItemView {
 
 	private async createConcept(): Promise<void> {
 		if (this.isSaving) return;
-		const draft = this.readDraft();
+		let draft = this.readDraft();
 		if (!draft.title.trim() || !draft.coreMeaning.trim()) {
 			new Notice("Mneme: Title and Core Meaning are required.");
 			return;
@@ -300,7 +458,27 @@ export class MnemeConceptComposerView extends ItemView {
 		this.createButtonEl.disabled = true;
 		this.createButtonEl.setText("Checking...");
 		try {
+			if (containsNonLatinLetter(draft.title) && !draft.englishName.trim()) {
+				this.updateEnglishNameUi();
+				new Notice("Mneme: Enter or generate the English Name before creating this non-English Concept.");
+				return;
+			}
 			await this.flushDraft();
+			const nameConflict = await this.options.findNameConflict({
+				englishName: draft.englishName,
+				title: draft.title,
+			});
+			let conflictResolution: ConceptNameConflictResolution | undefined;
+			if (nameConflict) {
+				conflictResolution = await chooseConceptNameConflictResolution(this.app, nameConflict);
+				if (conflictResolution === "refine_name") {
+					this.focusTitleForRefinement();
+					return;
+				}
+				if (conflictResolution === "cancel") {
+					return;
+				}
+			}
 			const assessment = assessManualConceptDuplicates(
 				draft.title,
 				draft.coreMeaning,
@@ -308,13 +486,11 @@ export class MnemeConceptComposerView extends ItemView {
 			);
 			const duplicateSignature = JSON.stringify([draft.title.trim(), draft.coreMeaning.trim()]);
 
-			if (assessment.exact) {
-				this.renderDuplicates(assessment, false);
-				new Notice("Mneme: A Concept with this title already exists.");
-				return;
-			}
-
-			if (assessment.possible.length > 0 && this.acknowledgedDuplicateSignature !== duplicateSignature) {
+			if (
+				!nameConflict
+				&& assessment.possible.length > 0
+				&& this.acknowledgedDuplicateSignature !== duplicateSignature
+			) {
 				this.acknowledgedDuplicateSignature = duplicateSignature;
 				this.renderDuplicates(assessment, true);
 				this.createButtonEl.setText("Create Anyway");
@@ -325,6 +501,7 @@ export class MnemeConceptComposerView extends ItemView {
 			this.createButtonEl.setText("Creating...");
 			const result = await this.options.create({
 				coreMeaning: draft.coreMeaning,
+				englishName: draft.englishName,
 				importance: draft.importance,
 				learningMode: draft.learningMode,
 				...(sourcePath ? { sourcePath } : {}),
@@ -333,13 +510,14 @@ export class MnemeConceptComposerView extends ItemView {
 				whyItMatters: draft.whyItMatters,
 			});
 			this.resetAfterCreate(sourcePath);
+			await this.refreshTagCatalog();
 			try {
 				await this.persistCurrentDraft();
 			} catch (error) {
 				console.error("Mneme: Concept created but Composer draft reset could not be saved", error);
 				new Notice("Mneme: Concept created, but the Composer draft could not be reset in plugin data.");
 			}
-			this.showCreatedResult(result);
+			this.showCreatedResult(result, draft.title.trim());
 			new Notice("Mneme: Concept created.");
 			try {
 				await this.options.onCreated(result);
@@ -347,16 +525,37 @@ export class MnemeConceptComposerView extends ItemView {
 				console.error("Mneme: Concept created but dependent views could not refresh", error);
 				new Notice("Mneme: Concept created, but Concept Library could not refresh.");
 			}
+			if (conflictResolution === "merge" && nameConflict) {
+				try {
+					await this.options.openMerge(nameConflict.existing, result);
+					new Notice("Mneme: Review the proposed Merge before committing it.");
+				} catch (error) {
+					console.error("Mneme: Concept created but Merge workspace could not open", error);
+					new Notice("Mneme: Concept created, but Merge workspace could not open. Use Merge Concepts to continue.");
+				}
+			}
 		} catch (error) {
 			console.error("Mneme: manual Concept creation failed", error);
 			new Notice(`Mneme: ${error instanceof Error ? error.message : "Concept could not be created."}`);
 		} finally {
 			this.isSaving = false;
 			this.createButtonEl.disabled = false;
-			if (this.createButtonEl.textContent === "Checking..." || this.createButtonEl.textContent === "Creating...") {
+			if (
+				this.createButtonEl.textContent === "Checking..."
+				|| this.createButtonEl.textContent === "Creating..."
+			) {
 				this.createButtonEl.setText(this.acknowledgedDuplicateSignature ? "Create Anyway" : "Create Concept");
 			}
 		}
+	}
+
+	private focusTitleForRefinement(): void {
+		this.titleEl.focus();
+		this.titleEl.select();
+		this.titleEl.scrollIntoView({ behavior: "smooth", block: "center" });
+		this.statusEl.setText(
+			"Refine the Title to distinguish this Concept. Changing it clears the English Name so the naming pair can be reviewed again.",
+		);
 	}
 
 	private renderDuplicates(assessment: ManualConceptDuplicateAssessment, allowCreateAnyway: boolean): void {
@@ -371,7 +570,7 @@ export class MnemeConceptComposerView extends ItemView {
 			textEl.createEl("span", { text: match.concept.title });
 			textEl.createEl("small", { text: match.reasons.join(" · ") });
 			rowEl.createEl("button", { text: "Open Existing" }, (buttonEl) => {
-				buttonEl.addEventListener("click", () => void this.options.openConcept(match.concept.path));
+				buttonEl.addEventListener("click", () => void this.options.openConceptMarkdown(match.concept.path));
 			});
 		}
 		this.statusEl.setText(allowCreateAnyway
@@ -381,29 +580,53 @@ export class MnemeConceptComposerView extends ItemView {
 
 	private resetAfterCreate(sourcePath?: string): void {
 		this.titleEl.value = "";
+		this.lastObservedTitle = "";
+		this.englishNameEl.value = "";
+		this.englishNameRequest += 1;
 		this.coreMeaningEl.value = "";
 		this.whyItMattersEl.value = "";
 		this.coreMeaningEl.dispatchEvent(new Event("input"));
 		this.whyItMattersEl.dispatchEvent(new Event("input"));
-		this.tagsEl.value = "";
+		this.tagPicker.setTags([], false);
 		this.learningModeEl.value = "reviewable";
 		this.importanceEl.value = "normal";
 		this.sourcePathEl.value = sourcePath ?? "";
+		this.updateEnglishNameUi();
 		this.duplicateEl.empty();
 		this.acknowledgedDuplicateSignature = undefined;
 		this.createButtonEl.setText("Create Concept");
 	}
 
-	private showCreatedResult(result: ManualConceptResult): void {
-		this.statusEl.empty();
-		const rowEl = this.statusEl.createDiv({ cls: "mneme-concept-composer-created" });
-		rowEl.createEl("span", { text: "Concept created." });
-		rowEl.createEl("button", { text: "Open Concept Markdown" }, (buttonEl) => {
-			buttonEl.addEventListener("click", () => void this.options.openConcept(result.path));
+	private showCreatedResult(result: ManualConceptResult, title: string): void {
+		this.createdResultEl.empty();
+		const rowEl = this.createdResultEl.createDiv({ cls: "mneme-concept-composer-created" });
+		const messageEl = rowEl.createDiv({ cls: "mneme-concept-composer-created-message" });
+		messageEl.createEl("strong", { text: `Created: ${title}` });
+		messageEl.createEl("span", { text: "Ready to create another Concept." });
+		const actionsEl = rowEl.createDiv({ cls: "mneme-concept-composer-created-actions" });
+		actionsEl.createEl("button", { cls: "mod-cta", text: "View Concept" }, (buttonEl) => {
+			buttonEl.addEventListener("click", () => void this.options.viewConcept(result));
 		});
+		actionsEl.createEl("button", { text: "Open Concept Markdown" }, (buttonEl) => {
+			buttonEl.addEventListener("click", () => void this.options.openConceptMarkdown(result.path));
+		});
+		this.contentEl.scrollTo({ behavior: "smooth", top: 0 });
+	}
+
+	private async refreshTagCatalog(): Promise<void> {
+		try {
+			this.tagCatalog = buildConceptTagCatalog(await this.options.scanConcepts());
+			if (this.hasRendered) this.tagPicker.setCatalog(this.tagCatalog);
+		} catch (error) {
+			console.error("Mneme: failed to load existing Concept tags", error);
+			if (!this.hasRendered) this.tagCatalog = [];
+		}
 	}
 }
 
-function parseTags(value: string): string[] {
-	return [...new Set(value.split(",").map((tag) => tag.trim()).filter(Boolean))];
+function containsNonLatinLetter(value: string): boolean {
+	for (const character of value) {
+		if (/\p{L}/u.test(character) && !/\p{Script=Latin}/u.test(character)) return true;
+	}
+	return false;
 }

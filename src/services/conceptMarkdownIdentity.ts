@@ -16,6 +16,14 @@ export function getConceptIdFromFrontmatter(frontmatter: unknown): string | unde
 	return getString(frontmatter, "mneme_id");
 }
 
+export function getConceptEnglishNameFromFrontmatter(frontmatter: unknown): string | undefined {
+	return isMnemeConceptFrontmatter(frontmatter) ? getString(frontmatter, "mneme_english_name") : undefined;
+}
+
+export function getConceptPrimaryTitleFromFrontmatter(frontmatter: unknown): string | undefined {
+	return isMnemeConceptFrontmatter(frontmatter) ? getString(frontmatter, "mneme_title") : undefined;
+}
+
 export function getCardGroupConceptIdFromFrontmatter(frontmatter: unknown): string | undefined {
 	if (!isMnemeCardGroupFrontmatter(frontmatter)) {
 		return undefined;

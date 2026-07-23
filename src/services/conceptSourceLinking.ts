@@ -187,6 +187,14 @@ export function mergeLinkedConceptId(
 }
 
 export function normalizeConceptIdForWrittenConcept(args: NormalizeWrittenConceptIdArgs): string {
+	if (args.proposal.kind === "new_concept") {
+		const conceptId = conceptIdFromTargetPaths(args.targetPaths);
+
+		if (conceptId) {
+			return conceptId;
+		}
+	}
+
 	if (args.proposal.conceptId) {
 		return args.proposal.conceptId;
 	}
@@ -207,6 +215,23 @@ export function normalizeConceptIdForWrittenConcept(args: NormalizeWrittenConcep
 	}
 
 	return `proposal:${args.proposal.id}`;
+}
+
+function conceptIdFromTargetPaths(targetPaths: string[]): string | undefined {
+	const conceptPath = targetPaths.find((path) => /\.md$/i.test(normalizeVaultPath(path)))
+		?? targetPaths[0];
+
+	if (!conceptPath) {
+		return undefined;
+	}
+
+	const parts = normalizeVaultPath(conceptPath).replace(/\.md$/i, "").split("/");
+	const lastPart = parts[parts.length - 1];
+	const stem = lastPart?.toLocaleLowerCase() === "concept"
+		? parts[parts.length - 2]
+		: lastPart;
+
+	return stem ? createMnemeConceptId(stem) : undefined;
 }
 
 function createLink(args: {

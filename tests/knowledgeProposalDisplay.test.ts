@@ -61,14 +61,69 @@ import { createProposal } from "./knowledgeProposalTestUtils";
 		},
 	});
 
-	assert.equal(getProposalTitle(proposal), "Definition: What is encapsulation?");
+	assert.equal(getProposalTitle(proposal), "encapsulation-definition");
 	assert.deepEqual(getProposalHighlights(proposal).slice(0, 4), [
+		{ label: "Card ID", value: "encapsulation-definition" },
 		{ label: "Card Group", value: "Cards.md" },
 		{ label: "Card Type", value: "Definition" },
 		{ label: "Front", value: "What is encapsulation?" },
-		{ label: "Back", value: "Encapsulation hides representation details." },
 	]);
 	assert.equal(getProposalEvidenceCount(proposal), 1);
+}
+
+{
+	const proposal = createProposal("proposal-card-id", {
+		cardId: "encapsulation-definition-2",
+		kind: "new_card",
+		payload: {
+			card: {
+				back: "Answer",
+				cardType: "definition",
+				front: "Second definition question",
+			},
+			conceptId: "concept-encapsulation",
+			conceptTitle: "Encapsulation",
+		},
+	});
+
+	assert.equal(getProposalTitle(proposal), "encapsulation-definition-2");
+	assert.equal(getProposalHighlights(proposal)[0]?.value, "encapsulation-definition-2");
+}
+
+{
+	const proposal = createProposal("proposal-legacy-double-stripped-card-id", {
+		cardId: "learning-definition-2",
+		kind: "new_card",
+		payload: {
+			card: {
+				back: "Concept learning infers a general category from labeled examples.",
+				cardType: "definition",
+				front: "What is concept learning?",
+			},
+			conceptId: "concept-concept-learning",
+			conceptTitle: "Concept Learning",
+		},
+	});
+
+	assert.equal(getProposalTitle(proposal), "concept-learning-definition-2");
+	assert.equal(getProposalHighlights(proposal)[0]?.value, "concept-learning-definition-2");
+}
+
+{
+	const proposal = createProposal("proposal-bilingual-card-fallback-id", {
+		kind: "new_card",
+		payload: {
+			card: {
+				back: "将学习分散到多个时间点。",
+				cardType: "definition",
+				front: "什么是间隔效应？",
+			},
+			conceptId: "concept-spacing-effect-2",
+			conceptTitle: "间隔效应 - 2 (Spacing Effect)",
+		},
+	});
+
+	assert.equal(getProposalTitle(proposal), "spacing-effect-2-definition");
 }
 
 {

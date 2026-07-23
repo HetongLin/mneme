@@ -229,6 +229,25 @@ async function runAsyncTests(): Promise<void> {
 	{
 		const scanner = new ConceptScanner({
 			vault: new MemoryConceptVaultAdapter({
+				"Mneme/Concepts/A.md": {
+					frontmatter: { mneme_id: "concept-a", mneme_type: "concept" },
+					markdown: "# Alpha\n\n## Related Concepts\n\n- [[Mneme/Concepts/B|Beta]]\n",
+				},
+				"Mneme/Concepts/B.md": {
+					frontmatter: { mneme_id: "concept-b", mneme_type: "concept" },
+					markdown: "# Beta",
+				},
+			}),
+		});
+		const concepts = await scanner.scanConcepts();
+
+		assert.deepEqual(concepts.find((concept) => concept.conceptId === "concept-a")?.relatedConceptIds, ["concept-b"]);
+		assert.deepEqual(concepts.find((concept) => concept.conceptId === "concept-b")?.relatedConceptIds, ["concept-a"]);
+	}
+
+	{
+		const scanner = new ConceptScanner({
+			vault: new MemoryConceptVaultAdapter({
 				"Mneme/Concepts/A/Concept.md": {
 					frontmatter: { mneme_id: "concept-a", mneme_type: "concept" },
 					markdown: "# Information Gain\n\n## Core Meaning\n\nEntropy reduction after a split.",

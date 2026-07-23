@@ -15,6 +15,12 @@ import {
 import {
 	getProposalTitle,
 } from "../services/knowledgeProposalDisplay";
+import {
+	getGenerateToReviewProposals,
+	resolveGenerateToReviewSession,
+	shouldRunInboxReconciliation,
+	type GenerateToReviewSession,
+} from "../services/generateToReviewWorkflow";
 import { KnowledgeProposalStore } from "../services/knowledgeProposalStore";
 import {
 	isCardStageProposal,
@@ -22,12 +28,27 @@ import {
 } from "../services/knowledgeProposalStage";
 import type { VaultStateReconciler } from "../services/vaultStateReconciler";
 import { formatUserFacingError } from "../utils/userFacingError";
+import type { ConceptSummary } from "../models/conceptLibrary";
 
 export const INBOX_VIEW_TYPE = "mneme-inbox-view";
 export type InboxTab = "concepts" | "cards" | "other";
 
+export interface InboxViewActions {
+	listConceptTags?(): Promise<string[]>;
+	mergeConcepts?(existing: ConceptSummary, newConceptPath: string): Promise<void> | void;
+	openConceptLibrary?(): Promise<void> | void;
+	startConceptReview?(conceptId: string): Promise<"failed" | "no_cards" | "started">;
+}
+
+type GenerateToReviewCompletion =
+	| { status: "all_rejected" }
+	| { acceptedCount: number; status: "review_unavailable" };
+
 export class MnemeInboxView extends ItemView {
 	private activeTab: InboxTab = "concepts";
+	private generateToReviewCompletion?: GenerateToReviewCompletion;
+	private generateToReviewSession?: GenerateToReviewSession;
+	private isCompletingGenerateToReview = false;
 	private proposals: KnowledgeProposal[] = [];
 	private statusMessage = "Loading proposals...";
 
@@ -36,6 +57,7 @@ export class MnemeInboxView extends ItemView {
 		private readonly proposalStore: KnowledgeProposalStore,
 		private readonly proposalWriter?: ApprovedProposalWriter,
 		private readonly vaultStateReconciler?: VaultStateReconciler,
+		private readonly actions: InboxViewActions = {},
 	) {
 		super(leaf);
 	}
@@ -63,9 +85,11 @@ export class MnemeInboxView extends ItemView {
 
 	async refresh(options: { showNotice?: boolean } = {}): Promise<void> {
 		try {
-			const reconciliationResult = await this.vaultStateReconciler?.reconcile();
+			const reconciliationResult = shouldRunInboxReconciliation(this.generateToReviewSession)
+				? await this.vaultStateReconciler?.reconcile()
+				: undefined;
 			this.proposals = await this.proposalStore.listProposals();
-			const activeCount = filterActiveInboxProposals(this.proposals).length;
+			const activeCount = filterActiveInboxProposals(this.getVisibleProposals()).length;
 			const reconciledCount = countReconciledItems(reconciliationResult);
 
 			this.statusMessage = reconciledCount > 0
@@ -87,8 +111,20 @@ export class MnemeInboxView extends ItemView {
 	}
 
 	showTab(tab: InboxTab): void {
+		this.generateToReviewSession = undefined;
+		this.generateToReviewCompletion = undefined;
 		this.activeTab = tab;
 		this.render();
+	}
+
+	async startGenerateToReview(session: GenerateToReviewSession): Promise<void> {
+		this.generateToReviewSession = {
+			...session,
+			proposalIds: [...new Set(session.proposalIds)],
+		};
+		this.generateToReviewCompletion = undefined;
+		this.activeTab = "cards";
+		await this.refresh();
 	}
 
 	private render(): void {
@@ -112,7 +148,9 @@ export class MnemeInboxView extends ItemView {
 		});
 		titleGroupEl.createEl("p", {
 			cls: "mneme-review-subtitle",
-			text: "Review proposed knowledge changes before they enter your vault.",
+			text: this.generateToReviewSession
+				? `Review Cards for ${this.generateToReviewSession.conceptTitle} before starting review.`
+				: "Review proposed knowledge changes before they enter your vault.",
 		});
 
 		const toolbarEl = headerEl.createDiv({ cls: "mneme-review-toolbar" });
@@ -124,7 +162,7 @@ export class MnemeInboxView extends ItemView {
 	}
 
 	private renderSummary(): void {
-		const summary = buildInboxProductSummary(this.proposals);
+		const summary = buildInboxProductSummary(this.getVisibleProposals());
 		const summaryEl = this.contentEl.createDiv({ cls: "mneme-review-summary" });
 
 		summaryEl.createEl("span", { text: `To Review: ${summary.toReview}` });
@@ -143,7 +181,12 @@ export class MnemeInboxView extends ItemView {
 	private renderProposalList(): void {
 		const listEl = this.contentEl.createDiv({ cls: "mneme-review-queue" });
 
-		const activeProposals = filterActiveInboxProposals(this.proposals);
+		if (this.generateToReviewCompletion) {
+			this.renderGenerateToReviewCompletion(listEl, this.generateToReviewCompletion);
+			return;
+		}
+
+		const activeProposals = filterActiveInboxProposals(this.getVisibleProposals());
 
 		if (activeProposals.length === 0) {
 			const emptyState = getInboxEmptyState();
@@ -159,6 +202,11 @@ export class MnemeInboxView extends ItemView {
 		}
 
 		const groupedProposals = groupActiveProposals(activeProposals);
+		if (this.generateToReviewSession) {
+			this.activeTab = "cards";
+			this.renderProposalSection(listEl, "Card Proposals", sortProposals(groupedProposals.cards));
+			return;
+		}
 		this.activeTab = resolveActiveTab(this.activeTab, groupedProposals);
 		this.renderProposalTabs(listEl, groupedProposals);
 		this.renderProposalSection(listEl, getTabTitle(this.activeTab), sortProposals(groupedProposals[this.activeTab]));
@@ -218,17 +266,30 @@ export class MnemeInboxView extends ItemView {
 		const actionsEl = mainEl.createDiv({ cls: "mneme-review-actions" });
 
 		actionsEl.createEl("button", { text: "Open" }, (buttonEl) => {
-			buttonEl.addEventListener("click", () => this.openProposalDetail(proposal));
+			buttonEl.addEventListener("click", () => void this.openProposalDetail(proposal));
 		});
 		if (filterActiveInboxProposals([proposal]).length > 0) {
 			this.renderRejectAction(actionsEl, proposal);
 		}
 	}
 
-	private openProposalDetail(proposal: KnowledgeProposal): void {
+	private async openProposalDetail(proposal: KnowledgeProposal): Promise<void> {
+		let existingTags: string[] = [];
+		try {
+			existingTags = await this.actions.listConceptTags?.() ?? [];
+		} catch (error) {
+			console.error("Mneme: failed to load existing Concept tags for Inbox", error);
+		}
 		new ProposalDetailModal(this.app, {
+			existingTags,
 			onChange: () => this.refresh(),
+			onMergeRequested: (existing, newConceptPath) => this.actions.mergeConcepts?.(
+				existing,
+				newConceptPath,
+			),
+			onQueueCompleted: () => this.finishGenerateToReviewIfResolved(),
 			proposal,
+			proposalScopeIds: this.generateToReviewSession?.proposalIds,
 			store: this.proposalStore,
 			writer: this.proposalWriter,
 		}).open();
@@ -249,17 +310,104 @@ export class MnemeInboxView extends ItemView {
 					proposalStore: this.proposalStore,
 					writer: this.proposalWriter,
 				});
-				await workflow.rejectProposal(proposal.id);
+				const result = await workflow.rejectProposal(proposal.id);
+				if (result.status !== "accepted") {
+					new Notice("Mneme: Proposal could not be rejected.");
+					return;
+				}
 			} else {
 				await this.proposalStore.updateProposalStatus(proposal.id, "rejected");
 			}
 
 			new Notice("Mneme: Proposal rejected.");
 			await this.refresh();
+			await this.finishGenerateToReviewIfResolved();
 		} catch (error) {
 			console.error("Mneme: failed to reject proposal", error);
 			new Notice("Mneme: Proposal could not be rejected.");
 		}
+	}
+
+	private getVisibleProposals(): KnowledgeProposal[] {
+		return this.generateToReviewSession
+			? getGenerateToReviewProposals(this.proposals, this.generateToReviewSession)
+			: this.proposals;
+	}
+
+	private async finishGenerateToReviewIfResolved(): Promise<void> {
+		if (!this.generateToReviewSession || this.isCompletingGenerateToReview) return;
+		const resolution = resolveGenerateToReviewSession(this.proposals, this.generateToReviewSession);
+
+		if (resolution.status === "pending") return;
+		if (resolution.status === "all_rejected") {
+			this.generateToReviewCompletion = { status: "all_rejected" };
+			this.statusMessage = "No Cards were accepted for this Concept.";
+			this.render();
+			return;
+		}
+
+		this.isCompletingGenerateToReview = true;
+		try {
+			const result = await this.actions.startConceptReview?.(this.generateToReviewSession.conceptId);
+
+			if (result === "started") {
+				this.generateToReviewSession = undefined;
+				this.generateToReviewCompletion = undefined;
+				return;
+			}
+
+			this.generateToReviewCompletion = {
+				acceptedCount: resolution.acceptedCount,
+				status: "review_unavailable",
+			};
+			this.statusMessage = "Cards were accepted, but Review could not start yet.";
+			this.render();
+		} catch (error) {
+			console.error("Mneme: accepted Cards could not start Review", error);
+			this.generateToReviewCompletion = {
+				acceptedCount: resolution.acceptedCount,
+				status: "review_unavailable",
+			};
+			this.statusMessage = "Cards were accepted, but Review could not start yet.";
+			this.render();
+		} finally {
+			this.isCompletingGenerateToReview = false;
+		}
+	}
+
+	private renderGenerateToReviewCompletion(
+		parentEl: HTMLElement,
+		completion: GenerateToReviewCompletion,
+	): void {
+		const completionEl = parentEl.createDiv({ cls: "mneme-review-queue-item" });
+		completionEl.createEl("h3", {
+			text: completion.status === "all_rejected"
+				? "No Cards accepted"
+				: `${completion.acceptedCount} ${completion.acceptedCount === 1 ? "Card was" : "Cards were"} accepted`,
+		});
+		completionEl.createEl("p", {
+			cls: "mneme-review-status",
+			text: completion.status === "all_rejected"
+				? "Review did not start because every Card proposal in this batch was rejected."
+				: "Mneme could not load the accepted Cards into Review yet. You can try again without regenerating them.",
+		});
+
+		const actionsEl = completionEl.createDiv({ cls: "mneme-review-actions" });
+		if (completion.status === "review_unavailable") {
+			actionsEl.createEl("button", { text: "Start Review" }, (buttonEl) => {
+				buttonEl.addEventListener("click", () => {
+					this.generateToReviewCompletion = undefined;
+					void this.finishGenerateToReviewIfResolved();
+				});
+			});
+		}
+		actionsEl.createEl("button", { text: "Back to Concept Library" }, (buttonEl) => {
+			buttonEl.addEventListener("click", () => {
+				this.generateToReviewSession = undefined;
+				this.generateToReviewCompletion = undefined;
+				void this.actions.openConceptLibrary?.();
+			});
+		});
 	}
 
 }

@@ -13,13 +13,6 @@ import { MockAiProvider } from "../src/services/mockAiProvider";
 import { buildOpenAiKnowledgeProposalPayload, OpenAiProvider } from "../src/services/openAiProvider";
 
 const request = {
-	existingConcepts: [{
-		conceptId: "concept-encapsulation",
-		coreMeaning: "Bundles data with behavior.",
-		tags: ["oop", "design"],
-		title: "Encapsulation",
-	}],
-	existingTags: ["design", "machine-learning", "oop"],
 	mode: "concept_capture" as const,
 	sourceContent: "Encapsulation keeps object internals hidden behind a public interface.",
 	sourceHash: "abc123456789",
@@ -243,7 +236,8 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("Follow languageContract exactly for generated Concept text"), true);
 	assert.equal(serialized.includes("Treat it as authoritative"), true);
 	assert.equal(requestContext.languageContract?.outputLanguageCode, "en");
-	assert.equal(serialized.includes("existingConcepts, existing Concept titles"), true);
+	assert.equal(serialized.includes("existingConcepts"), false);
+	assert.equal(serialized.includes("existingTags"), false);
 	assert.equal(serialized.includes("Do not apply a fixed numerical cap to Concept proposals"), true);
 	assert.equal(serialized.includes("Work extraction-first, not summary-first"), true);
 	assert.equal(serialized.includes("Never limit yourself to one Concept per chunk"), true);
@@ -251,16 +245,21 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("exactly one independently explainable, durable knowledge unit"), true);
 	assert.equal(serialized.includes("Do not create a Concept from a section heading"), true);
 	assert.equal(serialized.includes("A heading is not enough by itself"), true);
-	assert.equal(serialized.includes("shortest unambiguous canonical or established Concept name"), true);
+	assert.equal(serialized.includes("shortest unambiguous canonical or established primary-language name"), true);
+	assert.equal(serialized.includes("return englishName as the canonical full English term"), true);
+	assert.equal(serialized.includes("do not append '(English Name)' inside conceptTitle"), true);
+	assert.equal(
+		payload.text?.format.schema.properties.proposals.items.properties.payload.properties.englishName.type,
+		"string",
+	);
 	assert.equal(serialized.includes("Name the knowledge itself, not the Source Note's purpose"), true);
 	assert.equal(serialized.includes("Prefer 'Bayes Theorem' over 'Bayes Theorem for Hypothesis Evaluation'"), true);
 	assert.equal(serialized.includes("Prefer 'Least Squares as Maximum Likelihood' over 'Maximum Likelihood and Least-Squared Error'"), true);
-	assert.equal(serialized.includes("Put an application context in whyItMatters or a View"), true);
-	assert.equal(serialized.includes("instead of creating a context-qualified duplicate"), true);
-	assert.equal(serialized.includes("Compare each candidate with existingConcepts before creating it"), true);
-	assert.equal(serialized.includes("merge_concept"), false);
-	assert.equal(serialized.includes("separate reviewed Guided Merge flow"), true);
-	assert.equal(serialized.includes("Return an empty proposals array when the Source Note contains no durable knowledge worth creating or linking"), true);
+	assert.equal(serialized.includes("Concept capture is context-free extraction"), true);
+	assert.equal(serialized.includes("vault's approved Concepts, Inbox proposals, existing Concept names, or existing tags"), true);
+	assert.equal(serialized.includes("do not suppress a grounded Concept because it might be a duplicate"), true);
+	assert.equal(serialized.includes("Mneme handles same-name writes deterministically and offers user-triggered Guided Merge later"), true);
+	assert.equal(serialized.includes("Return an empty proposals array only when the Source Note contains no durable knowledge worth creating"), true);
 	assert.equal(serialized.includes("at least one evidence entry"), true);
 	assert.equal(serialized.includes("Evidence quote must be copied character-for-character from sourceContent"), true);
 	assert.equal(serialized.includes("If no exact sourceContent quote supports a proposal, omit that proposal"), true);
@@ -271,9 +270,8 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("Do not rename, remove, replace, or reinterpret required Concept fields"), true);
 	assert.equal(serialized.includes("Core Meaning and Why It Matters are fixed Mneme product fields"), true);
 	assert.equal(serialized.includes("\"summary\""), false);
-	assert.equal(serialized.includes("Use existingTags whenever an existing tag reasonably covers the Concept"), true);
 	assert.equal(serialized.includes("Tags are for domain, course, or topic-family filtering"), true);
-	assert.deepEqual(requestContext.existingTags, ["design", "machine-learning", "oop"]);
+	assert.equal(Object.prototype.hasOwnProperty.call(requestContext, "existingTags"), false);
 	assert.equal(serialized.includes("Use $...$ for short inline math"), true);
 	assert.equal(serialized.includes("Use $$...$$ on separate lines"), true);
 	assert.equal(serialized.includes("delimiter rules are mandatory"), true);
@@ -317,11 +315,6 @@ async function run(): Promise<void> {
 	};
 	const payload = buildOpenAiKnowledgeProposalPayload({
 		...request,
-		existingConcepts: [{
-			conceptId: "concept-bayes-theorem",
-			coreMeaning: "贝叶斯定理通过证据更新先验概率。",
-			title: "贝叶斯定理 (Bayes Theorem)",
-		}],
 	}, settings);
 	const serialized = JSON.stringify(payload);
 	const requestContext = readRequestContext(payload);
@@ -341,11 +334,6 @@ async function run(): Promise<void> {
 	};
 	const payload = buildOpenAiKnowledgeProposalPayload({
 		...request,
-		existingConcepts: [{
-			conceptId: "concept-bayes-theorem",
-			coreMeaning: "Bayes theorem updates a prior belief with evidence.",
-			title: "Bayes Theorem",
-		}],
 		sourceContent: "贝叶斯推理将先验知识与观测证据结合起来，并用于更新后验概率。",
 	}, settings);
 	const serialized = JSON.stringify(payload);
@@ -355,7 +343,8 @@ async function run(): Promise<void> {
 	assert.equal(requestContext.languageContract?.outputLanguage, "Chinese");
 	assert.equal(serialized.includes("Write generated learning titles and prose primarily in Chinese"), true);
 	assert.equal(serialized.includes("append its standard English name in parentheses"), true);
-	assert.equal(serialized.includes("中文名称 (English Name)"), true);
+	assert.equal(serialized.includes("separate englishName field"), true);
+	assert.equal(serialized.includes("Do not append englishName inside conceptTitle"), true);
 }
 
 {

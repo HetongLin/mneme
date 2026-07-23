@@ -1,4 +1,4 @@
-import { ItemView, MarkdownRenderer, Notice, WorkspaceLeaf } from "obsidian";
+import { ItemView, MarkdownRenderer, Menu, Notice, setIcon, WorkspaceLeaf } from "obsidian";
 import { ConceptMemorySummary } from "../models/conceptMemory";
 import { LoadedMnemeCard } from "../models/card";
 import { RankedReviewQueueConcept } from "../models/conceptQueue";
@@ -14,6 +14,7 @@ import {
 import { DEFAULT_SETTINGS, MnemeSettings } from "../models/settings";
 import { CardEditModal } from "../modals/cardEditModal";
 import { CardDeleteModal, CardHistoryDeleteModal } from "../modals/cardDeleteModal";
+import { CardInfoModal, CardInfoRow } from "../modals/cardInfoModal";
 import { CardIdRepairModal } from "../modals/cardIdRepairModal";
 import { ConceptEditModal } from "../modals/conceptEditModal";
 import { ConceptLoader } from "../services/conceptLoader";
@@ -23,6 +24,7 @@ import { buildReviewQueue } from "../services/reviewQueueBuilder";
 import { ReviewStateStore, startOfNextLocalDay } from "../services/reviewStateStore";
 import { formatReviewCompletion } from "../services/reviewNavigation";
 import {
+	selectNextFocusConcept,
 	selectTodaysFocus,
 	TodaysFocusSelection,
 } from "../services/todaysFocusSelector";
@@ -36,7 +38,13 @@ type ReviewRatingLabel = "Again" | "Hard" | "Good" | "Easy";
 type ReviewSessionSource = "scheduled" | "concept-library";
 
 export interface ReviewViewActions {
+	deleteConcept?(concept: ConceptSummary): Promise<void> | void;
 	openConceptLibrary?(): Promise<void> | void;
+}
+
+interface RefreshCardsOptions {
+	preserveCompletedSession?: boolean;
+	showNotice?: boolean;
 }
 
 const REVIEW_RATINGS: Array<{ label: ReviewRatingLabel; value: ReviewRating }> = [
@@ -50,11 +58,12 @@ export class MnemeReviewView extends ItemView {
 	private activeDeferrals: Record<string, ReviewDeferral> = {};
 	private activeRetirements: Record<string, CardRetirement> = {};
 	private activeSuspensions: Record<string, CardReviewSuspension> = {};
-	private pausedConceptIds = new Set<string>();
 	private deferredCardCount = 0;
+	private deletedCardCount = 0;
+	private detailsConceptId: string | null = null;
 	private readonly loader: ConceptLoader;
 	private isAnswerShown = false;
-	private isMoreActionsShown = false;
+	private isCompletionQueueFresh = false;
 	private isReviewComplete = false;
 	private focusSelection: TodaysFocusSelection = createEmptyFocusSelection();
 	private memorySummaries: Record<string, ConceptMemorySummary> = {};
@@ -103,19 +112,30 @@ export class MnemeReviewView extends ItemView {
 		this.contentEl.empty();
 	}
 
-	async refreshCards(): Promise<void> {
-		this.resetReviewState();
-		this.statusMessage = "Scanning Card files...";
-		this.render();
+	async refreshCards(options: RefreshCardsOptions = {}): Promise<void> {
+		const preserveCompletedSession = options.preserveCompletedSession === true
+			&& this.mode === "flashcard"
+			&& this.isReviewComplete;
+
+		if (!preserveCompletedSession) {
+			this.resetReviewState();
+			this.statusMessage = "Scanning Card files...";
+			this.render();
+		}
 
 		try {
 			const loadedConcepts = await this.loader.loadConcepts();
+			let restoredLegacyPauses = 0;
+			try {
+				restoredLegacyPauses = await this.reviewStateStore.clearConceptPauses();
+			} catch (error) {
+				console.warn("Mneme: could not clear legacy Concept pauses; review will ignore them", error);
+			}
 			const reviewStates = this.reviewStateStore.getAllStates();
 			const now = new Date();
 			this.activeDeferrals = this.reviewStateStore.getActiveReviewDeferrals(now);
 			this.activeRetirements = this.reviewStateStore.getRetiredCards();
 			this.activeSuspensions = this.reviewStateStore.getSuspendedCards();
-			this.pausedConceptIds = new Set(Object.keys(this.reviewStateStore.getPausedConcepts()));
 
 			this.reviewQueue = buildReviewQueue(loadedConcepts.concepts, reviewStates, now);
 			this.memorySummaries = aggregateConceptMemoryById(
@@ -128,7 +148,6 @@ export class MnemeReviewView extends ItemView {
 			const settings = this.settingsProvider();
 			this.focusSelection = selectTodaysFocus(rankedReviewQueue, settings.fsrsEnabled, {
 				deferredCardIds: new Set(Object.keys(this.activeDeferrals)),
-				pausedConceptIds: this.pausedConceptIds,
 				retiredCardIds: new Set(Object.keys(this.activeRetirements)),
 				suspendedCardIds: new Set(Object.keys(this.activeSuspensions)),
 			});
@@ -136,24 +155,48 @@ export class MnemeReviewView extends ItemView {
 			this.rankedConceptsById = indexRankedConceptsById(rankReviewQueueConcepts(this.reviewQueue.concepts, this.memorySummaries, {
 				includeNonReviewable: true,
 			}));
-			this.statusMessage = formatSummary(loadedConcepts.summary, settings.fsrsEnabled);
+			const completionStillVisible = preserveCompletedSession
+				&& this.mode === "flashcard"
+				&& this.isReviewComplete;
+			this.statusMessage = completionStillVisible
+				? "Review complete. Review schedule updated automatically."
+				: formatSummary(loadedConcepts.summary, settings.fsrsEnabled);
+			if (completionStillVisible) {
+				this.isCompletionQueueFresh = true;
+				this.shouldRefreshQueueOnBack = false;
+			}
+			if (restoredLegacyPauses > 0) {
+				new Notice(`Mneme: restored ${restoredLegacyPauses} previously paused ${restoredLegacyPauses === 1 ? "Concept" : "Concepts"}. Card schedules were unchanged.`);
+			}
 			this.render();
-			new Notice(`Mneme: scanned ${loadedConcepts.summary.scannedCards} card files, ${loadedConcepts.summary.validCards} valid, ${loadedConcepts.summary.invalidCards} invalid.`);
+			if (options.showNotice !== false) {
+				new Notice(`Mneme: scanned ${loadedConcepts.summary.scannedCards} card files, ${loadedConcepts.summary.validCards} valid, ${loadedConcepts.summary.invalidCards} invalid.`);
+			}
 		} catch (error) {
 			console.error("Mneme: failed to refresh review concepts", error);
-			this.reviewQueue = createEmptyReviewQueue();
-			this.memorySummaries = {};
-			this.rankedConceptsById = {};
-			this.rankedReviewQueue = [];
-			this.focusSelection = createEmptyFocusSelection();
-			this.activeDeferrals = {};
-			this.activeRetirements = {};
-			this.activeSuspensions = {};
-			this.pausedConceptIds = new Set<string>();
 			const detail = formatUserFacingError(error, "Try Refresh again.");
-			this.statusMessage = `Failed to scan Concepts: ${detail}`;
+			const completionStillVisible = preserveCompletedSession
+				&& this.mode === "flashcard"
+				&& this.isReviewComplete;
+			if (completionStillVisible) {
+				this.isCompletionQueueFresh = false;
+				this.shouldRefreshQueueOnBack = true;
+				this.statusMessage = `Review complete. Automatic refresh failed: ${detail}`;
+			} else {
+				this.reviewQueue = createEmptyReviewQueue();
+				this.memorySummaries = {};
+				this.rankedConceptsById = {};
+				this.rankedReviewQueue = [];
+				this.focusSelection = createEmptyFocusSelection();
+				this.activeDeferrals = {};
+				this.activeRetirements = {};
+				this.activeSuspensions = {};
+				this.statusMessage = `Failed to scan Concepts: ${detail}`;
+			}
 			this.render();
-			new Notice(`Mneme: Failed to scan Concepts: ${detail}`);
+			if (options.showNotice !== false) {
+				new Notice(`Mneme: Failed to scan Concepts: ${detail}`);
+			}
 		}
 	}
 
@@ -180,6 +223,7 @@ export class MnemeReviewView extends ItemView {
 	private render(): void {
 		this.contentEl.empty();
 		this.contentEl.addClass("mneme-review-view");
+		this.contentEl.classList.toggle("mneme-review-flashcard-mode", this.mode === "flashcard");
 
 		if (this.mode === "flashcard") {
 			this.renderFlashCardMode();
@@ -199,13 +243,16 @@ export class MnemeReviewView extends ItemView {
 		this.renderHeader("Today’s Focus", true);
 		this.renderSummary();
 		this.renderQueue();
-		this.renderDiagnostics();
+		if (this.settingsProvider().showAdvancedDiagnostics) {
+			this.renderDiagnostics();
+		}
 	}
 
 	private renderFlashCardMode(): void {
 		this.renderHeader(this.sessionSource === "concept-library" ? "Concept Review" : "Today’s Focus Review", false);
 		this.renderStatus();
-		this.renderFlashCard();
+		const stageEl = this.contentEl.createDiv({ cls: "mneme-review-study-stage" });
+		this.renderFlashCard(stageEl);
 	}
 
 	private renderHeader(subtitle: string, showRefresh: boolean): void {
@@ -271,23 +318,44 @@ export class MnemeReviewView extends ItemView {
 	}
 
 	private renderQueue(): void {
-		const queueEl = this.contentEl.createDiv({ cls: "mneme-review-queue mneme-review-concept-grid" });
 		const reviewableConcepts = this.rankedReviewQueue;
+		const detailsConcept = this.detailsConceptId
+			? reviewableConcepts.find((concept) => concept.concept.conceptId === this.detailsConceptId)
+			: undefined;
+		if (this.detailsConceptId && !detailsConcept) {
+			this.detailsConceptId = null;
+		}
+		const layoutEl = this.contentEl.createDiv({
+			cls: `mneme-review-queue-layout${detailsConcept ? " has-inspector" : ""}`,
+		});
+		const queueEl = layoutEl.createDiv({ cls: "mneme-review-queue mneme-review-concept-grid" });
+		queueEl.addEventListener("click", (event) => {
+			if (this.detailsConceptId && event.target === queueEl) {
+				this.detailsConceptId = null;
+				this.render();
+			}
+		});
 
 		if (reviewableConcepts.length === 0) {
 			queueEl.createEl("p", {
 				cls: "mneme-review-empty",
 				text: "No cards due right now.",
 			});
-			queueEl.createEl("p", {
-				cls: "mneme-review-status",
-				text: "Use Advanced Diagnostics to inspect future cards.",
-			});
+			if (this.settingsProvider().showAdvancedDiagnostics) {
+				queueEl.createEl("p", {
+					cls: "mneme-review-status",
+					text: "Use Advanced Diagnostics to inspect future cards.",
+				});
+			}
 			return;
 		}
 
 		for (const concept of reviewableConcepts) {
 			this.renderConceptQueueItem(queueEl, concept);
+		}
+
+		if (detailsConcept) {
+			this.renderConceptInspector(layoutEl, detailsConcept);
 		}
 	}
 
@@ -295,13 +363,26 @@ export class MnemeReviewView extends ItemView {
 		const concept = rankedConcept.concept;
 		const itemEl = parentEl.createDiv({ cls: "mneme-review-queue-item mneme-review-concept" });
 		const mainEl = itemEl.createDiv({ cls: "mneme-review-queue-main" });
-		const textEl = mainEl.createDiv();
+		const textEl = mainEl.createDiv({ cls: "mneme-review-concept-card-content" });
 		const warningCount = getConceptIssueCount(concept.concept);
 		const reviewedCount = getReviewedCardCount(concept);
+		const titleRowEl = textEl.createDiv({ cls: "mneme-review-concept-title-row" });
 
-		textEl.createEl("h3", {
+		titleRowEl.createEl("h3", {
 			cls: "mneme-review-queue-title mneme-review-concept-title",
 			text: concept.title,
+		});
+		const detailsButton = titleRowEl.createEl("button", {
+			cls: `mneme-review-concept-info-button${this.detailsConceptId === concept.conceptId ? " is-active" : ""}`,
+			attr: {
+				"aria-label": `Show details for ${concept.title}`,
+				title: "Concept details",
+			},
+		});
+		setIcon(detailsButton, "info");
+		detailsButton.addEventListener("click", () => {
+			this.detailsConceptId = this.detailsConceptId === concept.conceptId ? null : concept.conceptId;
+			this.render();
 		});
 		textEl.createEl("p", {
 			cls: "mneme-review-queue-meta mneme-review-concept-meta",
@@ -318,18 +399,100 @@ export class MnemeReviewView extends ItemView {
 				this.viewConcept(concept.concept);
 			});
 		});
-		actionsEl.createEl("button", { text: "Pause Concept" }, (buttonEl) => {
-			buttonEl.addEventListener("click", () => {
-				void this.pauseConcept(concept);
-			});
-		});
-
-		this.renderConceptDetails(itemEl, concept, rankedConcept);
 	}
 
-	private renderFlashCard(): void {
+	private renderConceptInspector(parentEl: HTMLElement, rankedConcept: RankedReviewQueueConcept): void {
+		const concept = rankedConcept.concept;
+		const memorySummary = this.memorySummaries[concept.conceptId];
+		const inspectorEl = parentEl.createEl("aside", {
+			cls: "mneme-review-concept-inspector",
+			attr: {
+				"aria-label": `Details for ${concept.title}`,
+			},
+		});
+		const headerEl = inspectorEl.createDiv({ cls: "mneme-review-inspector-header" });
+		const headingEl = headerEl.createDiv();
+		headingEl.createEl("p", { cls: "mneme-review-inspector-eyebrow", text: "Concept Details" });
+		headingEl.createEl("h3", { cls: "mneme-review-inspector-title", text: concept.title });
+		const closeButton = headerEl.createEl("button", {
+			cls: "mneme-review-inspector-close",
+			attr: {
+				"aria-label": "Close Concept details",
+				title: "Close",
+			},
+		});
+		setIcon(closeButton, "x");
+		closeButton.addEventListener("click", () => {
+			this.detailsConceptId = null;
+			this.render();
+		});
+
+		const overviewEl = inspectorEl.createEl("section", { cls: "mneme-review-inspector-section" });
+		overviewEl.createEl("h4", { text: "Overview" });
+		const statsEl = overviewEl.createDiv({ cls: "mneme-review-inspector-stats" });
+		this.renderInspectorStat(statsEl, "Rank", `#${rankedConcept.rank}`);
+		this.renderInspectorStat(statsEl, "Review priority", formatPercent(rankedConcept.reviewPriorityScore));
+		this.renderInspectorStat(
+			statsEl,
+			"Retention target",
+			concept.concept.retentionTarget === undefined
+				? `${this.settingsProvider().fsrsRequestRetention.toFixed(2)} · Global`
+				: `${concept.concept.retentionTarget.toFixed(2)} · Concept`,
+		);
+		this.renderInspectorStat(statsEl, "Next due", memorySummary?.nextDueAt ?? "Unset");
+		this.renderInspectorStat(statsEl, "Overdue", String(memorySummary?.overdueCardCount ?? 0));
+		this.renderInspectorStat(statsEl, "New", String(memorySummary?.newCardCount ?? concept.newCards.length));
+
+		const coverageEl = inspectorEl.createEl("section", { cls: "mneme-review-inspector-section" });
+		coverageEl.createEl("h4", { text: "Coverage" });
+		const coverageChipsEl = coverageEl.createDiv({ cls: "mneme-review-inspector-chips" });
+		if (!memorySummary || memorySummary.coveredCardTypes.length === 0) {
+			coverageChipsEl.createEl("span", {
+				cls: "mneme-review-inspector-empty",
+				text: "No valid assessment probes",
+			});
+		} else {
+			for (const cardType of memorySummary.coveredCardTypes) {
+				coverageChipsEl.createEl("span", {
+					cls: "mneme-review-inspector-chip",
+					text: formatTextLabel(cardType),
+				});
+			}
+		}
+
+		const cardsEl = inspectorEl.createEl("section", {
+			cls: "mneme-review-inspector-section mneme-review-inspector-card-section",
+		});
+		cardsEl.createEl("h4", { text: "Card Status" });
+		this.renderInspectorCardStatuses(cardsEl, concept);
+	}
+
+	private renderInspectorStat(parentEl: HTMLElement, label: string, value: string): void {
+		const statEl = parentEl.createDiv({ cls: "mneme-review-inspector-stat" });
+		statEl.createEl("span", { cls: "mneme-review-inspector-stat-label", text: label });
+		statEl.createEl("strong", { text: value });
+	}
+
+	private renderInspectorCardStatuses(parentEl: HTMLElement, concept: ReviewQueueConcept): void {
+		const cards = getAllQueueCards(concept);
+		if (cards.length === 0) {
+			parentEl.createEl("p", { cls: "mneme-review-inspector-empty", text: "No Cards found." });
+			return;
+		}
+
+		const listEl = parentEl.createEl("ul", { cls: "mneme-review-inspector-card-list" });
+		for (const card of cards) {
+			const itemEl = listEl.createEl("li");
+			itemEl.createEl("strong", { text: card.cardId });
+			itemEl.createEl("span", {
+				text: `${formatInspectorCardStatus(card)} · ${formatReviewCount(card.reviewCount)}`,
+			});
+		}
+	}
+
+	private renderFlashCard(parentEl: HTMLElement): void {
 		const concept = this.selectedConcept;
-		const cardEl = this.contentEl.createDiv({ cls: "mneme-review-card" });
+		const cardEl = parentEl.createDiv({ cls: "mneme-review-card" });
 
 		if (!concept) {
 			cardEl.createEl("p", {
@@ -347,6 +510,7 @@ export class MnemeReviewView extends ItemView {
 				this.skippedCardCount,
 				this.deferredCardCount,
 				this.suspendedCardCount,
+				this.deletedCardCount,
 			);
 			cardEl.createEl("p", {
 				cls: "mneme-review-card-meta",
@@ -360,12 +524,16 @@ export class MnemeReviewView extends ItemView {
 				cls: "mneme-review-complete",
 				text: "Review complete.",
 			});
-			const actionsEl = cardEl.createDiv({ cls: "mneme-review-actions" });
-			actionsEl.createEl("button", { cls: "mneme-review-source-action", text: "View Concept" }, (buttonEl) => {
-				buttonEl.addEventListener("click", () => {
-					this.viewConcept(concept.concept);
+			const nextFocusConcept = this.sessionSource === "scheduled" && this.isCompletionQueueFresh
+				? selectNextFocusConcept(this.focusSelection, concept.conceptId)
+				: undefined;
+			if (this.sessionSource === "scheduled" && this.isCompletionQueueFresh && !nextFocusConcept) {
+				cardEl.createEl("p", {
+					cls: "mneme-review-status",
+					text: "Today’s Focus is complete.",
 				});
-			});
+			}
+			this.renderReviewCompletionActionBar(this.contentEl, concept, nextFocusConcept);
 			return;
 		}
 
@@ -397,30 +565,80 @@ export class MnemeReviewView extends ItemView {
 		this.renderCardMarkdown(cardEl, currentCard.front || "(empty)", currentCard, "mneme-review-card-text");
 
 		if (!this.isAnswerShown) {
-			const actionsEl = cardEl.createDiv({ cls: "mneme-review-primary-actions" });
-			actionsEl.createEl("button", { text: "Show Answer" }, (buttonEl) => {
-				buttonEl.addEventListener("click", () => this.showAnswer());
-			});
-			this.renderCurrentCardDetails(cardEl, concept, currentQueueCard);
+			this.renderReviewActionBar(this.contentEl, concept, currentQueueCard);
 			return;
 		}
 
 		cardEl.createDiv({ cls: "mneme-review-answer-separator" });
 		this.renderCardMarkdown(cardEl, currentCard.back || "(empty)", currentCard, "mneme-review-card-text");
 
-		const ratingsEl = cardEl.createDiv({ cls: "mneme-review-rating-row" });
-		for (const rating of REVIEW_RATINGS) {
-			ratingsEl.createEl("button", {
-				cls: `mneme-review-rating-button mneme-review-rating-${rating.value}`,
-				text: rating.label,
+		this.renderReviewActionBar(this.contentEl, concept, currentQueueCard);
+	}
+
+	private renderReviewActionBar(
+		parentEl: HTMLElement,
+		concept: ReviewQueueConcept,
+		queueCard: ReviewQueueCard,
+	): void {
+		const actionBarEl = parentEl.createDiv({ cls: "mneme-review-action-bar" });
+		const leftEl = actionBarEl.createDiv({ cls: "mneme-review-action-bar-edge" });
+		leftEl.createEl("button", { text: "Edit" }, (buttonEl) => {
+			buttonEl.addEventListener("click", () => this.openCardEditor(queueCard.card));
+		});
+
+		const primaryEl = actionBarEl.createDiv({ cls: "mneme-review-action-bar-primary" });
+		if (!this.isAnswerShown) {
+			primaryEl.createEl("button", {
+				cls: "mneme-review-show-answer-button",
+				text: "Show Answer",
+			}, (buttonEl) => {
+				buttonEl.addEventListener("click", () => this.showAnswer());
+			});
+		} else {
+			for (const rating of REVIEW_RATINGS) {
+				primaryEl.createEl("button", {
+					cls: `mneme-review-rating-button mneme-review-rating-${rating.value}`,
+					text: rating.label,
+				}, (buttonEl) => {
+					buttonEl.addEventListener("click", () => {
+						void this.rateCurrentCard(rating.value);
+					});
+				});
+			}
+		}
+
+		const rightEl = actionBarEl.createDiv({ cls: "mneme-review-action-bar-edge mneme-review-action-bar-end" });
+		rightEl.createEl("button", { text: "More ▾" }, (buttonEl) => {
+			buttonEl.addEventListener("click", () => {
+				this.openCardActionsMenu(buttonEl, concept, queueCard);
+			});
+		});
+	}
+
+	private renderReviewCompletionActionBar(
+		parentEl: HTMLElement,
+		concept: ReviewQueueConcept,
+		nextFocusConcept: RankedReviewQueueConcept | undefined,
+	): void {
+		const actionBarEl = parentEl.createDiv({ cls: "mneme-review-action-bar" });
+		const leftEl = actionBarEl.createDiv({ cls: "mneme-review-action-bar-edge" });
+		leftEl.createEl("button", { text: "View Concept" }, (buttonEl) => {
+			buttonEl.addEventListener("click", () => this.viewConcept(concept.concept));
+		});
+
+		const primaryEl = actionBarEl.createDiv({ cls: "mneme-review-action-bar-primary" });
+		if (nextFocusConcept) {
+			primaryEl.createEl("button", {
+				cls: "mneme-review-completion-primary",
+				text: "Review Next Concept",
 			}, (buttonEl) => {
 				buttonEl.addEventListener("click", () => {
-					void this.rateCurrentCard(rating.value);
+					this.startFlashCards(nextFocusConcept.concept, "scheduled");
 				});
 			});
 		}
 
-		this.renderCurrentCardDetails(cardEl, concept, currentQueueCard);
+		actionBarEl.createDiv({ cls: "mneme-review-action-bar-edge mneme-review-action-bar-end" });
 	}
 
 	private renderCardMarkdown(
@@ -448,60 +666,132 @@ export class MnemeReviewView extends ItemView {
 	private openCardEditor(card: LoadedMnemeCard): void {
 		new CardEditModal(this.app, {
 			card,
-			onSaved: () => this.refreshCards(),
+			onSaved: () => this.refreshEditedCard(card.cardId),
 		}).open();
 	}
 
-	private renderCardManagementActions(
-		parentEl: HTMLElement,
+	private async refreshEditedCard(cardId: string): Promise<void> {
+		const conceptId = this.selectedConcept?.conceptId;
+		const selectedCardIds = this.selectedCards.map((queueCard) => queueCard.cardId);
+		const currentCardId = this.getCurrentReviewableCard()?.cardId;
+
+		if (this.mode !== "flashcard" || !conceptId || !currentCardId) {
+			await this.refreshCards({ showNotice: false });
+			return;
+		}
+
+		const loadedConcepts = await this.loader.loadConcepts();
+		const refreshedQueue = buildReviewQueue(
+			loadedConcepts.concepts,
+			this.reviewStateStore.getAllStates(),
+			new Date(),
+		);
+		const refreshedConcept = refreshedQueue.concepts.find((concept) => concept.conceptId === conceptId);
+
+		if (!refreshedConcept) {
+			throw new Error("The Concept containing this Card is no longer available.");
+		}
+
+		const refreshedCardsById = new Map(
+			getAllQueueCards(refreshedConcept).map((queueCard) => [queueCard.cardId, queueCard]),
+		);
+		const refreshedCurrentCard = refreshedCardsById.get(cardId);
+
+		if (!refreshedCurrentCard?.card.isValid) {
+			throw new Error("The saved Card is no longer valid for review.");
+		}
+
+		const refreshedSelectedCards = selectedCardIds
+			.map((selectedCardId) => refreshedCardsById.get(selectedCardId))
+			.filter((queueCard): queueCard is ReviewQueueCard => queueCard?.card.isValid === true);
+		const refreshedCardIndex = refreshedSelectedCards.findIndex((queueCard) => queueCard.cardId === currentCardId);
+
+		if (refreshedCardIndex < 0) {
+			throw new Error("The current Card could not be restored after saving.");
+		}
+
+		this.reviewQueue = refreshedQueue;
+		this.selectedConcept = refreshedConcept;
+		this.selectedCards = refreshedSelectedCards;
+		this.selectedCardIndex = refreshedCardIndex;
+		this.shouldRefreshQueueOnBack = true;
+		this.statusMessage = "Card updated. Review position preserved.";
+		this.render();
+	}
+
+	private openCardActionsMenu(
+		anchorEl: HTMLElement,
 		concept: ReviewQueueConcept,
 		queueCard: ReviewQueueCard,
 	): void {
-		const quickActionsEl = this.createMoreActionGroup(parentEl, "Quick actions");
-		quickActionsEl.createEl("button", { text: "Edit" }, (buttonEl) => {
-			buttonEl.addEventListener("click", () => {
-				this.openCardEditor(queueCard.card);
-			});
+		const menu = new Menu();
+
+		menu.addItem((item) => {
+			item
+				.setTitle("View Concept")
+				.setIcon("book-open")
+				.onClick(() => this.viewConcept(concept.concept));
 		});
-		quickActionsEl.createEl("button", { text: "View Concept" }, (buttonEl) => {
-			buttonEl.addEventListener("click", () => {
-				this.viewConcept(concept.concept);
-			});
+		menu.addItem((item) => {
+			item
+				.setTitle("Skip for Now")
+				.setIcon("skip-forward")
+				.onClick(() => this.skipCurrentCard());
 		});
-		quickActionsEl.createEl("button", { text: "Skip" }, (buttonEl) => {
-			buttonEl.addEventListener("click", () => this.skipCurrentCard());
+		menu.addItem((item) => {
+			item
+				.setTitle("Review Tomorrow")
+				.setIcon("calendar-clock")
+				.onClick(() => {
+					void this.deferCurrentCard();
+				});
 		});
 
-		const scheduleActionsEl = this.createMoreActionGroup(parentEl, "Schedule");
-		scheduleActionsEl.createEl("button", { text: "Review Later" }, (buttonEl) => {
-			buttonEl.addEventListener("click", () => {
-				void this.deferCurrentCard();
-			});
+		menu.addSeparator();
+		menu.addItem((item) => {
+			item
+				.setTitle("Suspend Card")
+				.setIcon("pause")
+				.onClick(() => {
+					void this.suspendCurrentCard();
+				});
 		});
-		scheduleActionsEl.createEl("button", { text: "Suspend Card" }, (buttonEl) => {
-			buttonEl.addEventListener("click", () => {
-				void this.suspendCurrentCard();
-			});
-		});
+
 		if (queueCard.card.hasExplicitCardId) {
-			const archiveActionsEl = this.createMoreActionGroup(parentEl, "Archive");
-			archiveActionsEl.createEl("button", { text: "Retire Card" }, (buttonEl) => {
-				buttonEl.addEventListener("click", () => {
-					void this.retireCurrentCard();
-				});
-			});
-			archiveActionsEl.createEl("button", { text: "Delete Card" }, (buttonEl) => {
-				buttonEl.addEventListener("click", () => {
-					this.openCardDelete(queueCard.card);
-				});
+			menu.addItem((item) => {
+				item
+					.setTitle("Archive Card")
+					.setIcon("archive")
+					.onClick(() => {
+						void this.retireCurrentCard();
+					});
 			});
 		}
-	}
 
-	private createMoreActionGroup(parentEl: HTMLElement, title: string): HTMLElement {
-		const groupEl = parentEl.createDiv({ cls: "mneme-review-more-action-group" });
-		groupEl.createEl("h4", { text: title });
-		return groupEl.createDiv({ cls: "mneme-review-more-action-row" });
+		menu.addSeparator();
+		menu.addItem((item) => {
+			item
+				.setTitle("Card Info")
+				.setIcon("info")
+				.onClick(() => this.openCardInfo(concept, queueCard));
+		});
+		if (queueCard.card.hasExplicitCardId) {
+			menu.addItem((item) => {
+				item
+					.setTitle("Delete Card…")
+					.setIcon("trash-2")
+					.setWarning(true)
+					.onClick(() => this.openCardDelete(queueCard.card, true));
+			});
+		}
+
+		const anchorRect = anchorEl.getBoundingClientRect();
+		menu.showAtPosition({
+			overlap: false,
+			width: anchorRect.width,
+			x: anchorRect.left,
+			y: anchorRect.top,
+		}, anchorEl.ownerDocument);
 	}
 
 	private renderDiagnostics(): void {
@@ -565,15 +855,6 @@ export class MnemeReviewView extends ItemView {
 				this.settingsProvider().fsrsRequestRetention,
 			),
 		});
-
-		if (this.pausedConceptIds.has(concept.conceptId)) {
-			conceptEl.createEl("p", { text: "FSRS Review: Paused" });
-			conceptEl.createEl("button", { text: "Resume Concept" }, (buttonEl) => {
-				buttonEl.addEventListener("click", () => {
-					void this.resumeConcept(concept.conceptId);
-				});
-			});
-		}
 
 		if (concept.concept.errors.length > 0) {
 			this.renderIssueList(conceptEl, "Concept errors", concept.concept.errors);
@@ -674,8 +955,8 @@ export class MnemeReviewView extends ItemView {
 		}
 		const retirement = this.activeRetirements[queueCard.cardId];
 		if (retirement) {
-			cardEl.createEl("p", { text: `Retired at: ${retirement.retiredAt}` });
-			cardEl.createEl("button", { text: "Restore Card" }, (buttonEl) => {
+			cardEl.createEl("p", { text: `Archived at: ${retirement.retiredAt}` });
+			cardEl.createEl("button", { text: "Restore Archived Card" }, (buttonEl) => {
 				buttonEl.addEventListener("click", () => {
 					void this.restoreRetiredCard(queueCard.cardId);
 				});
@@ -747,116 +1028,43 @@ export class MnemeReviewView extends ItemView {
 		}
 	}
 
-	private renderConceptDetails(
-		parentEl: HTMLElement,
-		concept: ReviewQueueConcept,
-		rankedConcept: RankedReviewQueueConcept,
-	): void {
-		const detailsEl = parentEl.createEl("details", { cls: "mneme-review-details" });
-		const memorySummary = this.memorySummaries[concept.conceptId];
-
-		detailsEl.createEl("summary", { text: "Details" });
-		detailsEl.createEl("p", {
-			text: formatRetentionPolicy(
-				concept.concept.retentionTarget,
-				this.settingsProvider().fsrsRequestRetention,
-			),
-		});
-
-		if (memorySummary) {
-			this.renderCompactMemoryDetails(detailsEl, memorySummary, rankedConcept);
-		}
-
-		this.renderCompactCardStatuses(detailsEl, concept);
-	}
-
-	private renderCompactMemoryDetails(
-		parentEl: HTMLElement,
-		memorySummary: ConceptMemorySummary,
-		rankedConcept: RankedReviewQueueConcept,
-	): void {
-		const detailsGridEl = parentEl.createDiv({ cls: "mneme-review-details-grid" });
-
-		detailsGridEl.createEl("span", { text: `Rank #${rankedConcept.rank}` });
-		detailsGridEl.createEl("span", { text: `Review priority ${formatPercent(memorySummary.reviewPriorityScore)}` });
-		detailsGridEl.createEl("span", { text: `Importance ${memorySummary.importance ?? "normal"}` });
-		detailsGridEl.createEl("span", { text: `${memorySummary.reviewCardCount} review cards` });
-		detailsGridEl.createEl("span", { text: `Assessment coverage ${formatAssessmentCoverage(memorySummary)}` });
-		detailsGridEl.createEl("span", { text: `${memorySummary.overdueCardCount} overdue` });
-		detailsGridEl.createEl("span", { text: `Next due ${memorySummary.nextDueAt ?? "(unset)"}` });
-		detailsGridEl.createEl("span", { text: `Due ${formatPercent(memorySummary.dueRatio)}` });
-		detailsGridEl.createEl("span", { text: `New ${formatPercent(memorySummary.newRatio)}` });
-		detailsGridEl.createEl("span", { text: `Lapse ${formatPercent(memorySummary.lapseRatio)}` });
-	}
-
-	private renderCompactCardStatuses(parentEl: HTMLElement, concept: ReviewQueueConcept): void {
-		const cards = getAllQueueCards(concept);
-		if (cards.length === 0) {
-			return;
-		}
-
-		const listEl = parentEl.createEl("ul", { cls: "mneme-review-details-list" });
-		for (const card of cards) {
-			listEl.createEl("li", {
-				text: `${card.cardId} · ${formatDueStatus(card)} · ${formatEligibilityReason(card.eligibilityReason)} · ${card.includedInDailyReview ? "FSRS eligible" : "Later"} · ${formatReviewCount(card.reviewCount)}`,
-			});
-		}
-	}
-
-	private renderCurrentCardDetails(
-		parentEl: HTMLElement,
+	private openCardInfo(
 		concept: ReviewQueueConcept,
 		queueCard: ReviewQueueCard,
 	): void {
 		const card = queueCard.card;
 		const reviewState = this.reviewStateStore.getState(card.cardId);
 		const cardRisk = this.memorySummaries[queueCard.conceptId]?.cardRisks.find((risk) => risk.cardId === queueCard.cardId);
-		const moreEl = parentEl.createDiv({ cls: "mneme-review-more" });
-		const moreRowEl = moreEl.createDiv({ cls: "mneme-review-more-row" });
-		moreRowEl.createEl("button", {
-			text: this.isMoreActionsShown ? "Hide" : "More",
-		}, (buttonEl) => {
-			buttonEl.addEventListener("click", () => {
-				this.isMoreActionsShown = !this.isMoreActionsShown;
-				this.render();
-			});
-		});
+		const rows: CardInfoRow[] = [
+			{ label: "Card ID", value: card.cardId },
+			{ label: "Card index", value: String(card.cardIndex) },
+			{ label: "Card type", value: card.cardType ?? "(unset)" },
+			{ label: "Due status", value: formatDueStatus(queueCard) },
+			{ label: "FSRS eligibility", value: queueCard.includedInDailyReview ? "eligible" : "not eligible" },
+			{ label: "Eligibility", value: formatEligibilityReason(queueCard.eligibilityReason) },
+			{ label: "Review count", value: String(reviewState?.reviewCount ?? queueCard.reviewCount) },
+			{ label: "Last rating", value: reviewState?.lastRating ?? "(none)" },
+			{ label: "Due", value: reviewState?.dueAt ?? queueCard.dueAt ?? "(unset)" },
+			{ label: "Risk source", value: cardRisk?.riskSource ?? "(unset)" },
+			{ label: "Retrievability", value: cardRisk?.retrievability === undefined ? "(unset)" : formatPercent(cardRisk.retrievability) },
+		];
 
-		if (!this.isMoreActionsShown) {
-			return;
+		if (reviewState) {
+			rows.push(
+				{ label: "Scheduler", value: reviewState.scheduler ?? "(unset)" },
+				{ label: "FSRS state", value: reviewState.fsrsState ?? "(unset)" },
+				{ label: "Stability", value: formatOptionalNumber(reviewState.stability) },
+				{ label: "Difficulty", value: formatOptionalNumber(reviewState.difficulty) },
+				{ label: "Scheduled days", value: formatOptionalNumber(reviewState.scheduledDays) },
+				{ label: "Learning step", value: formatOptionalNumber(reviewState.learningSteps) },
+			);
 		}
 
-		const morePanelEl = moreEl.createDiv({ cls: "mneme-review-more-panel" });
-		const actionsEl = morePanelEl.createDiv({ cls: "mneme-review-more-actions" });
-		this.renderCardManagementActions(actionsEl, concept, queueCard);
-
-		const detailsEl = morePanelEl.createEl("details", { cls: "mneme-review-card-details" });
-		detailsEl.createEl("summary", { text: "Card details" });
-
-		if (card.rubric) {
-			detailsEl.createEl("h4", { text: "Rubric" });
-			this.renderCardMarkdown(detailsEl, card.rubric, card, "mneme-review-rubric");
-		}
-
-		detailsEl.createEl("p", { text: `Card ID: ${card.cardId}` });
-		detailsEl.createEl("p", { text: `Card index: ${card.cardIndex}` });
-		detailsEl.createEl("p", { text: `Due status: ${formatDueStatus(queueCard)}` });
-		detailsEl.createEl("p", { text: `FSRS eligibility: ${queueCard.includedInDailyReview ? "eligible" : "not eligible"}` });
-		detailsEl.createEl("p", { text: `Eligibility: ${formatEligibilityReason(queueCard.eligibilityReason)}` });
-		detailsEl.createEl("p", { text: `Review count: ${reviewState?.reviewCount ?? queueCard.reviewCount}` });
-		detailsEl.createEl("p", { text: `Last rating: ${reviewState?.lastRating ?? "(none)"}` });
-		detailsEl.createEl("p", { text: `Due: ${reviewState?.dueAt ?? queueCard.dueAt ?? "(unset)"}` });
-		detailsEl.createEl("p", { text: `Risk source: ${cardRisk?.riskSource ?? "(unset)"}` });
-		detailsEl.createEl("p", { text: `Retrievability: ${cardRisk?.retrievability === undefined ? "(unset)" : formatPercent(cardRisk.retrievability)}` });
-		this.renderReviewStateDetails(detailsEl, reviewState);
-
-		if (card.errors.length > 0) {
-			this.renderIssueList(detailsEl, "Errors", card.errors);
-		}
-
-		if (card.warnings.length > 0) {
-			this.renderIssueList(detailsEl, "Warnings", card.warnings);
-		}
+		new CardInfoModal(this.app, {
+			card,
+			conceptTitle: concept.title,
+			rows,
+		}).open();
 	}
 
 	private renderReviewStateDetails(parentEl: HTMLElement, reviewState: CardReviewState | undefined): void {
@@ -896,11 +1104,12 @@ export class MnemeReviewView extends ItemView {
 		this.sessionCardCount = this.selectedCards.length;
 		this.selectedCardIndex = 0;
 		this.isAnswerShown = false;
-		this.isMoreActionsShown = false;
+		this.isCompletionQueueFresh = false;
 		this.isReviewComplete = false;
 		this.skippedCardCount = 0;
 		this.deferredCardCount = 0;
 		this.suspendedCardCount = 0;
+		this.deletedCardCount = 0;
 		this.statusMessage = "Flash card ready.";
 		this.render();
 	}
@@ -922,7 +1131,6 @@ export class MnemeReviewView extends ItemView {
 
 	private showAnswer(): void {
 		this.isAnswerShown = true;
-		this.isMoreActionsShown = false;
 		this.statusMessage = "Answer shown.";
 		this.render();
 	}
@@ -934,11 +1142,14 @@ export class MnemeReviewView extends ItemView {
 			this.isReviewComplete = true;
 			this.statusMessage = "Review complete.";
 			this.render();
+			void this.refreshCompletedReviewSession();
 			return;
 		}
 
 		this.skippedCardCount += 1;
-		this.advanceToNextCard();
+		if (this.advanceToNextCard()) {
+			void this.refreshCompletedReviewSession();
+		}
 	}
 
 	private async deferCurrentCard(): Promise<void> {
@@ -959,7 +1170,6 @@ export class MnemeReviewView extends ItemView {
 			this.selectedCards.splice(this.selectedCardIndex, 1);
 			this.deferredCardCount += 1;
 			this.isAnswerShown = false;
-			this.isMoreActionsShown = false;
 			this.shouldRefreshQueueOnBack = true;
 
 			if (this.selectedCardIndex >= this.selectedCards.length) {
@@ -967,27 +1177,17 @@ export class MnemeReviewView extends ItemView {
 			}
 
 			this.statusMessage = `Moved ${card.cardId} out of review until tomorrow.`;
-			this.render();
+			if (this.isReviewComplete) {
+				await this.refreshCompletedReviewSession();
+			} else {
+				this.render();
+			}
 		} catch (error) {
 			console.error("Mneme: failed to defer Card review", {
 				cardId: card.cardId,
 				error,
 			});
-			new Notice("Mneme: Card could not be moved to Review Later.");
-		}
-	}
-
-	private async pauseConcept(concept: ReviewQueueConcept): Promise<void> {
-		try {
-			await this.reviewStateStore.pauseConcept(concept.conceptId);
-			new Notice(`Mneme: Paused ${concept.title}.`);
-			await this.refreshCards();
-		} catch (error) {
-			console.error("Mneme: failed to pause Concept", {
-				conceptId: concept.conceptId,
-				error,
-			});
-			new Notice("Mneme: Concept could not be paused.");
+			new Notice("Mneme: Card could not be moved to tomorrow.");
 		}
 	}
 
@@ -1004,7 +1204,6 @@ export class MnemeReviewView extends ItemView {
 			this.selectedCards.splice(this.selectedCardIndex, 1);
 			this.suspendedCardCount += 1;
 			this.isAnswerShown = false;
-			this.isMoreActionsShown = false;
 			this.shouldRefreshQueueOnBack = true;
 
 			if (this.selectedCardIndex >= this.selectedCards.length) {
@@ -1012,7 +1211,11 @@ export class MnemeReviewView extends ItemView {
 			}
 
 			this.statusMessage = `Suspended ${card.cardId}. FSRS state unchanged.`;
-			this.render();
+			if (this.isReviewComplete) {
+				await this.refreshCompletedReviewSession();
+			} else {
+				this.render();
+			}
 		} catch (error) {
 			console.error("Mneme: failed to suspend Card", { cardId: card.cardId, error });
 			new Notice("Mneme: Card could not be suspended.");
@@ -1034,7 +1237,7 @@ export class MnemeReviewView extends ItemView {
 		const card = this.getCurrentReviewableCard();
 
 		if (!card || !card.card.hasExplicitCardId) {
-			new Notice("Mneme: assign a stable Card ID before retiring this Card.");
+			new Notice("Mneme: assign a stable Card ID before archiving this Card.");
 			return;
 		}
 
@@ -1045,18 +1248,21 @@ export class MnemeReviewView extends ItemView {
 			delete this.activeSuspensions[card.cardId];
 			this.selectedCards.splice(this.selectedCardIndex, 1);
 			this.isAnswerShown = false;
-			this.isMoreActionsShown = false;
 			this.shouldRefreshQueueOnBack = true;
 
 			if (this.selectedCardIndex >= this.selectedCards.length) {
 				this.isReviewComplete = true;
 			}
 
-			this.statusMessage = `Retired ${card.cardId}. Markdown and FSRS history preserved.`;
-			this.render();
+			this.statusMessage = `Archived ${card.cardId}. Markdown and FSRS history preserved.`;
+			if (this.isReviewComplete) {
+				await this.refreshCompletedReviewSession();
+			} else {
+				this.render();
+			}
 		} catch (error) {
-			console.error("Mneme: failed to retire Card", { cardId: card.cardId, error });
-			new Notice("Mneme: Card could not be retired.");
+			console.error("Mneme: failed to archive Card", { cardId: card.cardId, error });
+			new Notice("Mneme: Card could not be archived.");
 		}
 	}
 
@@ -1066,30 +1272,47 @@ export class MnemeReviewView extends ItemView {
 			new Notice("Mneme: Card restored with its existing FSRS history.");
 			await this.refreshCards();
 		} catch (error) {
-			console.error("Mneme: failed to restore retired Card", { cardId, error });
+			console.error("Mneme: failed to restore archived Card", { cardId, error });
 			new Notice("Mneme: Card could not be restored.");
 		}
 	}
 
-	private openCardDelete(card: LoadedMnemeCard): void {
+	private openCardDelete(card: LoadedMnemeCard, preserveReviewSession = false): void {
 		new CardDeleteModal(this.app, {
 			card,
 			onDeleted: async (cardId) => {
 				await this.reviewStateStore.deleteCard(cardId);
-				void this.refreshCards();
+				if (preserveReviewSession) {
+					await this.removeDeletedCardFromReview(cardId);
+					return;
+				}
+				await this.refreshCards();
 			},
 		}).open();
 	}
 
-	private async resumeConcept(conceptId: string): Promise<void> {
-		try {
-			await this.reviewStateStore.resumeConcept(conceptId);
-			new Notice("Mneme: Concept resumed.");
-			await this.refreshCards();
-		} catch (error) {
-			console.error("Mneme: failed to resume Concept", { conceptId, error });
-			new Notice("Mneme: Concept could not be resumed.");
+	private async removeDeletedCardFromReview(cardId: string): Promise<void> {
+		const deletedIndex = this.selectedCards.findIndex((card) => card.cardId === cardId);
+
+		if (this.mode !== "flashcard" || deletedIndex !== this.selectedCardIndex) {
+			await this.refreshCards({ showNotice: false });
+			return;
 		}
+
+		this.selectedCards.splice(deletedIndex, 1);
+		this.deletedCardCount += 1;
+		this.isAnswerShown = false;
+		this.shouldRefreshQueueOnBack = true;
+
+		if (this.selectedCardIndex >= this.selectedCards.length) {
+			this.isReviewComplete = true;
+			this.statusMessage = "Review complete.";
+			await this.refreshCompletedReviewSession();
+			return;
+		}
+
+		this.statusMessage = "Card deleted. Next card ready.";
+		this.render();
 	}
 
 	private async rateCurrentCard(rating: ReviewRating): Promise<void> {
@@ -1100,6 +1323,7 @@ export class MnemeReviewView extends ItemView {
 			this.statusMessage = "Review complete.";
 			this.isReviewComplete = true;
 			this.render();
+			await this.refreshCompletedReviewSession();
 			return;
 		}
 
@@ -1131,12 +1355,14 @@ export class MnemeReviewView extends ItemView {
 			updatedReviewState,
 		});
 
-		this.advanceToNextCard();
+		if (this.advanceToNextCard()) {
+			await this.refreshCompletedReviewSession();
+		}
 	}
 
-	private advanceToNextCard(): void {
+	private advanceToNextCard(): boolean {
 		this.isAnswerShown = false;
-		this.isMoreActionsShown = false;
+		this.isCompletionQueueFresh = false;
 
 		if (this.selectedCardIndex + 1 < this.selectedCards.length) {
 			this.selectedCardIndex += 1;
@@ -1147,6 +1373,17 @@ export class MnemeReviewView extends ItemView {
 		}
 
 		this.render();
+		return this.isReviewComplete;
+	}
+
+	private async refreshCompletedReviewSession(): Promise<void> {
+		this.isCompletionQueueFresh = false;
+		this.statusMessage = "Review complete. Updating review schedule...";
+		this.render();
+		await this.refreshCards({
+			preserveCompletedSession: true,
+			showNotice: false,
+		});
 	}
 
 	private viewConcept(concept: MnemeConcept): void {
@@ -1158,6 +1395,9 @@ export class MnemeReviewView extends ItemView {
 
 		new ConceptEditModal(this.app, {
 			concept: conceptSummary,
+			deleteConcept: this.actions.deleteConcept
+				? () => this.actions.deleteConcept?.(conceptSummary)
+				: undefined,
 			globalRetentionTarget: this.settingsProvider().fsrsRequestRetention,
 			onSaved: () => this.refreshCards(),
 		}).open();
@@ -1182,17 +1422,18 @@ export class MnemeReviewView extends ItemView {
 
 	private resetReviewState(): void {
 		this.mode = "queue";
+		this.detailsConceptId = null;
 		this.selectedConcept = null;
 		this.selectedCards = [];
 		this.selectedCardIndex = 0;
 		this.sessionCardCount = 0;
 		this.sessionSource = "scheduled";
 		this.isAnswerShown = false;
-		this.isMoreActionsShown = false;
 		this.isReviewComplete = false;
 		this.skippedCardCount = 0;
 		this.deferredCardCount = 0;
 		this.suspendedCardCount = 0;
+		this.deletedCardCount = 0;
 		this.shouldRefreshQueueOnBack = false;
 	}
 
@@ -1383,6 +1624,23 @@ function formatDueStatus(card: ReviewQueueCard): string {
 	}
 
 	return card.dueStatus;
+}
+
+function formatInspectorCardStatus(card: ReviewQueueCard): string {
+	if (card.eligibilityReason === "missing-card-id") {
+		return "Needs stable Card ID";
+	}
+
+	switch (card.dueStatus) {
+		case "due":
+			return "Due";
+		case "new":
+			return "New";
+		case "not-due":
+			return "Later";
+		case "invalid":
+			return "Invalid";
+	}
 }
 
 function formatEligibilityReason(reason: ReviewQueueCard["eligibilityReason"]): string {

@@ -8,8 +8,20 @@ Mneme turns a student's approved source material into durable learning objects a
 A user-authored or user-approved vault-global knowledge model that can be explained, applied, and assessed independently. Knowledge that can carry a different importance or be learned and forgotten separately belongs in a separate Concept; a Course may reference but does not own or duplicate it.
 _Avoid_: Topic, summary, note
 
+**Concept Title**:
+The editable primary-language name of a Concept. It names the knowledge for the student and does not identify durable state.
+_Avoid_: Concept ID, filename, bilingual title string
+
+**English Name**:
+The canonical English name of a Concept, stored separately from its Concept Title. For non-English Concepts it supplies the English subtitle and readable identity stem; for English Concepts it is normally the same as the Concept Title.
+_Avoid_: Translated display suffix, Concept ID, filename slug
+
+**Concept Display Title**:
+The user-facing title composed from Concept Title and English Name. It is `Concept Title (English Name)` when the names differ and otherwise appears once.
+_Avoid_: Concept ID, raw title field, filename
+
 **Concept ID**:
-The immutable identity stored as a Concept's `mneme_id`. Titles and file paths may change without changing this identity.
+The immutable readable ASCII identity stored as a Concept's `mneme_id`. New IDs are derived by Mneme from English Name at first write, while titles and file paths may change without changing this identity.
 _Avoid_: Concept path, folder name, title slug
 
 **Concept Set**:
@@ -53,7 +65,7 @@ The required user interaction in which a complete AI-proposed knowledge change i
 _Avoid_: Accept All, auto-approval, confidence threshold
 
 **Guided Merge**:
-A user-directed process that reconciles two written Concepts through explicit content choices and a final Markdown preview before any files or states change.
+A dedicated user-directed workspace that reconciles two written Concepts through explicit pair/survivor selection, an editable Manual or AI-assisted content draft, and a zero-write impact preview before any files or states change. AI may advise or draft learning prose but cannot select or execute the merge.
 _Avoid_: Inbox Accept, automatic merge, silent deduplication
 
 **Redirect Note**:
@@ -85,7 +97,7 @@ An AI assessment of a student's answer against a Card Rubric that explains stren
 _Avoid_: Automatic rating, FSRS decision, answer truth
 
 **Card ID**:
-The immutable explicit identity of one Card block inside a Card Group. It remains stable when content, file paths, or Concept placement change.
+The immutable explicit identity of one Card block inside a Card Group. Mneme derives new Card IDs from the owning Concept ID, Card Type, and a collision suffix; the AI does not name Card identities.
 _Avoid_: Card index, file path, generated fallback key
 
 **Card Group**:

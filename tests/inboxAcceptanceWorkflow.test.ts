@@ -73,6 +73,7 @@ function createWorkflow(proposals = {}, vault = new MemoryVaultAdapter()): {
 				title: "Encapsulation",
 			}],
 		},
+		isConceptIdReserved: async (conceptId) => conceptId === "concept-encapsulation",
 		now: () => "2026-01-02T12:00:00.000Z",
 		proposalStore: store,
 		settingsProvider: () => DEFAULT_SETTINGS,
@@ -95,8 +96,8 @@ async function runAsyncTests(): Promise<void> {
 		const proposal = createProposal("concept-proposal", {
 			kind: "new_concept",
 			payload: {
-				coreMeaning: "Encapsulation protects internal representation.",
-				title: "Encapsulation",
+				coreMeaning: "Polymorphism lets one interface support multiple implementations.",
+				title: "Polymorphism",
 			},
 			status: "suggested",
 		});
@@ -107,8 +108,34 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(result.kind, "concept");
 		assert.equal((await store.getProposal(proposal.id))?.status, "written");
 		assert.deepEqual(filterActiveInboxProposals(await store.listProposals()), []);
-		assert.equal(vault.files.has("Mneme/Concepts/Encapsulation.md"), true);
+		assert.equal(vault.files.has("Mneme/Concepts/Polymorphism.md"), true);
 		assert.equal(formatAcceptActionLabel(proposal), "Accept & Next");
+	}
+
+	{
+		const proposal = createProposal("conflicting-concept-proposal", {
+			kind: "new_concept",
+			payload: {
+				coreMeaning: "A second view of encapsulation.",
+				title: "Encapsulation",
+			},
+			status: "suggested",
+		});
+		const { store, vault, workflow } = createWorkflow({ [proposal.id]: proposal });
+		const conflictResult = await workflow.acceptProposal(proposal.id);
+
+		assert.equal(conflictResult.status, "name_conflict");
+		assert.equal(conflictResult.conflict?.existing.conceptId, "concept-encapsulation");
+		assert.equal((await store.getProposal(proposal.id))?.status, "suggested");
+		assert.equal(vault.files.size, 0);
+
+		const keepBothResult = await workflow.acceptProposal(proposal.id, {
+			nameConflictResolution: "keep_both",
+		});
+
+		assert.equal(keepBothResult.status, "accepted");
+		assert.equal((await store.getProposal(proposal.id))?.status, "written");
+		assert.equal(vault.files.has("Mneme/Concepts/Encapsulation-2.md"), true);
 	}
 
 	{
@@ -210,7 +237,7 @@ async function runAsyncTests(): Promise<void> {
 		const proposal = createProposal("failing-concept", {
 			kind: "new_concept",
 			payload: {
-				title: "Encapsulation",
+				title: "Polymorphism",
 			},
 			status: "suggested",
 		});

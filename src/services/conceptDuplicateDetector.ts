@@ -1,4 +1,8 @@
-import type { ConceptDuplicateCandidate, ConceptSummary } from "../models/conceptLibrary";
+import type {
+	ConceptDuplicateCandidate,
+	ConceptMergeSuggestion,
+	ConceptSummary,
+} from "../models/conceptLibrary";
 
 const COMMON_WORDS = new Set([
 	"a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "how", "in", "is",
@@ -31,6 +35,49 @@ export function detectConceptDuplicates(concepts: ConceptSummary[]): ConceptDupl
 
 export function createConceptDuplicatePairKey(firstConceptId: string, secondConceptId: string): string {
 	return JSON.stringify([firstConceptId, secondConceptId].sort());
+}
+
+export function rankConceptMergeCandidates(
+	selected: ConceptSummary,
+	concepts: ConceptSummary[],
+	limit = 8,
+): ConceptMergeSuggestion[] {
+	const selectedFingerprint = createFingerprint(selected);
+
+	return concepts
+		.filter((concept) => concept.conceptId !== selected.conceptId)
+		.map((concept): ConceptMergeSuggestion => {
+			const fingerprint = createFingerprint(concept);
+			const duplicate = compareConcepts(selectedFingerprint, fingerprint);
+			const titleSimilarity = jaccard(selectedFingerprint.titleTokens, fingerprint.titleTokens);
+			const coreSimilarity = jaccard(selectedFingerprint.coreTokens, fingerprint.coreTokens);
+			const englishSimilarity = normalizedEquality(selected.englishName, concept.englishName) ? 1 : 0;
+			const tagSimilarity = jaccard(
+				new Set(selected.tags ?? []),
+				new Set(concept.tags ?? []),
+			);
+			const score = duplicate?.score
+				?? Math.max(
+					englishSimilarity === 1 ? 0.92 : 0,
+					Math.min(0.77, titleSimilarity * 0.52 + coreSimilarity * 0.42 + tagSimilarity * 0.06),
+				);
+			const reasons = duplicate?.reasons ?? describeMergeSimilarity({
+				coreSimilarity,
+				englishSimilarity,
+				tagSimilarity,
+				titleSimilarity,
+			});
+
+			return {
+				concept,
+				pairKey: createConceptDuplicatePairKey(selected.conceptId, concept.conceptId),
+				reasons,
+				score,
+			};
+		})
+		.sort((first, second) => second.score - first.score
+			|| first.concept.title.localeCompare(second.concept.title, undefined, { sensitivity: "base" }))
+		.slice(0, Math.max(0, limit));
 }
 
 interface ConceptFingerprint {
@@ -142,4 +189,22 @@ function intersectionCount(first: Set<string>, second: Set<string>): number {
 
 function formatPercent(value: number): string {
 	return `${Math.round(value * 100)}%`;
+}
+
+function normalizedEquality(first: string | undefined, second: string | undefined): boolean {
+	return !!first && !!second && normalizeText(first) === normalizeText(second);
+}
+
+function describeMergeSimilarity(input: {
+	coreSimilarity: number;
+	englishSimilarity: number;
+	tagSimilarity: number;
+	titleSimilarity: number;
+}): string[] {
+	const reasons: string[] = [];
+	if (input.englishSimilarity === 1) reasons.push("Same English Name");
+	if (input.titleSimilarity > 0) reasons.push(`Title overlap ${formatPercent(input.titleSimilarity)}`);
+	if (input.coreSimilarity > 0) reasons.push(`Core Meaning overlap ${formatPercent(input.coreSimilarity)}`);
+	if (input.tagSimilarity > 0) reasons.push(`Tag overlap ${formatPercent(input.tagSimilarity)}`);
+	return reasons.length > 0 ? reasons : ["Low local similarity"];
 }

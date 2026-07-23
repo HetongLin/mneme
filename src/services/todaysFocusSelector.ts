@@ -66,6 +66,15 @@ export function selectTodaysFocus(
 	};
 }
 
+export function selectNextFocusConcept(
+	selection: TodaysFocusSelection,
+	completedConceptId: string,
+): RankedReviewQueueConcept | undefined {
+	return selection.concepts.find((ranked) => (
+		ranked.concept.conceptId !== completedConceptId
+	));
+}
+
 function createEmptySelection(): TodaysFocusSelection {
 	return {
 		concepts: [],

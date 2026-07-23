@@ -2,6 +2,16 @@ import type { KnowledgeProposal } from "../models/knowledgeProposal";
 import type { SourceEvidence } from "../models/conceptSource";
 import { formatCardTypeLabel } from "./cardTypeDisplay";
 import { buildCardGroupPath } from "../utils/markdownPath";
+import {
+	createReadableCardId,
+	createReadableCardIdBase,
+	createReadableCardIdFromStem,
+} from "./cardIdNaming";
+import {
+	composeConceptDisplayTitle,
+	getConceptIdStem,
+	resolveConceptEnglishName,
+} from "./conceptNaming";
 
 export interface ProposalHighlight {
 	label: string;
@@ -21,11 +31,9 @@ export function getProposalTitle(proposal: KnowledgeProposal): string {
 
 	switch (proposal.kind) {
 		case "new_concept":
-			return getString(payload, "title") ?? "New Concept";
+			return getConceptProposalDisplayTitle(payload) ?? "New Concept";
 		case "new_card": {
-			const front = getNestedString(payload, "card", "front");
-			const cardType = formatCardTypeLabel(getNestedString(payload, "card", "cardType"));
-			return front ? `${cardType}: ${truncateDisplayText(front, 80)}` : `${cardType} Card`;
+			return getProposedCardId(proposal);
 		}
 		case "revise_card":
 			return `Revise Card: ${getString(payload, "cardId") ?? proposal.cardId ?? "Unknown Card"}`;
@@ -54,6 +62,7 @@ export function getProposalHighlights(proposal: KnowledgeProposal): ProposalHigh
 	switch (proposal.kind) {
 		case "new_concept":
 			return compactHighlights([
+				{ label: "English Name", value: getString(payload, "englishName") },
 				{ label: "Core Meaning", value: getString(payload, "coreMeaning") },
 				{ label: "Why It Matters", value: getString(payload, "whyItMatters") },
 				{ label: "Learning Mode", value: getString(payload, "learningMode") },
@@ -62,6 +71,7 @@ export function getProposalHighlights(proposal: KnowledgeProposal): ProposalHigh
 			]);
 		case "new_card":
 			return compactHighlights([
+				{ label: "Card ID", value: getProposedCardId(proposal) },
 				{ label: "Card Group", value: getProposedCardMarkdownFilename(proposal) },
 				{ label: "Card Type", value: formatCardTypeLabel(getNestedString(payload, "card", "cardType")) },
 				{ label: "Front", value: getNestedString(payload, "card", "front") },
@@ -90,16 +100,56 @@ export function getProposalHighlights(proposal: KnowledgeProposal): ProposalHigh
 	}
 }
 
+function getConceptProposalDisplayTitle(payload: Record<string, unknown> | undefined): string | undefined {
+	const title = getString(payload, "title");
+	if (!title) return undefined;
+	const englishName = resolveConceptEnglishName(getString(payload, "englishName"), title);
+	return englishName ? composeConceptDisplayTitle(title, englishName) : title;
+}
+
 export function getProposedCardMarkdownFilename(proposal: KnowledgeProposal): string {
 	const payload = getPayloadRecord(proposal);
-	const conceptLabel = getString(payload, "conceptTitle")
-		?? getString(payload, "conceptId")
-		?? proposal.conceptId
-		?? "Concept";
+	const conceptId = getString(payload, "conceptId") ?? proposal.conceptId;
+	const conceptLabel = conceptId
+		? getConceptIdStem(conceptId)
+		: getString(payload, "conceptTitle") ?? "Concept";
 	const path = buildCardGroupPath("Mneme/Cards", conceptLabel);
 	const slashIndex = path.lastIndexOf("/");
 
 	return slashIndex === -1 ? path : path.slice(slashIndex + 1);
+}
+
+export function getProposedCardId(proposal: KnowledgeProposal): string {
+	const payload = getPayloadRecord(proposal);
+	const conceptId = getString(payload, "conceptId") ?? proposal.conceptId;
+	const cardType = getNestedString(payload, "card", "cardType");
+	const explicitCardId = proposal.cardId ?? getString(payload, "cardId");
+
+	if (explicitCardId && conceptId) {
+		return repairLegacyDoubleStrippedCardId(explicitCardId, conceptId, cardType);
+	}
+
+	return explicitCardId
+		?? (conceptId
+			? createReadableCardId(conceptId, cardType)
+			: createReadableCardIdFromStem(getString(payload, "conceptTitle") ?? "Concept", cardType));
+}
+
+function repairLegacyDoubleStrippedCardId(
+	cardId: string,
+	conceptId: string,
+	cardType: string | undefined,
+): string {
+	const correctBase = createReadableCardIdBase(conceptId, cardType);
+	const legacyBase = createReadableCardIdBase(getConceptIdStem(conceptId), cardType);
+
+	if (legacyBase === correctBase) return cardId;
+	if (cardId === legacyBase) return correctBase;
+	if (cardId.startsWith(`${legacyBase}-`) && /^\d+$/.test(cardId.slice(legacyBase.length + 1))) {
+		return `${correctBase}${cardId.slice(legacyBase.length)}`;
+	}
+
+	return cardId;
 }
 
 function truncateDisplayText(value: string, maxLength: number): string {

@@ -1,4 +1,5 @@
 import type { KnowledgeProposal } from "../models/knowledgeProposal";
+import { isCanonicalEnglishName, resolveConceptEnglishName } from "./conceptNaming";
 
 export interface KnowledgeProposalValidationResult {
 	errors: string[];
@@ -18,7 +19,14 @@ export function validateKnowledgeProposalPayload(proposal: KnowledgeProposal): K
 	switch (proposal.kind) {
 		case "new_concept":
 			rejectRemovedField(payload, "summary", "whyItMatters", errors);
+			const conceptTitle = getString(payload, "title");
 			requireString(payload, "title", "New concept title is required.", errors);
+			if (conceptTitle) {
+				const englishName = resolveConceptEnglishName(getString(payload, "englishName"), conceptTitle);
+				if (!isCanonicalEnglishName(englishName)) {
+					errors.push("New concept English name must be a canonical English term without Chinese characters.");
+				}
+			}
 			break;
 		case "new_card":
 			validateCard(getRecord(payload, "card"), "Card", errors);
@@ -195,6 +203,11 @@ function getRecord(record: Record<string, unknown>, key: string): Record<string,
 	const value = record[key];
 
 	return isRecord(value) ? value : undefined;
+}
+
+function getString(record: Record<string, unknown>, key: string): string | undefined {
+	const value = record[key];
+	return typeof value === "string" ? value : undefined;
 }
 
 function createResult(errors: string[], warnings: string[]): KnowledgeProposalValidationResult {

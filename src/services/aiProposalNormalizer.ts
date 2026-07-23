@@ -56,6 +56,7 @@ function normalizePayload(
 		case "new_concept":
 			return {
 				coreMeaning: normalizeInlineMathDelimiterSpacing(proposal.payload.coreMeaning),
+				englishName: proposal.payload.englishName.trim(),
 				whyItMatters: normalizeInlineMathDelimiterSpacing(proposal.payload.whyItMatters),
 				learningMode: proposal.payload.learningMode,
 				proposedSourceLinks: [createSourceLinkDraft(response, proposal)],

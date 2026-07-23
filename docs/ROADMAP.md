@@ -51,7 +51,7 @@ Non-goals:
 - Random Concept Draw
 - Course Draw
 - Full agent loop
-- Complex merge/split system
+- Broader multi-Concept merge and Concept split system (two-Concept Guided Merge is implemented)
 
 ## v0.2: Editing and Update Flow
 
@@ -65,7 +65,7 @@ Features:
 - Basic Concept Edit Modal
 - Update Existing Concept
 - Possible Duplicate detection
-- Guided merge/update workflow
+- Broader update workflow (two-Concept Guided Merge is implemented)
 - Invalid Card repair flow
 - Better Concept index
 
@@ -91,9 +91,9 @@ Features:
 
 - Optional FSRS scheduling
 - Complete FSRS-eligible queue without secondary daily caps
-- Pause Concept
 - Suspend Card
-- Review Later
+- Review Tomorrow
+- Archive Card
 - Today’s Focus
 - Later queue
 
@@ -102,9 +102,9 @@ Current progress:
 - FSRS scheduling can be disabled without changing review state or history, then resumed with real elapsed time.
 - Today’s Focus includes the complete eligible due/new queue; Concept priority changes order but no longer caps it.
 - Ranking includes a bounded rotation boost for long-unseen eligible Concepts, while non-due Cards remain available in Advanced Diagnostics.
-- Review Later persists a Card-level deferral until the next local day without changing FSRS state.
-- Pause Concept is persisted separately from FSRS and can be resumed from Advanced Diagnostics.
+- Review Tomorrow persists a Card-level deferral until the next local day without changing FSRS state.
 - Suspend Card is persisted separately from FSRS and can be resumed from Advanced Diagnostics.
+- Archive Card preserves Markdown and FSRS history while excluding that Card until explicit restore.
 
 ## v0.4: Importance and Retention Policy
 
@@ -167,11 +167,11 @@ Features:
 Current progress:
 
 - Advanced Diagnostics can assign stable IDs to valid legacy Cards without wrappers and to Card blocks missing an ID.
-- Fallback review state, Review Later, and suspension move to the new ID when ownership is unambiguous.
+- Fallback review state, Review Tomorrow deferral, and suspension move to the new ID when ownership is unambiguous.
 - Duplicate IDs can be replaced one block at a time; ambiguous shared history remains with the original ID instead of being guessed.
 - Concept Library isolates missing and duplicate Concept IDs in an Identity Repair queue.
 - Guided Concept repair synchronizes Concept.md and its explicitly linked Card Group, with rollback on conflict or persistence failure.
-- Only uniquely attributable Concept pause state is re-keyed; duplicate-ID aggregate state is not guessed.
+- Legacy Concept pause data may be re-keyed when ownership is unambiguous, but current Review ignores and clears it.
 - Stable-ID Cards can be retired without changing Markdown or FSRS history, then restored from Advanced Diagnostics.
 - Retired Cards are excluded from Today’s Focus, Concept Learning State risk, and ranking.
 - Confirmed Card deletion removes only the selected Markdown block and clears active scheduling controls.
@@ -280,7 +280,7 @@ Current progress:
 - One-way Anki TSV export creates isolated Card copies without syncing content, scheduling state, or review history.
 - Optional Course/manual filtering remains unfinished.
 - Card customization should add an `Allowed AI Card Types` setting before considering arbitrary card type names. The safer path is enabling or disabling Mneme's built-in types while keeping the internal enum stable.
-- Manual Card creation remains unfinished. It should let a student create a Card for an existing Concept directly, using the same Card Group marker format as AI-accepted Cards and without manufacturing an Inbox approval step.
+- Manual Card creation is implemented through the dockable Card Composer. It selects an approved Concept and built-in Card Type before Front, Back, and optional Rubric, then writes directly to the canonical Card Group with the normal readable stable-ID allocator.
 - Tag Manager remains unfinished. It should offer reviewed tag merges/renames for historical tags, such as `learning` -> `machine-learning`, without silently rewriting Concept Markdown.
 
 ## v2.0: AI-native Learning System

@@ -93,17 +93,21 @@ Readable and identifiable Markdown principle:
 Stable identity principle:
 
 - `mneme_id` is the immutable Concept identity.
-- Explicit `MNEME:CARD` ids are immutable Card identities.
+- `mneme_title` is the editable primary-language Concept Title and `mneme_english_name` is the separately stored canonical English Name. The H1 is the composed Concept Display Title and is not identity.
+- New Concept IDs are readable ASCII identities derived by Mneme from English Name at first write, for example `concept-information-gain`. Same-name later writes receive `-2`, `-3`, and so on without renaming the first identity. The suffix is applied to the primary-language `mneme_title` before Mneme recomposes the H1, so the stored title, H1, path, ID, and Card Group locator cannot disagree; `mneme_english_name` remains unsuffixed.
+- Explicit `MNEME:CARD` ids are immutable Card identities. New Card proposals use readable IDs derived only from the written Concept ID and `cardType`, for example `information-gain-definition`; if that ID is already used in the same Card Group, Mneme writes `information-gain-definition-2`, `information-gain-definition-3`, and so on.
+- Manually authored Cards use the same marker renderer and ID allocator as accepted AI proposals. Their drafts are optional plugin data only; successful creation writes directly to the declared Card Group and clears the content draft without creating a `KnowledgeProposal`.
+- AI proposal `cardType` is immutable within Proposal Review. Editable proposal content is limited to Front, Back, and Rubric; manual Card creation is the surface where a student deliberately chooses Card Type before authoring.
 - Titles, paths, folders, and Card indexes are mutable locators or presentation details.
 - Durable plugin state must never use a path fallback as its long-term key.
 - Legacy Markdown with missing or duplicate IDs remains readable but enters a Repair Flow before new durable state is created.
 - Cards without explicit stable IDs may be opened for repair, but they are excluded from Today’s Focus and FSRS review until repaired.
 
-Card ID repair re-reads the latest Markdown and verifies the expected block content and current ID before writing. Assigning an ID to a legacy fallback Card migrates that unambiguous Card's FSRS state, Review Later deferral, and suspension atomically. Replacing one duplicate ID does not migrate the shared old-ID state because Mneme cannot prove which duplicate owned it; the unchanged duplicate retains that state and the repaired Card starts fresh.
+Card ID repair re-reads the latest Markdown and verifies the expected block content and current ID before writing. Assigning an ID to a legacy fallback Card migrates that unambiguous Card's FSRS state, Review Tomorrow deferral, and suspension atomically. Replacing one duplicate ID does not migrate the shared old-ID state because Mneme cannot prove which duplicate owned it; the unchanged duplicate retains that state and the repaired Card starts fresh.
 
 Card content editing follows the same targeted-write rule. The editor captures the selected Card's Front, Back, and Rubric as its baseline, re-reads the Card Group at Save, locates a locally unique stable ID when available, and aborts if that target changed. Concurrent changes to other Card blocks remain intact. Known vault-wide duplicate IDs and duplicate occurrences inside the latest Card Group are identity conflicts and cannot be used to select content for editing.
 
-Concept ID repair follows the same ownership boundary. The Concept scanner excludes missing and duplicate IDs from normal Concept results and reports them as repair diagnostics. A guided repair updates Concept.md together with its explicitly linked Card Group. A missing-ID repair may re-key a uniquely attributable Concept pause; duplicate-ID repair leaves shared aggregate state on the unchanged original identity.
+Concept ID repair follows the same ownership boundary. The Concept scanner excludes missing and duplicate IDs from normal Concept results and reports them as repair diagnostics. A guided repair updates Concept.md together with its explicitly linked Card Group. Legacy Concept pause records may still be re-keyed by repair code for data compatibility, but they are ignored and cleared by the current Review UI.
 
 ## File Layout
 
@@ -131,6 +135,8 @@ Minimal generated frontmatter fields:
 
 - mneme_type: concept
 - mneme_id: string
+- mneme_title: string
+- mneme_english_name: string
 - mneme_version: 1
 - cards: Obsidian link to the Concept's Card Group file
 - learning_mode: optional reviewable | exploratory
@@ -157,6 +163,8 @@ Example structure:
 ---
 mneme_type: concept
 mneme_id: concept-information-gain
+mneme_title: Information Gain
+mneme_english_name: Information Gain
 mneme_version: 1
 cards: "[[Mneme/Cards/Information-Gain/Cards|Information Gain Cards]]"
 importance: normal
@@ -213,9 +221,27 @@ An optional student-authored override for the global FSRS Request Retention sett
 
 Tags are user-approved organization labels for browsing and filtering Concepts. Tags are not Concept relationships and do not imply prerequisites, applications, or similarity. Concept relationships belong in `Related Concepts` as links to existing approved Concepts.
 
-AI-generated tags are constrained at proposal time: they must be English lowercase slugs, at most three per Concept, broad enough for filtering, and selected from existing approved English tags whenever possible. Mneme filters obvious AI tag drift such as non-English generated tags, Concept-title tags, isolated adjectives, and generic tags like `learning`, `theory`, `model`, `method`, `concept`, or `optimal`.
+AI-generated tags are constrained at proposal time: they must be English lowercase slugs, at most three per Concept, broad enough for filtering, and chosen without existing-tag context during AI Capture. Mneme filters obvious AI tag drift such as non-English generated tags, Concept-title tags, isolated adjectives, and generic tags like `learning`, `theory`, `model`, `method`, `concept`, or `optimal`.
 
-User-authored or explicitly user-approved tags may still use any language meaningful in the vault. Mneme does not silently rewrite existing Concept Markdown; future Tag Manager work may offer reviewed merges such as `learning` -> `machine-learning`.
+The Tag Catalog is a transient index rebuilt from approved Concept Markdown. It contains normalized tag names and usage counts, is not a second source of truth, and is not sent to the AI provider. Mneme uses it locally after AI generation to reuse normalized exact matches and in manual/approval UI to rank existing suggestions. Similarity produces a review suggestion only; it never establishes an automatic rename or merge.
+
+New tags created through Mneme's picker must be English lowercase slugs. Historical or externally authored tags in other scripts remain readable and are preserved when already selected; Mneme does not silently rewrite existing Concept Markdown. Future Tag Manager work may offer reviewed merges such as `learning` -> `machine-learning`.
+
+### Related Concepts
+
+The MVP supports one symmetric Concept relationship named `Related`. Markdown is the source of truth and stores only readable Obsidian links:
+
+```markdown
+## Related Concepts
+
+- [[Mneme/Concepts/Bayes-Theorem|Bayes Theorem]]
+```
+
+The section label already supplies the relation meaning, so individual lines do not repeat `Related`. Adding or removing a relationship updates both Concept files. Internally the unordered pair of stable Concept IDs identifies the relationship; filenames and display titles may change without changing its meaning. Empty sections are omitted.
+
+Concept capture remains context-free and does not create Related links. Tags, shared Sources, and text similarity may later help an explicit discovery workflow shortlist candidates, but none of them independently establishes a relationship.
+
+Guided Merge treats Related links as graph edges: the survivor receives the union of both neighbor sets, links between the two merged Concepts disappear as self-links, duplicate neighbors collapse by Concept ID, and affected neighbor Concept files are rewired to the survivor in the same reviewed transaction.
 
 ## Card Group files
 
@@ -258,7 +284,7 @@ concept: "[[Mneme/Concepts/Information-Gain|Information Gain]]"
 
 <!-- Mneme cards below -->
 
-<!-- MNEME:CARD:start id="information-gain-definition-pexample" type="definition" -->
+<!-- MNEME:CARD:start id="information-gain-definition" type="definition" -->
 <!-- MNEME:FRONT:start -->
 Why does information gain tend to favor attributes with many values?
 <!-- MNEME:FRONT:end -->
@@ -325,7 +351,7 @@ data.json may store:
 - pending suggestions
 - FSRS card state
 - temporary review deferrals (`reviewDeferrals`), stored separately from FSRS state
-- paused Concept controls (`pausedConcepts`), keyed by stable Concept id
+- legacy paused Concept controls (`pausedConcepts`), retained only for data compatibility and cleared by current Review UI
 - suspended Card controls (`suspendedCards`), keyed by stable Card id
 - retired Card controls (`retiredCards`), keyed by stable Card id
 - content-free review events (`reviewEvents`), keyed by event id
@@ -344,13 +370,13 @@ data.json must not store:
 - Card Back as source of truth
 - Card Rubric as source of truth
 
-`reviewDeferrals` maps a Card id to `deferredAt` and `resumeAt`. Review Later uses this state to hide a Card from Today’s Focus until the next local day. Creating a deferral does not modify the Card's FSRS due date, stability, difficulty, review count, or lapse count.
+`reviewDeferrals` maps a Card id to `deferredAt` and `resumeAt`. The Review Tomorrow action uses this state to hide a Card from Today’s Focus until the next local day. Creating a deferral does not modify the Card's FSRS due date, stability, difficulty, review count, or lapse count.
 
-`pausedConcepts` maps a Concept id to `pausedAt`. Pausing excludes that Concept from Today’s Focus until the user resumes it; its Markdown, Cards, and FSRS states are untouched.
+`pausedConcepts` is a legacy compatibility map. Current Mneme Review does not offer Concept pause/resume, does not use this map for eligibility, and clears old entries without changing Card Markdown, FSRS state, or review history.
 
-`suspendedCards` maps a Card id to `suspendedAt`. Suspension removes only that Card from Today’s Focus until explicit resume and clears any temporary Review Later deferral; Card Markdown and FSRS state remain unchanged.
+`suspendedCards` maps a Card id to `suspendedAt`. Suspension removes only that Card from Today’s Focus until explicit resume and clears any temporary Review Tomorrow deferral; Card Markdown and FSRS state remain unchanged.
 
-`retiredCards` maps a stable Card id to `retiredAt`. Retirement clears temporary deferral and suspension controls, preserves Markdown and FSRS state, and removes the Card from Today’s Focus and Concept Learning State aggregation until explicit restore.
+`retiredCards` maps a stable Card id to `retiredAt`. The user-facing Archive Card action clears temporary deferral and suspension controls, preserves Markdown and FSRS state, and removes the Card from Today’s Focus and Concept Learning State aggregation until explicit restore. The persisted name remains unchanged for compatibility.
 
 Retired Cards preserve Markdown and history but are excluded from active review. Deleting a Card removes its exact Markdown block and active FSRS/control state after confirmation, then records a content-free tombstone so the Card ID cannot be reused and anonymous review history remains statistically valid. `Delete History Too` is a separately confirmed complete-erasure action for a deleted Card's tombstone and review events; it is not the normal deletion path and should not be presented as a routine way to make IDs reusable.
 
@@ -361,6 +387,8 @@ Possible Duplicate candidates are derived from current Concept titles and Core M
 A `conceptMergeRecords` entry stores `mergedConceptId`, `survivorConceptId`, `mergedPath`, `survivorPath`, and `mergedAt`. It contains no learning content. The merged ID remains reserved after the old Concept becomes a `concept_redirect`, preventing a later generated Concept from reusing that identity.
 
 Guided Merge moves complete stable-ID Card blocks into the surviving Card Group without rewriting their IDs or Card-keyed FSRS state. If the survivor has no Card Group, it adopts the merged Concept's group and updates that group's association. A vacated Card Group remains as an empty `card_group` redirect so old vault links resolve without creating a phantom Card. Legacy per-Card folders must be explicitly consolidated before Guided Merge; Mneme does not guess a destructive migration.
+
+The Merge draft is transient UI state and is not persisted as a proposal. Manual Draft deterministically unions tags, selects the stronger importance, and uses `reviewable` when either Concept is reviewable. Optional AI draft output is limited to Title, English Name, Core Meaning, and Why It Matters. A prepared `ConceptMergePlan` is a zero-write snapshot containing affected Markdown before/after content and the complete next plugin-data value. Execute succeeds only while every before-snapshot and plugin-data snapshot still matches; otherwise it reports a conflict. Rollback restores already-written Markdown and the original plugin data.
 
 ## Courses And Exam Contexts
 
@@ -416,7 +444,7 @@ v0.1 uses ConceptSuggestion[] as the AI output object.
 
 Mneme does not use an explicit KnowledgeUnit layer in v0.1.
 
-Duplicate or overlapping concepts are handled later through possible match, merge, or update flows.
+Duplicate or overlapping concepts are allowed at capture time and handled later through possible match, merge, or update flows. Generation does not receive the existing vault or Inbox as duplicate-avoidance context.
 
 ## Scheduling Principle
 
@@ -446,6 +474,7 @@ Mneme stores minimal FSRS scheduler settings in plugin data alongside review sta
 - `fsrsRequestRetention` controls the target recall probability. Higher retention usually means shorter intervals and more reviews.
 - `fsrsEnableFuzz` spreads longer-interval reviews with small randomness to reduce review clustering.
 - `fsrsMaximumInterval` caps how far into the future a Card can be scheduled.
+- `showAdvancedDiagnostics` is a review-UI visibility preference that defaults to `false`. It exposes maintenance diagnostics only and has no effect on eligibility, FSRS state, Markdown, or review history.
 
 Scheduler parameters affect future reviews only; they do not rewrite existing Card review states. Hiding Today’s Focus also leaves states, due dates, and event history untouched. Re-enabling Today’s Focus does not shift stored dates or freeze the clock: overdue Cards are immediately eligible, and the next rating uses the real time since `lastReviewedAt`. Cards created while Today’s Focus is hidden remain new until first rated from manual Concept Review or scheduled review. `Mneme: Clear Review History` is the only explicit reset command.
 
@@ -483,7 +512,7 @@ Concept recognition uses minimal frontmatter:
 
 The library displays clean learning information from Markdown sections such as Core Meaning and Why It Matters. It can open the Concept file and linked Card Group, but it does not replace Markdown editing or store Concept content in `data.json`.
 
-This scanner also prepares future AI Capture: existing Concept summaries can help avoid duplicates and support merge, update, and add-view proposals.
+This scanner supports Concept Library, review, repair, and explicit Merge workflows. It is not supplied to `Analyze Current Note`; AI Capture remains context-free and proposes only new Concepts from the current Source Note.
 
 ## Concept-First Capture
 

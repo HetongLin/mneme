@@ -6,9 +6,12 @@ export interface ConceptSummary {
 	cardsPath?: string;
 	conceptId: string;
 	coreMeaning?: string;
+	englishName?: string;
 	importance?: ConceptImportance;
 	learningMode?: ConceptLearningMode;
 	path: string;
+	primaryTitle?: string;
+	relatedConceptIds?: string[];
 	retentionTarget?: number;
 	sourceCount?: number;
 	tags?: string[];
@@ -48,6 +51,13 @@ export interface ConceptDuplicateCandidate {
 	reasons: string[];
 	score: number;
 	second: ConceptSummary;
+}
+
+export interface ConceptMergeSuggestion {
+	concept: ConceptSummary;
+	pairKey: string;
+	reasons: string[];
+	score: number;
 }
 
 export interface ConceptLibraryFilter {

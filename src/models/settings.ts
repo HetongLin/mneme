@@ -19,6 +19,7 @@ export interface MnemeSettings {
 	openaiApiKey: string;
 	openaiBaseUrl: string;
 	openaiModel: string;
+	showAdvancedDiagnostics: boolean;
 }
 
 export type AiProviderName = "mock" | "openai" | "deepseek";
@@ -44,6 +45,7 @@ export const DEFAULT_SETTINGS: MnemeSettings = {
 	openaiApiKey: "",
 	openaiBaseUrl: "https://api.openai.com/v1",
 	openaiModel: "gpt-4.1-mini",
+	showAdvancedDiagnostics: false,
 };
 
 export function normalizeSettings(value: unknown): MnemeSettings {
@@ -78,6 +80,9 @@ export function normalizeSettings(value: unknown): MnemeSettings {
 		openaiApiKey: normalizeString(value.openaiApiKey, DEFAULT_SETTINGS.openaiApiKey),
 		openaiBaseUrl: normalizeUrlString(value.openaiBaseUrl, DEFAULT_SETTINGS.openaiBaseUrl),
 		openaiModel: normalizeRequiredString(value.openaiModel, DEFAULT_SETTINGS.openaiModel),
+		showAdvancedDiagnostics: typeof value.showAdvancedDiagnostics === "boolean"
+			? value.showAdvancedDiagnostics
+			: DEFAULT_SETTINGS.showAdvancedDiagnostics,
 	};
 }
 

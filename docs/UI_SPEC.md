@@ -4,9 +4,11 @@
 
 All user-facing UI labels must be in English.
 
-Fixed product chrome and field labels use English. Generated learning content follows the Source Note's detected dominant language. English Sources produce English learning content. Chinese Sources produce Chinese-first Concept titles, Core Meaning, Why It Matters, Views, and Card text; each technical concept or established proper term includes its standard English name in parentheses on first occurrence, such as `字典学习 (Dictionary Learning)`. Evidence excerpts remain exact and untranslated.
+Fixed product chrome and field labels use English. Generated learning content follows the Source Note's detected dominant language. English Sources produce English learning content. Chinese Sources produce Chinese-first Concept titles, Core Meaning, Why It Matters, Views, and Card text; each technical concept or established proper term includes its standard English name in parentheses on first occurrence. Concept Title and English Name are stored separately, while the UI composes a bilingual Display Title such as `字典学习 (Dictionary Learning)` and suppresses a duplicate subtitle when both values match. Evidence excerpts remain exact and untranslated.
 
 Concept titles use the shortest unambiguous canonical name. They identify the reusable knowledge itself and do not include note-specific applications, domains, tools, courses, or lesson wording unless the complete phrase is an established distinct term. Application context belongs in Why It Matters or Views; for example, use `Bayes Theorem` with a `Hypothesis Evaluation` View rather than `Bayes Theorem for Hypothesis Evaluation`. Reusable relationships use a direct relational title such as `Least Squares as Maximum Likelihood`, not a copied conjunction heading such as `Maximum Likelihood and Least-Squared Error`.
+
+`View Concept` shows a collapsible `Related Concepts (N)` area. Related Concepts use Obsidian-style navigation links rather than action-button styling, are sorted by title, and appear in an internally scrolling list capped at 240px. The area opens by default for zero to three relations and starts collapsed for four or more. `Manage Related Concepts` remains a visually separate secondary action below the link list; it lets the student search approved Concepts, add one symmetric link, or remove one. Direct student changes do not enter Inbox. Mneme reports a concurrent-edit conflict rather than overwriting either file. The MVP exposes no prerequisite, contrast, or application relation types.
 
 AI generation is single-flight per file. While Concept generation is running for a Source Note, another Analyze Current Note request for that note is rejected with an in-progress notice. While Card generation is running for a Concept, another Generate Cards request for that Concept is rejected. The Concept Library button is disabled and reads `Generating...` until the request finishes. Success, invalid responses, configuration errors, and provider failures all release the lock so the user can retry.
 
@@ -20,7 +22,9 @@ AI settings must not expose free-form Concept/Card prompt or style guidance. Con
 
 AI provider settings are layered by selected provider. The provider dropdown is always visible, but Mneme should show only the currently selected provider's key/base URL/model fields. Unselected provider credentials and models stay stored but hidden. Mock mode should show a short no-key-required note instead of network-provider fields. Low-frequency request controls such as timeout and chunk size should live behind a compact `Request options` disclosure.
 
-AI-generated Concept tags must be stable English lowercase slugs. During Concept generation, Mneme supplies existing approved English tags as `existingTags`; AI must prefer those tags whenever they reasonably fit, choose at most three broad domain/course/topic-family tags, and avoid near-duplicates, Concept-title tags, isolated adjectives, and overly generic tags such as `learning`, `theory`, `model`, `method`, `concept`, or `optimal`. User-approved and manually entered tags in other scripts remain valid; Mneme does not silently rewrite historical Concept Markdown.
+AI-generated Concept tags must be stable English lowercase slugs. During Concept generation, Mneme does not supply existing approved tags; AI must choose at most three broad domain/course/topic-family tags and avoid near-duplicates, Concept-title tags, isolated adjectives, and overly generic tags such as `learning`, `theory`, `model`, `method`, `concept`, or `optimal`. After the response, Mneme locally reconciles normalized exact matches against approved Concept tags. The Concept Review Gate uses the same picker as manual creation: it can reuse catalog tags, create an English slug, and show similar existing tags as explicit replacement suggestions. Mneme does not silently merge tags or rewrite historical Concept Markdown.
+
+`Analyze Current Note` is context-free extraction. The UI must not imply that generation checks the Concept Library, Inbox, or existing tags before proposing Concepts. Duplicate or overlapping proposals are acceptable review items; Merge is an explicit Concept Library workflow.
 
 Generated and manually edited mathematical notation uses Obsidian MathJax Markdown. Use `$...$` for short inline formulas inside a sentence. Use `$$...$$` on separate lines for standalone, long, emphasized, or multi-line equations. Primary Concept and Review Card surfaces render this Markdown through Obsidian; selecting a rendered formula opens the corresponding raw Concept or Card editor.
 
@@ -85,10 +89,10 @@ Display:
 
 - Mneme Review
 - Concept title
+- English name
 - Card progress
 - Front content
-- Primary action
-- Collapsed Card details
+- Fixed bottom action bar
 
 Labels:
 
@@ -105,11 +109,7 @@ Front:
 
 Why does information gain tend to favor attributes with many values?
 
-Actions:
-
-- Show Answer
-
-Complex Card operations are isolated behind `More`, not mixed into the primary review action row.
+The Card body is the independently scrollable content region. The fixed bottom action bar shows `Edit` on the left, `Show Answer` in the center, and `More` on the right. Complex Card operations are isolated behind the `More` menu and never expand the Card body.
 
 ### Back State
 
@@ -117,8 +117,7 @@ After clicking Show Answer, display:
 
 - Front
 - Back
-- Rating buttons in one row
-- Collapsed More actions
+- Rating buttons in one row in the fixed bottom action bar
 
 Labels:
 
@@ -127,9 +126,11 @@ Labels:
 - Good
 - Easy
 
-The Back should use the same typography and visual treatment as the Front. Rubric / scoring hints such as “1 point for...” are hidden under `More` by default.
+The Back should use the same typography and visual treatment as the Front. Front remains visible above Back. Rubric / scoring hints such as “1 point for...” are available from `More` → `Card Info`, not shown in the recall body.
 
-Primary back-side actions are only the FSRS rating buttons, arranged like an Anki answer screen. Again, Hard, Good, and Easy stay on one row. Complex actions stay behind `More`; when expanded, those actions are displayed vertically.
+The fixed bottom bar retains `Edit` and `More`, and replaces `Show Answer` with the FSRS rating buttons. Again, Hard, Good, and Easy stay on one row. Complex actions stay in a compact vertical `More` menu.
+
+When a Concept review completes, the completion summary remains in the scrollable content area. `View Concept` appears on the left side of the fixed bottom bar and `Review Next Concept`, when another scheduled Concept is available, appears in its center. Completion actions do not return to the Card body.
 
 ### Rating Behavior
 
@@ -138,16 +139,22 @@ Primary back-side actions are only the FSRS rating buttons, arranged like an Ank
 - Good updates FSRS state.
 - Easy updates FSRS state.
 - After a rating, Mneme advances without showing the previous Card ID or a persistent previous-card status message.
-- Skip does not update FSRS state.
+- Skip for Now does not update FSRS state or persist a schedule change.
 - Edit opens Card Edit Modal.
 - View Concept opens Mneme's Concept detail/editor surface for the approved Concept that grounds the Card. Source Notes remain reachable from that Concept. Open Concept Markdown is reserved for the raw Markdown source file.
-- Review Later, Suspend Card, Retire Card, and Delete Card are available from `More`, not the main review controls.
+- Review Tomorrow, Suspend Card, Archive Card, Card Info, and Delete Card are available from `More`, not the main review controls.
 
 Card Edit and Repair re-read the latest Card Group before writing. If the selected Card's Front, Back, or Rubric changed after the editor opened, Save stops and asks the student to reopen the latest content. Changes to other Cards or surrounding Markdown are preserved and do not block the targeted edit. A duplicated stable Card ID must be repaired before content editing can choose a target.
+
+When `Save Card` is used from an active Mneme Review session, the editor closes back into that same review session. Mneme re-reads the Card Group, restores the current Card by stable Card ID, preserves its position, review counters, and whether the answer was revealed, and immediately renders the modified content. This path must not reset Review to Today’s Focus. If the edit makes the Card invalid or removes its stable identity, Mneme reports that it cannot restore the Card instead of silently advancing to another Card.
+
+When `Delete Card` is used from an active Mneme Review session, the successful deletion stays inside that session and advances to the next Card. If the deleted Card was the last unreviewed Card in the Concept, the existing Review Complete state is shown and the background queue refresh runs normally. Deletion must not return directly to Today’s Focus, and the completion summary reports deleted Cards separately from reviewed Cards.
 
 ## Today’s Focus
 
 The review home should emphasize Concepts, not raw Card debt.
+
+Today’s Focus uses compact, equal-height Concept cards. Diagnostic information must not expand downward inside an individual grid card because it distorts the grid and leaves empty columns. Each card has a quiet information control beside its title. It opens a single non-modal Concept Details inspector at the right of the queue; selecting a different Concept replaces the inspector contents, while selecting the active information control or Close dismisses it. On narrow views the inspector becomes a fixed bottom sheet. The inspector contains Overview statistics, Card-type Coverage chips, and a bounded internally scrolling Card Status list. Importance and Card count remain on the card face and are not repeated in the inspector.
 
 Preferred display:
 
@@ -156,7 +163,7 @@ Today’s Focus
 
 Do not display a scary overdue queue by default.
 
-When FSRS scheduling is enabled, Today’s Focus contains all valid due and new Cards that are not explicitly deferred, paused, suspended, retired, deleted, or otherwise ineligible. Concept priority orders the queue but does not truncate it. The primary UI does not display debt-style overdue totals.
+When FSRS scheduling is enabled, Today’s Focus contains all valid due and new Cards that are not explicitly deferred until tomorrow, suspended, archived, deleted, or otherwise ineligible. Concept priority orders the queue but does not truncate it. Concept-level pause is not available because Concept is an aggregate rather than a scheduling unit. The primary UI does not display debt-style overdue totals.
 
 When Scheduled Review is disabled, the Review View subtitle says `Scheduled review is off`. The view shows no Today’s Focus Concept queue, `Show Answer`, or rating controls. It explains that Today’s Focus is hidden, while manual Concept Review from Concept Library still updates Card memory.
 
@@ -171,9 +178,15 @@ Concept Library is primarily a visual quick-review surface, not a metadata dashb
 
 Selecting the card opens Mneme's Concept detail/editor surface, not the raw Markdown source. File paths, tags, learning mode, importance, Source counts, Card counts, and Why It Matters do not appear on the card face. Concept Library does not show a top-level `More` menu on each Concept card; the card face itself is the View Concept action.
 
-The rendered editable Concept surface is opened by selecting the Concept card. The student can read the Concept first and edit only when needed.
+The rendered editable Concept surface is opened by selecting the Concept card. The student can read the Concept first and edit only when needed. The Concept title is the first learning-content heading, displayed prominently above Core Meaning; the modal title `View Concept` and the source-file path remain secondary interface context rather than substitutes for the Concept name.
 
-Each Concept card shows one directly visible primary learning action. If the Concept has accepted Cards, it reads `Review Cards` and starts Concept-scoped Mneme card review for that Concept. It must not open Card Markdown source files. It uses all valid Cards in the Concept, including Cards that are not due in Today’s Focus, and ratings still update FSRS memory. If the Concept has no Cards Markdown yet, the action reads `Generate to Review` and Mneme shows a `No cards yet` prompt with `Generate to Review` when the Concept is eligible for Card generation.
+`View Concept` includes a destructive `Delete Concept` action separated by warning styling from routine editing. It always opens a confirmation surface that names the Concept and states how many Cards will also be deleted. Confirming deletes the Concept Markdown and its dedicated Cards Markdown, removes reverse `Related Concepts` links, removes active FSRS state for those Cards, and preserves Card tombstones and review events so deleted IDs cannot be silently reused. Source Notes are never deleted. The Concept Library and Mneme Review refresh automatically after completion.
+
+Each Concept card shows one directly visible primary learning action. If the shared Card loader finds at least one accepted, valid Card block for the Concept, it reads `Review Cards` and starts Concept-scoped Mneme card review for that Concept. It must not open Card Markdown source files. It uses all valid Cards in the Concept, including Cards that are not due in Today’s Focus, and ratings still update FSRS memory. If there are no accepted, valid Card blocks, the action reads `Generate to Review`. Selecting it starts generation immediately without a second confirmation modal, shows `Generating Cards...` while the request is active, and opens Inbox scoped to only the generated Card batch for that Concept. A declared Card Group link, an empty Card Group Markdown file, or a Card Group containing only invalid blocks must not display `Review Cards` or navigate to Mneme Review.
+
+In a scoped `Generate to Review` Inbox session, `Accept & Next` and `Reject & Next` advance only within that generated batch. Mneme waits until every proposal in the batch is resolved. Written/rejected proposal records remain available as the batch completion ledger until this scoped session resolves; ordinary Inbox reconciliation must not delete them mid-session. One or more accepted Cards automatically continue to Concept Review after the final decision; the continuation must read the newly written Card Group from current vault contents and briefly retry while Obsidian refreshes its indexes, rather than treating a stale cached file as an empty Card Group. An all-rejected batch remains in Inbox with `No Cards accepted` and `Back to Concept Library`. Ordinary Inbox sessions retain their existing cross-proposal behavior and cleanup behavior, and never acquire this automatic navigation implicitly.
+
+Completing a Concept Card session automatically refreshes Card files, FSRS state, and the Review queue in the background. The `Review complete` surface remains visible and confirms that the schedule was updated; returning to Today’s Focus or Concept Library must not require another manual refresh. After that refresh, a scheduled Today’s Focus session shows `Review Next Concept` when another refreshed Focus Concept remains, allowing continuous Concept-grouped review without returning to the queue. It excludes the just-completed Concept and is not shown for a manual Concept Library session, whose scope remains the explicitly selected Concept. When nothing remains, the completion surface says `Today’s Focus is complete.` Revealing an existing Concept Library View performs a fresh scan so review-state and Card-count changes are visible immediately. Manual `Refresh Cards` remains available during the staged rollout as a recovery action for external edits or missed Obsidian events.
 
 Raw file operations are second-level actions under `Source Files`, including `Open Concept Markdown` and `Open Cards Markdown`. Source files are maintenance/debug affordances, not the daily learning path.
 
@@ -187,7 +200,7 @@ Search stays visible. Learning mode, importance, tag, and sort controls live und
 
 Possible Duplicate is a review signal, not merge permission. Each candidate shows both Concept titles, concise Core Meaning previews, and human-readable triggering reasons. Internal similarity scores may order candidates but are not presented as confidence. The student can open either note, mark the pair `Not a duplicate`, or enter Guided Merge. Detection and dismissal never write Markdown.
 
-Guided Merge first asks which Concept survives and whether to preserve the other narrative as a View. It then shows an editable final survivor note plus Before/After previews for every other affected file, Card and Source migration counts, and a review-confirmation checkbox. Only `Confirm Guided Merge` writes. Any file or plugin-state change after preview requires rebuilding the preview.
+`Merge Concepts` is a dedicated single-column workspace. It first asks for Concept A, Concept B, and the surviving stable identity. Manual search and a local shortlist are primary; optional AI inspection labels only the local shortlist and never selects a pair. `Start Manual Draft` combines the two Core Meaning and Why It Matters sections. `Draft with AI` may propose only Title, English Name, Core Meaning, and Why It Matters for the selected pair. Original Concepts are collapsed below the editor. `Preview Merge Changes` performs no writes and shows a compact count of preserved Cards and Source Notes, rewired Related links, and Redirect Notes; complete Before/After Markdown is under Advanced. Only acknowledged `Confirm Merge` writes. Any Markdown or plugin-state change after preview requires rebuilding the preview. Success offers `View Merged Concept`, `Review Merged Cards`, and `Merge Another Pair`.
 
 ## Concept Library Stale Source Repair
 
@@ -292,13 +305,23 @@ Back must contain the complete answer. Rubric is an optional scoring checklist a
 
 `Create Concept` is available from the command palette and Concept Library. It opens a dockable right-sidebar View so the student can keep the Source Note visible while writing. When the Composer has no meaningful saved draft, the ordinary Markdown note active at opening becomes Source Note by default. Mneme Concept and Card files are never default sources. The selected source is a draft value and does not silently follow later active-file changes; `Use Current Note` explicitly replaces it and `Clear` creates a source-free Concept.
 
-The primary form shows Source Note, Title, Core Meaning, Why It Matters, Learning Mode, Importance, Tags, and Create Concept. Learning Mode, Importance, and Tags are basic Concept metadata and must remain directly visible, with Reviewable and Normal defaults. Draft fields auto-save in plugin data and survive closing the View. `Cmd/Ctrl+Enter` invokes the same guarded creation action as the button. After creation, learning fields clear while Source Note remains selected for extracting another Concept from the same note. The Source Note stays open; a success row offers `Open Concept` instead of navigating automatically.
+The primary form shows Source Note, Title, Core Meaning, Why It Matters, Learning Mode, Importance, Tags, and Create Concept. English Name is conditional rather than permanent form clutter. An English Title keeps it hidden and is reused as its own canonical English Name. Local script detection reveals English Name after Tags when Title contains non-Latin text. The student may enter it manually. A right-aligned `Generate with AI` action becomes available only after Title and Core Meaning are complete and an AI provider is configured; clicking it sends only those two fields and fills an editable suggestion. Title changes never call AI automatically and invalidate the previous English Name so a stale translation cannot silently survive. If AI capture is disabled or the request fails, manual creation remains available once the student enters English Name. Learning Mode, Importance, and Tags are basic Concept metadata and must remain directly visible, with Reviewable and Normal defaults. Tags use a local multi-select picker: approved tags are recommended by Title/Core Meaning relevance and existing usage, while the student may search or create a new English lowercase slug. Selecting a new tag that resembles an existing tag shows an explicit `Use existing` suggestion; Mneme never replaces it silently. The UI recommends one to three useful tags without enforcing a manual-authoring quota. Draft fields auto-save in plugin data and survive closing the View. `Cmd/Ctrl+Enter` invokes the same guarded creation action as the button. After creation, learning fields clear while Source Note remains selected for extracting another Concept from the same note. The Composer scrolls to the top and shows one temporary success banner beneath its heading. `View Concept` is the primary action; `Open Concept Markdown` is a directly visible secondary action. The banner represents only the most recently created Concept and disappears when the student starts editing the next one.
 
-Title and Core Meaning are required. An exact normalized title blocks creation and links to the existing Concept. A possible duplicate must be reviewed before `Create Anyway` becomes available. Saving writes immediately approved user-authored knowledge with a stable ID and Card Group link; it does not create an Inbox proposal.
+Title and Core Meaning are required. At the final write gate, an exact Title, English Name, Concept ID, or Markdown-path collision opens `Concept Name Conflict` with the existing and incoming names and three decisions: `Merge`, `Refine Name`, or `Keep Both`. `Merge` safely stages the incoming Concept with a deterministic sibling identity and opens Guided Merge with the pair preselected; it never commits a merge automatically. `Refine Name` returns focus to Title, and any Title change clears the previous English Name for review. `Keep Both` writes deterministic `-2`, `-3`, and later siblings across primary Title, Display Title, Markdown path, Concept ID, and Card Group locator while leaving canonical English Name unsuffixed. A similar-but-not-exact Concept remains a non-blocking Possible Duplicate and must be reviewed before `Create Anyway` becomes available. Saving writes immediately approved user-authored knowledge with a stable ID and Card Group link; it does not create an Inbox proposal.
+
+AI Concept proposals use the same exact-collision gate only when the student presses Accept. Generation itself remains context-free. A conflict decision must not approve, stale, or remove the Inbox proposal until a write choice succeeds. `Refine Name` keeps Proposal Review open. `Keep Both` continues the ordinary queue. `Merge` accepts the staged sibling and opens the dedicated Merge workspace with both written Concepts preselected.
 
 Manual and AI-accepted Concepts use the same Markdown renderer. `Source Notes` is optional in that canonical format: a selected source writes the standard section and approved provenance index; no source omits the section entirely rather than writing an empty heading or placeholder.
 
 The creation action is single-flight from preflight duplicate scanning through the committed Markdown/provenance write. Once that commit succeeds, draft-reset or dependent-view refresh failures are reported as secondary UI errors and must never tell the student that Concept creation itself failed.
+
+## Card Composer View
+
+`Create Card` is available from the command palette and from an approved Concept in Concept Library or View Concept. It opens a dockable right-sidebar View so the Concept can remain visible while the student writes. The form order is Concept, Card Type, Front, Back, optional Rubric, then Create Card. Card Type uses Mneme's nine built-in types and appears before the learning content because it defines what kind of retrieval the Card tests.
+
+Front and Back are required. The draft auto-saves in plugin data and survives closing the View. `Cmd/Ctrl+Enter` invokes the same single-flight write as the button. Saving writes directly to the Concept's declared Card Group using canonical markers and the shared readable Card ID allocator; direct student authorship does not enter Inbox. After creation, Concept remains selected, Card Type returns to Definition, content fields clear, and a temporary success banner offers `View Concept` and `Open Cards Markdown`.
+
+AI-generated Card proposals follow a different rule: Card Type is visible but read-only in Proposal Review. Reviewers may correct Front, Back, and Rubric. A semantically wrong type should be rejected rather than silently reclassified after generation.
 
 ## Settings
 
@@ -310,7 +333,12 @@ Current settings:
 - Global Retention Target
 - Enable fuzz
 - Maximum interval
+- Show advanced diagnostics (default off, under Developer Tools)
 - LLM provider settings
+
+`Advanced Diagnostics` is a maintenance and repair surface, not part of the daily recall loop. It remains hidden by default. Enabling `Show advanced diagnostics` reveals raw due/new/later/invalid counts, scheduling state, repair controls, archived Cards, and deleted-Card tombstones at the bottom of Mneme Review. Changing this visibility setting must not alter Card Markdown, FSRS state, review history, or Today’s Focus eligibility.
+
+When Today’s Focus is empty, the hint `Use Advanced Diagnostics to inspect future cards.` is shown only while Advanced Diagnostics is enabled. With diagnostics disabled, the empty state contains only `No cards due right now.`
 
 Importance does not silently change FSRS desired retention. Mneme may use Importance to rank already-eligible Concepts, but FSRS keeps a global Retention Target unless the student intentionally chooses a separate scheduling override.
 

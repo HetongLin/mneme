@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import type { LoadedMnemeCard } from "../src/models/card";
 import type { RankedReviewQueueConcept } from "../src/models/conceptQueue";
 import type { ReviewQueueCard } from "../src/models/reviewQueue";
-import { selectTodaysFocus } from "../src/services/todaysFocusSelector";
+import { selectNextFocusConcept, selectTodaysFocus } from "../src/services/todaysFocusSelector";
 
 {
 	const selection = selectTodaysFocus([
@@ -44,6 +44,26 @@ import { selectTodaysFocus } from "../src/services/todaysFocusSelector";
 	]);
 	assert.deepEqual(selection.concepts[0]?.concept.newCards.map((card) => card.cardId), ["alpha-new-1"]);
 	assert.equal(selection.selectedCardCount, 3);
+}
+
+{
+	const selection = selectTodaysFocus([
+		createRanked("alpha", 1, 0, 1),
+		createRanked("beta", 1, 0, 2),
+		createRanked("gamma", 1, 0, 3),
+	], true);
+
+	assert.equal(selectNextFocusConcept(selection, "alpha")?.concept.conceptId, "beta");
+	assert.equal(selectNextFocusConcept(selection, "beta")?.concept.conceptId, "alpha");
+	assert.equal(selectNextFocusConcept(selection, "missing")?.concept.conceptId, "alpha");
+}
+
+{
+	const selection = selectTodaysFocus([
+		createRanked("alpha", 1, 0, 1),
+	], true);
+
+	assert.equal(selectNextFocusConcept(selection, "alpha"), undefined);
 }
 
 function createRanked(

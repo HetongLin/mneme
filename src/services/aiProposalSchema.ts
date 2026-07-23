@@ -38,6 +38,7 @@ export interface AiNewConceptProposalV1 extends AiConceptProposalBaseV1 {
 	payload: {
 		conceptTitle: string;
 		coreMeaning: string;
+		englishName: string;
 		whyItMatters: string;
 		learningMode: "reviewable" | "exploratory";
 		relatedConceptHints: string[];

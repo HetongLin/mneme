@@ -175,7 +175,7 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(result.status, "written");
 		assert.equal(vault.files.has("Mneme/Concepts/Encapsulation.md"), true);
 		const content = await vault.read("Mneme/Concepts/Encapsulation.md");
-		assert.match(content, /^---\nmneme_type: concept\nmneme_id: concept-encapsulation\nmneme_version: 1/m);
+		assert.match(content, /^---\nmneme_type: concept\nmneme_id: concept-encapsulation\nmneme_title: "Encapsulation"\nmneme_english_name: "Encapsulation"\nmneme_version: 1/m);
 		assert.match(content, /## Core Meaning/);
 		assert.equal(content.includes("sourceHash"), false);
 		assert.equal(content.includes("fsrsState"), false);
@@ -192,8 +192,35 @@ async function runAsyncTests(): Promise<void> {
 		const content = await vault.read("Mneme/Cards/Encapsulation/Cards.md");
 		assert.match(content, /^---\nmneme_type: card_group\nmneme_concept_id: concept-encapsulation/m);
 		assert.match(content, /mneme_concept_id: concept-encapsulation/);
-		assert.match(content, /MNEME:CARD:start id="[^"]+" type="definition"/);
+		assert.match(content, /MNEME:CARD:start id="encapsulation-definition" type="definition"/);
 		assert.equal((await store.getProposal(proposal.id))?.status, "written");
+	}
+
+	{
+		const proposal = createApprovedCardProposal("proposal-concept-learning-card");
+		proposal.cardId = "learning-definition";
+		proposal.conceptId = "concept-concept-learning";
+		proposal.payload!.conceptId = "concept-concept-learning";
+		proposal.payload!.conceptTitle = "Concept Learning";
+		proposal.payload!.card.front = "What is concept learning?";
+		const { vault, writer } = await createWriter(
+			{ [proposal.id]: proposal },
+			undefined,
+			undefined,
+			{
+				conceptId: "concept-concept-learning",
+				path: "Mneme/Concepts/Concept-Learning.md",
+				title: "Concept Learning",
+			},
+		);
+
+		const result = await writer.writeApprovedProposal(proposal.id);
+
+		assert.equal(result.status, "written");
+		assert.match(
+			await vault.read("Mneme/Cards/Concept-Learning/Cards.md"),
+			/MNEME:CARD:start id="concept-learning-definition" type="definition"/,
+		);
 	}
 
 	{
@@ -213,6 +240,10 @@ async function runAsyncTests(): Promise<void> {
 
 		assert.equal(cards.length, 2);
 		assert.deepEqual(cards.map((card) => card.front), ["What is encapsulation?", "Why hide representation?"]);
+		assert.deepEqual(cards.map((card) => card.explicitCardId), [
+			"encapsulation-definition",
+			"encapsulation-definition-2",
+		]);
 	}
 
 	{
@@ -419,10 +450,22 @@ async function runAsyncTests(): Promise<void> {
 
 	{
 		const proposal = createApprovedConceptProposal();
+		proposal.sourceHash = "source-hash";
+		proposal.sourcePath = "Notes/Intro.md";
+		proposal.payload!.proposedSourceLinks = [{
+			evidence: [{ excerpt: "Encapsulation hides representation." }],
+			relationType: "origin",
+			sourceHash: "source-hash",
+			sourcePath: "Notes/Intro.md",
+		}];
+		const sourceRecord = createSourceRecord("Notes/Intro.md");
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData({ [proposal.id]: proposal }, {
+			[sourceRecord.sourcePath]: sourceRecord,
+		}));
 		const vault = new MemoryVaultAdapter({
 			"Mneme/Concepts/Encapsulation.md": "Existing content",
 		});
-		const { writer } = await createWriter({ [proposal.id]: proposal }, vault);
+		const { writer } = await createWriter({ [proposal.id]: proposal }, vault, storage);
 		const result = await writer.writeApprovedProposal(proposal.id);
 
 		assert.equal(result.status, "written");
@@ -430,8 +473,16 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(vault.files.get("Mneme/Concepts/Encapsulation.md"), "Existing content");
 		assert.match(
 			await vault.read("Mneme/Concepts/Encapsulation-2.md"),
-			/cards: "\[\[Mneme\/Cards\/Encapsulation-2\/Cards\|Encapsulation Cards\]\]"/,
+			/cards: "\[\[Mneme\/Cards\/Encapsulation-2\/Cards\|Encapsulation - 2 Cards\]\]"/,
 		);
+		assert.match(
+			await vault.read("Mneme/Concepts/Encapsulation-2.md"),
+			/^---\nmneme_type: concept\nmneme_id: concept-encapsulation-2\nmneme_title: "Encapsulation - 2"\nmneme_english_name: "Encapsulation"\nmneme_version: 1/m,
+		);
+		assert.match(await vault.read("Mneme/Concepts/Encapsulation-2.md"), /^# Encapsulation - 2$/m);
+		assert.deepEqual(storage.savedData?.sourceAnalysisRecords["Notes/Intro.md"].linkedConceptIds, [
+			"concept-encapsulation-2",
+		]);
 	}
 
 	{
@@ -674,9 +725,41 @@ async function runAsyncTests(): Promise<void> {
 		});
 		const result = await writer.writeApprovedProposal(proposal.id);
 
-		assert.equal(result.status, "failed");
-		assert.match(result.message, /already active or reserved/);
-		assert.equal(vault.files.size, 0);
+		assert.equal(result.status, "written");
+		assert.deepEqual(result.targetPaths, ["Mneme/Concepts/Encapsulation-2.md"]);
+		assert.match(await vault.read("Mneme/Concepts/Encapsulation-2.md"), /mneme_id: concept-encapsulation-2/);
+		assert.match(await vault.read("Mneme/Concepts/Encapsulation-2.md"), /^# Encapsulation - 2$/m);
+	}
+
+	{
+		const proposal = createProposal("proposal-reserved-bilingual-concept", {
+			kind: "new_concept",
+			payload: {
+				coreMeaning: "间隔效应把学习分散到多个时间点。",
+				englishName: "Spacing Effect",
+				title: "间隔效应",
+			},
+			status: "approved",
+		});
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData({ [proposal.id]: proposal }));
+		const vault = new MemoryVaultAdapter();
+		const writer = new ApprovedProposalWriter({
+			isConceptIdReserved: async (conceptId) => conceptId === "concept-spacing-effect",
+			proposalStore: new KnowledgeProposalStore(storage),
+			settingsProvider: () => DEFAULT_SETTINGS,
+			vaultAdapter: vault,
+		});
+		const result = await writer.writeApprovedProposal(proposal.id);
+		const targetPath = "Mneme/Concepts/间隔效应-(Spacing-Effect)-2.md";
+		const markdown = await vault.read(targetPath);
+
+		assert.equal(result.status, "written");
+		assert.deepEqual(result.targetPaths, [targetPath]);
+		assert.match(markdown, /mneme_id: concept-spacing-effect-2/);
+		assert.match(markdown, /mneme_title: "间隔效应 - 2"/);
+		assert.match(markdown, /mneme_english_name: "Spacing Effect"/);
+		assert.match(markdown, /^# 间隔效应 - 2 \(Spacing Effect\)$/m);
+		assert.match(markdown, /\|间隔效应 - 2 \(Spacing Effect\) Cards\]\]/);
 	}
 
 	{

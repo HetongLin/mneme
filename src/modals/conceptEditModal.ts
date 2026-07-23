@@ -22,11 +22,19 @@ import { extractCoreMeaning, extractWhyItMatters } from "../services/conceptMark
 import { updateConceptSections } from "../services/conceptSectionUpdater";
 import { createMarkdownLivePreviewField } from "../ui/markdownLivePreviewField";
 import { formatUserFacingError } from "../utils/userFacingError";
+import type { RelatedConceptService } from "../services/relatedConceptService";
+import { ConceptDeleteModal } from "./conceptDeleteModal";
+import { RelatedConceptModal } from "./relatedConceptModal";
 
 export interface ConceptEditModalOptions {
 	concept: ConceptSummary;
+	concepts?: ConceptSummary[];
+	createCard?(): Promise<void> | void;
+	deleteConcept?(): Promise<void> | void;
 	globalRetentionTarget?: number;
+	onOpenRelated?(concept: ConceptSummary): void;
 	onSaved(): Promise<void> | void;
+	relatedConceptService?: RelatedConceptService;
 }
 
 export class ConceptEditModal extends Modal {
@@ -87,6 +95,10 @@ export class ConceptEditModal extends Modal {
 			cls: "mneme-review-status",
 			text: `Editing ${this.options.concept.path}`,
 		});
+		contentEl.createEl("h2", {
+			cls: "mneme-concept-edit-title",
+			text: this.options.concept.title,
+		});
 		const coreMeaningInput = this.createTextarea(contentEl, "Core Meaning", baseline.coreMeaning);
 		const whyInput = this.createTextarea(contentEl, "Why It Matters", baseline.whyItMatters);
 		const learningModeSelect = this.createSelect<ConceptLearningMode>(
@@ -108,11 +120,31 @@ export class ConceptEditModal extends Modal {
 			(baseline.tags ?? []).join(", "),
 			"Comma-separated, e.g. machine-learning, statistics",
 		);
+		this.renderRelatedConcepts(contentEl);
 		const actionsEl = contentEl.createDiv({ cls: "mneme-proposal-detail-modal-actions" });
 		const cancelButton = actionsEl.createEl("button", { text: "Cancel" });
+		if (this.options.createCard) {
+			const createCardButton = actionsEl.createEl("button", { text: "Create Card" });
+			createCardButton.addEventListener("click", () => {
+				this.close();
+				void this.options.createCard?.();
+			});
+		}
 		const saveButton = actionsEl.createEl("button", { text: "Save Concept" });
+		const deleteButton = this.options.deleteConcept
+			? actionsEl.createEl("button", { cls: "mod-warning", text: "Delete Concept" })
+			: undefined;
 
 		cancelButton.addEventListener("click", () => this.close());
+		deleteButton?.addEventListener("click", () => {
+			new ConceptDeleteModal(this.app, {
+				concept: this.options.concept,
+				onConfirmed: async () => {
+					await this.options.deleteConcept?.();
+					this.close();
+				},
+			}).open();
+		});
 		saveButton.addEventListener("click", () => {
 			const retentionTarget = parseConceptRetentionTarget(retentionTargetInput.value);
 			if (retentionTargetInput.value.trim().length > 0 && retentionTarget === undefined) {
@@ -128,6 +160,51 @@ export class ConceptEditModal extends Modal {
 				whyItMatters: whyInput.value,
 			}, saveButton);
 		});
+	}
+
+	private renderRelatedConcepts(parentEl: HTMLElement): void {
+		const byId = new Map((this.options.concepts ?? []).map((concept) => [concept.conceptId, concept]));
+		const related = (this.options.concept.relatedConceptIds ?? [])
+			.map((conceptId) => byId.get(conceptId))
+			.filter((concept): concept is ConceptSummary => !!concept)
+			.sort((left, right) => left.title.localeCompare(right.title, undefined, { sensitivity: "base" }));
+		const detailsEl = parentEl.createEl("details", { cls: "mneme-related-concepts" });
+		detailsEl.open = related.length <= 3;
+		detailsEl.createEl("summary", { text: `Related Concepts (${related.length})` });
+		const bodyEl = detailsEl.createDiv({ cls: "mneme-related-concepts-body" });
+
+		if (related.length === 0) {
+			bodyEl.createEl("p", { cls: "mneme-review-status", text: "No Related Concepts yet." });
+		} else {
+			const linksEl = bodyEl.createDiv({ cls: "mneme-related-concept-navigation" });
+			for (const concept of related) {
+				linksEl.createEl("button", {
+					attr: { "aria-label": `Open ${concept.title}` },
+					cls: "mneme-related-concept-link",
+				}, (buttonEl) => {
+					buttonEl.createSpan({ attr: { "aria-hidden": "true" }, text: "↗" });
+					buttonEl.createSpan({ text: concept.title });
+					buttonEl.addEventListener("click", () => {
+						this.close();
+						this.options.onOpenRelated?.(concept);
+					});
+				});
+			}
+		}
+
+		if (this.options.relatedConceptService && this.options.concepts) {
+			const managementEl = bodyEl.createDiv({ cls: "mneme-related-concept-management" });
+			managementEl.createEl("button", { text: "Manage Related Concepts" }, (buttonEl) => {
+				buttonEl.addEventListener("click", () => {
+					new RelatedConceptModal(this.app, {
+						concept: this.options.concept,
+						concepts: this.options.concepts ?? [],
+						onChanged: this.options.onSaved,
+						service: this.options.relatedConceptService!,
+					}).open();
+				});
+			});
+		}
 	}
 
 	private createTextInput(parentEl: HTMLElement, label: string, value: string, placeholder: string): HTMLInputElement {

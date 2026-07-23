@@ -7,7 +7,9 @@ import {
 	ACCEPTANCE_SOURCE_PATH,
 } from "./acceptance/preAiAcceptanceFixture";
 import type { KnowledgeProposal } from "./models/knowledgeProposal";
+import type { ConceptSummary } from "./models/conceptLibrary";
 import { ConfirmClearReviewHistoryModal } from "./modals/confirmClearReviewHistoryModal";
+import { ConceptEditModal } from "./modals/conceptEditModal";
 import {
 	DEFAULT_SETTINGS,
 	getSettingsFromPluginData,
@@ -33,7 +35,12 @@ import {
 } from "./services/currentNoteActionPolicy";
 import { ConceptScanner } from "./services/conceptScanner";
 import { ConceptLoader } from "./services/conceptLoader";
+import { waitForReviewableConcept } from "./services/conceptReviewAvailability";
 import { ConceptMergeService } from "./services/conceptMergeService";
+import { ConceptMergeAiService } from "./services/conceptMergeAiService";
+import { ConceptEnglishNameAiService } from "./services/conceptEnglishNameAiService";
+import { ConceptDeletionService } from "./services/conceptDeletionService";
+import { findConceptNameConflict } from "./services/conceptNameConflict";
 import {
 	getCardGroupPathFromConceptFrontmatter,
 	getConceptIdFromFrontmatter,
@@ -42,6 +49,8 @@ import { parseConceptTitle } from "./services/conceptMarkdownParser";
 import { KnowledgeProposalStore } from "./services/knowledgeProposalStore";
 import { createKnowledgeContextPack } from "./services/knowledgeContextPackExporter";
 import { ManualConceptDraftStore } from "./services/manualConceptDraftStore";
+import { ManualCardDraftStore } from "./services/manualCardDraftStore";
+import { createManualCard, type ManualCardInput, type ManualCardResult } from "./services/manualCardService";
 import { ManualConceptProvenanceCommitter, type ManualConceptSourceSnapshot } from "./services/manualConceptProvenanceService";
 import { ObsidianConceptVaultAdapter } from "./services/obsidianConceptVaultAdapter";
 import { ObsidianAiHttpClient } from "./services/obsidianAiHttpClient";
@@ -49,16 +58,20 @@ import { ObsidianVaultAdapter } from "./services/obsidianVaultAdapter";
 import { PreAiAcceptanceFixtureService } from "./services/preAiAcceptanceFixtureService";
 import { createManualConcept, type ManualConceptInput, type ManualConceptResult } from "./services/manualConceptService";
 import { ReviewStateStore } from "./services/reviewStateStore";
+import { RelatedConceptService } from "./services/relatedConceptService";
 import { SourceAnalysisService } from "./services/sourceAnalysisService";
 import { SourceAnalysisStore } from "./services/sourceAnalysisStore";
 import { SourceProvenanceRelinkService } from "./services/sourceProvenanceRelinkService";
 import { SourceProvenanceRemovalService } from "./services/sourceProvenanceRemovalService";
 import { VaultStateReconciler } from "./services/vaultStateReconciler";
+import type { GenerateToReviewSession } from "./services/generateToReviewWorkflow";
 import { buildCardGroupPath, buildConceptPath, normalizeVaultPath } from "./utils/markdownPath";
 import { computeContentHash } from "./utils/sourceHash";
 import { formatUserFacingError } from "./utils/userFacingError";
 import { CONCEPT_COMPOSER_VIEW_TYPE, MnemeConceptComposerView } from "./views/conceptComposerView";
+import { CARD_COMPOSER_VIEW_TYPE, MnemeCardComposerView } from "./views/cardComposerView";
 import { CONCEPT_LIBRARY_VIEW_TYPE, MnemeConceptLibraryView } from "./views/conceptLibraryView";
+import { CONCEPT_MERGE_VIEW_TYPE, MnemeConceptMergeView } from "./views/conceptMergeView";
 import { MnemeInboxView, INBOX_VIEW_TYPE, type InboxTab } from "./views/inboxView";
 import { MnemeReviewView, REVIEW_VIEW_TYPE } from "./views/reviewView";
 
@@ -70,6 +83,7 @@ export default class MnemePlugin extends Plugin {
 	private knowledgeProposalStore: KnowledgeProposalStore;
 	private conceptSourceLinkStore: ConceptSourceLinkStore;
 	private manualConceptDraftStore: ManualConceptDraftStore;
+	private manualCardDraftStore: ManualCardDraftStore;
 	private approvedProposalWriter: ApprovedProposalWriter;
 	private readonly aiGenerationLock = new AiGenerationLock();
 
@@ -81,25 +95,29 @@ export default class MnemePlugin extends Plugin {
 		this.knowledgeProposalStore = new KnowledgeProposalStore(this);
 		this.conceptSourceLinkStore = new ConceptSourceLinkStore(this);
 		this.manualConceptDraftStore = new ManualConceptDraftStore(this);
+		this.manualCardDraftStore = new ManualCardDraftStore(this);
 		this.approvedProposalWriter = new ApprovedProposalWriter({
 			conceptSourceLinkStore: this.conceptSourceLinkStore,
 			conceptScanner: this.createConceptScanner(),
-			isConceptIdReserved: async (conceptId) => {
-				if (this.reviewStateStore.getConceptMergeRecords()[conceptId]) {
-					return true;
-				}
-
-				const result = await this.createConceptScanner().scan();
-
-				return result.concepts.some((concept) => concept.conceptId === conceptId)
-					|| result.identityIssues.some((issue) => issue.conceptId === conceptId);
-			},
+			isConceptIdReserved: (conceptId) => this.isConceptIdReserved(conceptId),
 			proposalStore: this.knowledgeProposalStore,
 			settingsProvider: () => this.settings,
 			sourceAnalysisStore: this.sourceAnalysisStore,
 			vaultAdapter: new ObsidianVaultAdapter(this.app.vault),
 		});
 		await this.reviewStateStore.load();
+		const conceptMergeService = new ConceptMergeService(
+			new ObsidianVaultAdapter(this.app.vault),
+			this,
+		);
+		const conceptMergeAiService = new ConceptMergeAiService({
+			httpClient: new ObsidianAiHttpClient(),
+			settingsProvider: () => this.settings,
+		});
+		const conceptEnglishNameAiService = new ConceptEnglishNameAiService({
+			httpClient: new ObsidianAiHttpClient(),
+			settingsProvider: () => this.settings,
+		});
 
 		this.addSettingTab(new MnemeSettingTab(this.app, this));
 		this.registerView(REVIEW_VIEW_TYPE, (leaf) => new MnemeReviewView(
@@ -107,6 +125,7 @@ export default class MnemePlugin extends Plugin {
 			this.reviewStateStore,
 			() => this.settings,
 			{
+				deleteConcept: (concept) => this.deleteConcept(concept),
 				openConceptLibrary: () => this.openConceptLibraryView(),
 			},
 		));
@@ -115,18 +134,34 @@ export default class MnemePlugin extends Plugin {
 			this.knowledgeProposalStore,
 			this.approvedProposalWriter,
 			this.createVaultStateReconciler(),
+			{
+				listConceptTags: async () => (await this.createConceptScanner().scanConcepts())
+					.flatMap((concept) => concept.tags ?? []),
+				mergeConcepts: async (existing, newConceptPath) => {
+					const concepts = await this.createConceptScanner().scanConcepts();
+					const incoming = concepts.find((concept) => concept.path === newConceptPath);
+					if (!incoming) {
+						new Notice("Mneme: Accepted Concept could not be loaded for Merge.");
+						return;
+					}
+					await this.openConceptMergeView(existing, incoming);
+				},
+				openConceptLibrary: () => this.openConceptLibraryView(),
+				startConceptReview: (conceptId) => this.reviewCardsFromConceptLibrary(conceptId, {
+					waitForFreshCards: true,
+				}),
+			},
 		));
 		this.registerView(CONCEPT_LIBRARY_VIEW_TYPE, (leaf) => new MnemeConceptLibraryView(
 			leaf,
 			this.createConceptScanner(),
 			this.reviewStateStore,
 			{
-				conceptMergeService: new ConceptMergeService(
-					new ObsidianVaultAdapter(this.app.vault),
-					this,
-				),
 				createConcept: () => this.openConceptComposerView(),
+				createCard: (concept) => this.openCardComposerView(concept.conceptId),
+				deleteConcept: (concept) => this.deleteConcept(concept),
 				getGlobalRetentionTarget: () => this.settings.fsrsRequestRetention,
+				relatedConceptService: new RelatedConceptService(new ObsidianVaultAdapter(this.app.vault)),
 				sourceRelinkService: new SourceProvenanceRelinkService(
 					new ObsidianVaultAdapter(this.app.vault),
 					this,
@@ -135,18 +170,84 @@ export default class MnemePlugin extends Plugin {
 					new ObsidianVaultAdapter(this.app.vault),
 					this,
 				),
-				generateCards: (concept) => this.generateCardsFromConceptPath(concept.path),
+				generateCards: (concept) => this.generateCardsToReviewFromConceptPath(concept.path),
+				mergeConcepts: (first, second) => this.openConceptMergeView(first, second),
 				reviewCards: (concept) => this.reviewCardsFromConceptLibrary(concept.conceptId),
 			},
 		));
+		this.registerView(CONCEPT_MERGE_VIEW_TYPE, (leaf) => new MnemeConceptMergeView(
+			leaf,
+			this.createConceptScanner(),
+			{
+				aiService: conceptMergeAiService,
+				getDismissedPairKeys: () => Object.keys(this.reviewStateStore.getConceptDuplicateDismissals()),
+				mergeService: conceptMergeService,
+				onMerged: async () => {
+					await this.reviewStateStore.load();
+					await Promise.all([
+						this.refreshOpenConceptLibraryViews(),
+						this.refreshReviewViews(),
+					]);
+				},
+				openConcept: async (concept) => this.openConceptDetail(
+					concept,
+					await this.createConceptScanner().scanConcepts(),
+				),
+				readMarkdown: async (path) => {
+					const file = this.app.vault.getAbstractFileByPath(path);
+					if (!(file instanceof TFile)) throw new Error(`Markdown file not found: ${path}`);
+					return this.app.vault.cachedRead(file);
+				},
+				reviewCards: (conceptId) => this.reviewCardsFromConceptLibrary(conceptId),
+			},
+		));
 		this.registerView(CONCEPT_COMPOSER_VIEW_TYPE, (leaf) => new MnemeConceptComposerView(leaf, {
+			canSuggestEnglishName: () => conceptEnglishNameAiService.isAvailable(),
 			create: (input) => this.createManualConceptFromComposer(input),
 			draftStore: this.manualConceptDraftStore,
+			findNameConflict: async (input) => findConceptNameConflict(
+				input,
+				this.settings,
+				await this.createConceptScanner().scanConcepts(),
+			),
 			getCurrentSourcePath: () => this.getCurrentManualConceptSourcePath(),
 			listSourcePaths: () => this.listManualConceptSourcePaths(),
-			onCreated: () => this.refreshOpenConceptLibraryViews(),
-			openConcept: (path) => this.openConceptInTab(path),
+			onCreated: async () => {
+				await Promise.all([
+					this.refreshOpenConceptLibraryViews(),
+					this.refreshReviewViews(),
+				]);
+			},
+			openMerge: async (existing, result) => {
+				const concepts = await this.createConceptScanner().scanConcepts();
+				const incoming = concepts.find((concept) => concept.path === result.path)
+					?? concepts.find((concept) => concept.conceptId === result.conceptId);
+				if (!incoming) {
+					new Notice("Mneme: Created Concept could not be loaded for Merge.");
+					return;
+				}
+				await this.openConceptMergeView(existing, incoming);
+			},
+			openConceptMarkdown: (path) => this.openConceptInTab(path),
 			scanConcepts: () => this.createConceptScanner().scanConcepts(),
+			suggestEnglishName: (title, coreMeaning) => conceptEnglishNameAiService.suggest(title, coreMeaning),
+			viewConcept: (result) => this.viewManualConcept(result),
+		}));
+		this.registerView(CARD_COMPOSER_VIEW_TYPE, (leaf) => new MnemeCardComposerView(leaf, {
+			create: (input) => this.createManualCardFromComposer(input),
+			draftStore: this.manualCardDraftStore,
+			listConcepts: () => this.createConceptScanner().scanConcepts(),
+			onCreated: async () => {
+				await Promise.all([
+					this.refreshOpenConceptLibraryViews(),
+					this.refreshReviewViews(),
+				]);
+			},
+			openCardsMarkdown: (path) => this.openMarkdownInTab(path, "Cards"),
+			viewConcept: async (concept) => this.openConceptDetail(
+				concept,
+				await this.createConceptScanner().scanConcepts(),
+			),
 		}));
 
 		this.registerProductCommands();
@@ -178,6 +279,14 @@ export default class MnemePlugin extends Plugin {
 			name: "Create Concept",
 			callback: () => {
 				void this.openConceptComposerView();
+			},
+		});
+
+		this.addCommand({
+			id: "mneme-create-card",
+			name: "Create Card",
+			callback: () => {
+				void this.openCardComposerForCurrentConcept();
 			},
 		});
 
@@ -224,6 +333,14 @@ export default class MnemePlugin extends Plugin {
 			name: "Open Concept Library",
 			callback: () => {
 				void this.openConceptLibraryView();
+			},
+		});
+
+		this.addCommand({
+			id: "mneme-merge-concepts",
+			name: "Merge Concepts",
+			callback: () => {
+				void this.openConceptMergeView();
 			},
 		});
 
@@ -399,8 +516,9 @@ export default class MnemePlugin extends Plugin {
 			readSourceContent,
 		);
 		const service = new AiConceptCaptureService({
-			conceptScanner: this.createConceptScanner(),
 			createProvider: (settings) => createAiProvider(settings, new ObsidianAiHttpClient()),
+			existingTagsProvider: async () => (await this.createConceptScanner().scanConcepts())
+				.flatMap((concept) => concept.tags ?? []),
 			generationLock: this.aiGenerationLock,
 			proposalStore: this.knowledgeProposalStore,
 			readSourceContent,
@@ -467,7 +585,7 @@ export default class MnemePlugin extends Plugin {
 		await this.generateCardsFromConceptFile(activeFile);
 	}
 
-	private async generateCardsFromConceptPath(conceptPath: string): Promise<void> {
+	private async generateCardsToReviewFromConceptPath(conceptPath: string): Promise<void> {
 		const abstractFile = this.app.vault.getAbstractFileByPath(conceptPath);
 
 		if (!(abstractFile instanceof TFile)) {
@@ -475,7 +593,7 @@ export default class MnemePlugin extends Plugin {
 			return;
 		}
 
-		await this.generateCardsFromConceptFile(abstractFile);
+		await this.generateCardsFromConceptFile(abstractFile, { generateToReview: true });
 	}
 
 	private async openCardsForCurrentConcept(): Promise<void> {
@@ -523,7 +641,10 @@ export default class MnemePlugin extends Plugin {
 		new Notice("Mneme: Card Group not found. Generate and accept Cards first.");
 	}
 
-	private async generateCardsFromConceptFile(conceptFile: TFile): Promise<void> {
+	private async generateCardsFromConceptFile(
+		conceptFile: TFile,
+		options: { generateToReview?: boolean } = {},
+	): Promise<void> {
 		const frontmatter = this.app.metadataCache.getFileCache(conceptFile)?.frontmatter;
 		const conceptId = getConceptIdFromFrontmatter(frontmatter);
 
@@ -543,6 +664,9 @@ export default class MnemePlugin extends Plugin {
 		const existingCardFronts = loadedConcepts.concepts
 			.find((concept) => concept.id === conceptId)
 			?.cards.filter((card) => card.isValid).map((card) => card.front) ?? [];
+		const existingCardTypes = loadedConcepts.concepts
+			.find((concept) => concept.id === conceptId)
+			?.cards.filter((card) => card.isValid && card.cardType).map((card) => card.cardType!) ?? [];
 		const service = new AiCardGenerationService({
 			createProvider: (settings) => createAiProvider(settings, new ObsidianAiHttpClient()),
 			generationLock: this.aiGenerationLock,
@@ -557,6 +681,7 @@ export default class MnemePlugin extends Plugin {
 			conceptSize: conceptFile.stat.size,
 			conceptTitle,
 			existingCardFronts,
+			existingCardTypes,
 			markdown,
 		});
 
@@ -581,6 +706,15 @@ export default class MnemePlugin extends Plugin {
 		new Notice(`Mneme: ${result.message}`);
 
 		if (result.status === "generated" || result.status === "skipped_active_proposals") {
+			if (options.generateToReview && result.proposalIds.length > 0) {
+				await this.openInboxView("cards", {
+					conceptId,
+					conceptTitle,
+					proposalIds: result.proposalIds,
+				});
+				return;
+			}
+
 			await this.openInboxView("cards");
 		}
 	}
@@ -941,7 +1075,19 @@ export default class MnemePlugin extends Plugin {
 			new ObsidianVaultAdapter(this.app.vault),
 			undefined,
 			committer,
+			(conceptId) => this.isConceptIdReserved(conceptId),
 		);
+	}
+
+	private async isConceptIdReserved(conceptId: string): Promise<boolean> {
+		if (this.reviewStateStore.getConceptMergeRecords()[conceptId]) {
+			return true;
+		}
+
+		const result = await this.createConceptScanner().scan();
+
+		return result.concepts.some((concept) => concept.conceptId === conceptId)
+			|| result.identityIssues.some((issue) => issue.conceptId === conceptId);
 	}
 
 	private getCurrentManualConceptSourcePath(): string | undefined {
@@ -998,13 +1144,86 @@ export default class MnemePlugin extends Plugin {
 	}
 
 	private async openConceptInTab(path: string): Promise<void> {
+		return this.openMarkdownInTab(path, "Concept");
+	}
+
+	private async openMarkdownInTab(path: string, label: "Cards" | "Concept"): Promise<void> {
 		const abstractFile = this.app.vault.getAbstractFileByPath(path);
 		if (!(abstractFile instanceof TFile)) {
-			new Notice("Mneme: Concept file not found.");
+			new Notice(`Mneme: ${label} file not found.`);
 			return;
 		}
 
 		await this.app.workspace.getLeaf("tab").openFile(abstractFile);
+	}
+
+	private async viewManualConcept(result: ManualConceptResult): Promise<void> {
+		try {
+			const concepts = await this.createConceptScanner().scanConcepts();
+			const concept = concepts.find((candidate) => candidate.conceptId === result.conceptId)
+				?? concepts.find((candidate) => candidate.path === result.path);
+			if (!concept) {
+				new Notice("Mneme: created Concept could not be loaded.");
+				return;
+			}
+
+			this.openConceptDetail(concept, concepts);
+		} catch (error) {
+			console.error("Mneme: created Concept could not be opened", error);
+			new Notice("Mneme: created Concept could not be opened.");
+		}
+	}
+
+	private openConceptDetail(concept: ConceptSummary, concepts: ConceptSummary[]): void {
+		new ConceptEditModal(this.app, {
+			concept,
+			concepts,
+			createCard: () => this.openCardComposerView(concept.conceptId),
+			deleteConcept: () => this.deleteConcept(concept),
+			globalRetentionTarget: this.settings.fsrsRequestRetention,
+			onOpenRelated: (related) => this.openConceptDetail(related, concepts),
+			onSaved: () => this.refreshOpenConceptLibraryViews(),
+			relatedConceptService: new RelatedConceptService(new ObsidianVaultAdapter(this.app.vault)),
+		}).open();
+	}
+
+	private async deleteConcept(concept: ConceptSummary): Promise<void> {
+		const concepts = await this.createConceptScanner().scanConcepts();
+		const current = concepts.find((candidate) => (
+			candidate.conceptId === concept.conceptId && candidate.path === concept.path
+		));
+		if (!current) {
+			throw new Error("Concept was not found. Refresh the view and try again.");
+		}
+
+		const service = new ConceptDeletionService(new ObsidianVaultAdapter(this.app.vault));
+		const prepared = await service.prepare(current, concepts);
+		if (prepared.status === "blocked") {
+			throw new Error(prepared.message);
+		}
+
+		const result = await service.execute(prepared.plan, async (cardIds) => {
+			await this.reviewStateStore.deleteConcept(current.conceptId, cardIds);
+		});
+		if (result.status !== "deleted") {
+			throw new Error(result.message);
+		}
+
+		try {
+			await this.createVaultStateReconciler().reconcile();
+		} catch (error) {
+			console.error("Mneme: Concept deleted but stale indexes could not be reconciled", error);
+			new Notice("Mneme: Concept deleted, but index cleanup will retry on the next refresh.");
+		}
+		try {
+			await Promise.all([
+				this.refreshOpenConceptLibraryViews(),
+				this.refreshReviewViews(),
+			]);
+		} catch (error) {
+			console.error("Mneme: Concept deleted but dependent views could not refresh", error);
+			new Notice("Mneme: Concept deleted. Reopen Mneme views to refresh them.");
+		}
 	}
 
 	private async openConceptComposerView(): Promise<void> {
@@ -1032,6 +1251,54 @@ export default class MnemePlugin extends Plugin {
 		await this.app.workspace.revealLeaf(leaf);
 	}
 
+	private async openCardComposerForCurrentConcept(): Promise<void> {
+		const activePath = this.app.workspace.getActiveFile()?.path;
+		let conceptId: string | undefined;
+		if (activePath) {
+			const concepts = await this.createConceptScanner().scanConcepts();
+			conceptId = concepts.find((concept) => concept.path === activePath)?.conceptId;
+		}
+		await this.openCardComposerView(conceptId);
+	}
+
+	private async openCardComposerView(defaultConceptId?: string): Promise<void> {
+		const existingLeaf = this.app.workspace.getLeavesOfType(CARD_COMPOSER_VIEW_TYPE)[0];
+		if (existingLeaf) {
+			if (existingLeaf.view instanceof MnemeCardComposerView) {
+				await existingLeaf.view.prepare(defaultConceptId);
+			}
+			await this.app.workspace.revealLeaf(existingLeaf);
+			return;
+		}
+
+		const leaf = this.app.workspace.getRightLeaf(false);
+		if (!leaf) {
+			new Notice("Mneme: could not open Card Composer.");
+			return;
+		}
+		await leaf.setViewState({ active: true, type: CARD_COMPOSER_VIEW_TYPE });
+		if (leaf.view instanceof MnemeCardComposerView) await leaf.view.prepare(defaultConceptId);
+		await this.app.workspace.revealLeaf(leaf);
+	}
+
+	private createManualCardFromComposer(input: ManualCardInput): Promise<ManualCardResult> {
+		const historicalCardIds = new Set([
+			...Object.keys(this.reviewStateStore.getAllStates()),
+			...Object.keys(this.reviewStateStore.getCardTombstones()),
+			...Object.keys(this.reviewStateStore.getActiveReviewDeferrals()),
+			...Object.keys(this.reviewStateStore.getSuspendedCards()),
+			...Object.keys(this.reviewStateStore.getRetiredCards()),
+			...this.reviewStateStore.getReviewEvents().map((event) => event.cardId),
+		]);
+
+		return createManualCard(
+			input,
+			this.settings,
+			new ObsidianVaultAdapter(this.app.vault),
+			historicalCardIds,
+		);
+	}
+
 	private async openReviewView() {
 		const existingLeaf = this.app.workspace.getLeavesOfType(REVIEW_VIEW_TYPE)[0];
 
@@ -1054,31 +1321,61 @@ export default class MnemePlugin extends Plugin {
 		return leaf;
 	}
 
-	private async reviewCardsFromConceptLibrary(conceptId: string): Promise<void> {
+	private async reviewCardsFromConceptLibrary(
+		conceptId: string,
+		options: { waitForFreshCards?: boolean } = {},
+	): Promise<"failed" | "no_cards" | "started"> {
+		const loader = new ConceptLoader(this.app);
+		const hasReviewableCards = options.waitForFreshCards
+			? await waitForReviewableConcept(
+				async () => (await loader.loadConcepts()).concepts,
+				conceptId,
+			)
+			: await waitForReviewableConcept(
+				async () => (await loader.loadConcepts()).concepts,
+				conceptId,
+				{ attempts: 1 },
+			);
+
+		if (!hasReviewableCards) {
+			return "no_cards";
+		}
+
 		const leaf = await this.openReviewView();
 		if (!leaf || !(leaf.view instanceof MnemeReviewView)) {
 			new Notice("Mneme: could not open Review Cards.");
-			return;
+			return "failed";
 		}
 
 		const result = await leaf.view.startConceptReview(conceptId);
 
 		if (result === "not_found") {
 			new Notice("Mneme: Concept not found in Review.");
+			return "failed";
 		}
 
 		if (result === "no_reviewable_cards") {
 			new Notice("Mneme: this Concept has no valid Cards to review.");
+			return "failed";
 		}
+
+		return "started";
 	}
 
-	private async openInboxView(tab: InboxTab = "concepts"): Promise<void> {
+	private async openInboxView(
+		tab: InboxTab = "concepts",
+		generateToReviewSession?: GenerateToReviewSession,
+	): Promise<void> {
 		const existingLeaf = this.app.workspace.getLeavesOfType(INBOX_VIEW_TYPE)[0];
 
 		if (existingLeaf) {
 			if (existingLeaf.view instanceof MnemeInboxView) {
-				existingLeaf.view.showTab(tab);
-				await existingLeaf.view.refresh();
+				if (generateToReviewSession) {
+					await existingLeaf.view.startGenerateToReview(generateToReviewSession);
+				} else {
+					existingLeaf.view.showTab(tab);
+					await existingLeaf.view.refresh();
+				}
 			}
 			await this.app.workspace.revealLeaf(existingLeaf);
 			return;
@@ -1095,7 +1392,11 @@ export default class MnemePlugin extends Plugin {
 			type: INBOX_VIEW_TYPE,
 		});
 		if (leaf.view instanceof MnemeInboxView) {
-			leaf.view.showTab(tab);
+			if (generateToReviewSession) {
+				await leaf.view.startGenerateToReview(generateToReviewSession);
+			} else {
+				leaf.view.showTab(tab);
+			}
 		}
 		await this.app.workspace.revealLeaf(leaf);
 	}
@@ -1127,6 +1428,9 @@ export default class MnemePlugin extends Plugin {
 		const existingLeaf = this.app.workspace.getLeavesOfType(CONCEPT_LIBRARY_VIEW_TYPE)[0];
 
 		if (existingLeaf) {
+			if (existingLeaf.view instanceof MnemeConceptLibraryView) {
+				await existingLeaf.view.refresh();
+			}
 			await this.app.workspace.revealLeaf(existingLeaf);
 			return;
 		}
@@ -1141,6 +1445,29 @@ export default class MnemePlugin extends Plugin {
 			active: true,
 			type: CONCEPT_LIBRARY_VIEW_TYPE,
 		});
+		await this.app.workspace.revealLeaf(leaf);
+	}
+
+	private async openConceptMergeView(first?: ConceptSummary, second?: ConceptSummary): Promise<void> {
+		const existingLeaf = this.app.workspace.getLeavesOfType(CONCEPT_MERGE_VIEW_TYPE)[0];
+		if (existingLeaf) {
+			if (existingLeaf.view instanceof MnemeConceptMergeView) {
+				if (first) await existingLeaf.view.setSelection(first, second);
+				else await existingLeaf.view.refresh();
+			}
+			await this.app.workspace.revealLeaf(existingLeaf);
+			return;
+		}
+
+		const leaf = this.openMnemeWorkspaceLeaf();
+		if (!leaf) {
+			new Notice("Mneme: could not open Merge Concepts.");
+			return;
+		}
+		await leaf.setViewState({ active: true, type: CONCEPT_MERGE_VIEW_TYPE });
+		if (first && leaf.view instanceof MnemeConceptMergeView) {
+			await leaf.view.setSelection(first, second);
+		}
 		await this.app.workspace.revealLeaf(leaf);
 	}
 

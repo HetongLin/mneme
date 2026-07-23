@@ -8,8 +8,10 @@ import type {
 } from "../models/conceptLibrary";
 import type { ConceptSourceLink } from "../models/conceptSource";
 import {
+	getConceptEnglishNameFromFrontmatter,
 	getCardGroupPathFromConceptFrontmatter,
 	getConceptIdFromFrontmatter,
+	getConceptPrimaryTitleFromFrontmatter,
 	isMnemeConceptFrontmatter,
 } from "./conceptMarkdownIdentity";
 import {
@@ -19,6 +21,10 @@ import {
 } from "./conceptMarkdownParser";
 import { detectConceptDuplicates } from "./conceptDuplicateDetector";
 import { parseConceptRetentionTarget } from "./conceptRetentionPolicy";
+import {
+	comparableConceptPath,
+	parseRelatedConceptLinks,
+} from "./conceptRelatedLinks";
 
 export interface ConceptVaultFile {
 	mtime?: number;
@@ -85,6 +91,7 @@ export class ConceptScanner {
 		}
 
 		const concepts: ConceptSummary[] = [];
+		const markdownByConceptId = new Map<string, string>();
 		const identityIssues: ConceptIdentityIssue[] = [];
 		const staleSourceIssues: ConceptStaleSourceIssue[] = [];
 		for (const candidate of candidates) {
@@ -109,9 +116,11 @@ export class ConceptScanner {
 				cardsPath,
 				conceptId,
 				coreMeaning: extractCoreMeaning(markdown),
+				englishName: getConceptEnglishNameFromFrontmatter(frontmatter),
 				importance: getImportance(frontmatter),
 				learningMode: getLearningMode(frontmatter),
 				path: file.path,
+				primaryTitle: getConceptPrimaryTitleFromFrontmatter(frontmatter),
 				retentionTarget: parseConceptRetentionTarget(frontmatter.retention_target),
 				sourceCount,
 				tags: getTags(frontmatter),
@@ -121,6 +130,7 @@ export class ConceptScanner {
 			};
 
 			concepts.push(summary);
+			markdownByConceptId.set(conceptId, markdown);
 			for (const link of sourceLinks?.filter((candidateLink) => candidateLink.status === "stale") ?? []) {
 				staleSourceIssues.push({
 					conceptId,
@@ -129,6 +139,24 @@ export class ConceptScanner {
 					link,
 				});
 			}
+		}
+
+		const conceptsByPath = new Map(concepts.map((concept) => [comparableConceptPath(concept.path), concept]));
+		const conceptsByBasename = createUniqueBasenameIndex(concepts);
+		const relatedIdsByConceptId = new Map(concepts.map((concept) => [concept.conceptId, new Set<string>()]));
+		for (const concept of concepts) {
+			const markdown = markdownByConceptId.get(concept.conceptId) ?? "";
+			const relatedConcepts = parseRelatedConceptLinks(markdown)
+				.map((link) => conceptsByPath.get(comparableConceptPath(link.target))
+					?? conceptsByBasename.get(comparableConceptPath(link.target).split("/").pop() ?? ""))
+				.filter((related): related is ConceptSummary => !!related && related.conceptId !== concept.conceptId);
+			for (const related of relatedConcepts) {
+				relatedIdsByConceptId.get(concept.conceptId)?.add(related.conceptId);
+				relatedIdsByConceptId.get(related.conceptId)?.add(concept.conceptId);
+			}
+		}
+		for (const concept of concepts) {
+			concept.relatedConceptIds = [...(relatedIdsByConceptId.get(concept.conceptId) ?? [])].sort();
 		}
 
 		const sortedConcepts = concepts.sort(compareConceptSummariesByTitle);
@@ -148,6 +176,18 @@ export class ConceptScanner {
 
 		return this.options.conceptSourceLinkStore.listByConceptId(conceptId);
 	}
+}
+
+function createUniqueBasenameIndex(concepts: ConceptSummary[]): Map<string, ConceptSummary> {
+	const candidates = new Map<string, ConceptSummary[]>();
+	for (const concept of concepts) {
+		const basename = comparableConceptPath(concept.path).split("/").pop() ?? "";
+		candidates.set(basename, [...(candidates.get(basename) ?? []), concept]);
+	}
+
+	return new Map([...candidates.entries()]
+		.filter(([, matches]) => matches.length === 1)
+		.map(([basename, matches]) => [basename, matches[0] as ConceptSummary]));
 }
 
 function getLearningMode(frontmatter: Record<string, unknown>): ConceptLearningMode | undefined {

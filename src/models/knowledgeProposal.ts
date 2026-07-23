@@ -67,6 +67,7 @@ export interface CardDraft {
 
 export interface NewConceptProposalPayload {
 	coreMeaning?: string;
+	englishName?: string;
 	whyItMatters?: string;
 	learningMode?: ProposalLearningMode;
 	proposedCards?: CardDraft[];

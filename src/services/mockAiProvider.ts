@@ -36,6 +36,7 @@ export class MockAiProvider implements AiProvider {
 					payload: {
 						conceptTitle: title,
 						coreMeaning: `Review the central idea from ${input.sourcePath}.`,
+						englishName: title,
 						whyItMatters: `Use this Concept to review knowledge from ${input.sourcePath}.`,
 						learningMode: "reviewable",
 						relatedConceptHints: [],

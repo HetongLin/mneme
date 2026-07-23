@@ -3,12 +3,23 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 const tests = [
+	"tests/cardFileRecognition.test.ts",
 	"tests/conceptMarkdownParser.test.ts",
+	"tests/conceptCardAvailability.test.ts",
+	"tests/conceptReviewAvailability.test.ts",
 	"tests/conceptScanner.test.ts",
 	"tests/conceptIdEditor.test.ts",
 	"tests/conceptDuplicateDetector.test.ts",
 	"tests/conceptMergeService.test.ts",
+	"tests/conceptMergeDraft.test.ts",
+	"tests/conceptMergeAiService.test.ts",
+	"tests/conceptEnglishNameAiService.test.ts",
+	"tests/conceptDeletionService.test.ts",
+	"tests/conceptRelatedLinks.test.ts",
+	"tests/relatedConceptService.test.ts",
+	"tests/simpleFrontmatter.test.ts",
 	"tests/conceptLibrarySearch.test.ts",
+	"tests/conceptTagCatalog.test.ts",
 	"tests/knowledgeContextPackExporter.test.ts",
 ];
 

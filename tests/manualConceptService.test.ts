@@ -48,6 +48,7 @@ async function run(): Promise<void> {
 	const vault = new MemoryVault();
 	const first = await createManualConcept({
 		coreMeaning: "向量空间对向量加法和标量乘法封闭。",
+		englishName: "Vector Space",
 		importance: "high",
 		learningMode: "reviewable",
 		tags: ["线性代数", "Linear Algebra"],
@@ -55,19 +56,44 @@ async function run(): Promise<void> {
 	}, DEFAULT_SETTINGS, vault, () => "concept_manual_one");
 	const markdown = vault.files.get(first.path) ?? "";
 
-	assert.equal(first.path, "Mneme/Concepts/向量空间.md");
+	assert.equal(first.path, "Mneme/Concepts/向量空间-(Vector-Space).md");
 	assert.match(markdown, /mneme_id: concept_manual_one/);
-	assert.match(markdown, /cards: "\[\[Mneme\/Cards\/向量空间\/Cards\|向量空间 Cards\]\]"/);
+	assert.match(markdown, /mneme_title: "向量空间"/);
+	assert.match(markdown, /mneme_english_name: "Vector Space"/);
+	assert.match(markdown, /cards: "\[\[Mneme\/Cards\/向量空间-\(Vector-Space\)\/Cards\|向量空间 \(Vector Space\) Cards\]\]"/);
+	assert.match(markdown, /^# 向量空间 \(Vector Space\)$/m);
 	assert.match(markdown, /tags: \[线性代数, linear-algebra\]/);
 	assert.equal(markdown.includes("Source Notes"), false);
 	assert.equal(markdown.includes("Add views here"), false);
 
+	const second = await createManualConcept({
+		coreMeaning: "A separate user-authored Concept.",
+		englishName: "Vector Space",
+		title: "向量空间",
+	}, DEFAULT_SETTINGS, vault);
+	const secondMarkdown = vault.files.get(second.path) ?? "";
+	assert.equal(second.path, "Mneme/Concepts/向量空间-(Vector-Space)-2.md");
+	assert.equal(second.conceptId, "concept-vector-space-2");
+	assert.match(secondMarkdown, /mneme_title: "向量空间 - 2"/);
+	assert.match(secondMarkdown, /^# 向量空间 - 2 \(Vector Space\)$/m);
+
+	const legacyCombined = await createManualConcept({
+		coreMeaning: "间隔效应把学习分散到多个时间点。",
+		title: "间隔效应 (Spacing Effect)",
+	}, DEFAULT_SETTINGS, vault);
+	const legacyCombinedMarkdown = vault.files.get(legacyCombined.path) ?? "";
+	assert.equal(legacyCombined.conceptId, "concept-spacing-effect");
+	assert.match(legacyCombinedMarkdown, /mneme_title: "间隔效应"/);
+	assert.match(legacyCombinedMarkdown, /mneme_english_name: "Spacing Effect"/);
+	assert.match(legacyCombinedMarkdown, /^# 间隔效应 \(Spacing Effect\)$/m);
+
 	await assert.rejects(
 		createManualConcept({
-			coreMeaning: "A separate user-authored Concept.",
-			title: "向量空间",
-		}, DEFAULT_SETTINGS, vault, () => "concept_manual_two"),
-		/A Concept with this title already exists/,
+			coreMeaning: "无效英文名。",
+			englishName: "间隔效应",
+			title: "间隔效应",
+		}, DEFAULT_SETTINGS, vault),
+		/canonical English term/,
 	);
 
 	const storage = new MemoryPluginStorage();
@@ -164,6 +190,7 @@ async function run(): Promise<void> {
 	const draftStore = new ManualConceptDraftStore(storage);
 	await draftStore.saveDraft({
 		coreMeaning: "Draft meaning",
+		englishName: "Draft",
 		importance: "high",
 		learningMode: "reviewable",
 		sourcePath: "Notes/Draft.md",

@@ -2,6 +2,7 @@ import { extractSection } from "./conceptMarkdownParser";
 
 export interface ReviewCompletionSummary {
 	deferredCount: number;
+	deletedCount: number;
 	label: string;
 	reviewedCount: number;
 	skippedCount: number;
@@ -34,6 +35,7 @@ export function formatReviewCompletion(
 	skippedCards: number,
 	deferredCards = 0,
 	suspendedCards = 0,
+	deletedCards = 0,
 ): ReviewCompletionSummary {
 	const total = Math.max(0, Math.floor(totalCards));
 	const skippedCount = Math.min(total, Math.max(0, Math.floor(skippedCards)));
@@ -45,15 +47,20 @@ export function formatReviewCompletion(
 		total - skippedCount - deferredCount,
 		Math.max(0, Math.floor(suspendedCards)),
 	);
-	const reviewedCount = total - skippedCount - deferredCount - suspendedCount;
-	const label = skippedCount === 0 && deferredCount === 0 && suspendedCount === 0
+	const deletedCount = Math.min(
+		total - skippedCount - deferredCount - suspendedCount,
+		Math.max(0, Math.floor(deletedCards)),
+	);
+	const reviewedCount = total - skippedCount - deferredCount - suspendedCount - deletedCount;
+	const label = skippedCount === 0 && deferredCount === 0 && suspendedCount === 0 && deletedCount === 0
 		? `${reviewedCount} ${reviewedCount === 1 ? "card" : "cards"} reviewed`
 		: [
 			`${reviewedCount} reviewed`,
 			skippedCount > 0 ? `${skippedCount} skipped` : undefined,
 			deferredCount > 0 ? `${deferredCount} later` : undefined,
 			suspendedCount > 0 ? `${suspendedCount} suspended` : undefined,
+			deletedCount > 0 ? `${deletedCount} deleted` : undefined,
 		].filter((part): part is string => Boolean(part)).join(" · ");
 
-	return { deferredCount, label, reviewedCount, skippedCount, suspendedCount };
+	return { deferredCount, deletedCount, label, reviewedCount, skippedCount, suspendedCount };
 }
