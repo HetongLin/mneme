@@ -6,15 +6,15 @@ This keeps AI capture focused on “what durable Concepts are present in this no
 
 Concept capture may produce only `new_concept` proposals. It must not produce link, update, add-view, merge, or Card proposals. Those operations require their own reviewed workflows because they modify already-approved knowledge.
 
-Capture remains context-free, but the final write may inspect the local vault for an exact naming or identity collision. Before either a manual Concept or an accepted AI proposal is written, an exact collision presents three explicit choices:
+Capture remains context-free, but the final write may inspect the local vault for an exact title, optional alias, or path match. Before either a manual Concept or an accepted AI proposal is written, an exact match presents three explicit choices:
 
-- `Merge` safely writes the incoming Concept under a temporary deterministic sibling identity, then opens the dedicated Guided Merge workspace with both Concepts preselected. Nothing is merged until the student reviews and confirms the normal zero-write preview.
-- `Refine Name` returns to Title editing. Changing Title invalidates the previous English Name so the bilingual naming pair must be reviewed again.
-- `Keep Both` writes a separate Concept with a deterministic suffix.
+- `Merge` safely writes the incoming Concept under its independent random identity, then opens the dedicated Guided Merge workspace with both Concepts preselected. Nothing is merged until the learner reviews and confirms the normal zero-write preview.
+- `Refine Name` returns to Title editing. Changing Title clears the previous optional English Alias.
+- `Keep Both` writes a separate Concept and allocates a suffixed path only if the path is occupied.
 
 Similar-but-not-exact Concepts remain Possible Duplicates and never block the write. The collision check is local and happens after generation, so approved Concept names and contents are still not sent during Source Note analysis.
 
-`Keep Both` and the safe staging write used by `Merge` resolve filesystem and identity conflicts with a deterministic suffix:
+`Keep Both` and the safe staging write used by `Merge` resolve filesystem conflicts with a deterministic path suffix:
 
 ```text
 ConceptA.md
@@ -22,9 +22,9 @@ ConceptA-2.md
 ConceptA-3.md
 ```
 
-The suffix is applied consistently to primary Title, Display Title, Markdown path, `mneme_id`, and Card Group locator. Canonical English Name remains unsuffixed. The suffixed file receives a matching unique `mneme_id` and Card Group link, such as `concept-concepta-2` and `Mneme/Cards/ConceptA-2/Cards.md`. This is not itself a merge decision; it preserves Obsidian’s no-overwrite rule and Mneme’s stable identity invariant.
+The suffix is applied only to the Markdown path and Card Group locator. Concept Title, optional English Alias, and random `mneme_id` remain unchanged. This is not itself a merge decision; it preserves Obsidian’s no-overwrite rule without coupling presentation to identity.
 
-Merge is a separate user-triggered workspace from Concept Library and the command palette. Mneme may surface possible Merge candidates by local title/content similarity, but the student chooses the Concepts and survivor. Optional AI shortlist inspection receives only compact fields for the local shortlist. AI may draft Title, English Name, Core Meaning, and Why It Matters only after the two full Concepts are explicitly selected. The result is edited and confirmed inside the Merge workspace, not inserted into the ordinary Inbox; source Concepts are redirected only after the zero-write impact preview is acknowledged and confirmed.
+Merge is a separate user-triggered workspace from Concept Library and the command palette. Mneme may surface possible Merge candidates by local title/content similarity, but the learner chooses the Concepts and survivor. Optional AI shortlist inspection receives only compact fields for the local shortlist. AI may draft Title, Core Meaning, Why It Matters, and English Alias only when enabled, after the two full Concepts are explicitly selected. The result is edited and confirmed inside the Merge workspace, not inserted into the ordinary Inbox; source Concepts are redirected only after the zero-write impact preview is acknowledged and confirmed.
 
 Cards are force-migrated into the surviving Card Group during an accepted Merge while preserving each original Card block, immutable `cardId`, and FSRS state. Migrated Cards keep their original source stem/identity rather than being renamed to the survivor’s title. For example:
 

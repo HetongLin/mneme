@@ -6,15 +6,15 @@ Mneme
 
 ## One-line Definition
 
-Mneme is a concept-centered learning layer for Obsidian.
+Mneme is a concept-centered personal knowledge memory plugin for Obsidian.
 
 ## Target Users
 
-Mneme is designed primarily for university students who use Obsidian to manage course notes, reading notes, exam notes, and long-term knowledge.
+Mneme is designed for self-directed lifelong learners who use Obsidian to maintain reading notes, technical notes, professional knowledge, and other material they want to remember over time.
 
 ## Core Problem
 
-Students often write notes but fail to convert them into durable memory.
+Learners often write notes but fail to convert them into durable memory.
 
 Existing workflows have several problems:
 
@@ -22,29 +22,31 @@ Existing workflows have several problems:
 - AI summaries are useful once but do not become a long-term learning system.
 - Flashcard generators often create too many low-quality cards.
 - Anki-style review can create psychological pressure and review debt.
-- Course learning needs structure, but Obsidian notes are often fragmented.
+- Personal knowledge accumulates faster than it can be revisited and maintained.
 
 ## Product Goal
 
-Mneme helps students turn their own notes into editable Concepts and Cards, then review them through a low-pressure concept-centered review flow.
+Mneme helps learners turn their own notes into editable Concepts and Cards, then revisit them through a low-pressure concept-centered review flow.
 
 ## Product Positioning
 
 Mneme is not:
 
 - a generic AI chat plugin
+- an exam simulator or course manager
+- an AI answer grader or project recommender
+- an autonomous learning agent
 - a simple AI flashcard generator
 - a full Anki replacement
 - a PDF/PPT parser in v0.1
-- a fully automatic learning agent
 
 Mneme is:
 
 - an Obsidian-native concept review plugin
-- a Markdown-first learning system
+- a Markdown-first personal knowledge memory system
 - a bridge between notes and active recall
 - a low-pressure review layer
-- a foundation for future AI-native learning workflows
+- an AI-assisted tool whose normal review and organization remain local and deterministic
 
 ## Core Objects
 
@@ -54,17 +56,17 @@ A user-written Obsidian Markdown note.
 
 Examples:
 
-- course notes
-- lecture notes
 - reading notes
-- exam review notes
+- technical notes
+- professional development notes
+- language-learning notes
 - mistake notes
 
 ### Concept
 
-A durable learning object directly authored or explicitly approved by the student.
+A durable learning object directly authored or explicitly approved by the learner.
 
-A Concept is a vault-global knowledge model or principle that can be explained, applied, and assessed independently. Courses reference Concepts many-to-many instead of owning separate copies.
+A Concept is a vault-global knowledge model or principle that can be explained, applied, and assessed independently. It is not owned by a folder, tag, Source Note, or temporary learning context.
 
 Examples:
 
@@ -90,7 +92,7 @@ A structured proposal record produced by AI or developer fixtures and reviewed i
 
 Initial AI capture is concept-first. Source Note analysis may propose Concept-stage changes only; Cards are generated later from written Concept Markdown and require their own review before Card Markdown is written.
 
-Manual Concept creation is a first-class product capability. `Create Concept` opens a dockable Composer beside the current Source Note and writes the same clean approved Concept format as AI acceptance, without manufacturing a proposal or asking the student to approve their own authorship. Source provenance is optional: the current ordinary Markdown note initializes an empty draft, while a source-free Concept omits the Source Notes section and provenance link entirely. Concept naming uses a paired Title and English Name contract. English Name stays out of the main authoring flow for an English Title. When local script detection finds a non-English Title, Mneme reveals English Name at the bottom of the learning fields. The student may enter it manually or explicitly request an AI suggestion after completing Core Meaning; Mneme never calls AI merely because Title changed. The optional request sends only Title and Core Meaning, and the returned English Name remains editable before creation. This assistance changes neither Concept content nor the program-owned ID rules, and manual entry remains available when AI is unavailable.
+Manual Concept creation is a first-class product capability. `Create Concept` opens a dockable Composer beside the current Source Note and writes the same clean approved Concept format as AI acceptance, without manufacturing a proposal or asking the learner to approve their own authorship. Source provenance is optional: the current ordinary Markdown note initializes an empty draft, while a source-free Concept omits the Source Notes section and provenance link entirely. Concept Title stands alone by default. `Suggest English aliases` is an optional setting, off by default; when enabled, local script detection reveals an optional English Alias only for a non-Latin Title. The learner may enter it manually or explicitly request an AI suggestion after completing Core Meaning; Mneme never calls AI merely because Title changed. The request sends only Title and Core Meaning, and the returned alias remains editable before creation. The alias never determines Concept ID.
 
 ## Core Workflow
 
@@ -124,7 +126,7 @@ Generate Cards from Current Concept works only from a written Mneme Concept Mark
 
 Analyze Current Note is for ordinary Markdown Source Notes, not written Mneme Concepts or Mneme's internal Concept/Card files. Running Source Note analysis on an approved or internal artifact would re-treat Mneme output as raw input and can create circular or duplicate proposals, so Mneme excludes the command in those contexts and retains a runtime guard.
 
-Current-note commands follow the active note: Source Notes offer Concept analysis, reviewable Concepts offer Card generation and Card opening, and exploratory Concepts offer only Card opening. Irrelevant commands stay out of the command palette so the student sees actions that can produce a valid result.
+Current-note commands follow the active note: Source Notes offer Concept analysis, reviewable Concepts offer Card generation and Card opening, and exploratory Concepts offer only Card opening. Irrelevant commands stay out of the command palette so the learner sees actions that can produce a valid result.
 
 Card generation is coverage-driven and has no fixed proposal-count cap. Each proposal identifies one independently testable approved Concept claim or section it tests. Enabled Card types are allowed options, not quotas; Mneme should generate enough Cards to cover distinct high-value learning outcomes without collapsing a multi-part Concept into one omnibus Card or forcing unsuitable Card types. If generation reveals missing knowledge, Mneme proposes a Concept update first rather than inserting new knowledge into a Card.
 
@@ -145,26 +147,27 @@ User experience is the first requirement. Internal schemas can be strict and det
 ## Product Contracts
 
 - Concept and Card state is keyed only by immutable IDs; file paths are mutable locators.
-- AI knowledge changes must pass an individual Review Gate. Unseen proposals cannot be bulk accepted; direct student authorship needs no artificial gate.
-- Concept Learning State is a reasoned aggregate of Card evidence, coverage, and student input. Mneme does not claim a mastery percentage.
-- FSRS owns Card scheduling only. Exam Attempts, Use activity, Concept ranking, and AI Rating Suggestions cannot update FSRS without an explicit normal Card review and user-confirmed rating.
+- AI knowledge changes must pass an individual Review Gate. Unseen proposals cannot be bulk accepted; direct learner authorship needs no artificial gate.
+- Concept Learning State is a reasoned aggregate of Card evidence and coverage. Mneme does not claim a mastery percentage.
+- FSRS owns Card scheduling. Only an explicit normal Card review and learner-confirmed rating may update FSRS.
 - Importance expresses long-term knowledge value and is independent of the global FSRS Retention Target.
-- A Concept-specific Retention Target exists only when the student explicitly sets it. It affects future FSRS rating transitions for that Concept's Cards, never existing due dates, eligibility, or priority; clearing it restores the global target.
-- Source provenance survives Source deletion as stale evidence until the student explicitly relinks or removes it.
+- A Concept-specific Retention Target exists only when the learner explicitly sets it. It affects future FSRS rating transitions for that Concept's Cards, never existing due dates, eligibility, or priority; clearing it restores the global target.
+- Source provenance survives Source deletion as stale evidence until the learner explicitly relinks or removes it.
 - Possible Duplicates require a Guided Merge with a final diff; the merged path becomes a Redirect Note.
-- Exact Concept naming/identity conflicts are resolved only at the local write gate, never during context-free AI extraction. Manual creation and Inbox Accept offer `Merge`, `Refine Name`, or `Keep Both`. Merge opens the existing reviewed workspace; Refine Name invalidates stale English Name after a Title change; Keep Both allocates deterministic `-2/-3` Title, path, ID, and Card Group siblings while preserving the unsuffixed canonical English Name.
-- Guided Merge is an explicit dedicated workspace. It supports manual pair selection and Manual Draft without AI, local candidate ranking, optional compact AI classification, and optional AI drafting of only Title, English Name, Core Meaning, and Why It Matters. The student chooses the survivor and confirms a zero-write impact preview. Deterministic code handles metadata unions, Source/Related graph rewrites, Card migration, Redirect Notes, conflict detection, and rollback.
+- Exact Concept title, optional alias, and path conflicts are resolved only at the local write gate, never during context-free AI extraction. Manual creation and Inbox Accept offer `Merge`, `Refine Name`, `Keep Both`, or `Cancel`. Conflict Merge uses the existing Concept plus the incoming Proposal or Manual draft and performs no write before final confirmation. Back, Cancel, and closing the workspace preserve the Inbox Proposal or Composer draft. Refine Name clears a stale optional alias after a Title change; Keep Both is the only resolution that may allocate a `-2/-3` path and Card Group locator.
+- Guided Merge is an explicit dedicated workspace. It supports manual pair selection and Manual Draft without AI, local candidate ranking, optional compact AI classification, and optional AI drafting of Title, Core Meaning, Why It Matters, plus English Alias only when that setting is enabled. The learner chooses the survivor and confirms a zero-write impact preview. Deterministic code handles metadata unions, Source/Related graph rewrites, Card migration, Redirect Notes, conflict detection, and rollback.
 - Anki interoperability is a one-way UTF-8 TSV export of active valid approved Cards. Exported cards are independent copies with no sync.
-- Use Mode is project-based. Its first increment is a neutral Knowledge Context Pack containing approved Concepts for an external agent; approved does not mean mastered.
+- Knowledge Context Pack is a neutral export of approved Concepts; it is not a Use Mode, project request, mastery claim, or embedded agent workflow.
 - Future Card customization should prefer enabling/disabling Mneme's supported built-in `cardType` values over arbitrary user-defined types. Arbitrary type names would weaken parser, review, analytics, and export compatibility.
 - Manual Card creation is a first-class capability. `Create Card` opens a dockable Composer for an existing Concept, places Card Type before Front/Back/Rubric, and writes directly to the canonical Card Group without an Inbox approval step. AI proposal Card Type is read-only during review; only user-authored Cards choose their type in the editor.
-- AI scanning is an accelerator, not the only Concept entry path. Manual Concept creation must exist so students can decide what knowledge matters even when AI extraction is incomplete or unwanted.
+- AI scanning is an accelerator, not the only Concept entry path. Manual Concept creation must exist so learners can decide what knowledge matters even when AI extraction is incomplete or unwanted.
+- AI calls are explicit and bounded to knowledge extraction or drafting. Normal review, organization, browsing, scheduling, and export do not call AI.
 
 ## v0.1 Goal
 
 The v0.1 goal is to prove both the AI-assisted and direct-authoring entry paths into the core loop:
 
-AI suggests Concepts and Cards, or the student authors a Concept directly
+AI suggests Concepts and Cards, or the learner authors a Concept directly
 → User approves AI proposals
 → Markdown files are created
 → Cards are reviewed through FSRS
@@ -200,24 +203,19 @@ AI suggests Concepts and Cards, or the student authors a Concept directly
 - Auto highlight
 - Full concept graph
 - Random Concept Draw
-- Course Draw
+- Course Context
+- Exam Mode
+- Use Mode
+- Project recommendation
 - Full agent loop
 - Complex merge/split system
 
 ## Long-term Vision
 
-Mneme may eventually become an AI-native learning system for university students.
+Mneme should remain a focused personal knowledge memory plugin for self-directed lifelong learners.
 
-Future directions:
+Near-term development should improve the reliability, affordability, and maintainability of the existing Note → Concept → Card → Review → Concept Library loop rather than add new learning modes.
 
-- Random Concept Draw
-- Course-scoped Concept Draw
-- Exploratory Concepts
-- AI answer grading
-- Needs Work Signal tracking
-- Exam review mode
-- PPT/PDF ingestion
-- Mistake diagnosis
-- Learning analytics
-- Cross-course concept graph
-- Local model support
+Potential future additions require evidence from real usage. A stateless `Rediscover a Concept` entry point may be reconsidered if it creates no parallel learning state, does not bypass FSRS, and does not call AI. Lightweight organization may likewise be reconsidered only when Tags, search, Related Concepts, and manual export selection prove insufficient.
+
+Course Context, Exam Mode, Use Mode, AI answer grading, project discovery, and a standalone learning agent are outside the product direction.

@@ -94,13 +94,8 @@ FSRS Review excludes:
 
 Recording an FSRS rating also appends a Mneme-owned event containing only Card ID, rating, and review time. Deleting a Card clears its active FSRS state but does not rewrite past events. Event logs never drive FSRS scheduling transitions.
 
-## Future Non-Daily Modes
+## Non-daily entry points
 
-These modes may intentionally bypass `dueAt` later:
+A non-daily entry point may open a Concept or start its existing manual Concept Review, but it must not record an FSRS rating outside the normal learner-confirmed review flow.
 
-- Cram Mode
-- Exam Mode
-- Random Concept Draw
-- Concept Activation
-
-FSRS Review must not bypass `dueAt`.
+A future stateless `Rediscover a Concept` entry point may bypass `dueAt` only to browse or enter the existing manual review path. It creates no parallel learning state and does not call AI. Today’s Focus remains due-card driven.

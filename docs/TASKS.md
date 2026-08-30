@@ -297,7 +297,7 @@ Acceptance criteria:
 
 Goal:
 
-Let students continue a review without forced scoring and return to the learning source when needed.
+Let learners continue a review without forced scoring and return to the learning source when needed.
 
 Requirements:
 
@@ -319,7 +319,7 @@ Acceptance criteria:
 
 Goal:
 
-Allow a student to repair or improve Card content while reviewing without changing its schedule.
+Allow a learner to repair or improve Card content while reviewing without changing its schedule.
 
 Requirements:
 
@@ -342,7 +342,7 @@ Acceptance criteria:
 
 Goal:
 
-Make the Concept-to-Card bridge discoverable where students browse learned Concepts.
+Make the Concept-to-Card bridge discoverable where learners browse learned Concepts.
 
 Requirements:
 
@@ -362,7 +362,7 @@ Acceptance criteria:
 
 Goal:
 
-Let a student approve an AI-proposed perspective and append it to an existing written Concept.
+Let a learner approve an AI-proposed perspective and append it to an existing written Concept.
 
 Requirements:
 
@@ -371,7 +371,7 @@ Requirements:
 - Append the approved content under `## Views`
 - Preserve every other Concept section
 - Treat an identical existing View as an idempotent successful retry
-- Reject same-title Views with different content instead of overwriting the student's note
+- Reject same-title Views with different content instead of overwriting the learner's note
 
 Acceptance criteria:
 
@@ -385,7 +385,7 @@ Acceptance criteria:
 
 Goal:
 
-Let a student approve AI evidence that an existing Concept is supported by the current Source Note.
+Let a learner approve AI evidence that an existing Concept is supported by the current Source Note.
 
 Requirements:
 
@@ -429,7 +429,7 @@ Acceptance criteria:
 
 Goal:
 
-Let students approve targeted AI improvements to a written Concept without replacing the whole note.
+Let learners approve targeted AI improvements to a written Concept without replacing the whole note.
 
 Requirements:
 
@@ -452,7 +452,7 @@ Acceptance criteria:
 
 Goal:
 
-Give students a concise way to maintain a written Concept from Concept Library without exposing plugin internals.
+Give learners a concise way to maintain a written Concept from Concept Library without exposing plugin internals.
 
 Requirements:
 
@@ -502,7 +502,7 @@ Current UI label: `Review Tomorrow`. The persistence model remains `reviewDeferr
 
 Goal:
 
-Let a student remove a Card from Today’s Focus without rating it or changing its memory schedule.
+Let a learner remove a Card from Today’s Focus without rating it or changing its memory schedule.
 
 Requirements:
 
@@ -527,7 +527,7 @@ Superseded by ADR 0017. The requirements below are a historical implementation r
 
 Goal:
 
-Let a student remove an entire Concept from daily review without altering or deleting its Cards.
+Let a learner remove an entire Concept from daily review without altering or deleting its Cards.
 
 Requirements:
 
@@ -550,7 +550,7 @@ Acceptance criteria:
 
 Goal:
 
-Let a student remove a single low-value or unsuitable Card from review without deleting its Markdown or schedule history.
+Let a learner remove a single low-value or unsuitable Card from review without deleting its Markdown or schedule history.
 
 Requirements:
 
@@ -629,7 +629,7 @@ Requirements:
 - Keep FSRS Card-level and Concept Learning State aggregate-only
 - Separate Importance from Retention Target
 - Define Guided Merge, stable identity, stale provenance, AI Review Gate, Card Grounding, and deletion semantics
-- Define isolated Anki export and project-based Use Mode through a neutral Knowledge Context Pack
+- Define isolated Anki and Knowledge Context Pack exports without creating a separate Use Mode or embedded agent workflow
 - Reconcile PRODUCT_SPEC, DATA_MODEL, and ROADMAP with the accepted decisions
 
 Acceptance criteria:
@@ -638,7 +638,7 @@ Acceptance criteria:
 - Existing design documents no longer use Concept mastery as a product claim
 - The canonical Card layout is one Card Group file per Concept
 - Deleted Sources retain approved provenance as stale
-- New modes cannot silently mutate FSRS
+- No new learning mode or parallel state model is introduced
 - AI knowledge changes remain individually reviewed
 
 ## Task 044: Bounded Grounded Card Generation
@@ -688,7 +688,7 @@ Acceptance criteria:
 
 Goal:
 
-Let students recover a common Invalid Card without rewriting unrelated Markdown or review history.
+Let learners recover a common Invalid Card without rewriting unrelated Markdown or review history.
 
 Requirements:
 
@@ -738,7 +738,7 @@ Acceptance criteria:
 
 Goal:
 
-Keep missing and duplicate Concept identities out of normal learning surfaces until the student repairs them safely.
+Keep missing and duplicate Concept identities out of normal learning surfaces until the learner repairs them safely.
 
 Requirements:
 
@@ -764,7 +764,7 @@ Acceptance criteria:
 
 Goal:
 
-Let a student permanently remove an obsolete Card from active learning without deleting its content or FSRS history.
+Let a learner permanently remove an obsolete Card from active learning without deleting its content or FSRS history.
 
 Requirements:
 
@@ -821,7 +821,7 @@ Acceptance criteria:
 
 Goal:
 
-Surface likely duplicate Concepts for student review without treating similarity as permission to merge knowledge.
+Surface likely duplicate Concepts for learner review without treating similarity as permission to merge knowledge.
 
 Requirements:
 
@@ -850,17 +850,17 @@ Acceptance criteria:
 
 Goal:
 
-Let a student reconcile a Possible Duplicate without losing Markdown, provenance, Card identity, or review history.
+Let a learner reconcile a Possible Duplicate without losing Markdown, provenance, Card identity, or review history.
 
 Requirements:
 
 - Expose a dedicated Merge Concepts workspace from Concept Library, Possible Duplicates, and the command palette
 - Keep manual pair selection and Manual Draft available without AI
 - Rank a local shortlist; optional AI inspection may classify at most eight compact candidates but cannot choose a pair
-- Limit optional AI drafting to Title, English Name, Core Meaning, and Why It Matters for the two user-selected full Concepts
-- Require the student to choose the surviving Concept identity and path
+- Limit optional AI drafting to Title, Core Meaning, Why It Matters, and English Alias only when that setting is enabled, for the two user-selected full Concepts
+- Require the learner to choose the surviving Concept identity and path
 - Build a zero-write preview before confirmation
-- Let the student edit the structured merged Concept content while preserving deterministic metadata and graph changes
+- Let the learner edit the structured merged Concept content while preserving deterministic metadata and graph changes
 - Put complete affected-file Before/After content under Advanced and show a compact impact summary by default
 - Require explicit confirmation that all affected Markdown was reviewed
 - Keep the survivor's `mneme_id` and validate its final Card Group link
@@ -894,12 +894,12 @@ Acceptance criteria:
 
 Goal:
 
-Let a student repair approved provenance after a Source Note moves without silently inventing a new relationship.
+Let a learner repair approved provenance after a Source Note moves without silently inventing a new relationship.
 
 Requirements:
 
 - Surface retained `stale` Concept-source links in Concept Library
-- Require the student to identify a replacement Markdown Source
+- Require the learner to identify a replacement Markdown Source
 - Build a zero-write preview with the final Concept.md Before and After
 - Preserve relation type, evidence, and original `addedAt`
 - Recompute the replacement Source hash and refresh `lastSeenAt`
@@ -924,7 +924,7 @@ Acceptance criteria:
 
 Goal:
 
-Let a student explicitly discard a stale approved relationship when no replacement Source exists.
+Let a learner explicitly discard a stale approved relationship when no replacement Source exists.
 
 Requirements:
 
@@ -950,18 +950,18 @@ Acceptance criteria:
 
 Goal:
 
-Let a student create an approved Mneme Concept directly instead of depending on AI Source Note scanning.
+Let a learner create an approved Mneme Concept directly instead of depending on AI Source Note scanning.
 
 Rationale:
 
-AI capture accelerates extraction, but it is not authoritative about what the student intends to learn. Students may want to create a Concept when AI misses it, proposes the wrong boundary, or when they prefer to write the Concept themselves. Manual creation is therefore a required Concept entry path, not an optional power-user shortcut.
+AI capture accelerates extraction, but it is not authoritative about what the learner intends to learn. Learners may want to create a Concept when AI misses it, proposes the wrong boundary, or when they prefer to write the Concept themselves. Manual creation is therefore a required Concept entry path, not an optional power-user shortcut.
 
 Requirements:
 
 - Provide a user-facing way to create a new Concept without first running AI analysis
 - Produce the same readable Concept Markdown shape as an accepted `new_concept` proposal
 - Assign a stable Concept ID and required Mneme frontmatter
-- Let the student provide title, Core Meaning, Why It Matters, learning mode, importance, and English slug tags
+- Let the learner provide title, Core Meaning, Why It Matters, learning mode, importance, and English slug tags
 - Use a dockable Composer so the Source Note remains visible during authorship
 - Initialize an empty draft from the current ordinary Markdown note without silently following later active-file changes
 - Auto-save the draft in plugin data and retain its selected source after successful creation
@@ -974,7 +974,7 @@ Requirements:
 
 Acceptance criteria:
 
-- A student can create a valid Concept.md without AI Capture being enabled
+- A learner can create a valid Concept.md without AI Capture being enabled
 - The created Concept appears in Concept Library after refresh/resync
 - Reviewable manually created Concepts can use Generate Cards from Current Concept
 - Exploratory manually created Concepts remain outside Today’s Focus and cannot generate Cards
@@ -1037,7 +1037,7 @@ Make approval, editing, deletion, review, and resync failures understandable wit
 
 Requirements:
 
-- Show a concise normalized error reason in primary user flows instead of directing students to the console
+- Show a concise normalized error reason in primary user flows instead of directing learners to the console
 - Truncate long runtime messages while retaining full diagnostics in the console
 - Distinguish a completed Markdown/state write from a subsequent View refresh failure
 - Close a completed Proposal Review action after a refresh failure so it cannot be submitted twice
@@ -1056,7 +1056,7 @@ Acceptance criteria:
 
 Goal:
 
-Complete the v0.4 policy by allowing a student to override global FSRS request retention for one Concept without coupling it to Importance.
+Complete the v0.4 policy by allowing a learner to override global FSRS request retention for one Concept without coupling it to Importance.
 
 Requirements:
 
@@ -1145,3 +1145,31 @@ Acceptance criteria:
 - Concept and Card proposals both finish in `written` state
 - No actionable proposal remains after both approvals
 - The reviewed Card retains its FSRS state and event after a store reload
+
+## Task 063: Opaque Entity IDs and Optional English Aliases
+
+Goal:
+
+Decouple durable identity from titles, translations, paths, Concept ownership, and Card Type while reducing the default AI schema.
+
+Requirements:
+
+- Allocate new Concept IDs as `concept-<8 random characters>`
+- Allocate new Card IDs as `card-<8 random characters>`
+- Regenerate on ID collision without changing titles
+- Resolve file collisions through path suffixes only
+- Keep existing valid readable IDs unchanged
+- Treat `mneme_english_name` as an optional English Alias
+- Add `Suggest English aliases`, default off
+- Omit `englishName` from Concept-capture and Merge AI schemas while the setting is off
+- Hide the alias field for English titles and whenever the setting is off
+- Lead Card proposal UI with the Card Front rather than an invented semantic ID
+
+Acceptance criteria:
+
+- Title, alias, path, Concept ID, and Card ID can change or collide independently according to their own rules
+- English Concepts never display a redundant English Alias field
+- Non-English Concept creation remains valid without an alias
+- New random IDs remain stable through write, review, Merge, and reload
+- Existing readable IDs and aliases remain readable without automatic migration
+- The complete automated suite and production build pass

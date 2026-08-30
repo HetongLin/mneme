@@ -128,3 +128,79 @@ Mneme/Acceptance/
 ```
 
 Mneme does not automatically delete these files. Remove them manually only when you no longer need the validation fixture.
+
+## Acceptance Run — 2026-08-24
+
+Environment: macOS, vault `Mneme_ob`, Obsidian 1.13.6 followed by a full restart into 1.13.7.
+
+Passed in the current build:
+
+- Developer Tools commands appear after Mneme is reloaded.
+- The fixture Source Note is created under `Mneme/Acceptance/Source Notes/`.
+- Source Analysis indexes the note locally with AI Capture disabled; the original AI Capture setting is restored afterward.
+- Inbox shows product-facing `To Review`, `Concept Proposals`, `Card Proposals`, and `Invalid` counters.
+- The fixture starts with a Concept proposal and no Card proposal.
+- Concept fields are readable and editable; `Accept & Next` auto-saves the edit and writes readable Concept Markdown with minimal frontmatter.
+- Card generation remains a separate action after the Concept exists; `Accept & Next` writes parser-compatible Card Group Markdown.
+- `Scan Card Files` reported 3 valid files and 0 invalid files during the run.
+- Concept Library finds `Pre-AI Acceptance Pipeline`, renders its edited Core Meaning, and exposes `Review Cards`.
+- Review displays the accepted Card, accepts a `Good` rating, and persists one FSRS review event/state.
+- Concept Retention Policy passed end to end: the blank editor showed `Global 0.90`; a `0.94` override was written to frontmatter and reported as `0.94 · Concept`; one `Good` rating advanced the Card exactly once (`reviewCount` 1 → 2); clearing the override removed the field and diagnostics reported `Retention Target: 0.90 (global)`.
+- Retention and Importance remained isolated: setting or clearing the retention override did not immediately change the existing due date, and changing Importance from Normal to High and back did not add a retention override or change the due date. The temporary advanced-diagnostics setting was restored afterward.
+- Card Edit Conflict Safety passed with a two-Card acceptance group. A direct Markdown change to the same open Card caused `Card changed while the editor was open` and was preserved. A direct change to the other Card in the same group did not block saving the selected Card; both edits survived and the existing review schedule was unchanged.
+- Source provenance maintenance passed with two approved relations sharing the acceptance Source. After the Source Note was renamed, index resync exposed both as stale. Guided Relink previewed the old/new paths and one readable-link replacement, then preserved the selected relation/hash/evidence as approved without creating an AI-analysis record. Reviewed Removal deleted only the sibling relation and readable entry; the relinked Concept and its Source entry remained intact.
+- A Mneme disable/enable reload preserves Concept Markdown, Card Markdown, settings, and review state.
+- A complete Obsidian quit/relaunch preserves the same files and state; Library and Review remain available after restart.
+- A post-fix Source Link regression Concept written immediately after creation retained an approved `conceptSourceLinks` record with the analyzed Source hash.
+- `npm run build`, `npm run test:all`, `npm run check:release -- 1.0.0`, and `git diff --check` pass.
+
+Issues found and fixed during the run:
+
+- Concept scanning now falls back to the just-written Markdown frontmatter while Obsidian's metadata cache is still catching up. This prevents an immediate Inbox refresh from discarding the new Concept's Source Link.
+- Card ID replacement now normalizes the start marker to exactly one `id` attribute.
+
+Run artifact note:
+
+- The first `Pre-AI Acceptance Pipeline` Concept was written before the Source Link cache-race fix and remains in the disposable acceptance vault as evidence of that failure. The post-fix regression Concept verifies the corrected behavior; the original artifact was not silently rewritten.
+
+Still requires a separate manual/platform pass:
+
+- Windows real-vault core loop.
+- clean install using only `main.js`, `styles.css`, and `manifest.json`.
+
+## End-to-End Scenario Acceptance — 2026-08-25
+
+Environment: macOS, vault `Mneme_ob`, Obsidian 1.13.7, real DeepSeek-backed AI Capture and Card Generation.
+
+Scenario source: `E2E Acceptance - Adaptive Learning.md`, containing mixed Chinese and English material about adaptive learning, spaced repetition, retrieval practice, opaque IDs, duplicate handling, and tag governance.
+
+Passed in the current build:
+
+- AI Capture produced six editable Concept proposals from the stable source path.
+- With `Suggest English aliases` disabled, Proposal Review did not show an English Alias field. With it enabled, a non-English title showed `English Alias (optional)`, while an English title did not show the field. The setting was restored to disabled after the check.
+- Approving the edited proposal wrote one readable Concept at `Mneme/Concepts/E2E-自适应学习.md`, with opaque ID `concept-ywzf9xrw`, no `english_alias`, two reusable tags, and an approved Source relation.
+- Concept Library found `E2E 自适应学习` and rendered its title and Core Meaning after both refresh and full Obsidian restart.
+- Generate to Review produced three Card proposals. Approving one definition Card wrote parser-compatible Card Group Markdown at `Mneme/Cards/E2E-自适应学习/Cards.md` with opaque ID `card-hbkp8tkf` and no FSRS state in Markdown.
+- Review found the accepted Card after refresh. Rating it `Good` created one FSRS event with `reviewCount: 1`, `lastRating: good`, and state `Learning`.
+- After a complete Obsidian quit/relaunch, Concept Library still found the Concept and Review showed the same Card as `Reviewed 1 time`; the Concept ID, Card ID, Markdown files, and review state persisted.
+- Standalone Merge Concepts was closed before confirmation. Both source Concept hashes remained unchanged and no additional duplicate path was created.
+- Incoming name-conflict Merge rendered both Existing and Incoming titles and Core Meanings. `Back to Conflict Options` returned to the decision modal; closing the merge tab behaved like Back, preserved the proposal in Inbox, and wrote neither a merge nor a `-2` duplicate.
+- Reopening the incoming merge restored its saved draft without changing vault content.
+- Manual Create Concept retained its title, Core Meaning, Why It Matters, and Source after switching pages, closing the Composer tab, and reopening the command. No Concept Markdown was written before explicit creation.
+- The accepted Concept used two tags, providing a real-vault check that AI output stayed within a small reusable tag set rather than creating an unbounded taxonomy.
+- Card scan reported 5 valid files and 0 invalid files after restart.
+- `npm run test:all`, `npm run build`, `npm run check:release -- 1.0.0`, and `git diff --check` pass after the scenario.
+
+Follow-up implemented after the run:
+
+- AI Capture now performs a final Source identity/content check before committing proposals. A pure rename migrates the Source record and remaps the generated proposal/source-link paths. A concurrent edit marks the current Source record stale and discards the outdated response; deletion removes the old record. None of these invalidation paths writes proposals.
+- Concept generation uses an in-memory key tied to the same Obsidian `TFile`, so renaming a note cannot start a duplicate request under a new path.
+- Analyze Current Note and Card Generation now share persistent operation feedback: a stage Notice and an accessible status-bar item move through preparation, AI request, validation, and saving, then clean up in `finally` on success or failure.
+- Unit coverage verifies pure rename, rename plus content change, deletion, duplicate generation after rename, path migration, progress stages, and non-persistent Source analysis preparation.
+- An apparent checkbox-state mismatch seen through macOS accessibility output could not be reproduced after restart. The persisted setting and actual alias-field behavior agreed, so this is recorded as an automation-tool observation, not a confirmed Mneme defect.
+
+Result:
+
+- The macOS end-to-end learning loop passes: Source → AI proposals → explicit Concept approval → Concept Library → Card generation/approval → Review/FSRS → restart recovery.
+- Merge rollback, Inbox retention, conditional English Alias UI, and manual draft retention pass.
+- Release-wide acceptance is not yet complete until the existing Windows real-vault and clean three-artifact install passes are performed.

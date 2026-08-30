@@ -2,11 +2,11 @@
 
 ## Project
 
-Mneme is an Obsidian-native concept review plugin for university students.
+Mneme is an Obsidian-native concept review plugin for self-directed lifelong learners.
 
 Mneme turns user-written Markdown notes into editable Concepts and Cards. AI-generated knowledge changes require review, editing, and approval; directly authored Concepts are written without a fake approval step.
 
-Mneme is not a generic AI chat plugin, not a simple flashcard generator, and not an Anki clone.
+Mneme is not a generic AI chat plugin, exam simulator, course manager, project recommender, simple flashcard generator, autonomous learning agent, or Anki clone.
 
 ## Core Workflow
 
@@ -23,7 +23,7 @@ Source Note
 
 ## Product Principles
 
-- AI proposes; humans approve. Direct student authorship needs no artificial approval gate.
+- AI proposes; humans approve. Direct learner authorship needs no artificial approval gate.
 - Concept is the primary learning object.
 - Card is a testing tool for a Concept.
 - Markdown is the content source of truth.
@@ -34,6 +34,7 @@ Source Note
 - Do not let AI write final Markdown directly without Inbox approval.
 - Keep all user-facing UI labels in English.
 - The product should feel low-pressure. Avoid debt-like review language.
+- AI calls are explicit and bounded to knowledge extraction or drafting. Normal review, organization, browsing, scheduling, and export use deterministic local logic.
 
 ## Codex Brief
 
@@ -71,7 +72,10 @@ Do not expand ordinary stabilization work into:
 - Auto highlight
 - Full concept graph
 - Random Concept Draw
-- Course Draw
+- Course Context
+- Exam Mode
+- Use Mode
+- Project recommendation
 - Full agent loop
 - Complex merge/split system
 
@@ -137,8 +141,7 @@ data.json may store:
 - pending suggestions
 - FSRS card state
 - review logs
-- concept mastery cache
-- weak targets
+- Concept Learning State cache
 - card validity cache
 
 data.json must not be the source of truth for Concept or Card content.
@@ -176,7 +179,6 @@ Preferred labels:
 - Today’s Focus
 - Later
 - Needs Attention
-- Needs Work Signals
 
 Avoid:
 
@@ -196,6 +198,8 @@ The plugin generates Markdown files from validated JSON.
 User approval is required before committing.
 
 The v0.1 AI output object should be ConceptSuggestion[], not KnowledgeUnit[].
+
+Normal Card review must not call AI. The learner self-rates with Again / Hard / Good / Easy.
 
 ## UI Labels
 

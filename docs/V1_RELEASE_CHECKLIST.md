@@ -2,6 +2,12 @@
 
 This is the authoritative exit gate for Mneme v1.0. Passing a narrow unit test does not prove a product requirement; every row needs its listed automated and manual evidence.
 
+For step-by-step real-vault acceptance of the current working tree—including
+post-artifact random IDs, optional English Alias, Tag controls, direct
+authorship, and zero-write exact-name conflict Merge—use
+`CURRENT_VERSION_ACCEPTANCE_CHECKLIST.md`. This file remains the publication
+gate; the current-version checklist is the product behavior gate.
+
 ## Functional Completion Versus Publication
 
 The v1.0 product feature set is functionally complete. `npm run build`, the complete `npm run test:all` suite, the deterministic release gate, and the macOS real-vault core learning loop pass against `1.0.0` metadata.
@@ -10,7 +16,7 @@ The remaining unchecked items in this document are publication-readiness work: f
 
 ## Scope
 
-v1.0 is the stable Concept Review Plugin described in `ROADMAP.md`. Random Concept Draw, Course/Exam Mode, AI Answer Grading, PDF/PPT ingestion, Anki sync, and a built-in autonomous agent remain outside this release.
+v1.0 is the stable Concept Review Plugin described in `ROADMAP.md`. Course Context, Exam Mode, Use Mode, AI Answer Grading, PDF/PPT ingestion, Anki sync, project recommendation, and a built-in autonomous agent are outside the product direction. A stateless `Rediscover a Concept` entry point is only an evidence-gated future possibility.
 
 ## Requirement Evidence
 

@@ -1,67 +1,47 @@
 # Mneme Learning Model
 
-Mneme turns a student's approved source material into durable learning objects and review probes. This glossary defines the shared language used to reason about that learning model.
+Mneme turns a self-directed learner's approved source material into durable learning objects and review probes. This glossary defines the shared language used to reason about that learning model.
 
 ## Language
 
 **Concept**:
-A user-authored or user-approved vault-global knowledge model that can be explained, applied, and assessed independently. Knowledge that can carry a different importance or be learned and forgotten separately belongs in a separate Concept; a Course may reference but does not own or duplicate it.
+A user-authored or user-approved vault-global knowledge model that can be explained, applied, and assessed independently. Knowledge that can carry a different importance or be learned and forgotten separately belongs in a separate Concept.
 _Avoid_: Topic, summary, note
 
 **Concept Title**:
-The editable primary-language name of a Concept. It names the knowledge for the student and does not identify durable state.
+The editable primary-language name of a Concept. It names the knowledge for the learner and does not identify durable state.
 _Avoid_: Concept ID, filename, bilingual title string
 
-**English Name**:
-The canonical English name of a Concept, stored separately from its Concept Title. For non-English Concepts it supplies the English subtitle and readable identity stem; for English Concepts it is normally the same as the Concept Title.
-_Avoid_: Translated display suffix, Concept ID, filename slug
+**English Alias**:
+An optional canonical English display and search alias stored separately from Concept Title. The feature is disabled by default, is useful mainly for non-English titles, and never participates in durable identity.
+_Avoid_: Required translation, identity stem, duplicate English title
 
 **Concept Display Title**:
-The user-facing title composed from Concept Title and English Name. It is `Concept Title (English Name)` when the names differ and otherwise appears once.
+The user-facing title composed from Concept Title and an optional English Alias. It is `Concept Title (English Alias)` when the alias exists and differs; otherwise it is the Concept Title alone.
 _Avoid_: Concept ID, raw title field, filename
 
 **Concept ID**:
-The immutable readable ASCII identity stored as a Concept's `mneme_id`. New IDs are derived by Mneme from English Name at first write, while titles and file paths may change without changing this identity.
+The immutable, semantically opaque identity stored as a Concept's `mneme_id`. Mneme allocates new IDs independently as `concept-<random token>`; titles, aliases, and file paths may change without changing this identity.
 _Avoid_: Concept path, folder name, title slug
-
-**Concept Set**:
-A purpose-selected collection of approved Concepts considered together for an exam, project, or other learning context. It references Concepts without copying or owning them.
-_Avoid_: Course, duplicated Concept folder, permanent taxonomy
-
-**Course**:
-A learning context that relates Source Notes and vault-global Concepts for a curriculum. A Concept may participate in multiple Courses, and a Course does not create a separate copy of it.
-_Avoid_: Concept owner, Concept folder, duplicated knowledge base
 
 **Source Provenance**:
 The durable record of which Source Note supported a Concept, including the relation and approved evidence available at that time. If the Source later disappears, the provenance becomes stale rather than being erased.
 _Avoid_: Source cache, live backlink, disposable index entry
 
 **Stale Source**:
-A Source referenced by approved provenance that Mneme can no longer resolve at its recorded path. It remains historical evidence and may be relinked or explicitly removed by the student.
+A Source referenced by approved provenance that Mneme can no longer resolve at its recorded path. It remains historical evidence and may be relinked or explicitly removed by the learner.
 _Avoid_: Deleted provenance, invalid Concept
-
-**Course Priority**:
-The significance of a Concept within one Course. It belongs to the Course-Concept relationship and does not replace the Concept's vault-global Importance.
-_Avoid_: Global importance, exam urgency
-
-**Exam Focus**:
-A temporary, exam-specific emphasis placed on Concepts within an exam scope. It expires with that exam context and does not rewrite global Importance or Course Priority.
-_Avoid_: Global importance, permanent priority
-
-**Exam Attempt**:
-A record of a student's exam-scoped recall or explanation attempt. It contributes evidence and may produce Needs Work Signals, but it does not update Card Memory State or FSRS review history.
-_Avoid_: Card Review, FSRS rating
 
 **View**:
 An alternative explanation, example, application, or perspective that deepens the same Concept without becoming an independently assessable knowledge object.
 _Avoid_: Separate Concept, duplicate Concept
 
 **Possible Duplicate**:
-A review signal that two Concepts may represent the same independently assessable knowledge object. It invites a student decision and does not merge or modify either Concept.
+A review signal that two Concepts may represent the same independently assessable knowledge object. It invites a learner decision and does not merge or modify either Concept.
 _Avoid_: Confirmed duplicate, automatic merge
 
 **Review Gate**:
-The required user interaction in which a complete AI-proposed knowledge change is presented before it may be accepted and written. Direct student authorship needs no artificial approval step; confidence scores and unseen batch selections cannot satisfy the gate.
+The required user interaction in which a complete AI-proposed knowledge change is presented before it may be accepted and written. Direct learner authorship needs no artificial approval step; confidence scores and unseen batch selections cannot satisfy the gate.
 _Avoid_: Accept All, auto-approval, confidence threshold
 
 **Guided Merge**:
@@ -92,12 +72,8 @@ _Avoid_: Card quota, mastery percentage, content outline
 A stable digest of the approved, assessable Concept content used to decide whether Card generation has new knowledge to cover. It excludes presentation, provenance, organization metadata, and review-navigation text.
 _Avoid_: Whole-file hash, Concept version, Card batch ID
 
-**Rating Suggestion**:
-An AI assessment of a student's answer against a Card Rubric that explains strengths, omissions, and a proposed review rating. It does not update Card Memory State until the student confirms a final rating.
-_Avoid_: Automatic rating, FSRS decision, answer truth
-
 **Card ID**:
-The immutable explicit identity of one Card block inside a Card Group. Mneme derives new Card IDs from the owning Concept ID, Card Type, and a collision suffix; the AI does not name Card identities.
+The immutable explicit identity of one Card block inside a Card Group. Mneme allocates new IDs independently as `card-<random token>`; Concept ownership, Card Type, content, paths, and AI output do not name Card identities.
 _Avoid_: Card index, file path, generated fallback key
 
 **Card Group**:
@@ -105,11 +81,11 @@ The single Markdown file belonging to one Concept that contains its Cards as sep
 _Avoid_: One-file-per-Card layout, shared Card schedule
 
 **Learning State**:
-A reasoned view that keeps Card memory evidence, assessment coverage, and explicit student input distinguishable. It describes what Mneme has observed without claiming mastery, and it never schedules the Concept directly.
+A reasoned view that keeps Card memory evidence and assessment coverage distinguishable. It describes what Mneme has observed without claiming mastery, and it never schedules the Concept directly.
 _Avoid_: Concept mastery, mastery score, percent mastered
 
 **Importance**:
-The student's judgment of how valuable a Concept is to remember or use. It may prioritize already-eligible Concepts, but it does not implicitly change Card scheduling parameters.
+The learner's judgment of how valuable a Concept is to remember or use. It may prioritize already-eligible Concepts, but it does not implicitly change Card scheduling parameters.
 _Avoid_: Difficulty, retention target, urgency
 
 **Card Memory State**:
@@ -124,24 +100,16 @@ _Avoid_: Importance, mastery target, priority
 A one-way snapshot that copies approved Mneme Cards into an Anki-importable artifact. Exported Cards are independent copies: Mneme neither synchronizes their content nor reads or controls their Anki scheduling and review history.
 _Avoid_: Anki sync, Anki Review Backend, shared Card state
 
-**Use Project**:
-A practical project selected to activate and combine a Concept Set in a concrete target context. Its value comes from making the role, limits, and interaction of learned Concepts observable through practice.
-_Avoid_: Generic project idea, single-Concept quiz, AI chat
-
 **Knowledge Context Pack**:
-A portable, review-safe export that tells an external agent which Concepts the student has approved and learned from. It is neutral about the agent's next task and excludes Cards, scheduler state, credentials, and internal diagnostics.
+A portable, review-safe export containing the Concepts the learner has approved. It is neutral about any later use and excludes Cards, scheduler state, credentials, and internal diagnostics.
 _Avoid_: Project request, vault backup, agent memory dump, Card export
-
-**Needs Work Signal**:
-A reason-coded indication that some aspect of a Concept needs attention, originating either from student input or derived learning evidence. Multiple signals may coexist, remain attributable to their source, and do not directly change a Card's due date.
-_Avoid_: Weak Concept flag, mastery failure
 
 **Review Later**:
 A temporary Card-level queue control that hides a Card until the next local day without changing its Card Memory State.
 _Avoid_: Reschedule, postpone due date
 
 **Suspend Card**:
-An indefinite Card-level queue control that excludes a Card from review until the student explicitly resumes it, without changing its Card Memory State.
+An indefinite Card-level queue control that excludes a Card from review until the learner explicitly resumes it, without changing its Card Memory State.
 _Avoid_: Delete Card, Pause Concept
 
 **Retire Card**:
@@ -153,7 +121,7 @@ An explicit action that clears a Card's Card Memory State while preserving its l
 _Avoid_: Review Again, Delete Card
 
 **Delete Card**:
-An explicit destructive action that permanently removes a Card's learning content and active scheduling state after confirmation. Its anonymous historical events remain unless the student separately requests complete erasure.
+An explicit destructive action that permanently removes a Card's learning content and active scheduling state after confirmation. Its anonymous historical events remain unless the learner separately requests complete erasure.
 _Avoid_: Retire Card, Suspend Card
 
 **Card Tombstone**:

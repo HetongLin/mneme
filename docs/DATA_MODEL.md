@@ -70,9 +70,9 @@ Inbox acceptance is explicit. `Accept & Next` first persists the currently visib
 
 The product-facing Inbox does not present proposal lifecycle states as primary navigation. Its main counters are To Review, Concept Proposals, Card Proposals, and Invalid items. Developer and diagnostic commands are hidden unless Developer Tools is enabled in settings.
 
-Inbox Refresh and `Mneme: Resync Mneme Index` reconcile plugin data with the current vault. Transient stale proposals and caches may be pruned, but approved Concept-source provenance that points to a deleted Source is retained with `status: stale`. Reconciliation never deletes user Markdown or approved provenance; relinking or removing provenance requires an explicit student action.
+Inbox Refresh and `Mneme: Resync Mneme Index` reconcile plugin data with the current vault. Transient stale proposals and caches may be pruned, but approved Concept-source provenance that points to a deleted Source is retained with `status: stale`. Reconciliation never deletes user Markdown or approved provenance; relinking or removing provenance requires an explicit learner action.
 
-Guided Source Relink repairs a retained stale relationship in place at the semantic level. It preserves the relation type, evidence, and original `addedAt`; changes the Source path and content hash; refreshes `lastSeenAt`; and returns the relationship to `approved` only after the student reviews and confirms a zero-write preview. Equivalent target links are deduplicated by Concept, Source, and relation type with evidence union. The old and new `SourceAnalysisRecord.linkedConceptIds` indexes are updated in the same transaction. A pre-existing `lastAiCaptureFingerprint` on the replacement Source remains untouched because relinking identifies provenance—it does not assert that AI has analyzed or approved the replacement content.
+Guided Source Relink repairs a retained stale relationship in place at the semantic level. It preserves the relation type, evidence, and original `addedAt`; changes the Source path and content hash; refreshes `lastSeenAt`; and returns the relationship to `approved` only after the learner reviews and confirms a zero-write preview. Equivalent target links are deduplicated by Concept, Source, and relation type with evidence union. The old and new `SourceAnalysisRecord.linkedConceptIds` indexes are updated in the same transaction. A pre-existing `lastAiCaptureFingerprint` on the replacement Source remains untouched because relinking identifies provenance—it does not assert that AI has analyzed or approved the replacement content.
 
 Reviewed Stale Provenance Removal deletes one selected stale link only after a zero-write preview and explicit confirmation. The readable Source entry and `SourceAnalysisRecord.linkedConceptIds` association are removed only when no other relationship still connects the same Concept and Source. This prevents deleting shared presentation/index state when relation types differ.
 
@@ -93,11 +93,11 @@ Readable and identifiable Markdown principle:
 Stable identity principle:
 
 - `mneme_id` is the immutable Concept identity.
-- `mneme_title` is the editable primary-language Concept Title and `mneme_english_name` is the separately stored canonical English Name. The H1 is the composed Concept Display Title and is not identity.
-- New Concept IDs are readable ASCII identities derived by Mneme from English Name at first write, for example `concept-information-gain`. Same-name later writes receive `-2`, `-3`, and so on without renaming the first identity. The suffix is applied to the primary-language `mneme_title` before Mneme recomposes the H1, so the stored title, H1, path, ID, and Card Group locator cannot disagree; `mneme_english_name` remains unsuffixed.
-- Explicit `MNEME:CARD` ids are immutable Card identities. New Card proposals use readable IDs derived only from the written Concept ID and `cardType`, for example `information-gain-definition`; if that ID is already used in the same Card Group, Mneme writes `information-gain-definition-2`, `information-gain-definition-3`, and so on.
+- `mneme_title` is the editable primary-language Concept Title. `mneme_english_name` is an optional legacy-keyed English Alias used only for display/search when the feature is enabled or an existing note already stores one. The H1 may compose `Concept Title (English Alias)` and is not identity.
+- New Concept IDs are immutable opaque identities allocated independently as `concept-<8 random characters>`, for example `concept-k7m3p9qx`. A path collision adds `-2`, `-3`, and so on only to the file path and Card Group locator; it does not rewrite `mneme_title`, the alias, or the ID. An ID collision causes regeneration.
+- Explicit `MNEME:CARD` ids are immutable Card identities. New Cards use independently allocated `card-<8 random characters>` IDs, for example `card-gjsl5r2n`. Concept ID, Card Type, Front, paths, and AI output do not participate in allocation; collisions cause regeneration.
 - Manually authored Cards use the same marker renderer and ID allocator as accepted AI proposals. Their drafts are optional plugin data only; successful creation writes directly to the declared Card Group and clears the content draft without creating a `KnowledgeProposal`.
-- AI proposal `cardType` is immutable within Proposal Review. Editable proposal content is limited to Front, Back, and Rubric; manual Card creation is the surface where a student deliberately chooses Card Type before authoring.
+- AI proposal `cardType` is immutable within Proposal Review. Editable proposal content is limited to Front, Back, and Rubric; manual Card creation is the surface where a learner deliberately chooses Card Type before authoring.
 - Titles, paths, folders, and Card indexes are mutable locators or presentation details.
 - Durable plugin state must never use a path fallback as its long-term key.
 - Legacy Markdown with missing or duplicate IDs remains readable but enters a Repair Flow before new durable state is created.
@@ -158,6 +158,8 @@ Generated Concepts include only sections with useful content, except the always-
 
 Plugin data may contain one `manualConceptDraft` for the dockable Concept Composer. It stores editable learning fields, optional Source Note path, organization fields, and an update timestamp. It is draft UI state only: it is not an approved Concept, KnowledgeProposal, or Source evidence record.
 
+Plugin data may also contain `conceptConflictMergeDrafts`, keyed by the originating Inbox Proposal (`inbox:<proposalId>`) or the Manual Composer (`manual`). Each record stores only the editable merged learning-content draft, the existing Concept ID, an incoming-content fingerprint, and an update timestamp. It is recoverable UI state, not approved Concept content. Prepared before/after Markdown and transactional write plans are never persisted.
+
 Example structure:
 
 ---
@@ -202,8 +204,8 @@ Controls long-term review priority among already eligible Concepts. It does not 
 Recommended mapping:
 
 - low: background knowledge
-- normal: ordinary course concept
-- high: important course concept
+- normal: ordinary long-term value
+- high: important long-term knowledge
 - critical: must-master concept
 
 ### learning_mode
@@ -215,7 +217,7 @@ Controls how the concept is learned.
 
 ### retention_target
 
-An optional student-authored override for the global FSRS Request Retention setting. It applies to future rated reviews of Cards belonging to this Concept. It does not reschedule existing Cards when edited, and Importance never supplies or changes it. If omitted, Review uses the current global setting.
+An optional learner-authored override for the global FSRS Request Retention setting. It applies to future rated reviews of Cards belonging to this Concept. It does not reschedule existing Cards when edited, and Importance never supplies or changes it. If omitted, Review uses the current global setting.
 
 ### tags
 
@@ -338,7 +340,7 @@ Answer 2
 - Invalid cards should be shown with a repair option.
 - A `card_group` file with no CARD or section markers is a valid empty Card Group, not a malformed legacy Card.
 
-The safe automatic repair path is intentionally narrow. If a FRONT or BACK section is entirely absent, Mneme may add the missing canonical section after the student supplies its content, while preserving all surrounding Markdown and leaving FSRS state unchanged. Duplicate markers, unclosed markers, malformed CARD wrappers, and duplicate IDs require manual or future guided repair rather than destructive canonicalization.
+The safe automatic repair path is intentionally narrow. If a FRONT or BACK section is entirely absent, Mneme may add the missing canonical section after the learner supplies its content, while preserving all surrounding Markdown and leaving FSRS state unchanged. Duplicate markers, unclosed markers, malformed CARD wrappers, and duplicate IDs require manual or future guided repair rather than destructive canonicalization.
 
 ## data.json
 
@@ -355,11 +357,10 @@ data.json may store:
 - suspended Card controls (`suspendedCards`), keyed by stable Card id
 - retired Card controls (`retiredCards`), keyed by stable Card id
 - content-free review events (`reviewEvents`), keyed by event id
-- Needs Work Signals
 - Concept Learning State cache
-- Exam Attempts
 - deleted Card tombstones
 - dismissed Possible Duplicate pairs (`conceptDuplicateDismissals`), keyed by an ordered stable-ID pair
+- recoverable exact-name conflict Merge drafts (`conceptConflictMergeDrafts`)
 - Concept Merge Records (`conceptMergeRecords`), keyed by the permanently retired Concept ID
 - card validity cache
 
@@ -382,25 +383,25 @@ Retired Cards preserve Markdown and history but are excluded from active review.
 
 Each `reviewEvents` record contains only `eventId`, stable `cardId`, `rating`, and `reviewedAt`; it stores no Card content. A `cardTombstones` record contains only `cardId`, `deletedAt`, `reviewCount`, and `lapseCount`. Existing Cards created before event logging may have aggregate counts without reconstructable per-review events. Global Clear Review History removes events and zeros tombstone counts while retaining tombstones for identity safety.
 
-Possible Duplicate candidates are derived from current Concept titles and Core Meaning text and are not persisted as knowledge. Only a student's `Not a duplicate` decision is stored, as `pairKey`, two stable Concept IDs, and `dismissedAt`. Dismissal does not create a relationship between the Concepts and may be reconsidered.
+Possible Duplicate candidates are derived from current Concept titles and Core Meaning text and are not persisted as knowledge. Only a learner's `Not a duplicate` decision is stored, as `pairKey`, two stable Concept IDs, and `dismissedAt`. Dismissal does not create a relationship between the Concepts and may be reconsidered.
 
 A `conceptMergeRecords` entry stores `mergedConceptId`, `survivorConceptId`, `mergedPath`, `survivorPath`, and `mergedAt`. It contains no learning content. The merged ID remains reserved after the old Concept becomes a `concept_redirect`, preventing a later generated Concept from reusing that identity.
 
 Guided Merge moves complete stable-ID Card blocks into the surviving Card Group without rewriting their IDs or Card-keyed FSRS state. If the survivor has no Card Group, it adopts the merged Concept's group and updates that group's association. A vacated Card Group remains as an empty `card_group` redirect so old vault links resolve without creating a phantom Card. Legacy per-Card folders must be explicitly consolidated before Guided Merge; Mneme does not guess a destructive migration.
 
-The Merge draft is transient UI state and is not persisted as a proposal. Manual Draft deterministically unions tags, selects the stronger importance, and uses `reviewable` when either Concept is reviewable. Optional AI draft output is limited to Title, English Name, Core Meaning, and Why It Matters. A prepared `ConceptMergePlan` is a zero-write snapshot containing affected Markdown before/after content and the complete next plugin-data value. Execute succeeds only while every before-snapshot and plugin-data snapshot still matches; otherwise it reports a conflict. Rollback restores already-written Markdown and the original plugin data.
+An ordinary two-written-Concept Merge draft is transient UI state. An exact-name conflict Merge may persist its editable draft in `conceptConflictMergeDrafts` so closing the workspace does not lose work; the Inbox Proposal or `manualConceptDraft` remains the authoritative incoming source until confirmation. Manual Draft deterministically unions tags, selects the stronger importance, and uses `reviewable` when either side is reviewable. Optional AI draft output is limited to Title, Core Meaning, Why It Matters, and English Alias only when that setting is enabled. A prepared Merge plan is always a non-persisted zero-write snapshot containing affected Markdown before/after content and the complete next plugin-data value. Execute succeeds only while every before-snapshot and plugin-data snapshot still matches; otherwise it reports a conflict. Rollback restores already-written Markdown and the original plugin data.
 
-## Courses And Exam Contexts
+## Product Boundary
 
-Concepts are vault-global. A Course relates to Concepts many-to-many and may contribute Sources, Views, and a Course Priority without owning a duplicate Concept. Exam Focus is temporary to a specific exam and does not mutate global Concept importance.
+Concepts are vault-global and are not owned by folders, tags, Source Notes, or temporary learning contexts. Course Context, Exam Mode, Exam Attempts, Use Mode, and AI answer grading are not part of the product data model.
 
-Exam Attempts are stored separately from review logs. They may produce Needs Work Signals, but they do not update Card Memory State or FSRS history.
+Normal review is local and deterministic. Only a learner-confirmed Again, Hard, Good, or Easy rating from normal Card review writes FSRS state or review history; AI is not called in that loop.
 
 ## External Exports
 
 Anki export is a one-way UTF-8 TSV snapshot of active valid approved Cards. The exported copies have independent content and scheduling state; Mneme performs no Anki synchronization. Invalid Cards, Cards without explicit stable IDs, and Retired Cards are excluded from the default export.
 
-A Knowledge Context Pack exports a neutral index plus selected clean Concept Markdown. It includes all approved Concepts by default, with optional Course or manual filters, and excludes Source Notes, Cards, credentials, scheduler state, and diagnostics. Its README states that approved knowledge is not a mastery claim.
+A Knowledge Context Pack exports a neutral index plus selected clean Concept Markdown. It includes all approved Concepts by default, may later support explicit manual Concept selection, and excludes Source Notes, Cards, credentials, scheduler state, and diagnostics. Its README states that approved knowledge is not a mastery claim. It is an export utility, not a Use Mode or project request.
 
 ## Markdown Writing Settings
 
@@ -436,7 +437,7 @@ For written Concepts, compare the Card generation fingerprint rather than the wh
 
 FSRS state belongs to Cards, not Concepts.
 
-Concept Learning State is a reasoned aggregate of Card Memory States, assessment coverage, and explicit student signals. It is diagnostic and must not be presented as a mastery percentage or used as a Concept scheduler.
+Concept Learning State is a reasoned aggregate of Card Memory States and assessment coverage. It is diagnostic and must not be presented as a mastery percentage or used as a Concept scheduler.
 
 ## Concept-first Extraction
 
@@ -497,9 +498,7 @@ When FSRS is enabled, Concepts are ranked as groups of review-eligible Cards. Th
 
 Not-due-only Concepts are hidden from the main queue but visible in diagnostics. FSRS remains card-level; concept ranking never overrides FSRS scheduling.
 
-Future modes may intentionally bypass `dueAt` for Cram, Exam Mode, Random Concept Draw, or Concept Activation. Daily Review must remain due-card driven.
-
-Exam Attempts and Use activity never write FSRS history or change due dates. A due Card may be explicitly sent into normal Review Mode, where only the student's confirmed final rating updates FSRS.
+No planned mode may bypass `dueAt` while recording an FSRS review. A future stateless `Rediscover a Concept` entry point may open a Concept or enter its existing normal Card review, but it cannot create a parallel learning state, submit a rating outside the normal review flow, or call AI.
 
 ## Concept Library
 

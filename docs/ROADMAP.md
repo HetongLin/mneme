@@ -184,7 +184,7 @@ Current progress:
 - Confirmed merges preserve Card IDs/FSRS history, migrate provenance and aggregate controls, leave Redirect Notes, and reserve merged Concept IDs.
 - Concept Library surfaces retained stale Source provenance and offers a reviewed Guided Relink.
 - Guided Relink preserves relation/evidence, updates readable Source Notes and indexes transactionally, and does not count as AI analysis.
-- Reviewed Removal lets the student permanently discard one stale relationship, while preserving readable/index associations still used by other relations.
+- Reviewed Removal lets the learner permanently discard one stale relationship, while preserving readable/index associations still used by other relations.
 
 ## v1.0: Stable Concept Review Plugin
 
@@ -212,90 +212,66 @@ Current readiness:
 - The complete automated suite and the macOS real-vault core Source → Concept → Card → FSRS loop pass against `1.0.0` metadata.
 - Publication readiness is tracked separately in `V1_RELEASE_CHECKLIST.md`. Final clean-install packaging and Windows artifact validation are release work, not missing v1.0 product functionality, and are intentionally deferred until Mneme is prepared for distribution.
 
-## v1.1: Random Concept Draw
+Supporting utilities already implemented:
+
+- One-way Anki UTF-8 TSV export of independent Card copies
+- Neutral Knowledge Context Pack export of approved Concepts
+- Manual Card creation with built-in Card Types
+- Optional AI assistance for bounded Concept and Card drafting
+
+These are ordinary capabilities around the core loop, not separate learning modes.
+
+## v1.1: Core Loop Friction and Cost
 
 Goal:
 
-Low-pressure random concept activation.
+Make the existing Note → Concept → Card → Review → Concept Library loop easier and cheaper to begin and maintain.
 
-Features:
+Candidate work must be driven by observed friction in real use. Current priorities are:
 
-- Draw Concept
-- Show Concept
-- Open Concept
-- Mark as Known
-- Mark as Needs Work
-- Promote to Review
-- Generate Cards
+- clearer first-run and provider setup;
+- transparent bounded AI request scope and failure recovery;
+- fewer unnecessary transitions between capture, Inbox, Concept, and Review;
+- continued review and authoring without AI availability;
+- accessibility, performance, and reliability improvements on core surfaces.
 
-## v1.2: Course and Exam Mode
+This release does not add a new learning mode or durable state model.
 
-Goal:
-
-Support university final exam review through Course contexts over vault-global Concepts.
-
-Features:
-
-- Define a Course context
-- Build a Course-Concept pool over vault-global Concepts
-- Draw Concept
-- Course Priority and Exam Focus
-- Needs Work Signal priority
-- Exam Attempts isolated from FSRS
-
-## v1.3: AI Answer Grading
+## v1.2: Library Stewardship
 
 Goal:
 
-Grade typed answers using rubric.
+Keep a growing personal Concept Library understandable, searchable, and repairable without depending on AI.
 
-Features:
+Candidate features:
 
-- Type Answer
-- AI Grade with Rubric
-- Missing Points
-- Suggested Rating
-- User-confirmed final FSRS rating
-- Update Needs Work Signals
+- reviewed Tag Manager operations for historical tag merges and renames;
+- improved Concept search and filtering;
+- clearer duplicate, identity, malformed Markdown, and stale provenance maintenance;
+- manual Concept selection for Knowledge Context Pack export;
+- large-library performance and navigation improvements.
 
-## v1.4: Interoperability and Use Mode
+Each candidate remains independently scoped and should be implemented only when its user problem and acceptance criteria are clear.
 
-Goal:
+## Evidence-gated possibilities
 
-Activate approved knowledge outside Mneme without introducing sync complexity.
+A stateless `Rediscover a Concept` entry point may be reconsidered after real usage. It may show and open a Concept or enter that Concept's normal Card review, but it must not:
 
-Features:
+- create Known, Needs Work, attempt, or parallel scheduling state;
+- bypass FSRS when a Card rating is recorded;
+- call AI;
+- become a separate mode.
 
-- One-way Anki UTF-8 TSV export
-- Knowledge Context Pack export
-- All approved Concepts by default
-- Optional Course or manual Concept filtering
-- External-agent project discovery
-- Use Projects built from coherent Concept Sets
+Lightweight organization may be reconsidered only if Tags, search, Related Concepts, Obsidian organization, and manual export selection prove insufficient. It must not begin as Course Context or introduce a second priority or scheduling system.
 
-Current progress:
+## Outside the product direction
 
-- Knowledge Context Pack export creates a neutral vault-local pack for external agents.
-- Exported Concept files omit Source Notes and Review Cards sections and do not include Cards, FSRS state, review history, credentials, diagnostics, or a project request.
-- One-way Anki TSV export creates isolated Card copies without syncing content, scheduling state, or review history.
-- Optional Course/manual filtering remains unfinished.
-- Card customization should add an `Allowed AI Card Types` setting before considering arbitrary card type names. The safer path is enabling or disabling Mneme's built-in types while keeping the internal enum stable.
-- Manual Card creation is implemented through the dockable Card Composer. It selects an approved Concept and built-in Card Type before Front, Back, and optional Rubric, then writes directly to the canonical Card Group with the normal readable stable-ID allocator.
-- Tag Manager remains unfinished. It should offer reviewed tag merges/renames for historical tags, such as `learning` -> `machine-learning`, without silently rewriting Concept Markdown.
+Mneme is a focused personal knowledge memory plugin. The following are not planned:
 
-## v2.0: AI-native Learning System
-
-Goal:
-
-Expand beyond an Obsidian review plugin.
-
-Possible features:
-
-- PDF/PPT ingestion
-- Course planning
-- Exam-oriented review
-- Mistake diagnosis
-- Learning analytics
-- Cross-course concept graph
-- Local model support
-- Standalone learning agent
+- Course Context and Course planning;
+- Exam Mode, Exam Attempts, Exam Focus, and exam-oriented review;
+- Use Mode, Use Projects, and project discovery;
+- AI answer grading and Rating Suggestions;
+- whole-vault AI reasoning or continuous chat;
+- learning analytics as a competing product surface;
+- a standalone or autonomous learning agent.

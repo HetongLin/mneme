@@ -32,12 +32,17 @@ The current branch is:
 codex/task-054-stale-source-remove
 ```
 
-The branch name does not describe the current product scope. The working tree contains a large body of intentional, uncommitted implementation and documentation work accumulated through product testing. It includes modified and untracked files.
+The branch name does not describe the current product scope. The v1.0 implementation and its supporting documentation were committed locally as:
+
+```text
+8f65f89 feat: complete Mneme v1.0 learning workflow
+```
+
+The current working tree may contain the post-v1.0 product-direction documentation revision plus the long-standing untracked `mneme` self-link and `release-artifacts/`.
 
 Do not:
 
 - reset, checkout, clean, discard, or broadly overwrite the working tree;
-- assume the last Git commit contains the current product;
 - delete the long-standing untracked `mneme` self-link;
 - delete `release-artifacts/` without inspecting it;
 - refactor unrelated areas while beginning the next version.
@@ -65,7 +70,7 @@ The current implementation includes:
 - independent immutable Card IDs and Card-level FSRS state;
 - fixed Concept-generation prompt and selectable built-in AI Card types;
 - Concept Library, Concept View, editing, deletion, search, tags, and Related Concepts;
-- exact-name conflict handling through Merge, Refine Name, or Keep Both;
+- exact-name conflict handling through Merge, Refine Name, Keep Both, or Cancel, with zero-write draft Merge and source-state preservation on Back/close;
 - Possible Duplicate detection and two-Concept Guided Merge;
 - Anki-style review layout with fixed action bar and Card-level controls;
 - optional Scheduled Review and Concept-grouped Today’s Focus;
@@ -76,9 +81,9 @@ The current implementation includes:
 
 ### Knowledge approval
 
-- AI proposes; the student reviews, edits, accepts, or rejects.
+- AI proposes; the learner reviews, edits, accepts, or rejects.
 - AI must not write final Concept or Card Markdown directly.
-- Direct student authorship writes immediately and does not pass through Inbox.
+- Direct learner authorship writes immediately and does not pass through Inbox.
 
 ### Content and state ownership
 
@@ -92,9 +97,9 @@ The current implementation includes:
 
 - Durable state is keyed by immutable Concept and Card IDs, never file paths.
 - Concept Title is primary-language and editable.
-- English Name is stored separately; for English Concepts it normally matches Title.
-- New Concept IDs are readable ASCII IDs derived from English Name at first write and then remain immutable.
-- New Card IDs are deterministically derived from written Concept ID plus Card Type, with numeric suffixes for repeated types.
+- English Alias is optional display/search metadata. `Suggest English aliases` defaults off; English titles never show a redundant alias field.
+- New Concept IDs are opaque random IDs such as `concept-k7m3p9qx` and remain immutable. Existing readable IDs remain valid.
+- New Card IDs are opaque random IDs such as `card-gjsl5r2n` and remain immutable. They are independent of Concept ID, Card Type, and content.
 - AI never chooses final IDs.
 
 ### Review and FSRS
@@ -102,7 +107,8 @@ The current implementation includes:
 - FSRS fully owns Card scheduling.
 - Concept is only an aggregate learning state.
 - Only an explicit normal Card review and user-confirmed Again/Hard/Good/Easy rating updates FSRS.
-- Exam Attempts, Use activity, Concept ranking, AI suggestions, and Concept organization must not mutate FSRS.
+- Concept ranking, AI suggestions, browsing, organization, and export must not mutate FSRS.
+- Normal review must not call AI.
 - Manual `Review Cards` from Concept Library does update FSRS because it is a real Card review.
 - No daily Concept/Card caps may hide FSRS-eligible Cards.
 - Concept-level `Pause Concept` is not part of the active product UI; controls operate on Cards.
@@ -112,6 +118,7 @@ The current implementation includes:
 - AI extraction is context-free and does not receive the existing Concept library merely to prevent duplicates.
 - Duplicate Concepts may enter Inbox; reconciliation is an explicit later action.
 - Guided Merge is user-triggered, previewed, transactional, and rollback-safe.
+- Exact-name conflict Merge never pre-creates the incoming Concept: Inbox keeps the Proposal, Manual creation keeps its Composer draft, and only Confirm Merge writes.
 - AI may help draft only learning prose; deterministic code handles metadata, Cards, IDs, Related links, Redirect Notes, state migration, and conflicts.
 - Merged Cards retain their immutable IDs and FSRS histories.
 - The MVP has one symmetric Related relationship. Adding/removing it updates both Concept files.
@@ -120,7 +127,7 @@ The current implementation includes:
 
 - Fixed UI and structural labels are English.
 - Generated learning prose follows the Source Note’s dominant language.
-- Non-English Concept titles carry a canonical English Name.
+- Non-English Concept titles may carry a canonical English Alias when the optional setting is enabled.
 - Tags are English lowercase slugs.
 - AI should prefer a few broad stable tags and avoid generic or near-duplicate tag explosion.
 
@@ -135,64 +142,47 @@ The feature set is complete, but publication readiness still requires:
 
 These are release gates, not missing v1.0 product functions.
 
-## Recommended Next Major Direction
+## Current Product Direction
 
-The recommended next major feature is **Course Context**, before a standalone Random Concept Draw.
-
-This is a recommendation from the previous conversation, not yet an implemented or formally approved roadmap rewrite. Confirm it with the user before coding.
-
-Why Course Context comes first:
-
-- Mneme targets university students, but approved Concepts are currently vault-global without a course boundary.
-- Course Context is shared infrastructure for Exam Mode, course-filtered Knowledge Context Packs, and future Use Mode.
-- Random Concept Draw is more coherent as an Exam/Course capability than as a separate duplicate surface.
-- AI Answer Grading should follow a stable non-AI Exam Session workflow.
-
-### Proposed next version: Course Context MVP
-
-Keep the first increment bounded:
-
-1. Create, rename, and delete a Course.
-2. Add/remove existing approved Concepts through search and selection.
-3. Store Course membership by immutable Concept ID; never copy Concept files.
-4. Show a Course Concept pool with simple counts and missing-Card state.
-5. Open a Concept or enter its normal Card review.
-6. Export a Knowledge Context Pack filtered by Course.
-7. Keep Course membership and Course browsing completely separate from FSRS state.
-
-Do not add in the first increment:
-
-- AI course assignment;
-- schedules, calendars, or exam dates;
-- AI answer grading;
-- automatic project recommendation;
-- complex learning analytics;
-- new FSRS behavior.
-
-### Natural follow-up
-
-After Course Context is stable:
+Mneme is a focused personal knowledge memory plugin for self-directed lifelong learners. The product loop is:
 
 ```text
-Course
-→ Exam Session
-→ Random or Needs Work Concept draw
-→ Student recall/explanation
-→ Reveal Concept
-→ Record Exam Attempt / Needs Work Signal
-→ Optionally enter normal Card review
+Source Note
+→ Concept
+→ Card
+→ Review
+→ Concept Library
 ```
 
-Exam Attempts and Needs Work Signals remain Concept-level evidence and do not update FSRS.
+ADR 0019 replaces the earlier university/exam-oriented expansion plan. Course Context, Exam Mode, Exam Attempts, Use Mode, Use Projects, AI answer grading, project discovery, and a standalone learning agent are not planned.
+
+AI remains an explicit, bounded assistant for Concept/Card extraction or drafting. Normal review, organization, browsing, scheduling, and export use deterministic local logic and do not call AI. This keeps the product understandable and maintainable with inexpensive API providers.
+
+Knowledge Context Pack and Anki TSV remain ordinary export utilities, not separate modes.
+
+### Recommended next versions
+
+After v1.0 publication gates are complete:
+
+1. **v1.1 Core Loop Friction and Cost** — improve onboarding, provider setup, bounded request transparency, failure recovery, accessibility, performance, and the transitions between capture, Inbox, Concept, and Review.
+2. **v1.2 Library Stewardship** — improve Tag management, search/filtering, repair workflows, manual Concept selection for export, and large-library usability.
+
+Candidate work must respond to observed user friction and must not introduce a new learning mode or durable state model.
+
+### Evidence-gated possibilities
+
+A stateless `Rediscover a Concept` entry point may be reconsidered only if real use supports it. It must not create Known/Needs Work state, bypass FSRS, call AI, or become a separate mode.
+
+Lightweight organization may be reconsidered only if Tags, search, Related Concepts, Obsidian organization, and manual export selection prove insufficient. Do not implement Course Context by default.
 
 ## Recommended First Actions in the New Session
 
 1. Inspect `git status` and the current diff without modifying it.
-2. Re-read the authoritative Course, Concept Set, Exam Attempt, FSRS, and Use Mode definitions.
-3. Confirm with the user that Course Context should replace standalone Random Concept Draw as the next roadmap increment.
-4. Before implementation, document the Course data model and lifecycle in an ADR.
-5. Produce a small, testable implementation plan.
-6. Implement the smallest vertical slice without changing existing Concept/Card/FSRS formats.
+2. Re-read ADR 0019 and the current Product Spec/Roadmap before proposing new features.
+3. Complete the remaining v1.0 publication gates before starting a major feature.
+4. Identify a concrete core-loop friction from real use.
+5. Produce a small, testable implementation plan that adds no new learning mode or competing state model.
+6. Preserve existing Concept/Card/FSRS formats.
 7. Run `npm run test:all` and `npm run build`.
 
 ## Paste-ready Prompt for the New Conversation
@@ -213,16 +203,18 @@ Exam Attempts and Needs Work Signals remain Concept-level evidence and do not up
 - docs/ROADMAP.md
 - docs/V1_RELEASE_CHECKLIST.md
 
-注意：当前工作树有大量尚未提交但属于项目成果的修改。不得 reset、checkout、clean、覆盖或删除任何现有修改，也不要删除长期存在的未跟踪 mneme 项。先只读检查 git status 和当前实现。
+注意：v1.0 实现已提交为 `8f65f89`。当前工作树可能仍有产品路线文档修改，以及长期存在的未跟踪 `mneme` 自链接和 `release-artifacts/`。不得 reset、checkout、clean、覆盖或删除任何现有修改。先只读检查 git status 和当前实现。
 
-v1.0 功能已经完成，当前建议的下一大版本是 Course Context，为 Exam Mode、Course 过滤导出和未来 Use Mode 提供基础。Standalone Random Concept Draw 建议收编为后续 Course/Exam Session 的能力，而不是先独立实现。
+v1.0 功能已经完成。产品定位已调整为面向自我导向终生学习者的个人知识记忆插件，核心闭环是 Source Note → Concept → Card → Review → Concept Library。
+
+Course Context、Exam Mode、Use Mode、AI Answer Grading、Project Discovery 和内置学习 Agent 已退出产品路线。普通复习不得调用 AI；AI 仅用于用户明确触发、边界清楚的 Concept/Card 提取或草拟。Knowledge Context Pack 和 Anki TSV 只是导出工具，不是独立 Mode。
 
 先不要直接编码。请先：
 1. 核对 hand-off 与当前代码是否一致；
-2. 说明 Course Context MVP 的领域模型、数据存储位置、与 Concept/FSRS 的边界；
-3. 给出最小纵向切片和验收标准；
-4. 指出需要新增或修改的 ADR/产品文档；
+2. 完成或核对 v1.0 发布验收剩余项；
+3. 从真实使用中识别一个核心闭环摩擦点；
+4. 给出不新增 Mode 或竞争状态模型的最小改进和验收标准；
 5. 等我确认后再实现。
 
-所有固定 UI 标签使用英文。FSRS 继续完全控制 Card 调度；Course、Exam Attempt、Needs Work Signal 不得直接修改 FSRS。
+所有固定 UI 标签使用英文。FSRS 继续完全控制 Card 调度；只有正常 Card Review 中由用户确认的 Again/Hard/Good/Easy 可以更新 FSRS。
 ```

@@ -113,7 +113,7 @@ Active Inbox contains actionable proposals that still need review. Rejected and 
 
 Developer validation utilities, sample proposal commands, and diagnostic logging are hidden unless Developer Tools is enabled in Mneme settings.
 
-Inbox Refresh and `Mneme: Resync Mneme Index` reconcile plugin data with the current vault. Unactioned stale proposals and transient caches may be pruned, but approved Concept-source provenance survives a deleted Source with `status: stale`. This never deletes user Markdown or approved provenance; the student may later relink or explicitly remove the stale relationship.
+Inbox Refresh and `Mneme: Resync Mneme Index` reconcile plugin data with the current vault. Unactioned stale proposals and transient caches may be pruned, but approved Concept-source provenance survives a deleted Source with `status: stale`. This never deletes user Markdown or approved provenance; the learner may later relink or explicitly remove the stale relationship.
 
 Concept Library presents each retained stale relationship as a repair item. Guided Relink requires a replacement Markdown path, verifies the Concept's stable identity, and previews the final readable Concept.md before confirmation. It preserves approved relation/evidence history, updates Source path/hash/last-seen metadata, and migrates Source analysis indexes transactionally. It only rewrites exact links inside `## Source Notes`; unrelated links elsewhere in the Concept remain unchanged. If that readable entry is absent, Mneme appends the replacement through the normal Source Notes renderer. Relink is a provenance repair, not an AI capture event.
 

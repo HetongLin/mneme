@@ -1,8 +1,8 @@
 # Mneme
 
-Mneme is an AI-native learning layer for Obsidian, built for university students.
+Mneme is an AI-assisted knowledge memory plugin for self-directed lifelong learners who use Obsidian.
 
-It helps students turn notes they have actually read and approved into durable Concepts, reviewable Cards, and low-pressure learning workflows. AI proposes knowledge changes, but accepted knowledge must pass user review before Mneme writes clean Markdown.
+It helps learners turn notes they have actually read and approved into durable Concepts, reviewable Cards, and a low-pressure memory workflow. AI proposes bounded knowledge changes, but accepted knowledge must pass user review before Mneme writes clean Markdown.
 
 Core loop:
 
@@ -16,11 +16,13 @@ Source Notes
 -> Mneme tracks Concept-level learning state
 ```
 
-Students may also create clean approved Concepts directly; only AI-proposed knowledge changes require the Inbox Review Gate. Accepted Cards append as independently scheduled blocks to one Card Group Markdown file per Concept.
+Learners may also create clean approved Concepts directly; only AI-proposed knowledge changes require the Inbox Review Gate. Accepted Cards append as independently scheduled blocks to one Card Group Markdown file per Concept.
 
 FSRS scheduling is optional. Disabling it keeps Concept Library and authoring available while preserving every Card's memory state and history. Re-enabling resumes from the last formal review using real elapsed time. When enabled, Today’s Focus includes every due or new eligible Card without separate daily Concept or Card caps.
 
 Mneme is not an Anki clone. It may export approved Cards as isolated Anki-importable copies, but Mneme Markdown and Mneme FSRS remain independent.
+
+Mneme is not an exam simulator, course manager, AI grader, project recommender, or autonomous learning agent. Normal review never calls AI.
 
 ## How to use
 

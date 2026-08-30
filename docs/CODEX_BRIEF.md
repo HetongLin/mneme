@@ -4,7 +4,7 @@
 
 This document is the concise engineering brief for Mneme. Read it with `AGENTS.md`, `CONTEXT.md`, and the current product specifications. ADRs in `docs/adr/` are authoritative when documents conflict.
 
-Mneme is an Obsidian-native, AI-assisted learning layer for university students. It is Concept-centered, Markdown-first, and intentionally lower pressure than a review-debt system.
+Mneme is an Obsidian-native, AI-assisted knowledge memory plugin for self-directed lifelong learners. It is Concept-centered, Markdown-first, and intentionally lower pressure than a review-debt system.
 
 ## Product Loop
 
@@ -13,10 +13,10 @@ AI-assisted capture:
 ```text
 Source Note
 -> AI proposes Concept changes
--> Student reviews / edits / accepts / rejects
+-> Learner reviews / edits / accepts / rejects
 -> Accepted knowledge is written as clean Concept Markdown
 -> AI proposes Cards grounded in that approved Concept
--> Student reviews / edits / accepts / rejects
+-> Learner reviews / edits / accepts / rejects
 -> Accepted Cards append to the Concept's Card Group
 -> Optional FSRS schedules each Card independently
 -> When enabled, Mneme presents Concept-level learning state and Today’s Focus
@@ -25,29 +25,30 @@ Source Note
 Direct authorship is also first class:
 
 ```text
-Student creates Concept
+Learner creates Concept
 -> Clean approved Concept Markdown is written immediately
 -> Cards may be proposed later through the same Card Review Gate
 ```
 
-The Review Gate protects AI-proposed knowledge changes. It must not impersonate approval for content the student authored directly.
+The Review Gate protects AI-proposed knowledge changes. It must not impersonate approval for content the learner authored directly.
 
 ## Stable Product Principles
 
-1. AI proposes; the student decides what enters the vault.
-2. A student-authored Concept is already approved knowledge and needs no fake proposal.
+1. AI proposes; the learner decides what enters the vault.
+2. A learner-authored Concept is already approved knowledge and needs no fake proposal.
 3. Concept is the primary learning object; Card is an assessment instrument.
 4. Concept Markdown and Card Group Markdown are the content source of truth.
 5. `data.json` stores state, indexes, hashes, proposals, FSRS state, logs, and caches—not Card front/back content.
 6. Scheduled Review is optional. When enabled, FSRS fully controls Today’s Focus eligibility and Concept aggregation cannot reschedule or cap eligible Cards. When hidden, Mneme preserves scheduled-review state and history, while manual Concept Review from Concept Library still records FSRS ratings.
-7. Concept Learning State distinguishes memory risk, assessment coverage, and explicit student signals; it is not a mastery percentage.
+7. Concept Learning State distinguishes memory risk and assessment coverage; it is not a mastery percentage.
 8. Inbox is a review queue, not a debug dashboard. List items can Open or Reject; acceptance happens only inside the complete editable Review Gate.
-9. Fixed product labels are English. Generated learning prose follows the Source Note's detected dominant language. AI Concept proposals always carry a canonical English Name separately from the primary-language Concept Title. Chinese learning content includes standard English names for technical concepts on first occurrence; English Concepts normally use the same value for Concept Title and English Name.
+9. Fixed product labels are English. Generated learning prose follows the Source Note's detected dominant language. English Alias is optional display metadata controlled by `Suggest English aliases`, which defaults off. When disabled, AI Concept proposals omit it. When enabled, non-English titles may receive a separate canonical English Alias; English titles do not duplicate themselves into the alias field.
 10. AI-generated Concept tags must be stable English lowercase slugs. Concept capture does not receive existing tags; AI should choose at most three broad topic-family tags and avoid near-duplicates, Concept-title tags, isolated adjectives, and generic tags such as `learning`, `theory`, `model`, `method`, `concept`, or `optimal`. After the provider response, Mneme locally normalizes exact matches against a transient Tag Catalog derived from approved Concept Markdown. Near matches remain visible review suggestions and are never silently merged. Historical user-approved tags remain valid.
 11. Concept capture has no fixed proposal-count cap, but every proposal must represent a durable knowledge change, use a canonical context-independent Concept title, and carry verified Source Note evidence. Concept capture is context-free extraction, not vault reconciliation: Mneme does not send approved Concepts, Inbox proposals, existing Concept names, existing tags, or duplicate context to the provider. Duplicate or overlapping Concepts are allowed in Inbox and resolved later through explicit user-triggered Merge. Concept capture is extraction-first, not summary-first: a long textbook chunk should produce multiple independent Concepts when it contains multiple definitions, algorithms, hypotheses, boundaries, or distinctions.
-12. Long Source Notes are analyzed completely through Markdown-aware extraction chunks with visible coverage; no provider request may silently stand in for an unprocessed remainder. Concept capture uses the smaller of the configured `AI chunk size` and Mneme's internal 6,000-character extraction chunk target so large course notes do not collapse into broad chapter summaries.
+12. Long Source Notes are analyzed completely through Markdown-aware extraction chunks with visible coverage; no provider request may silently stand in for an unprocessed remainder. Concept capture uses the smaller of the configured `AI chunk size` and Mneme's internal 6,000-character extraction chunk target so long notes do not collapse into broad document summaries.
 13. Review should feel like Today’s Focus, not accumulated debt. Non-due FSRS Cards remain Later and cannot be promoted by ranking. Every due or new eligible Card remains accessible; Mneme does not impose daily Concept, daily Card, or per-Concept Card caps.
 14. Never silently discard or destructively migrate user Markdown.
+15. AI calls are explicit and bounded to knowledge extraction or drafting. Normal review never calls AI; organization, browsing, scheduling, and export remain deterministic local operations.
 
 ## Markdown Model
 
@@ -61,17 +62,19 @@ Mneme/Cards/<Concept>/Cards.md
 
 Every Card is a separately marked block with its own immutable ID, optional assessment type, and independent FSRS state. Legacy one-Card files remain readable; consolidation must be explicit and lossless.
 
-Concept Title is editable primary-language learning content. English Name is the separately stored canonical English term. Concept Display Title combines them as `Concept Title (English Name)` when they differ and shows one value when they match. Mneme derives a new readable ASCII Concept ID from English Name at first write, such as `concept-spacing-effect`; the ID then remains immutable when either title changes.
+Concept Title is editable primary-language learning content. English Alias is optional separately stored display/search metadata. The setting defaults off; when enabled, ordinary Concept editors reveal the field only for a non-Latin Title. Concept Display Title combines the values as `Concept Title (English Alias)` when an alias exists and differs. Mneme allocates new opaque Concept IDs independently, such as `concept-k7m3p9qx`; the ID remains immutable when titles, aliases, or paths change.
 
-Newly generated Card IDs are derived only from the written Concept ID plus Card Type. Mneme removes the `concept-` prefix to produce an identity such as `spacing-effect-definition`. When more than one Card for the same Concept and type is accepted, Mneme appends a numeric suffix such as `spacing-effect-definition-2`. AI does not choose Card IDs. The ID is shown in Inbox and becomes immutable once written; existing Cards are not renamed automatically.
+Mneme allocates new opaque Card IDs independently, such as `card-gjsl5r2n`. Concept ID, Card Type, Card Front, title, path, and provider output do not participate in Card identity. AI does not choose Card IDs. Existing valid Card IDs remain unchanged.
 
-Manual Card authorship is first-class. `Create Card` opens a dockable Composer for an approved Concept, requires the student to choose one built-in Card Type before writing Front and Back, and writes directly to the canonical Card Group without Inbox. AI-generated Card Type is locked during proposal review; Front, Back, and optional Rubric remain editable.
+Manual Card authorship is first-class. `Create Card` opens a dockable Composer for an approved Concept, requires the learner to choose one built-in Card Type before writing Front and Back, and writes directly to the canonical Card Group without Inbox. AI-generated Card Type is locked during proposal review; Front, Back, and optional Rubric remain editable.
 
 The Concept's declared `cards` link is the location authority for future Card writes. A title edit must not create a second Card Group.
 
-When a new Concept write collides with an existing Concept identity or path, Mneme keeps the first Concept unsuffixed and assigns `-2`, `-3`, and so on to the later primary-language Concept Title, recomposed Display Title, path, Concept ID, and Card Group locator. For example, `间隔效应` becomes `间隔效应 - 2 (Spacing Effect)` with ID `concept-spacing-effect-2`; English Name remains the unsuffixed semantic term `Spacing Effect`. This is only locator/identity conflict resolution; it is not a merge, and Mneme never retroactively renames the first Concept to `-1`.
+When a new Concept path collides, Mneme adds `-2`, `-3`, and so on only to the new Markdown path and matching Card Group locator. Concept Title, English Alias, and random Concept ID remain unchanged. An ID collision is handled by generating another random ID. This is locator allocation, not a merge.
 
-Concept Merge is a separate user-triggered workspace, available from Concept Library, Possible Duplicates, and the command palette. Manual selection and drafting always work without AI. Local similarity ranks candidates; optional AI may classify a compact shortlist or draft only Title, English Name, Core Meaning, and Why It Matters for the two selected Concepts. The student chooses the survivor, edits the draft, reviews a zero-write impact preview, and explicitly confirms. Deterministic code unions tags, Source Notes, and Related links, keeps the stronger importance and reviewable learning mode, writes Redirect Notes, and moves complete Card blocks with immutable card IDs, source stems, controls, events, and FSRS state preserved. Concurrent changes abort; partial failures roll back.
+Concept Merge is a separate user-triggered workspace, available from Concept Library, Possible Duplicates, the command palette, and the exact-name conflict gate. Manual selection and drafting always work without AI. Ordinary Guided Merge reconciles two written Concepts: local similarity ranks candidates; optional AI may classify a compact shortlist or draft Title, Core Meaning, Why It Matters, and—only when enabled—an English Alias. The learner chooses the survivor, edits the draft, reviews a zero-write impact preview, and explicitly confirms. Deterministic code unions tags, Source Notes, and Related links, keeps the stronger importance and reviewable learning mode, writes Redirect Notes, and moves complete Card blocks with immutable card IDs, source stems, controls, events, and FSRS state preserved. Concurrent changes abort; partial failures roll back.
+
+Exact-name conflict Merge instead reconciles one written Concept with an incoming Inbox Proposal or Manual Concept draft. Choosing Merge never writes a temporary Concept or allocates a `-2` path. Back, Cancel, and closing the workspace preserve the source Proposal/Composer draft; only Confirm Merge updates the written Concept and then completes the Proposal or clears the Manual draft. Its editable prose draft may persist in `data.json`, but its preview is always rebuilt.
 
 Related Concepts are a separate, user-authored organization layer. The MVP has one symmetric `Related` relationship represented as clean Obsidian links under `## Related Concepts` in both Concept files. First-pass AI capture does not create these links or receive the Concept library. Adding or removing a link updates both files transactionally; Guided Merge unions, rewires, and deduplicates Related neighbors while removing self-links.
 
@@ -104,9 +107,11 @@ When Scheduled Review is disabled, Review View explains that Today’s Focus is 
 
 ## Scope Boundaries
 
-Do not expand ordinary stabilization work into Exam Mode, a built-in project recommender, Anki synchronization, automatic vault scanning, or a complex autonomous agent loop.
+Do not expand ordinary work into Course Context, Exam Mode, Use Mode, AI answer grading, a built-in project recommender, Anki synchronization, automatic vault scanning, or a complex autonomous agent loop.
 
-Anki integration is export-only: exported cards are independent copies. Use Mode should prefer exporting approved Concept context for another agent or chatbot.
+Anki integration is export-only: exported cards are independent copies. Knowledge Context Pack is a neutral export utility, not a mode or an embedded agent workflow.
+
+A future stateless `Rediscover a Concept` entry point is only a possibility to validate against real usage. It must not create a parallel learning state, mark Concepts known or weak, bypass FSRS, or call AI.
 
 ## Engineering Rules
 

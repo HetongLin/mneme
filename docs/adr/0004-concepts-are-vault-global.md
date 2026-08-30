@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0019
+---
+
 # Concepts are vault-global across Courses
 
 A Concept represents one independently assessable knowledge object across the vault and is not owned by a Course. Courses relate to Concepts many-to-many, allowing each Course to contribute Sources, Views, applications, and exam context without duplicating the Concept. Homonyms with genuinely different meanings remain separate Concepts with qualified titles. This supports duplicate detection, cross-course transfer, and Course-scoped Exam Mode over shared knowledge.

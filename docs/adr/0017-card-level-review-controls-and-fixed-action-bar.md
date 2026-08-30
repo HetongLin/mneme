@@ -29,6 +29,6 @@ The daily review surface should support a narrow recall loop while keeping repai
 - The primary review loop remains visually stable for short and long answers.
 - Front and Back remain available together for self-assessment after reveal.
 - Secondary actions no longer lengthen the review page or displace ratings.
-- Card corrections are visible immediately without forcing the student to restart or relocate the current review session.
+- Card corrections are visible immediately without forcing the learner to restart or relocate the current review session.
 - Concept remains a learning-state aggregation and navigation surface, not a bulk scheduling switch.
 - Existing pause data is a legacy compatibility field only and is not an active product feature.
