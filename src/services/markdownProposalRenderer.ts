@@ -9,16 +9,12 @@ import type { MnemeSettings } from "../models/settings";
 import {
 	buildCardGroupPath,
 	buildConceptPath,
-	createMnemeConceptId,
 	toObsidianInternalLink,
 } from "../utils/markdownPath";
 import { validateKnowledgeProposalPayload } from "./knowledgeProposalValidation";
 import { renderConceptMarkdown } from "./conceptMarkdownRenderer";
-import { createReadableCardId } from "./cardIdNaming";
-import {
-	createReadableConceptId,
-	normalizeConceptNames,
-} from "./conceptNaming";
+import { normalizeConceptNames } from "./conceptNaming";
+import { createRandomCardId, createRandomConceptId } from "./entityId";
 
 export type MarkdownProposalRenderResult =
 	| { drafts: MarkdownWriteDraft[]; status: "rendered" }
@@ -36,6 +32,10 @@ export function isMarkdownWritableProposalKind(kind: KnowledgeProposal["kind"]):
 export function renderMarkdownProposal(
 	proposal: KnowledgeProposal,
 	settings: MnemeSettings,
+	idFactory: {
+		createCardId?: () => string;
+		createConceptId?: () => string;
+	} = {},
 ): MarkdownProposalRenderResult {
 	if (!isMarkdownWritableProposalKind(proposal.kind)) {
 		return {
@@ -55,13 +55,23 @@ export function renderMarkdownProposal(
 
 	if (proposal.kind === "new_concept") {
 		return {
-			drafts: [renderNewConceptDraft(proposal, settings, proposal.payload as NewConceptProposalPayload)],
+			drafts: [renderNewConceptDraft(
+				proposal,
+				settings,
+				proposal.payload as NewConceptProposalPayload,
+				idFactory.createConceptId,
+			)],
 			status: "rendered",
 		};
 	}
 
 	return {
-		drafts: [renderNewCardDraft(proposal, settings, proposal.payload as NewCardProposalPayload)],
+		drafts: [renderNewCardDraft(
+			proposal,
+			settings,
+			proposal.payload as NewCardProposalPayload,
+			idFactory.createCardId,
+		)],
 		status: "rendered",
 	};
 }
@@ -70,9 +80,14 @@ function renderNewConceptDraft(
 	proposal: KnowledgeProposal,
 	settings: MnemeSettings,
 	payload: NewConceptProposalPayload,
+	createConceptId: () => string = createRandomConceptId,
 ): MarkdownWriteDraft {
-	const names = normalizeConceptNames(payload.title, payload.englishName);
-	const conceptId = createReadableConceptId(names.englishName);
+	const names = normalizeConceptNames(
+		payload.title,
+		payload.englishName,
+		settings.suggestEnglishAliases,
+	);
+	const conceptId = createConceptId();
 	const conceptPath = buildConceptPath(settings.conceptsFolder, names.displayTitle);
 	const cardGroupPath = buildCardGroupPath(settings.cardsFolder, names.displayTitle);
 	const cardGroupLink = toObsidianInternalLink(cardGroupPath, `${names.displayTitle} Cards`);
@@ -103,12 +118,13 @@ function renderNewCardDraft(
 	proposal: KnowledgeProposal,
 	settings: MnemeSettings,
 	payload: NewCardProposalPayload,
+	createCardId: () => string = createRandomCardId,
 ): MarkdownWriteDraft {
 	const conceptLabel = payload.conceptTitle || payload.conceptId || proposal.conceptId || "Concept";
-	const conceptId = payload.conceptId || proposal.conceptId || createMnemeConceptId(conceptLabel);
+	const conceptId = payload.conceptId || proposal.conceptId || "";
 	const conceptPath = buildConceptPath(settings.conceptsFolder, payload.conceptTitle || conceptLabel);
 	const conceptLink = toObsidianInternalLink(conceptPath, payload.conceptTitle || conceptLabel);
-	const cardId = proposal.cardId ?? createReadableCardId(conceptId, payload.card.cardType);
+	const cardId = proposal.cardId ?? createCardId();
 	return {
 		content: renderCardGroupMarkdown({
 			back: payload.card.back,

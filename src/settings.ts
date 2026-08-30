@@ -141,6 +141,17 @@ export class MnemeSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
+			.setName("Suggest English aliases")
+			.setDesc("When enabled, Mneme may suggest an optional English alias for non-English Concept titles. Aliases never control Concept or Card identity.")
+			.addToggle((toggle) => {
+				toggle.setValue(this.plugin.settings.suggestEnglishAliases);
+				toggle.onChange(async (value) => {
+					this.plugin.settings.suggestEnglishAliases = value;
+					await this.persistSettings();
+				});
+			});
+
+		new Setting(containerEl)
 			.setName("Provider")
 			.setDesc("Selects the provider used for Concept proposals.")
 			.addDropdown((dropdown) => {

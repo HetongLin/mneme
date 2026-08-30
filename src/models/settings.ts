@@ -20,6 +20,7 @@ export interface MnemeSettings {
 	openaiBaseUrl: string;
 	openaiModel: string;
 	showAdvancedDiagnostics: boolean;
+	suggestEnglishAliases: boolean;
 }
 
 export type AiProviderName = "mock" | "openai" | "deepseek";
@@ -46,6 +47,7 @@ export const DEFAULT_SETTINGS: MnemeSettings = {
 	openaiBaseUrl: "https://api.openai.com/v1",
 	openaiModel: "gpt-4.1-mini",
 	showAdvancedDiagnostics: false,
+	suggestEnglishAliases: false,
 };
 
 export function normalizeSettings(value: unknown): MnemeSettings {
@@ -83,6 +85,9 @@ export function normalizeSettings(value: unknown): MnemeSettings {
 		showAdvancedDiagnostics: typeof value.showAdvancedDiagnostics === "boolean"
 			? value.showAdvancedDiagnostics
 			: DEFAULT_SETTINGS.showAdvancedDiagnostics,
+		suggestEnglishAliases: typeof value.suggestEnglishAliases === "boolean"
+			? value.suggestEnglishAliases
+			: DEFAULT_SETTINGS.suggestEnglishAliases,
 	};
 }
 

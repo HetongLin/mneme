@@ -100,7 +100,7 @@ export class ConceptEditModal extends Modal {
 			text: this.options.concept.title,
 		});
 		const coreMeaningInput = this.createTextarea(contentEl, "Core Meaning", baseline.coreMeaning);
-		const whyInput = this.createTextarea(contentEl, "Why It Matters", baseline.whyItMatters);
+		const whyInput = this.createTextarea(contentEl, "Why It Matters (optional)", baseline.whyItMatters);
 		const learningModeSelect = this.createSelect<ConceptLearningMode>(
 			contentEl,
 			"Learning Mode",

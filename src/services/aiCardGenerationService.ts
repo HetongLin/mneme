@@ -5,6 +5,8 @@ import { computeContentHash } from "../utils/sourceHash";
 import type { AiProposalResponse, AiProvider } from "./aiProvider";
 import { createAiCardGenerationFingerprint } from "./aiCaptureFingerprint";
 import type { AiGenerationLock } from "./aiGenerationLock";
+import type { AiOperationProgress, AiOperationProgressListener } from "./aiOperationProgress";
+import { reportAiOperationProgress } from "./aiOperationProgress";
 import { validateAiProviderConfig, validateCardGenerationResponse } from "./aiProvider";
 import { normalizeAiStructuredProposalResponse } from "./aiProposalNormalizer";
 import { AI_PROPOSAL_SCHEMA_VERSION, type AiCardGenerationResponseV1 } from "./aiProposalSchema";
@@ -12,7 +14,7 @@ import { validateAiStructuredProposalResponse } from "./aiProposalValidator";
 import type { KnowledgeProposalStore } from "./knowledgeProposalStore";
 import type { SourceAnalysisStore } from "./sourceAnalysisStore";
 import { extractConceptLearningContent } from "./conceptLearningContent";
-import { createReadableCardId } from "./cardIdNaming";
+import { createRandomCardId } from "./entityId";
 import { reconcileCardGrounding } from "./proposalGroundingReconciler";
 import { splitSourceForAiCapture } from "./sourceCaptureChunker";
 
@@ -48,8 +50,10 @@ export interface AiCardGenerationResult {
 }
 
 export interface AiCardGenerationServiceOptions {
+	cardIdFactory?: () => string;
 	createProvider: (settings: MnemeSettings) => AiProvider;
 	generationLock: AiGenerationLock;
+	onProgress?: AiOperationProgressListener;
 	proposalStore: KnowledgeProposalStore;
 	settingsProvider: () => MnemeSettings;
 	sourceAnalysisStore?: SourceAnalysisStore;
@@ -78,6 +82,7 @@ export class AiCardGenerationService {
 	}
 
 	private async generateWithLock(input: AiCardGenerationInput): Promise<AiCardGenerationResult> {
+		this.reportProgress("preparing", "Preparing written Concept…");
 		const settings = this.options.settingsProvider();
 
 		if (!settings.aiCaptureEnabled) {
@@ -138,6 +143,12 @@ export class AiCardGenerationService {
 				let response: AiProposalResponse;
 
 				try {
+					this.reportProgress(
+						"requesting",
+						chunks.length === 1
+							? "Waiting for AI response…"
+							: `Waiting for AI response (${chunk.index}/${chunk.total})…`,
+					);
 					response = await provider.generateKnowledgeProposals({
 						conceptId: input.conceptId,
 						conceptTitle: input.conceptTitle,
@@ -158,6 +169,7 @@ export class AiCardGenerationService {
 					);
 				}
 
+				this.reportProgress("validating", "Validating AI response…");
 				const validation = validateAiStructuredProposalResponse(response.structuredResponse);
 
 				if (!validation.valid) {
@@ -224,7 +236,7 @@ export class AiCardGenerationService {
 				);
 			}
 
-			const proposals = assignReadableCardProposalIds(normalizeAiStructuredProposalResponse(aggregatedResponse, {
+			const proposals = assignRandomCardProposalIds(normalizeAiStructuredProposalResponse(aggregatedResponse, {
 				idFactory: (_proposal, index) => [
 					"ai-card-proposal",
 					learningFingerprint.slice(0, 12),
@@ -232,7 +244,7 @@ export class AiCardGenerationService {
 					index + 1,
 				].join("-"),
 				now: this.options.timestampProvider?.() ?? new Date().toISOString(),
-			}), input.conceptId);
+			}), this.options.cardIdFactory);
 			const stageValidation = validateCardGenerationResponse(proposals);
 
 			if (!stageValidation.valid) {
@@ -258,6 +270,7 @@ export class AiCardGenerationService {
 				return this.result("invalid_response", "AI Card proposals do not match the current Concept.");
 			}
 
+			this.reportProgress("saving", "Saving Card proposals…");
 			await this.options.proposalStore.upsertProposals(proposals);
 			await this.recordCardGeneration(
 				input,
@@ -293,6 +306,10 @@ export class AiCardGenerationService {
 		proposalIds: string[] = [],
 	): AiCardGenerationResult {
 		return { message, proposalCount: 0, proposalIds, status };
+	}
+
+	private reportProgress(stage: AiOperationProgress["stage"], message: string): void {
+		reportAiOperationProgress(this.options.onProgress, stage, message);
 	}
 
 	private async recordCardGeneration(
@@ -335,7 +352,10 @@ function getGeneratedCardType(proposal: KnowledgeProposal): CardDraftType | unde
 	return proposal.kind === "new_card" ? proposal.payload?.card.cardType : undefined;
 }
 
-function assignReadableCardProposalIds(proposals: KnowledgeProposal[], conceptId: string): KnowledgeProposal[] {
+function assignRandomCardProposalIds(
+	proposals: KnowledgeProposal[],
+	cardIdFactory: () => string = createRandomCardId,
+): KnowledgeProposal[] {
 	const reservedIds = new Set<string>();
 
 	return proposals.map((proposal) => {
@@ -343,11 +363,15 @@ function assignReadableCardProposalIds(proposals: KnowledgeProposal[], conceptId
 			return proposal;
 		}
 
-		const cardId = createReadableCardId(
-			conceptId,
-			proposal.payload?.card.cardType,
-			reservedIds,
-		);
+		let cardId = cardIdFactory();
+		let attempts = 1;
+		while (reservedIds.has(cardId) && attempts < 128) {
+			cardId = cardIdFactory();
+			attempts += 1;
+		}
+		if (reservedIds.has(cardId)) {
+			throw new Error("Unable to allocate a unique random Card ID.");
+		}
 		reservedIds.add(cardId);
 
 		return { ...proposal, cardId };

@@ -45,6 +45,14 @@ assert.match(merged, /# 间隔效应 \(Spacing Effect\)/);
 assert.match(merged, /First core\.\n\nSecond core\./);
 assert.match(merged, /importance: high/);
 
+const withoutAlias = applyConceptMergeDraft(markdown, {
+	...draft,
+	englishName: "",
+	title: "间隔效应",
+});
+assert.equal(withoutAlias.includes("mneme_english_name"), false);
+assert.match(withoutAlias, /^# 间隔效应$/m);
+
 function createConcept(
 	conceptId: string,
 	title: string,

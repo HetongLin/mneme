@@ -6,8 +6,12 @@ import {
 	ACCEPTANCE_CONCEPT_TITLE,
 	ACCEPTANCE_SOURCE_PATH,
 } from "./acceptance/preAiAcceptanceFixture";
-import type { KnowledgeProposal } from "./models/knowledgeProposal";
+import type {
+	KnowledgeProposal,
+	NewConceptProposalPayload,
+} from "./models/knowledgeProposal";
 import type { ConceptSummary } from "./models/conceptLibrary";
+import type { ManualConceptDraft } from "./models/manualConceptDraft";
 import { ConfirmClearReviewHistoryModal } from "./modals/confirmClearReviewHistoryModal";
 import { ConceptEditModal } from "./modals/conceptEditModal";
 import {
@@ -23,6 +27,7 @@ import { ApprovedProposalWriter } from "./services/approvedProposalWriter";
 import { AiCardGenerationService } from "./services/aiCardGenerationService";
 import { AiConceptCaptureService } from "./services/aiConceptCaptureService";
 import { AiGenerationLock } from "./services/aiGenerationLock";
+import type { AiOperationProgress } from "./services/aiOperationProgress";
 import { exportCardsToAnkiTsv } from "./services/ankiTsvExporter";
 import { createAiProvider } from "./services/aiProviderFactory";
 import { ConceptSourceLinkStore } from "./services/conceptSourceLinkStore";
@@ -38,9 +43,11 @@ import { ConceptLoader } from "./services/conceptLoader";
 import { waitForReviewableConcept } from "./services/conceptReviewAvailability";
 import { ConceptMergeService } from "./services/conceptMergeService";
 import { ConceptMergeAiService } from "./services/conceptMergeAiService";
+import { ConceptConflictMergeDraftStore } from "./services/conceptConflictMergeDraftStore";
 import { ConceptEnglishNameAiService } from "./services/conceptEnglishNameAiService";
 import { ConceptDeletionService } from "./services/conceptDeletionService";
 import { findConceptNameConflict } from "./services/conceptNameConflict";
+import { normalizeConceptNames } from "./services/conceptNaming";
 import {
 	getCardGroupPathFromConceptFrontmatter,
 	getConceptIdFromFrontmatter,
@@ -49,6 +56,7 @@ import { parseConceptTitle } from "./services/conceptMarkdownParser";
 import { KnowledgeProposalStore } from "./services/knowledgeProposalStore";
 import { createKnowledgeContextPack } from "./services/knowledgeContextPackExporter";
 import { ManualConceptDraftStore } from "./services/manualConceptDraftStore";
+import { IncomingConceptMergeService } from "./services/incomingConceptMergeService";
 import { ManualCardDraftStore } from "./services/manualCardDraftStore";
 import { createManualCard, type ManualCardInput, type ManualCardResult } from "./services/manualCardService";
 import { ManualConceptProvenanceCommitter, type ManualConceptSourceSnapshot } from "./services/manualConceptProvenanceService";
@@ -72,8 +80,37 @@ import { CONCEPT_COMPOSER_VIEW_TYPE, MnemeConceptComposerView } from "./views/co
 import { CARD_COMPOSER_VIEW_TYPE, MnemeCardComposerView } from "./views/cardComposerView";
 import { CONCEPT_LIBRARY_VIEW_TYPE, MnemeConceptLibraryView } from "./views/conceptLibraryView";
 import { CONCEPT_MERGE_VIEW_TYPE, MnemeConceptMergeView } from "./views/conceptMergeView";
+import {
+	CONCEPT_CONFLICT_MERGE_VIEW_TYPE,
+	type ConceptConflictMergeSession,
+	MnemeConceptConflictMergeView,
+} from "./views/conceptConflictMergeView";
 import { MnemeInboxView, INBOX_VIEW_TYPE, type InboxTab } from "./views/inboxView";
 import { MnemeReviewView, REVIEW_VIEW_TYPE } from "./views/reviewView";
+
+const OBSIDIAN_GRAPH_VIEW_TYPE = "graph";
+const CONCEPT_GRAPH_FILTER_QUERY = "[mneme_type:concept]";
+
+interface AiOperationFeedback {
+	finish(): void;
+	update(progress: AiOperationProgress): void;
+}
+
+function isConceptConflictMergeView(view: unknown): view is MnemeConceptConflictMergeView {
+	if (!view || typeof view !== "object") return false;
+
+	// Popout leaves can belong to a different browser realm, where instanceof is unreliable.
+	const candidate = view as {
+		getSessionKey?: () => string | undefined;
+		getViewType?: () => string;
+		setSession?: (session: ConceptConflictMergeSession) => Promise<void>;
+	};
+
+	return typeof candidate.getViewType === "function"
+		&& typeof candidate.getSessionKey === "function"
+		&& typeof candidate.setSession === "function"
+		&& candidate.getViewType() === CONCEPT_CONFLICT_MERGE_VIEW_TYPE;
+}
 
 export default class MnemePlugin extends Plugin {
 	settings: MnemeSettings;
@@ -83,11 +120,17 @@ export default class MnemePlugin extends Plugin {
 	private knowledgeProposalStore: KnowledgeProposalStore;
 	private conceptSourceLinkStore: ConceptSourceLinkStore;
 	private manualConceptDraftStore: ManualConceptDraftStore;
+	private conceptConflictMergeDraftStore: ConceptConflictMergeDraftStore;
 	private manualCardDraftStore: ManualCardDraftStore;
 	private approvedProposalWriter: ApprovedProposalWriter;
+	private incomingConceptMergeService: IncomingConceptMergeService;
+	private isUnloading = false;
 	private readonly aiGenerationLock = new AiGenerationLock();
+	private readonly sourceGenerationKeys = new WeakMap<TFile, string>();
+	private nextSourceGenerationKey = 1;
 
 	async onload() {
+		this.isUnloading = false;
 		await this.loadSettings();
 		this.reviewScheduler = new FsrsReviewScheduler(settingsToFsrsConfig(this.settings));
 		this.reviewStateStore = new ReviewStateStore(this, this.reviewScheduler);
@@ -95,10 +138,16 @@ export default class MnemePlugin extends Plugin {
 		this.knowledgeProposalStore = new KnowledgeProposalStore(this);
 		this.conceptSourceLinkStore = new ConceptSourceLinkStore(this);
 		this.manualConceptDraftStore = new ManualConceptDraftStore(this);
+		this.conceptConflictMergeDraftStore = new ConceptConflictMergeDraftStore(this);
 		this.manualCardDraftStore = new ManualCardDraftStore(this);
+		this.incomingConceptMergeService = new IncomingConceptMergeService(
+			new ObsidianVaultAdapter(this.app.vault),
+			this,
+		);
 		this.approvedProposalWriter = new ApprovedProposalWriter({
 			conceptSourceLinkStore: this.conceptSourceLinkStore,
 			conceptScanner: this.createConceptScanner(),
+			isCardIdReserved: (cardId) => this.isCardIdReserved(cardId),
 			isConceptIdReserved: (conceptId) => this.isConceptIdReserved(conceptId),
 			proposalStore: this.knowledgeProposalStore,
 			settingsProvider: () => this.settings,
@@ -135,17 +184,15 @@ export default class MnemePlugin extends Plugin {
 			this.approvedProposalWriter,
 			this.createVaultStateReconciler(),
 			{
+				discardMergeDraft: (key) => this.conceptConflictMergeDraftStore.clearDraft(key),
+				englishAliasesEnabled: () => this.settings.suggestEnglishAliases,
 				listConceptTags: async () => (await this.createConceptScanner().scanConcepts())
 					.flatMap((concept) => concept.tags ?? []),
-				mergeConcepts: async (existing, newConceptPath) => {
-					const concepts = await this.createConceptScanner().scanConcepts();
-					const incoming = concepts.find((concept) => concept.path === newConceptPath);
-					if (!incoming) {
-						new Notice("Mneme: Accepted Concept could not be loaded for Merge.");
-						return;
-					}
-					await this.openConceptMergeView(existing, incoming);
-				},
+				mergeConcepts: (existing, proposalId, onReturn) => this.openInboxConflictMerge(
+					existing,
+					proposalId,
+					onReturn,
+				),
 				openConceptLibrary: () => this.openConceptLibraryView(),
 				startConceptReview: (conceptId) => this.reviewCardsFromConceptLibrary(conceptId, {
 					waitForFreshCards: true,
@@ -180,6 +227,7 @@ export default class MnemePlugin extends Plugin {
 			this.createConceptScanner(),
 			{
 				aiService: conceptMergeAiService,
+				englishAliasesEnabled: () => this.settings.suggestEnglishAliases,
 				getDismissedPairKeys: () => Object.keys(this.reviewStateStore.getConceptDuplicateDismissals()),
 				mergeService: conceptMergeService,
 				onMerged: async () => {
@@ -201,10 +249,24 @@ export default class MnemePlugin extends Plugin {
 				reviewCards: (conceptId) => this.reviewCardsFromConceptLibrary(conceptId),
 			},
 		));
+		this.registerView(CONCEPT_CONFLICT_MERGE_VIEW_TYPE, (leaf) => new MnemeConceptConflictMergeView(
+			leaf,
+			{
+				aiService: conceptMergeAiService,
+				draftStore: this.conceptConflictMergeDraftStore,
+				englishAliasesEnabled: () => this.settings.suggestEnglishAliases,
+				mergeService: this.incomingConceptMergeService,
+				onMerged: (session) => this.finishConflictMerge(session),
+				readMarkdown: (path) => this.readMarkdownFile(path),
+				shouldReturnOnClose: () => !this.isUnloading,
+			},
+		));
 		this.registerView(CONCEPT_COMPOSER_VIEW_TYPE, (leaf) => new MnemeConceptComposerView(leaf, {
 			canSuggestEnglishName: () => conceptEnglishNameAiService.isAvailable(),
 			create: (input) => this.createManualConceptFromComposer(input),
+			discardMergeDraft: (key) => this.conceptConflictMergeDraftStore.clearDraft(key),
 			draftStore: this.manualConceptDraftStore,
+			englishAliasesEnabled: () => this.settings.suggestEnglishAliases,
 			findNameConflict: async (input) => findConceptNameConflict(
 				input,
 				this.settings,
@@ -218,16 +280,11 @@ export default class MnemePlugin extends Plugin {
 					this.refreshReviewViews(),
 				]);
 			},
-			openMerge: async (existing, result) => {
-				const concepts = await this.createConceptScanner().scanConcepts();
-				const incoming = concepts.find((concept) => concept.path === result.path)
-					?? concepts.find((concept) => concept.conceptId === result.conceptId);
-				if (!incoming) {
-					new Notice("Mneme: Created Concept could not be loaded for Merge.");
-					return;
-				}
-				await this.openConceptMergeView(existing, incoming);
-			},
+			openMerge: (existing, draft, onReturn) => this.openManualConflictMerge(
+				existing,
+				draft,
+				onReturn,
+			),
 			openConceptMarkdown: (path) => this.openConceptInTab(path),
 			scanConcepts: () => this.createConceptScanner().scanConcepts(),
 			suggestEnglishName: (title, coreMeaning) => conceptEnglishNameAiService.suggest(title, coreMeaning),
@@ -257,6 +314,7 @@ export default class MnemePlugin extends Plugin {
 	}
 
 	onunload() {
+		this.isUnloading = true;
 	}
 
 	private registerProductCommands(): void {
@@ -333,6 +391,14 @@ export default class MnemePlugin extends Plugin {
 			name: "Open Concept Library",
 			callback: () => {
 				void this.openConceptLibraryView();
+			},
+		});
+
+		this.addCommand({
+			id: "mneme-open-concepts-graph",
+			name: "Open Concepts Graph",
+			callback: () => {
+				void this.openConceptsGraph();
 			},
 		});
 
@@ -515,22 +581,33 @@ export default class MnemePlugin extends Plugin {
 			this.sourceAnalysisStore,
 			readSourceContent,
 		);
+		const feedback = this.createAiOperationFeedback("Analyzing current note…");
 		const service = new AiConceptCaptureService({
 			createProvider: (settings) => createAiProvider(settings, new ObsidianAiHttpClient()),
 			existingTagsProvider: async () => (await this.createConceptScanner().scanConcepts())
 				.flatMap((concept) => concept.tags ?? []),
 			generationLock: this.aiGenerationLock,
+			onProgress: (progress) => feedback.update(progress),
 			proposalStore: this.knowledgeProposalStore,
 			readSourceContent,
+			resolveCurrentSource: () => this.resolveCurrentSource(activeFile),
 			settingsProvider: () => this.settings,
 			sourceAnalysisService,
 			sourceAnalysisStore: this.sourceAnalysisStore,
 		});
-		const result = await service.analyze({
-			mtime: activeFile.stat.mtime,
-			path: activeFile.path,
-			size: activeFile.stat.size,
-		});
+		const result = await (async () => {
+			try {
+				return await service.analyze({
+					mtime: activeFile.stat.mtime,
+					path: activeFile.path,
+					size: activeFile.stat.size,
+				}, {
+					generationKey: this.getSourceGenerationKey(activeFile),
+				});
+			} finally {
+				feedback.finish();
+			}
+		})();
 
 		if (result.status === "failed") {
 			console.error("Mneme: source analysis or AI capture failed", {
@@ -551,6 +628,11 @@ export default class MnemePlugin extends Plugin {
 			return;
 		}
 
+		if (result.status === "source_changed") {
+			new Notice(`Mneme: ${formatNoticeDetail(result.message)} No proposals added.`);
+			return;
+		}
+
 		new Notice(`Mneme: ${result.message}`);
 
 		if (result.status === "captured") {
@@ -566,6 +648,66 @@ export default class MnemePlugin extends Plugin {
 		}
 
 		return this.app.vault.cachedRead(abstractFile);
+	}
+
+	private async resolveCurrentSource(sourceFile: TFile): Promise<{
+		contentHash: string;
+		mtime: number;
+		path: string;
+		size: number;
+	} | undefined> {
+		const currentFile = this.app.vault.getAbstractFileByPath(sourceFile.path);
+
+		if (!(currentFile instanceof TFile) || currentFile !== sourceFile) {
+			return undefined;
+		}
+
+		const content = await this.app.vault.cachedRead(currentFile);
+
+		return {
+			contentHash: await computeContentHash(content),
+			mtime: currentFile.stat.mtime,
+			path: currentFile.path,
+			size: currentFile.stat.size,
+		};
+	}
+
+	private getSourceGenerationKey(sourceFile: TFile): string {
+		const existing = this.sourceGenerationKeys.get(sourceFile);
+		if (existing) return existing;
+
+		const key = `source-file-${this.nextSourceGenerationKey}`;
+		this.nextSourceGenerationKey += 1;
+		this.sourceGenerationKeys.set(sourceFile, key);
+
+		return key;
+	}
+
+	private createAiOperationFeedback(initialMessage: string): AiOperationFeedback {
+		const notice = new Notice(`Mneme: ${initialMessage}`, 0);
+		const statusEl = this.addStatusBarItem();
+		statusEl.addClass("mneme-ai-operation-status");
+		statusEl.setAttr("aria-live", "polite");
+		statusEl.setAttr("role", "status");
+		let finished = false;
+
+		const updateMessage = (message: string) => {
+			if (finished) return;
+			notice.setMessage(`Mneme: ${message}`);
+			statusEl.setText(`Mneme · ${stripTrailingEllipsis(message)}`);
+		};
+
+		updateMessage(initialMessage);
+
+		return {
+			finish: () => {
+				if (finished) return;
+				finished = true;
+				notice.hide();
+				statusEl.remove();
+			},
+			update: ({ message }) => updateMessage(message),
+		};
 	}
 
 	private async generateCardsFromCurrentConcept(): Promise<void> {
@@ -667,23 +809,31 @@ export default class MnemePlugin extends Plugin {
 		const existingCardTypes = loadedConcepts.concepts
 			.find((concept) => concept.id === conceptId)
 			?.cards.filter((card) => card.isValid && card.cardType).map((card) => card.cardType!) ?? [];
+		const feedback = this.createAiOperationFeedback("Generating Card proposals…");
 		const service = new AiCardGenerationService({
 			createProvider: (settings) => createAiProvider(settings, new ObsidianAiHttpClient()),
 			generationLock: this.aiGenerationLock,
+			onProgress: (progress) => feedback.update(progress),
 			proposalStore: this.knowledgeProposalStore,
 			settingsProvider: () => this.settings,
 			sourceAnalysisStore: this.sourceAnalysisStore,
 		});
-		const result = await service.generate({
-			conceptId,
-			conceptMtime: conceptFile.stat.mtime,
-			conceptPath: conceptFile.path,
-			conceptSize: conceptFile.stat.size,
-			conceptTitle,
-			existingCardFronts,
-			existingCardTypes,
-			markdown,
-		});
+		const result = await (async () => {
+			try {
+				return await service.generate({
+					conceptId,
+					conceptMtime: conceptFile.stat.mtime,
+					conceptPath: conceptFile.path,
+					conceptSize: conceptFile.stat.size,
+					conceptTitle,
+					existingCardFronts,
+					existingCardTypes,
+					markdown,
+				});
+			} finally {
+				feedback.finish();
+			}
+		})();
 
 		if (result.status === "failed") {
 			console.error("Mneme: Card proposal generation failed", {
@@ -1090,6 +1240,15 @@ export default class MnemePlugin extends Plugin {
 			|| result.identityIssues.some((issue) => issue.conceptId === conceptId);
 	}
 
+	private async isCardIdReserved(cardId: string): Promise<boolean> {
+		if (this.getHistoricalCardIds().has(cardId)) {
+			return true;
+		}
+
+		const cards = await new CardFileLoader(this.app).loadCardFiles();
+		return cards.some((card) => card.hasExplicitCardId && card.cardId === cardId);
+	}
+
 	private getCurrentManualConceptSourcePath(): string | undefined {
 		const activeFile = this.app.workspace.getActiveFile();
 
@@ -1281,8 +1440,24 @@ export default class MnemePlugin extends Plugin {
 		await this.app.workspace.revealLeaf(leaf);
 	}
 
-	private createManualCardFromComposer(input: ManualCardInput): Promise<ManualCardResult> {
-		const historicalCardIds = new Set([
+	private async createManualCardFromComposer(input: ManualCardInput): Promise<ManualCardResult> {
+		const reservedCardIds = this.getHistoricalCardIds();
+		for (const card of await new CardFileLoader(this.app).loadCardFiles()) {
+			if (card.hasExplicitCardId) {
+				reservedCardIds.add(card.cardId);
+			}
+		}
+
+		return createManualCard(
+			input,
+			this.settings,
+			new ObsidianVaultAdapter(this.app.vault),
+			reservedCardIds,
+		);
+	}
+
+	private getHistoricalCardIds(): Set<string> {
+		return new Set([
 			...Object.keys(this.reviewStateStore.getAllStates()),
 			...Object.keys(this.reviewStateStore.getCardTombstones()),
 			...Object.keys(this.reviewStateStore.getActiveReviewDeferrals()),
@@ -1290,13 +1465,6 @@ export default class MnemePlugin extends Plugin {
 			...Object.keys(this.reviewStateStore.getRetiredCards()),
 			...this.reviewStateStore.getReviewEvents().map((event) => event.cardId),
 		]);
-
-		return createManualCard(
-			input,
-			this.settings,
-			new ObsidianVaultAdapter(this.app.vault),
-			historicalCardIds,
-		);
 	}
 
 	private async openReviewView() {
@@ -1448,6 +1616,29 @@ export default class MnemePlugin extends Plugin {
 		await this.app.workspace.revealLeaf(leaf);
 	}
 
+	private async openConceptsGraph(): Promise<void> {
+		try {
+			const existingLeaf = this.app.workspace.getLeavesOfType(OBSIDIAN_GRAPH_VIEW_TYPE)[0];
+			const leaf = existingLeaf ?? this.app.workspace.getLeaf("tab");
+
+			if (!existingLeaf) {
+				await leaf.setViewState({
+					active: true,
+					type: OBSIDIAN_GRAPH_VIEW_TYPE,
+				});
+			}
+
+			await this.app.workspace.revealLeaf(leaf);
+			new Notice(
+				`Mneme: In Graph settings → Filters → Search files, enter ${CONCEPT_GRAPH_FILTER_QUERY}`,
+				12_000,
+			);
+		} catch (error) {
+			console.error("Mneme: could not open Concepts Graph", error);
+			new Notice("Mneme: Could not open Graph View. Make sure Obsidian's Graph view core plugin is enabled.");
+		}
+	}
+
 	private async openConceptMergeView(first?: ConceptSummary, second?: ConceptSummary): Promise<void> {
 		const existingLeaf = this.app.workspace.getLeavesOfType(CONCEPT_MERGE_VIEW_TYPE)[0];
 		if (existingLeaf) {
@@ -1469,6 +1660,125 @@ export default class MnemePlugin extends Plugin {
 			await leaf.view.setSelection(first, second);
 		}
 		await this.app.workspace.revealLeaf(leaf);
+	}
+
+	private async openInboxConflictMerge(
+		existing: ConceptSummary,
+		proposalId: string,
+		onReturn: () => Promise<void>,
+	): Promise<void> {
+		const proposal = await this.knowledgeProposalStore.getProposal(proposalId);
+		if (proposal?.kind !== "new_concept" || !proposal.payload) {
+			throw new Error("The incoming Concept Proposal is no longer available.");
+		}
+		const incoming = createIncomingConceptSummary(
+			`incoming:${proposal.id}`,
+			proposal.payload,
+			this.settings.suggestEnglishAliases,
+		);
+		const incomingFingerprint = await computeContentHash(JSON.stringify({
+			existingConceptId: existing.conceptId,
+			payload: proposal.payload,
+			proposalId: proposal.id,
+			updatedAt: proposal.updatedAt,
+		}));
+		await this.openConceptConflictMergeView({
+			existing,
+			incoming,
+			incomingFingerprint,
+			incomingMarkdown: renderIncomingConceptMarkdown(
+				incoming,
+				proposal.payload.proposedViews,
+			),
+			key: `inbox:${proposal.id}`,
+			onReturn,
+			origin: {
+				kind: "inbox",
+				proposalId: proposal.id,
+				proposalUpdatedAt: proposal.updatedAt,
+			},
+		});
+	}
+
+	private async openManualConflictMerge(
+		existing: ConceptSummary,
+		draft: ManualConceptDraft,
+		onReturn: () => Promise<void>,
+	): Promise<void> {
+		const source = draft.sourcePath
+			? await this.readManualConceptSourceSnapshot(draft.sourcePath)
+			: undefined;
+		const incoming = createIncomingConceptSummary(
+			"incoming:manual",
+			{
+				coreMeaning: draft.coreMeaning,
+				englishName: draft.englishName,
+				learningMode: draft.learningMode,
+				suggestedImportance: draft.importance,
+				tags: draft.tags,
+				title: draft.title,
+				whyItMatters: draft.whyItMatters,
+			},
+			this.settings.suggestEnglishAliases,
+		);
+		const incomingFingerprint = await computeContentHash(JSON.stringify({
+			draft,
+			existingConceptId: existing.conceptId,
+			sourceHash: source?.contentHash,
+		}));
+		await this.openConceptConflictMergeView({
+			existing,
+			incoming,
+			incomingFingerprint,
+			incomingMarkdown: renderIncomingConceptMarkdown(incoming),
+			key: "manual",
+			onReturn,
+			origin: {
+				input: draft,
+				kind: "manual",
+				source,
+			},
+		});
+	}
+
+	private async openConceptConflictMergeView(session: ConceptConflictMergeSession): Promise<void> {
+		const existingLeaf = this.app.workspace.getLeavesOfType(CONCEPT_CONFLICT_MERGE_VIEW_TYPE)
+			.find((leaf) => (
+				isConceptConflictMergeView(leaf.view)
+					&& leaf.view.getSessionKey() === session.key
+			));
+		if (existingLeaf) {
+			if (isConceptConflictMergeView(existingLeaf.view)) {
+				await existingLeaf.view.setSession(session);
+			}
+			await this.app.workspace.revealLeaf(existingLeaf);
+			return;
+		}
+
+		const leaf = this.openMnemeWorkspaceLeaf();
+		if (!leaf) throw new Error("Could not open the conflict Merge workspace.");
+		await leaf.setViewState({ active: true, type: CONCEPT_CONFLICT_MERGE_VIEW_TYPE });
+		if (!isConceptConflictMergeView(leaf.view)) {
+			throw new Error("Conflict Merge workspace did not initialize.");
+		}
+		await leaf.view.setSession(session);
+		await this.app.workspace.revealLeaf(leaf);
+	}
+
+	private async finishConflictMerge(session: ConceptConflictMergeSession): Promise<void> {
+		await this.reviewStateStore.load();
+		if (session.origin.kind === "manual") {
+			for (const leaf of this.app.workspace.getLeavesOfType(CONCEPT_COMPOSER_VIEW_TYPE)) {
+				if (leaf.view instanceof MnemeConceptComposerView) {
+					await leaf.view.completeConflictMerge();
+				}
+			}
+		}
+		await Promise.all([
+			this.refreshOpenConceptLibraryViews(),
+			this.refreshOpenInboxViews(),
+			this.refreshReviewViews(),
+		]);
 	}
 
 	private openMnemeWorkspaceLeaf(): WorkspaceLeaf | undefined {
@@ -1518,4 +1828,68 @@ function formatNoticeDetail(message: string): string {
 	}
 
 	return `${normalized.slice(0, 137).trim()}...`;
+}
+
+function stripTrailingEllipsis(message: string): string {
+	return message.endsWith("…") ? message.slice(0, -1) : message;
+}
+
+function createIncomingConceptSummary(
+	conceptId: string,
+	payload: NewConceptProposalPayload,
+	englishAliasesEnabled: boolean,
+): ConceptSummary {
+	const names = normalizeConceptNames(
+		payload.title,
+		payload.englishName,
+		englishAliasesEnabled,
+	);
+
+	return {
+		conceptId,
+		coreMeaning: payload.coreMeaning?.trim() || "",
+		englishName: names.englishName || undefined,
+		importance: payload.suggestedImportance ?? "normal",
+		learningMode: payload.learningMode ?? "reviewable",
+		path: "",
+		primaryTitle: names.title,
+		tags: [...(payload.tags ?? [])],
+		title: names.displayTitle,
+		whyItMatters: payload.whyItMatters?.trim() || "",
+	};
+}
+
+function renderIncomingConceptMarkdown(
+	incoming: ConceptSummary,
+	views: NewConceptProposalPayload["proposedViews"] = [],
+): string {
+	const lines = [
+		`# ${incoming.title}`,
+		"",
+		"## Core Meaning",
+		"",
+		incoming.coreMeaning?.trim() || "",
+	];
+	if (incoming.whyItMatters?.trim()) {
+		lines.push(
+			"",
+			"## Why It Matters",
+			"",
+			incoming.whyItMatters.trim(),
+		);
+	}
+	const visibleViews = (views ?? []).filter((view) => view.title.trim() && view.body.trim());
+	if (visibleViews.length > 0) {
+		lines.push("", "## Views");
+	}
+	for (const view of visibleViews) {
+		lines.push(
+			"",
+			`### ${view.title.trim()}`,
+			"",
+			view.body.trim(),
+		);
+	}
+
+	return `${lines.join("\n").trimEnd()}\n`;
 }

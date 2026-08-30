@@ -30,6 +30,7 @@ import {
 	KnowledgeProposalStatus,
 } from "../models/knowledgeProposal";
 import { createConceptDuplicatePairKey } from "./conceptDuplicateDetector";
+import type { ConceptConflictMergeDraftRecord } from "../models/conceptConflictMergeDraft";
 
 const CURRENT_SCHEMA_VERSION = 1;
 
@@ -630,6 +631,7 @@ export class ReviewStateStore {
 export function createDefaultPluginData(): MnemePluginData {
 	return {
 		cardTombstones: {},
+		conceptConflictMergeDrafts: {},
 		conceptDuplicateDismissals: {},
 		conceptMergeRecords: {},
 		conceptSourceLinks: {},
@@ -659,6 +661,9 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 		: {};
 	const conceptDuplicateDismissals = isObject(data.conceptDuplicateDismissals)
 		? data.conceptDuplicateDismissals
+		: {};
+	const conceptConflictMergeDrafts = isObject(data.conceptConflictMergeDrafts)
+		? data.conceptConflictMergeDrafts
 		: {};
 	const conceptMergeRecords = isObject(data.conceptMergeRecords)
 		? data.conceptMergeRecords
@@ -691,6 +696,7 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 	return {
 		...data,
 		cardTombstones: normalizeCardTombstones(cardTombstones),
+		conceptConflictMergeDrafts: normalizeConceptConflictMergeDrafts(conceptConflictMergeDrafts),
 		conceptDuplicateDismissals: normalizeConceptDuplicateDismissals(conceptDuplicateDismissals),
 		conceptMergeRecords: normalizeConceptMergeRecords(conceptMergeRecords),
 		conceptSourceLinks: normalizeConceptSourceLinks(conceptSourceLinks),
@@ -707,6 +713,59 @@ export function normalizePluginData(data: unknown): MnemePluginData {
 		settings: normalizeSettings(data.settings),
 		sourceAnalysisRecords: normalizeSourceAnalysisRecords(sourceAnalysisRecords),
 	};
+}
+
+function normalizeConceptConflictMergeDrafts(
+	records: Record<string, unknown>,
+): Record<string, ConceptConflictMergeDraftRecord> {
+	const normalized: Record<string, ConceptConflictMergeDraftRecord> = {};
+
+	for (const [key, record] of Object.entries(records)) {
+		if (
+			!isObject(record)
+			|| record.key !== key
+			|| typeof record.existingConceptId !== "string"
+			|| !record.existingConceptId.trim()
+			|| typeof record.incomingFingerprint !== "string"
+			|| !record.incomingFingerprint.trim()
+			|| typeof record.updatedAt !== "string"
+			|| Number.isNaN(Date.parse(record.updatedAt))
+			|| !isObject(record.draft)
+			|| typeof record.draft.title !== "string"
+			|| typeof record.draft.englishName !== "string"
+			|| typeof record.draft.coreMeaning !== "string"
+			|| typeof record.draft.whyItMatters !== "string"
+			|| (record.draft.learningMode !== "reviewable" && record.draft.learningMode !== "exploratory")
+			|| (
+				record.draft.importance !== "low"
+				&& record.draft.importance !== "normal"
+				&& record.draft.importance !== "high"
+				&& record.draft.importance !== "critical"
+			)
+			|| !Array.isArray(record.draft.tags)
+			|| !record.draft.tags.every((tag) => typeof tag === "string")
+		) {
+			continue;
+		}
+
+		normalized[key] = {
+			draft: {
+				coreMeaning: record.draft.coreMeaning,
+				englishName: record.draft.englishName,
+				importance: record.draft.importance,
+				learningMode: record.draft.learningMode,
+				tags: [...record.draft.tags],
+				title: record.draft.title,
+				whyItMatters: record.draft.whyItMatters,
+			},
+			existingConceptId: record.existingConceptId,
+			incomingFingerprint: record.incomingFingerprint,
+			key,
+			updatedAt: record.updatedAt,
+		};
+	}
+
+	return normalized;
 }
 
 function normalizeManualCardDraft(value: unknown): ManualCardDraft | undefined {

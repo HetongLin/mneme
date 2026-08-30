@@ -116,7 +116,7 @@ const cardGenerationResponse = {
 	});
 
 	assert.equal(result.valid, false);
-	assert.equal(result.errors.some((error) => error.includes("canonical English term")), true);
+	assert.equal(result.errors.some((error) => error.includes("Latin-script English alias")), true);
 }
 
 {

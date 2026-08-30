@@ -7,13 +7,18 @@ import {
 	createAiConceptCaptureFingerprint,
 	getEffectiveConceptCaptureChunkSize,
 } from "../src/services/aiCaptureFingerprint";
-import { AiConceptCaptureService } from "../src/services/aiConceptCaptureService";
+import {
+	AiConceptCaptureService,
+	type ResolvedSourceSnapshot,
+} from "../src/services/aiConceptCaptureService";
 import { AiGenerationLock } from "../src/services/aiGenerationLock";
 import { KnowledgeProposalStore } from "../src/services/knowledgeProposalStore";
 import { MockAiProvider } from "../src/services/mockAiProvider";
 import { SourceAnalysisService } from "../src/services/sourceAnalysisService";
 import { SourceAnalysisStore } from "../src/services/sourceAnalysisStore";
+import type { SourceFileSnapshot } from "../src/services/sourceAnalysisDecision";
 import { splitSourceForAiCapture } from "../src/services/sourceCaptureChunker";
+import { computeContentHash } from "../src/utils/sourceHash";
 
 const source = {
 	content: "Encapsulation hides representation behind a public interface.",
@@ -50,7 +55,7 @@ async function run(): Promise<void> {
 		const proposals = await fixture.proposalStore.listActive();
 		const record = await fixture.sourceStore.getRecord(source.path);
 
-		assert.equal(result.status, "captured");
+		assert.equal(result.status, "captured", result.message);
 		assert.equal(result.proposalCount, 1);
 		assert.equal(fixture.provider.callCount, 1);
 		assert.equal(proposals.length, 1);
@@ -62,6 +67,72 @@ async function run(): Promise<void> {
 		assert.equal(record?.lastAiCaptureChunkCount, 1);
 		assert.equal(result.message.includes(`Analyzed ${source.content.length}/${source.content.length} characters across 1 chunk.`), true);
 		assert.deepEqual(record?.pendingProposalIds, [proposals[0]?.id]);
+	}
+
+	{
+		const fixture = createFixture({
+			aiCaptureEnabled: true,
+			aiProvider: "mock",
+			suggestEnglishAliases: false,
+		});
+		fixture.provider.responseFactory = (input) => createConceptCaptureResponse(
+			input,
+			source.content,
+			"封装",
+			["oop"],
+			"Encapsulation",
+		);
+		await fixture.service.analyze(source);
+		const proposals = await fixture.proposalStore.listActive();
+
+		assert.equal(
+			proposals[0]?.kind === "new_concept" ? proposals[0].payload?.englishName : undefined,
+			undefined,
+		);
+	}
+
+	{
+		const fixture = createFixture({
+			aiCaptureEnabled: true,
+			aiProvider: "mock",
+			suggestEnglishAliases: true,
+		});
+		fixture.provider.responseFactory = (input) => createConceptCaptureResponse(
+			input,
+			source.content,
+			"封装",
+			["oop"],
+			"Encapsulation",
+		);
+		await fixture.service.analyze(source);
+		const proposals = await fixture.proposalStore.listActive();
+
+		assert.equal(
+			proposals[0]?.kind === "new_concept" ? proposals[0].payload?.englishName : undefined,
+			"Encapsulation",
+		);
+	}
+
+	{
+		const fixture = createFixture({
+			aiCaptureEnabled: true,
+			aiProvider: "mock",
+			suggestEnglishAliases: true,
+		});
+		fixture.provider.responseFactory = (input) => createConceptCaptureResponse(
+			input,
+			source.content,
+			"Encapsulation",
+			["oop"],
+			"Data Encapsulation",
+		);
+		await fixture.service.analyze(source);
+		const proposals = await fixture.proposalStore.listActive();
+
+		assert.equal(
+			proposals[0]?.kind === "new_concept" ? proposals[0].payload?.englishName : undefined,
+			undefined,
+		);
 	}
 
 	{
@@ -96,6 +167,85 @@ async function run(): Promise<void> {
 
 		assert.equal(first.status, "captured");
 		assert.equal(fixture.generationLock.isActive("concept_capture", source.path), false);
+	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		const requestStarted = createDeferred();
+		const releaseRequest = createDeferred();
+		fixture.provider.onCall = () => requestStarted.resolve();
+		fixture.provider.blocker = releaseRequest.promise;
+
+		const firstPromise = fixture.service.analyze(source, { generationKey: "stable-source" });
+		await requestStarted.promise;
+		const renamedPath = "Notes/OOP Renamed.md";
+		fixture.sourceResolution.resolver = async () => ({
+			contentHash: await computeContentHash(source.content),
+			mtime: 200,
+			path: renamedPath,
+			size: source.size,
+		});
+		const duplicateAfterRename = await fixture.service.analyze({
+			...source,
+			path: renamedPath,
+		}, { generationKey: "stable-source" });
+
+		assert.equal(duplicateAfterRename.status, "generation_in_progress");
+		releaseRequest.resolve();
+		const result = await firstPromise;
+		const proposals = await fixture.proposalStore.listActive();
+		const proposal = proposals[0];
+
+		assert.equal(result.status, "captured", result.message);
+		assert.equal(await fixture.sourceStore.getRecord(source.path), undefined);
+		assert.equal((await fixture.sourceStore.getRecord(renamedPath))?.sourcePath, renamedPath);
+		assert.equal(proposal?.sourcePath, renamedPath);
+		assert.equal(
+			proposal?.kind === "new_concept"
+				? proposal.payload?.proposedSourceLinks?.[0]?.sourcePath
+				: undefined,
+			renamedPath,
+		);
+	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		const changedPath = "Notes/OOP Changed and Renamed.md";
+		fixture.sourceResolution.resolver = async () => ({
+			contentHash: await computeContentHash(`${source.content} changed`),
+			mtime: 200,
+			path: changedPath,
+			size: source.size + 8,
+		});
+		const result = await fixture.service.analyze(source);
+
+		assert.equal(result.status, "source_changed");
+		assert.deepEqual(await fixture.proposalStore.listProposals(), []);
+		assert.equal(await fixture.sourceStore.getRecord(source.path), undefined);
+		assert.equal((await fixture.sourceStore.getRecord(changedPath))?.status, "stale");
+	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		fixture.sourceResolution.resolver = async () => undefined;
+		const result = await fixture.service.analyze(source);
+
+		assert.equal(result.status, "source_changed");
+		assert.equal(result.message.includes("deleted"), true);
+		assert.deepEqual(await fixture.proposalStore.listProposals(), []);
+		assert.equal(await fixture.sourceStore.getRecord(source.path), undefined);
+	}
+
+	{
+		const fixture = createFixture({ aiCaptureEnabled: true, aiProvider: "mock" });
+		await fixture.service.analyze(source);
+
+		assert.deepEqual(fixture.progressMessages, [
+			"Preparing Source Note…",
+			"Waiting for AI response…",
+			"Validating AI response…",
+			"Saving Concept proposals…",
+		]);
 	}
 
 	{
@@ -382,20 +532,38 @@ function createFixture(
 	const proposalStore = new KnowledgeProposalStore(storage);
 	const provider = new CountingProvider(new MockAiProvider(settings));
 	const generationLock = new AiGenerationLock();
+	const progressMessages: string[] = [];
+	const sourceResolution: {
+		resolver?: (snapshot: SourceFileSnapshot) => Promise<ResolvedSourceSnapshot | undefined>;
+	} = {};
 	const readContent = async () => testSource.content;
 	const service = new AiConceptCaptureService({
 		createProvider: () => provider,
 		existingTagsProvider: async () => existingTags,
 		generationLock,
+		onProgress: ({ message }) => progressMessages.push(message),
 		proposalStore,
 		readSourceContent: readContent,
+		resolveCurrentSource: async (snapshot) => sourceResolution.resolver?.(snapshot) ?? ({
+			...snapshot,
+			contentHash: await computeContentHash(testSource.content),
+		}),
 		settingsProvider: () => settings,
 		sourceAnalysisService: new SourceAnalysisService(sourceStore, readContent, () => "2026-01-02T12:00:00.000Z"),
 		sourceAnalysisStore: sourceStore,
 		timestampProvider: () => "2026-01-02T12:00:00.000Z",
 	});
 
-	return { generationLock, proposalStore, provider, service, settings, sourceStore };
+	return {
+		generationLock,
+		progressMessages,
+		proposalStore,
+		provider,
+		service,
+		settings,
+		sourceResolution,
+		sourceStore,
+	};
 }
 
 class CountingProvider implements AiProvider {
@@ -435,6 +603,7 @@ class CountingProvider implements AiProvider {
 						openaiApiKeyConfigured: false,
 						openaiBaseUrl: "",
 						openaiModel: "",
+						suggestEnglishAliases: false,
 					},
 					warnings: [],
 				},
@@ -461,6 +630,7 @@ function createConceptCaptureResponse(
 	quote: string,
 	title = "Encapsulation",
 	tags = ["oop"],
+	englishName?: string,
 ): unknown {
 	return {
 		mode: "concept_capture",
@@ -475,6 +645,7 @@ function createConceptCaptureResponse(
 			payload: {
 				conceptTitle: title,
 				coreMeaning: "Encapsulation hides representation behind a public interface.",
+				...(englishName ? { englishName } : {}),
 				learningMode: "reviewable",
 				relatedConceptHints: [],
 				suggestedImportance: "normal",

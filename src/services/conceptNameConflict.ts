@@ -1,12 +1,11 @@
 import type { ConceptSummary } from "../models/conceptLibrary";
 import type { MnemeSettings } from "../models/settings";
 import { buildConceptPath, normalizeVaultPath } from "../utils/markdownPath";
-import { createReadableConceptId, normalizeConceptNames } from "./conceptNaming";
+import { normalizeConceptNames } from "./conceptNaming";
 
 export type ConceptNameConflictReason =
 	| "title"
-	| "english_name"
-	| "concept_id"
+	| "english_alias"
 	| "path";
 
 export type ConceptNameConflictResolution =
@@ -17,7 +16,7 @@ export type ConceptNameConflictResolution =
 
 export interface ConceptNameConflict {
 	candidate: {
-		conceptId: string;
+		coreMeaning: string;
 		displayTitle: string;
 		englishName: string;
 		path: string;
@@ -28,13 +27,17 @@ export interface ConceptNameConflict {
 }
 
 export function findConceptNameConflict(
-	input: { englishName?: string; title: string },
-	settings: Pick<MnemeSettings, "conceptsFolder">,
+	input: { coreMeaning?: string; englishName?: string; title: string },
+	settings: Pick<MnemeSettings, "conceptsFolder" | "suggestEnglishAliases">,
 	existingConcepts: ConceptSummary[],
 ): ConceptNameConflict | undefined {
-	const names = normalizeConceptNames(input.title, input.englishName);
+	const names = normalizeConceptNames(
+		input.title,
+		input.englishName,
+		settings.suggestEnglishAliases,
+	);
 	const candidate = {
-		conceptId: createReadableConceptId(names.englishName),
+		coreMeaning: input.coreMeaning?.trim() ?? "",
 		displayTitle: names.displayTitle,
 		englishName: names.englishName,
 		path: buildConceptPath(settings.conceptsFolder, names.displayTitle),
@@ -71,12 +74,12 @@ function getConflictReasons(
 	}
 	if (
 		existing.englishName
-		&& normalizeName(candidate.englishName) === normalizeName(existing.englishName)
+		&& (
+			(candidate.englishName && normalizeName(candidate.englishName) === normalizeName(existing.englishName))
+			|| normalizeName(candidate.title) === normalizeName(existing.englishName)
+		)
 	) {
-		reasons.push("english_name");
-	}
-	if (normalizeIdentity(candidate.conceptId) === normalizeIdentity(existing.conceptId)) {
-		reasons.push("concept_id");
+		reasons.push("english_alias");
 	}
 	if (normalizeIdentity(candidate.path) === normalizeIdentity(existing.path)) {
 		reasons.push("path");
@@ -98,6 +101,6 @@ function normalizeIdentity(value: string): string {
 
 function conflictWeight(reasons: ConceptNameConflictReason[]): number {
 	return reasons.reduce((weight, reason) => (
-		weight + (reason === "title" ? 8 : reason === "english_name" ? 4 : 2)
+		weight + (reason === "title" ? 8 : reason === "english_alias" ? 4 : 2)
 	), 0);
 }

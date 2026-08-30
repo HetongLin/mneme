@@ -36,6 +36,34 @@ export class SourceAnalysisStore {
 		await this.storage.saveData(nextData);
 	}
 
+	async moveRecord(previousPath: string, record: SourceAnalysisRecord): Promise<void> {
+		const data = await this.loadPluginData();
+		const sourceAnalysisRecords = { ...data.sourceAnalysisRecords };
+
+		if (previousPath !== record.sourcePath) {
+			delete sourceAnalysisRecords[previousPath];
+		}
+		sourceAnalysisRecords[record.sourcePath] = record;
+
+		await this.storage.saveData({
+			...data,
+			sourceAnalysisRecords,
+		});
+	}
+
+	async removeRecord(sourcePath: string): Promise<void> {
+		const data = await this.loadPluginData();
+		if (!(sourcePath in data.sourceAnalysisRecords)) return;
+
+		const sourceAnalysisRecords = { ...data.sourceAnalysisRecords };
+		delete sourceAnalysisRecords[sourcePath];
+
+		await this.storage.saveData({
+			...data,
+			sourceAnalysisRecords,
+		});
+	}
+
 	async replaceRecords(records: Record<string, SourceAnalysisRecord>): Promise<void> {
 		const data = await this.loadPluginData();
 

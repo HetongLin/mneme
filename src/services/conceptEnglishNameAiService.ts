@@ -18,14 +18,16 @@ export class ConceptEnglishNameAiService {
 
 	isAvailable(): boolean {
 		const settings = this.options.settingsProvider();
-		return settings.aiCaptureEnabled && validateAiProviderConfig(settings).valid;
+		return settings.suggestEnglishAliases
+			&& settings.aiCaptureEnabled
+			&& validateAiProviderConfig(settings).valid;
 	}
 
 	async suggest(title: string, coreMeaning: string): Promise<ConceptEnglishNameSuggestion> {
 		const normalizedTitle = title.trim();
 		const normalizedCoreMeaning = coreMeaning.trim();
-		if (!normalizedTitle) throw new Error("Concept Title is required before generating an English Name.");
-		if (!normalizedCoreMeaning) throw new Error("Core Meaning is required before generating an English Name.");
+		if (!normalizedTitle) throw new Error("Concept Title is required before generating an English Alias.");
+		if (!normalizedCoreMeaning) throw new Error("Core Meaning is required before generating an English Alias.");
 
 		const settings = this.validateSettings();
 		if (settings.aiProvider === "mock") {
@@ -49,8 +51,11 @@ export class ConceptEnglishNameAiService {
 
 	private validateSettings(): MnemeSettings {
 		const settings = this.options.settingsProvider();
+		if (!settings.suggestEnglishAliases) {
+			throw new Error("Enable English Alias suggestions in Mneme Settings.");
+		}
 		if (!settings.aiCaptureEnabled) {
-			throw new Error("Enable AI capture in Mneme Settings to generate an English Name.");
+			throw new Error("Enable AI capture in Mneme Settings to generate an English Alias.");
 		}
 		const validation = validateAiProviderConfig(settings);
 		if (!validation.valid) throw new Error(validation.errors.join(" "));
@@ -148,7 +153,7 @@ export function parseConceptEnglishNameSuggestion(
 	if (!isRecord(value)
 		|| typeof value.englishName !== "string"
 		|| !value.englishName.trim()) {
-		throw new Error("AI English Name response must contain englishName.");
+		throw new Error("AI English Alias response must contain englishName.");
 	}
 
 	const englishName = value.englishName.trim();
@@ -177,13 +182,13 @@ function parseOpenAiResponse(raw: unknown): unknown {
 
 function parseChatCompletionResponse(raw: unknown): unknown {
 	if (!isRecord(raw) || !Array.isArray(raw.choices)) {
-		throw new Error("AI title-language response did not contain an English Name.");
+		throw new Error("AI title-language response did not contain an English Alias.");
 	}
 	const choice = raw.choices[0];
 	const message = isRecord(choice) ? choice.message : undefined;
 	const content = isRecord(message) ? message.content : undefined;
 	if (typeof content !== "string" || !content.trim()) {
-		throw new Error("AI title-language response did not contain an English Name.");
+		throw new Error("AI title-language response did not contain an English Alias.");
 	}
 
 	try {
@@ -245,7 +250,7 @@ function parseJson(value: string, provider: string): unknown {
 			return JSON.parse(candidate);
 		} catch {
 			// Try the next bounded representation. We deliberately do not
-			// interpret arbitrary prose as an English Name.
+			// interpret arbitrary prose as an English Alias.
 		}
 	}
 

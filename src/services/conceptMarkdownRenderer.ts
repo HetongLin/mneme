@@ -30,7 +30,9 @@ export function renderConceptMarkdown(input: RenderConceptMarkdownInput): string
 		"mneme_type: concept",
 		`mneme_id: ${input.conceptId}`,
 		`mneme_title: "${escapeYamlDoubleQuoted(names.title)}"`,
-		`mneme_english_name: "${escapeYamlDoubleQuoted(names.englishName)}"`,
+		...(names.englishName
+			? [`mneme_english_name: "${escapeYamlDoubleQuoted(names.englishName)}"`]
+			: []),
 		"mneme_version: 1",
 		`cards: "${escapeYamlDoubleQuoted(input.cardGroupLink)}"`,
 		...(input.learningMode ? [`learning_mode: ${input.learningMode}`] : []),

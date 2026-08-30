@@ -135,7 +135,7 @@ async function runAsyncTests(): Promise<void> {
 
 		assert.equal(keepBothResult.status, "accepted");
 		assert.equal((await store.getProposal(proposal.id))?.status, "written");
-		assert.equal(vault.files.has("Mneme/Concepts/Encapsulation-2.md"), true);
+		assert.equal(vault.files.has("Mneme/Concepts/Encapsulation.md"), true);
 	}
 
 	{

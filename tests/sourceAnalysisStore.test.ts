@@ -92,6 +92,33 @@ async function runAsyncTests(): Promise<void> {
 	}
 
 	{
+		const original = createRecord("Notes/Before.md");
+		const storage = new MemorySourceAnalysisStorage({
+			knowledgeProposals: {
+				"proposal-a": {
+					createdAt: "2026-01-01T12:00:00.000Z",
+					id: "proposal-a",
+					kind: "new_concept",
+					status: "suggested",
+					updatedAt: "2026-01-01T12:00:00.000Z",
+				},
+			},
+			reviewStates: {},
+			schemaVersion: 1,
+			settings: DEFAULT_SETTINGS,
+			sourceAnalysisRecords: { [original.sourcePath]: original },
+		});
+		const store = new SourceAnalysisStore(storage);
+		const moved = { ...original, sourcePath: "Notes/After.md" };
+
+		await store.moveRecord(original.sourcePath, moved);
+
+		assert.equal(await store.getRecord(original.sourcePath), undefined);
+		assert.deepEqual(await store.getRecord(moved.sourcePath), moved);
+		assert.equal(typeof storage.savedData?.knowledgeProposals["proposal-a"], "object");
+	}
+
+	{
 		const record = createRecord("Notes/Intro.md");
 		const storage = new MemorySourceAnalysisStorage({
 			reviewStates: {
@@ -119,6 +146,21 @@ async function runAsyncTests(): Promise<void> {
 		assert.deepEqual(storage.savedData?.sourceAnalysisRecords, {});
 		assert.equal(storage.savedData?.settings.fsrsEnableFuzz, true);
 		assert.equal(typeof storage.savedData?.reviewStates["encapsulation-basic"], "object");
+	}
+
+	{
+		const record = createRecord("Notes/Remove.md");
+		const storage = new MemorySourceAnalysisStorage({
+			reviewStates: {},
+			schemaVersion: 1,
+			settings: DEFAULT_SETTINGS,
+			sourceAnalysisRecords: { [record.sourcePath]: record },
+		});
+		const store = new SourceAnalysisStore(storage);
+
+		await store.removeRecord(record.sourcePath);
+
+		assert.equal(await store.getRecord(record.sourcePath), undefined);
 	}
 }
 

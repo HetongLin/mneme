@@ -10,22 +10,25 @@ const existing = [{
 	primaryTitle: "间隔效应",
 	title: "间隔效应 (Spacing Effect)",
 }];
+const aliasSettings = { ...DEFAULT_SETTINGS, suggestEnglishAliases: true };
 
 {
 	const conflict = findConceptNameConflict({
+		coreMeaning: "Incoming **Core Meaning**.",
 		englishName: "Spacing Effect",
 		title: "间隔效应",
-	}, DEFAULT_SETTINGS, existing);
+	}, aliasSettings, existing);
 
 	assert.equal(conflict?.existing.conceptId, "concept-spacing-effect");
-	assert.deepEqual(conflict?.reasons, ["title", "english_name", "concept_id", "path"]);
+	assert.equal(conflict?.candidate.coreMeaning, "Incoming **Core Meaning**.");
+	assert.deepEqual(conflict?.reasons, ["title", "english_alias", "path"]);
 }
 
 {
 	const conflict = findConceptNameConflict({
 		englishName: "Distributed Practice",
 		title: "分散练习",
-	}, DEFAULT_SETTINGS, existing);
+	}, aliasSettings, existing);
 
 	assert.equal(conflict, undefined);
 }
@@ -36,8 +39,8 @@ const existing = [{
 	}, DEFAULT_SETTINGS, existing);
 
 	assert.equal(conflict?.existing.conceptId, "concept-spacing-effect");
-	assert.equal(conflict?.reasons.includes("english_name"), true);
-	assert.equal(conflict?.reasons.includes("concept_id"), true);
+	assert.equal(conflict?.reasons.includes("english_alias"), true);
+	assert.equal(conflict?.reasons.includes("path"), false);
 }
 
 console.log("Concept name conflict tests passed.");

@@ -1,9 +1,18 @@
 import assert from "node:assert/strict";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
 import { parseMnemeCards } from "../src/services/cardMarkerParser";
-import { createReadableCardId } from "../src/services/cardIdNaming";
 import { renderMarkdownProposal } from "../src/services/markdownProposalRenderer";
 import { createProposal } from "./knowledgeProposalTestUtils";
+
+const FIXED_IDS = {
+	createCardId: () => "card-gjsl5r2n",
+	createConceptId: () => "concept-k7m3p9qx",
+};
+const ALIAS_SETTINGS = { ...DEFAULT_SETTINGS, suggestEnglishAliases: true };
+
+function render(proposal: Parameters<typeof renderMarkdownProposal>[0]) {
+	return renderMarkdownProposal(proposal, ALIAS_SETTINGS, FIXED_IDS);
+}
 
 function getFirstDraftContent(result: ReturnType<typeof renderMarkdownProposal>): string {
 	return result.status === "rendered" ? result.drafts[0].content : "";
@@ -21,12 +30,13 @@ function getFirstDraftContent(result: ReturnType<typeof renderMarkdownProposal>)
 		},
 		status: "approved",
 	});
-	const result = renderMarkdownProposal(proposal, DEFAULT_SETTINGS);
+	const result = render(proposal);
 	const content = getFirstDraftContent(result);
 
 	assert.equal(result.status, "rendered");
 	assert.equal(result.status === "rendered" ? result.drafts[0].targetPath : "", "Mneme/Concepts/Encapsulation.md");
-	assert.match(content, /^---\nmneme_type: concept\nmneme_id: concept-encapsulation\nmneme_title: "Encapsulation"\nmneme_english_name: "Encapsulation"\nmneme_version: 1/m);
+	assert.match(content, /^---\nmneme_type: concept\nmneme_id: concept-k7m3p9qx\nmneme_title: "Encapsulation"\nmneme_version: 1/m);
+	assert.equal(content.includes("mneme_english_name"), false);
 	assert.match(content, /cards: "\[\[Mneme\/Cards\/Encapsulation\/Cards\|Encapsulation Cards\]\]"/);
 	assert.match(content, /learning_mode: reviewable/);
 	assert.match(content, /importance: normal/);
@@ -52,7 +62,7 @@ function getFirstDraftContent(result: ReturnType<typeof renderMarkdownProposal>)
 		},
 		status: "approved",
 	});
-	const content = getFirstDraftContent(renderMarkdownProposal(proposal, DEFAULT_SETTINGS));
+	const content = getFirstDraftContent(render(proposal));
 
 	assert.match(content, /> \[!info\]- Source Notes/);
 	assert.match(content, /> - \[\[Software Construction\/Chapter 7\]\]/);
@@ -84,7 +94,7 @@ function getFirstDraftContent(result: ReturnType<typeof renderMarkdownProposal>)
 		sourceHash: "source-hash-that-should-not-render",
 		status: "approved",
 	});
-	const content = getFirstDraftContent(renderMarkdownProposal(proposal, DEFAULT_SETTINGS));
+	const content = getFirstDraftContent(render(proposal));
 
 	assert.equal(content.includes("source-hash-that-should-not-render"), false);
 	assert.equal(content.includes("proposal-c"), false);
@@ -123,7 +133,7 @@ function getFirstDraftContent(result: ReturnType<typeof renderMarkdownProposal>)
 		},
 		status: "approved",
 	});
-	const result = renderMarkdownProposal(proposal, DEFAULT_SETTINGS);
+	const result = render(proposal);
 	const content = getFirstDraftContent(result);
 	const parsedCards = parseMnemeCards(content);
 
@@ -133,7 +143,7 @@ function getFirstDraftContent(result: ReturnType<typeof renderMarkdownProposal>)
 	assert.match(content, /^---\nmneme_type: card_group\nmneme_concept_id: concept-encapsulation/m);
 	assert.match(content, /mneme_concept_id: concept-encapsulation/);
 	assert.match(content, /concept: "\[\[Mneme\/Concepts\/Encapsulation\|Encapsulation\]\]"/);
-	assert.match(content, /MNEME:CARD:start id="encapsulation-definition" type="definition"/);
+	assert.match(content, /MNEME:CARD:start id="card-gjsl5r2n" type="definition"/);
 	assert.equal(parsedCards.length, 1);
 	assert.equal(parsedCards[0].isValid, true);
 	assert.equal(parsedCards[0].hasExplicitCardId, true);
@@ -151,13 +161,29 @@ function getFirstDraftContent(result: ReturnType<typeof renderMarkdownProposal>)
 		},
 		status: "approved",
 	});
-	const content = getFirstDraftContent(renderMarkdownProposal(proposal, DEFAULT_SETTINGS));
+	const content = getFirstDraftContent(render(proposal));
 
 	assert.match(content, /tags: \[线性代数, linear-algebra\]/);
-	assert.match(content, /mneme_id: concept-vector-space/);
+	assert.match(content, /mneme_id: concept-k7m3p9qx/);
 	assert.match(content, /mneme_title: "向量空间"/);
 	assert.match(content, /mneme_english_name: "Vector Space"/);
 	assert.match(content, /# 向量空间 \(Vector Space\)/);
+}
+
+{
+	const proposal = createProposal("proposal-alias-disabled", {
+		kind: "new_concept",
+		payload: {
+			englishName: "Vector Space",
+			title: "向量空间",
+		},
+		status: "approved",
+	});
+	const result = renderMarkdownProposal(proposal, DEFAULT_SETTINGS, FIXED_IDS);
+	const content = getFirstDraftContent(result);
+
+	assert.equal(content.includes("mneme_english_name"), false);
+	assert.match(content, /^# 向量空间$/m);
 }
 
 {
@@ -172,7 +198,7 @@ function getFirstDraftContent(result: ReturnType<typeof renderMarkdownProposal>)
 		},
 		status: "approved",
 	});
-	const content = getFirstDraftContent(renderMarkdownProposal(proposal, DEFAULT_SETTINGS));
+	const content = getFirstDraftContent(render(proposal));
 
 	assert.equal(content.includes("fsrs"), false);
 	assert.equal(content.includes("reviewState"), false);
@@ -192,25 +218,9 @@ function getFirstDraftContent(result: ReturnType<typeof renderMarkdownProposal>)
 		},
 		status: "approved",
 	});
-	const result = renderMarkdownProposal(proposal, DEFAULT_SETTINGS);
+	const result = render(proposal);
 
 	assert.equal(result.status, "unsupported");
-}
-
-{
-	assert.notEqual(
-		createReadableCardId("Concept", "definition"),
-		createReadableCardId("Concept", "application"),
-	);
-	assert.equal(
-		createReadableCardId("Concept", "definition"),
-		"concept-definition",
-	);
-	assert.equal(createReadableCardId("concept-encapsulation", "definition"), "encapsulation-definition");
-	assert.equal(
-		createReadableCardId("concept-concept-learning", "definition"),
-		"concept-learning-definition",
-	);
 }
 
 console.log("Markdown proposal renderer tests passed.");

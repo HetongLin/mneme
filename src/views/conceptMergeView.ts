@@ -17,7 +17,11 @@ import type { ConceptMergePlan } from "../services/conceptMergeService";
 import { ConceptMergeService } from "../services/conceptMergeService";
 import { rankConceptMergeCandidates } from "../services/conceptDuplicateDetector";
 import type { ConceptScanner } from "../services/conceptScanner";
-import { composeConceptDisplayTitle } from "../services/conceptNaming";
+import {
+	composeConceptDisplayTitle,
+	shouldOfferEnglishAlias,
+} from "../services/conceptNaming";
+import { confirmConceptMerge } from "../modals/conceptMergeConfirmationModal";
 import { createMarkdownLivePreviewField } from "../ui/markdownLivePreviewField";
 import { formatUserFacingError } from "../utils/userFacingError";
 
@@ -25,6 +29,7 @@ export const CONCEPT_MERGE_VIEW_TYPE = "mneme-concept-merge-view";
 
 export interface ConceptMergeViewActions {
 	aiService: ConceptMergeAiService;
+	englishAliasesEnabled(): boolean;
 	getDismissedPairKeys?(): string[];
 	mergeService: ConceptMergeService;
 	onMerged(): Promise<void> | void;
@@ -92,7 +97,7 @@ export class MnemeConceptMergeView extends ItemView {
 				: this.firstConceptId;
 			this.statusMessage = this.concepts.length < 2
 				? "At least two approved Concepts are required."
-				: "Choose two Concepts. Mneme will not write anything until you preview and confirm.";
+				: "Choose two Concepts. Mneme will not write anything until you confirm the Merge.";
 		} catch (error) {
 			console.error("Mneme: failed to load Merge Concepts", error);
 			this.concepts = [];
@@ -114,7 +119,6 @@ export class MnemeConceptMergeView extends ItemView {
 		this.renderHeader(shellEl);
 		this.renderSelection(shellEl);
 		if (this.draft) this.renderDraftEditor(shellEl);
-		if (this.plan && this.finalSurvivorMarkdown) this.renderPreview(shellEl);
 	}
 
 	private renderHeader(parentEl: HTMLElement): void {
@@ -257,7 +261,7 @@ export class MnemeConceptMergeView extends ItemView {
 		this.draft = createManualConceptMergeDraft(first, second, survivor);
 		this.plan = undefined;
 		this.finalSurvivorMarkdown = undefined;
-		this.statusMessage = "Manual draft created. Review the merged learning content before previewing changes.";
+		this.statusMessage = "Manual draft created. Review the merged learning content before merging.";
 		this.render();
 	}
 
@@ -283,7 +287,11 @@ export class MnemeConceptMergeView extends ItemView {
 				secondMarkdown,
 			});
 			const deterministic = createManualConceptMergeDraft(first, second, this.getSurvivor(first, second));
-			this.draft = { ...deterministic, ...aiDraft };
+			this.draft = {
+				...deterministic,
+				...aiDraft,
+				englishName: aiDraft.englishName ?? deterministic.englishName,
+			};
 			this.clearPreview();
 			this.statusMessage = "AI draft is ready. You must review and edit it before Merge.";
 		} catch (error) {
@@ -302,7 +310,20 @@ export class MnemeConceptMergeView extends ItemView {
 		const sectionEl = parentEl.createDiv({ cls: "mneme-concept-merge-section" });
 		sectionEl.createEl("h3", { text: "2. Edit Merged Concept" });
 		const titleInput = this.createTextInput(sectionEl, "Title", draft.title);
-		const englishInput = this.createTextInput(sectionEl, "English Name", draft.englishName);
+		const englishField = this.createTextInputField(sectionEl, "English Alias (optional)", draft.englishName);
+		const englishInput = englishField.inputEl;
+		let observedTitle = titleInput.value.trim();
+		const updateEnglishNameUi = (titleChanged: boolean): void => {
+			const title = titleInput.value.trim();
+			const shouldShow = this.actions.englishAliasesEnabled()
+				&& !!title
+				&& shouldOfferEnglishAlias(title);
+			englishField.fieldEl.toggleClass("is-hidden", !shouldShow);
+			if (titleChanged) {
+				englishInput.value = "";
+			}
+		};
+		updateEnglishNameUi(false);
 		const first = this.getConcept(this.firstConceptId);
 		const sourcePath = first?.path ?? "";
 		const coreInput = createMarkdownLivePreviewField({
@@ -317,34 +338,48 @@ export class MnemeConceptMergeView extends ItemView {
 		const whyInput = createMarkdownLivePreviewField({
 			app: this.app,
 			component: this,
-			label: "Why It Matters",
+			label: "Why It Matters (optional)",
 			parentEl: sectionEl,
 			placeholder: "Explain why the merged Concept is useful.",
 			sourcePath,
 			value: draft.whyItMatters,
 		});
 		const updateDraft = (): void => {
+			const title = titleInput.value.trim();
+			const titleUnchanged = title === draft.title.trim();
 			this.draft = {
 				...draft,
 				coreMeaning: coreInput.value,
-				englishName: englishInput.value,
+				englishName: this.actions.englishAliasesEnabled() && shouldOfferEnglishAlias(title)
+					? englishInput.value
+					: titleUnchanged
+						? draft.englishName
+						: "",
 				title: titleInput.value,
 				whyItMatters: whyInput.value,
 			};
 			this.clearPreview();
 		};
-		for (const input of [titleInput, englishInput, coreInput, whyInput]) {
+		titleInput.addEventListener("input", () => {
+			const nextTitle = titleInput.value.trim();
+			if (nextTitle !== observedTitle) {
+				observedTitle = nextTitle;
+				updateEnglishNameUi(true);
+			}
+			updateDraft();
+		});
+		for (const input of [englishInput, coreInput, whyInput]) {
 			input.addEventListener("input", updateDraft);
 		}
 
 		const originals = sectionEl.createEl("details", { cls: "mneme-review-details" });
 		originals.createEl("summary", { text: "Original Concepts" });
 		void this.renderOriginalConcepts(originals);
-		const previewButton = sectionEl.createEl("button", { text: "Preview Merge Changes" });
-		previewButton.disabled = this.isWorking;
-		previewButton.addEventListener("click", () => {
+		const mergeButton = sectionEl.createEl("button", { cls: "mod-cta", text: "Merge Concepts…" });
+		mergeButton.disabled = this.isWorking;
+		mergeButton.addEventListener("click", () => {
 			updateDraft();
-			void this.preparePreview(previewButton);
+			void this.requestMergeConfirmation(mergeButton);
 		});
 	}
 
@@ -369,27 +404,40 @@ export class MnemeConceptMergeView extends ItemView {
 	}
 
 	private createTextInput(parentEl: HTMLElement, label: string, value: string): HTMLInputElement {
-		const labelEl = parentEl.createEl("label", { cls: "mneme-proposal-detail-field" });
-		labelEl.createEl("span", { text: label });
-		const input = labelEl.createEl("input", { attr: { spellcheck: "true", type: "text" } });
-		input.value = value;
-		return input;
+		return this.createTextInputField(parentEl, label, value).inputEl;
 	}
 
-	private async preparePreview(button: HTMLButtonElement): Promise<void> {
+	private createTextInputField(
+		parentEl: HTMLElement,
+		label: string,
+		value: string,
+	): { fieldEl: HTMLLabelElement; inputEl: HTMLInputElement } {
+		const fieldEl = parentEl.createEl("label", { cls: "mneme-proposal-detail-field" });
+		fieldEl.createEl("span", { text: label });
+		const input = fieldEl.createEl("input", { attr: { spellcheck: "true", type: "text" } });
+		input.value = value;
+		return { fieldEl, inputEl: input };
+	}
+
+	private async requestMergeConfirmation(button: HTMLButtonElement): Promise<void> {
 		const first = this.getConcept(this.firstConceptId);
 		const second = this.getConcept(this.secondConceptId);
 		const draft = this.draft;
 		if (!first || !second || !draft || this.isWorking) return;
 		this.isWorking = true;
 		button.disabled = true;
+		let preparedPlan: ConceptMergePlan | undefined;
+		let preparedMarkdown: string | undefined;
 		try {
 			const survivor = this.getSurvivor(first, second);
+			const effectiveDraft = shouldOfferEnglishAlias(draft.title)
+				? draft
+				: { ...draft, englishName: "" };
 			const effectiveSurvivor: ConceptSummary = {
 				...survivor,
-				englishName: draft.englishName.trim(),
-				primaryTitle: draft.title.trim(),
-				title: composeConceptDisplayTitle(draft.title, draft.englishName),
+				englishName: effectiveDraft.englishName.trim() || undefined,
+				primaryTitle: effectiveDraft.title.trim(),
+				title: composeConceptDisplayTitle(effectiveDraft.title, effectiveDraft.englishName),
 			};
 			const merged = survivor.conceptId === first.conceptId ? second : first;
 			const result = await this.actions.mergeService.prepare({
@@ -400,64 +448,54 @@ export class MnemeConceptMergeView extends ItemView {
 			if (result.status === "blocked") {
 				this.statusMessage = result.message;
 				new Notice(`Mneme: ${result.message}`);
-				return;
+			} else {
+				const survivorWrite = result.plan.writes.find((write) => write.path === effectiveSurvivor.path);
+				if (!survivorWrite) throw new Error("Surviving Concept preview is missing.");
+				this.draft = effectiveDraft;
+				preparedPlan = result.plan;
+				preparedMarkdown = applyConceptMergeDraft(survivorWrite.after, effectiveDraft);
 			}
-			const survivorWrite = result.plan.writes.find((write) => write.path === effectiveSurvivor.path);
-			if (!survivorWrite) throw new Error("Surviving Concept preview is missing.");
-			this.plan = result.plan;
-			this.finalSurvivorMarkdown = applyConceptMergeDraft(survivorWrite.after, draft);
-			this.statusMessage = "Zero-write preview is ready. No vault content has changed.";
 		} catch (error) {
 			console.error("Mneme: failed to prepare Merge preview", error);
 			this.statusMessage = formatUserFacingError(error, "Review the selected Concepts and try again.");
 			new Notice(`Mneme: ${this.statusMessage}`);
 		} finally {
 			this.isWorking = false;
+			button.disabled = false;
+		}
+		if (!preparedPlan || !preparedMarkdown) {
 			this.render();
+			return;
 		}
+		const plan = preparedPlan;
+		const finalMarkdown = preparedMarkdown;
+
+		const confirmed = await confirmConceptMerge(this.app, {
+			changes: plan.writes.map((write) => ({
+				after: write.path === plan.survivor.path ? finalMarkdown : write.after,
+				before: write.before,
+				label: write.label,
+				path: write.path,
+			})),
+			description: `${plan.merged.title} becomes a Redirect Note. Card IDs and FSRS history remain unchanged.`,
+			impact: `${plan.sourceLinksPreserved} Source Notes · ${plan.relatedConceptsRewired} Related links updated · ${plan.cardsPreserved} Cards preserved`,
+		});
+		if (!confirmed) {
+			this.statusMessage = "Merge cancelled. No vault content changed.";
+			this.clearPreview();
+			this.render();
+			return;
+		}
+
+		this.plan = plan;
+		this.finalSurvivorMarkdown = finalMarkdown;
+		button.disabled = true;
+		await this.executeMerge();
 	}
 
-	private renderPreview(parentEl: HTMLElement): void {
-		const plan = this.plan;
-		const finalMarkdown = this.finalSurvivorMarkdown;
-		if (!plan || !finalMarkdown) return;
-		const sectionEl = parentEl.createDiv({ cls: "mneme-concept-merge-section mneme-concept-merge-preview" });
-		sectionEl.createEl("h3", { text: "3. Confirm Merge" });
-		sectionEl.createEl("p", {
-			cls: "mneme-concept-merge-impact",
-			text: `${plan.sourceLinksPreserved} Source Notes · ${plan.relatedConceptsRewired} Related links updated · ${plan.cardsPreserved} Cards preserved`,
-		});
-		sectionEl.createEl("p", {
-			cls: "mneme-review-status",
-			text: `${plan.merged.title} becomes a Redirect Note. Card IDs and FSRS history remain unchanged.`,
-		});
-		const advanced = sectionEl.createEl("details", { cls: "mneme-review-details" });
-		advanced.createEl("summary", { text: "Advanced / All Markdown Changes" });
-		for (const write of plan.writes) {
-			const details = advanced.createEl("details");
-			details.createEl("summary", { text: `${write.label} · ${write.path}` });
-			details.createEl("h5", { text: "Before" });
-			details.createEl("pre", { text: write.before });
-			details.createEl("h5", { text: "After" });
-			details.createEl("pre", {
-				text: write.path === plan.survivor.path ? finalMarkdown : write.after,
-			});
-		}
-		const reviewed = sectionEl.createEl("label", { cls: "mneme-proposal-detail-field mneme-concept-merge-confirm" });
-		const checkbox = reviewed.createEl("input", { attr: { type: "checkbox" } });
-		reviewed.createSpan({ text: "I reviewed the merged Concept and impact summary" });
-		const mergeButton = sectionEl.createEl("button", { cls: "mod-warning", text: "Confirm Merge" });
-		mergeButton.disabled = true;
-		checkbox.addEventListener("change", () => {
-			mergeButton.disabled = !checkbox.checked || this.isWorking;
-		});
-		mergeButton.addEventListener("click", () => void this.executeMerge(mergeButton));
-	}
-
-	private async executeMerge(button: HTMLButtonElement): Promise<void> {
+	private async executeMerge(): Promise<void> {
 		if (!this.plan || !this.finalSurvivorMarkdown || this.isWorking) return;
 		this.isWorking = true;
-		button.disabled = true;
 		const plan = this.plan;
 		let completed = false;
 		try {

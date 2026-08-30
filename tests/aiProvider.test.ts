@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
 import {
 	AiJsonHttpClient,
+	formatAiHttpResponseError,
 	toLogSafeAiConfig,
 	validateAiProviderConfig,
 } from "../src/services/aiProvider";
@@ -34,6 +35,16 @@ assert.equal(detectLearningContentLanguage("贝叶斯推理将先验知识与观
 assert.equal(detectLearningContentLanguage("---\ntags: [machine-learning]\n---\n贝叶斯推理通过观测证据更新先验信念。"), "zh");
 assert.equal(detectLearningContentLanguage("---\ntitle: 贝叶斯定理\n---\nBayesian reasoning updates prior beliefs with observed evidence."), "en");
 assert.equal(detectLearningContentLanguage("$P(A \\mid B)$"), "source");
+assert.equal(
+	formatAiHttpResponseError(400, {
+		error: { message: "Prompt must contain the word JSON." },
+	}, ""),
+	"AI provider request failed (400): Prompt must contain the word JSON.",
+);
+assert.equal(
+	formatAiHttpResponseError(503, undefined, "Service temporarily unavailable"),
+	"AI provider request failed (503): Service temporarily unavailable",
+);
 
 async function run(): Promise<void> {
 {
@@ -224,6 +235,7 @@ async function run(): Promise<void> {
 		aiProvider: "openai" as const,
 		openaiApiKey: "sk-secret-value",
 		openaiModel: "gpt-test",
+		suggestEnglishAliases: true,
 	};
 	const payload = buildOpenAiKnowledgeProposalPayload(request, settings);
 	const serialized = JSON.stringify(payload);
@@ -246,8 +258,8 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("Do not create a Concept from a section heading"), true);
 	assert.equal(serialized.includes("A heading is not enough by itself"), true);
 	assert.equal(serialized.includes("shortest unambiguous canonical or established primary-language name"), true);
-	assert.equal(serialized.includes("return englishName as the canonical full English term"), true);
-	assert.equal(serialized.includes("do not append '(English Name)' inside conceptTitle"), true);
+	assert.equal(serialized.includes("return englishName as a concise canonical English alias"), true);
+	assert.equal(serialized.includes("return an empty englishName"), true);
 	assert.equal(
 		payload.text?.format.schema.properties.proposals.items.properties.payload.properties.englishName.type,
 		"string",
@@ -267,7 +279,7 @@ async function run(): Promise<void> {
 	assert.equal(serialized.includes("whyItMatters states only why it is useful"), true);
 	assert.equal(serialized.includes("Do not use whyItMatters to repeat or paraphrase coreMeaning"), true);
 	assert.equal(serialized.includes("User Concept style guidance"), false);
-	assert.equal(serialized.includes("Do not rename, remove, replace, or reinterpret required Concept fields"), true);
+	assert.equal(serialized.includes("Do not rename, remove, replace, or reinterpret Concept fields"), true);
 	assert.equal(serialized.includes("Core Meaning and Why It Matters are fixed Mneme product fields"), true);
 	assert.equal(serialized.includes("\"summary\""), false);
 	assert.equal(serialized.includes("Tags are for domain, course, or topic-family filtering"), true);
@@ -284,6 +296,23 @@ async function run(): Promise<void> {
 		...DEFAULT_SETTINGS,
 		aiProvider: "openai" as const,
 		openaiApiKey: "sk-secret-value",
+		suggestEnglishAliases: false,
+	};
+	const payload = buildOpenAiKnowledgeProposalPayload(request, settings);
+	const serialized = JSON.stringify(payload);
+	const conceptPayloadSchema = payload.text?.format.schema.properties.proposals.items.properties.payload;
+
+	assert.equal(serialized.includes("English aliases are disabled"), true);
+	assert.equal(Object.prototype.hasOwnProperty.call(conceptPayloadSchema.properties, "englishName"), false);
+	assert.equal(conceptPayloadSchema.required.includes("englishName"), false);
+}
+
+{
+	const settings = {
+		...DEFAULT_SETTINGS,
+		aiProvider: "openai" as const,
+		openaiApiKey: "sk-secret-value",
+		suggestEnglishAliases: true,
 	};
 	const payload = buildOpenAiKnowledgeProposalPayload({
 		...request,
@@ -312,6 +341,7 @@ async function run(): Promise<void> {
 		...DEFAULT_SETTINGS,
 		aiProvider: "openai" as const,
 		openaiApiKey: "sk-secret-value",
+		suggestEnglishAliases: true,
 	};
 	const payload = buildOpenAiKnowledgeProposalPayload({
 		...request,
@@ -331,6 +361,7 @@ async function run(): Promise<void> {
 		...DEFAULT_SETTINGS,
 		aiProvider: "openai" as const,
 		openaiApiKey: "sk-secret-value",
+		suggestEnglishAliases: true,
 	};
 	const payload = buildOpenAiKnowledgeProposalPayload({
 		...request,
@@ -343,8 +374,8 @@ async function run(): Promise<void> {
 	assert.equal(requestContext.languageContract?.outputLanguage, "Chinese");
 	assert.equal(serialized.includes("Write generated learning titles and prose primarily in Chinese"), true);
 	assert.equal(serialized.includes("append its standard English name in parentheses"), true);
-	assert.equal(serialized.includes("separate englishName field"), true);
-	assert.equal(serialized.includes("Do not append englishName inside conceptTitle"), true);
+	assert.equal(serialized.includes("canonical English alias"), true);
+	assert.equal(serialized.includes("never determine identity"), true);
 }
 
 {

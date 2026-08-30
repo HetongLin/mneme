@@ -88,6 +88,7 @@ assert.throws(
 			aiCaptureEnabled: true,
 			aiProvider: "openai",
 			openaiApiKey: "sk-secret",
+			suggestEnglishAliases: true,
 		}),
 	});
 	assert.equal(service.isAvailable(), true);
@@ -115,6 +116,7 @@ assert.throws(
 			aiCaptureEnabled: true,
 			aiProvider: "deepseek",
 			deepseekApiKey: "sk-secret",
+			suggestEnglishAliases: true,
 		}),
 	});
 	assert.deepEqual(await service.suggest(
@@ -141,6 +143,7 @@ assert.throws(
 			aiCaptureEnabled: true,
 			aiProvider: "deepseek",
 			deepseekApiKey: "sk-secret",
+			suggestEnglishAliases: true,
 		}),
 	});
 	assert.deepEqual(await service.suggest(
@@ -167,6 +170,7 @@ assert.throws(
 			aiCaptureEnabled: true,
 			aiProvider: "deepseek",
 			deepseekApiKey: "sk-secret",
+			suggestEnglishAliases: true,
 		}),
 	});
 	assert.deepEqual(await service.suggest(
@@ -179,7 +183,7 @@ assert.throws(
 
 {
 	const disabled = new ConceptEnglishNameAiService({
-		settingsProvider: () => DEFAULT_SETTINGS,
+		settingsProvider: () => ({ ...DEFAULT_SETTINGS, suggestEnglishAliases: true }),
 	});
 	assert.equal(disabled.isAvailable(), false);
 	await assert.rejects(
@@ -195,6 +199,7 @@ assert.throws(
 			aiCaptureEnabled: true,
 			aiProvider: "openai",
 			openaiApiKey: "sk-secret",
+			suggestEnglishAliases: true,
 		}),
 	});
 	await assert.rejects(

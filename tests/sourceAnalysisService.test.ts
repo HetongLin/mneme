@@ -116,6 +116,25 @@ async function runAsyncTests(): Promise<void> {
 		assert.deepEqual(savedRecord?.pendingProposalIds, ["proposal-a"]);
 		assert.notEqual(savedRecord?.contentHash, previous.contentHash);
 	}
+
+	{
+		const storage = new MemorySourceAnalysisStorage(createPluginData());
+		const service = new SourceAnalysisService(
+			new SourceAnalysisStore(storage),
+			async () => "Prepared but not committed",
+			() => "2026-01-04T12:00:00.000Z",
+		);
+
+		const result = await service.analyzeSource({
+			mtime: 400,
+			path: "Notes/Pending.md",
+			size: 26,
+		}, { persist: false });
+
+		assert.equal(result.status, "analyzed");
+		assert.equal(result.record?.sourcePath, "Notes/Pending.md");
+		assert.equal(storage.savedData, undefined);
+	}
 }
 
 class CountingContentReader {

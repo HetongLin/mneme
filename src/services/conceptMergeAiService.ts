@@ -2,6 +2,7 @@ import type { ConceptSummary } from "../models/conceptLibrary";
 import type { MnemeSettings } from "../models/settings";
 import type { AiJsonHttpClient, AiJsonHttpRequest } from "./aiProvider";
 import { validateAiProviderConfig } from "./aiProvider";
+import { shouldOfferEnglishAlias } from "./conceptNaming";
 
 export type ConceptMergeAiClassification =
 	| "likely_duplicate"
@@ -17,7 +18,7 @@ export interface ConceptMergeAiInspection {
 
 export interface ConceptMergeAiDraft {
 	coreMeaning: string;
-	englishName: string;
+	englishName?: string;
 	title: string;
 	whyItMatters: string;
 }
@@ -89,10 +90,13 @@ export class ConceptMergeAiService {
 			throw new Error("The selected Concepts exceed the AI input limit. Use Manual Draft or increase AI max input characters.");
 		}
 		if (settings.aiProvider === "mock") {
+			const title = input.first.primaryTitle ?? input.first.title;
 			return {
 				coreMeaning: [input.first.coreMeaning, input.second.coreMeaning].filter(Boolean).join("\n\n"),
-				englishName: input.first.englishName ?? input.second.englishName ?? input.first.title,
-				title: input.first.primaryTitle ?? input.first.title,
+				...(settings.suggestEnglishAliases && shouldOfferEnglishAlias(title)
+					? { englishName: input.first.englishName ?? input.second.englishName }
+					: {}),
+				title,
 				whyItMatters: [input.first.whyItMatters, input.second.whyItMatters].filter(Boolean).join("\n\n"),
 			};
 		}
@@ -109,7 +113,7 @@ export class ConceptMergeAiService {
 				path: input.second.path,
 			},
 		});
-		return parseDraftResult(await this.request(settings, request));
+		return parseDraftResult(await this.request(settings, request), settings.suggestEnglishAliases);
 	}
 
 	private validateSettings(): MnemeSettings {
@@ -136,19 +140,27 @@ export function buildConceptMergeAiRequest(
 	mode: "draft" | "inspection",
 	input: unknown,
 ): AiJsonHttpRequest {
+	const jsonOutputInstruction = mode === "inspection"
+		? "Return one JSON object with this shape: {\"results\":[{\"classification\":\"likely_duplicate\",\"conceptId\":\"<candidate id>\",\"reason\":\"<concise reason>\"}]}."
+		: `Return one JSON object with this shape: {"title":"<merged title>","coreMeaning":"<merged core meaning>","whyItMatters":"<merged value>"${settings.suggestEnglishAliases ? ',"englishName":"<optional English alias or empty string>"' : ""}}.`;
 	const systemPrompt = mode === "inspection"
 		? [
 			"You are assisting a user-controlled Concept Merge workflow.",
 			"Classify only the supplied shortlist against selected as likely_duplicate, overlapping_but_distinct, related, or uncertain.",
 			"Do not select a merge, rewrite knowledge, inspect Cards, infer FSRS actions, or request additional vault context.",
 			"Return every supplied candidate conceptId exactly once with one concise reason.",
+			jsonOutputInstruction,
 		].join(" ")
 		: [
 			"Draft learning prose for two Concepts the user explicitly selected for Merge.",
-			"Return only title, englishName, coreMeaning, and whyItMatters.",
+			`Return only title, coreMeaning, whyItMatters${settings.suggestEnglishAliases ? ", and englishName" : ""}.`,
 			"Preserve distinct supported knowledge from both Markdown inputs; do not invent claims.",
-			"Use the dominant language of the selected Concepts for title and learning prose. englishName must be the canonical English term.",
+			"Use the dominant language of the selected Concepts for title and learning prose.",
+			settings.suggestEnglishAliases
+				? "For a non-English title, englishName is an optional canonical English display alias. Return an empty englishName when title is already English."
+				: "English aliases are disabled. Do not return englishName.",
 			"Do not choose the surviving identity, change IDs or paths, decide Cards, Related links, Source Notes, FSRS state, tags, importance, or learning mode.",
+			jsonOutputInstruction,
 		].join(" ");
 	const messages = [
 		{ content: systemPrompt, role: "system" },
@@ -160,7 +172,7 @@ export function buildConceptMergeAiRequest(
 			body: {
 				input: messages,
 				model: settings.openaiModel,
-				text: { format: createOpenAiFormat(mode) },
+				text: { format: createOpenAiFormat(mode, settings.suggestEnglishAliases) },
 			},
 			headers: {
 				Authorization: `Bearer ${settings.openaiApiKey}`,
@@ -173,9 +185,11 @@ export function buildConceptMergeAiRequest(
 
 	return {
 		body: {
+			max_tokens: 4000,
 			messages,
 			model: settings.deepseekModel,
 			response_format: { type: "json_object" },
+			thinking: { type: "disabled" },
 		},
 		headers: {
 			Authorization: `Bearer ${settings.deepseekApiKey}`,
@@ -196,7 +210,10 @@ function toInspectionConcept(concept: ConceptSummary): Record<string, unknown> {
 	};
 }
 
-function createOpenAiFormat(mode: "draft" | "inspection"): Record<string, unknown> {
+function createOpenAiFormat(
+	mode: "draft" | "inspection",
+	suggestEnglishAliases: boolean,
+): Record<string, unknown> {
 	const schema = mode === "inspection"
 		? {
 			additionalProperties: false,
@@ -222,11 +239,16 @@ function createOpenAiFormat(mode: "draft" | "inspection"): Record<string, unknow
 			additionalProperties: false,
 			properties: {
 				coreMeaning: { type: "string" },
-				englishName: { type: "string" },
+				...(suggestEnglishAliases ? { englishName: { type: "string" } } : {}),
 				title: { type: "string" },
 				whyItMatters: { type: "string" },
 			},
-			required: ["title", "englishName", "coreMeaning", "whyItMatters"],
+			required: [
+				"title",
+				...(suggestEnglishAliases ? ["englishName"] : []),
+				"coreMeaning",
+				"whyItMatters",
+			],
 			type: "object",
 		};
 	return {
@@ -292,17 +314,21 @@ function parseInspectionResult(value: unknown): ConceptMergeAiInspection[] {
 	});
 }
 
-function parseDraftResult(value: unknown): ConceptMergeAiDraft {
+function parseDraftResult(value: unknown, suggestEnglishAliases: boolean): ConceptMergeAiDraft {
 	if (!isRecord(value)) throw new Error("AI Merge draft response must be an object.");
 	const title = requireNonEmptyString(value.title, "title");
-	const englishName = requireNonEmptyString(value.englishName, "englishName");
 	const coreMeaning = requireNonEmptyString(value.coreMeaning, "coreMeaning");
 	if (typeof value.whyItMatters !== "string") {
 		throw new Error("AI Merge draft whyItMatters must be a string.");
 	}
 	return {
 		coreMeaning,
-		englishName,
+		...(suggestEnglishAliases
+			&& shouldOfferEnglishAlias(title)
+			&& typeof value.englishName === "string"
+			&& value.englishName.trim()
+			? { englishName: value.englishName.trim() }
+			: {}),
 		title,
 		whyItMatters: value.whyItMatters.trim(),
 	};

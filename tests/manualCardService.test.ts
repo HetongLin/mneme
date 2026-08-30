@@ -46,13 +46,13 @@ async function run(): Promise<void> {
 		cardType: "definition",
 		concept,
 		front: "What is the spacing effect?",
-	}, DEFAULT_SETTINGS, vault);
+	}, DEFAULT_SETTINGS, vault, new Set(), () => "card-gjsl5r2n");
 
-	assert.equal(first.cardId, "spacing-effect-definition");
+	assert.equal(first.cardId, "card-gjsl5r2n");
 	assert.equal(first.cardsPath, concept.cardsPath);
 	const firstMarkdown = vault.files.get(first.cardsPath) ?? "";
 	assert.match(firstMarkdown, /mneme_concept_id: concept-spacing-effect/);
-	assert.match(firstMarkdown, /id="spacing-effect-definition" type="definition"/);
+	assert.match(firstMarkdown, /id="card-gjsl5r2n" type="definition"/);
 	assert.match(firstMarkdown, /concept: "\[\[Mneme\/Concepts\/间隔效应-\(Spacing-Effect\)\|间隔效应 \(Spacing Effect\)\]\]"/);
 
 	const second = await createManualCard({
@@ -61,13 +61,13 @@ async function run(): Promise<void> {
 		concept,
 		front: "State the spacing effect in your own words.",
 		rubric: "Mention distributed practice and retention.",
-	}, DEFAULT_SETTINGS, vault);
-	assert.equal(second.cardId, "spacing-effect-definition-2");
+	}, DEFAULT_SETTINGS, vault, new Set(), () => "card-k7m3p9qx");
+	assert.equal(second.cardId, "card-k7m3p9qx");
 	const cards = parseMnemeCards(vault.files.get(second.cardsPath) ?? "");
 	assert.equal(cards.length, 2);
 	assert.deepEqual(cards.map((card) => card.explicitCardId), [
-		"spacing-effect-definition",
-		"spacing-effect-definition-2",
+		"card-gjsl5r2n",
+		"card-k7m3p9qx",
 	]);
 	assert.equal(cards[1]?.rubric, "Mention distributed practice and retention.");
 
@@ -81,8 +81,11 @@ async function run(): Promise<void> {
 		cardType: "definition",
 		concept: historicalIdConcept,
 		front: "What is the historical example?",
-	}, DEFAULT_SETTINGS, vault, new Set(["historical-example-definition"]));
-	assert.equal(afterDeletedCard.cardId, "historical-example-definition-2");
+	}, DEFAULT_SETTINGS, vault, new Set(["card-22222222"]), (() => {
+		const ids = ["card-22222222", "card-55555555"];
+		return () => ids.shift() ?? "card-88888888";
+	})());
+	assert.equal(afterDeletedCard.cardId, "card-55555555");
 
 	await assert.rejects(createManualCard({
 		back: "Answer",

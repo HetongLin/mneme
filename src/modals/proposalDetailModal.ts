@@ -18,16 +18,27 @@ import { getProposalStageLabel } from "../services/knowledgeProposalStage";
 import { createMarkdownLivePreviewField } from "../ui/markdownLivePreviewField";
 import { formatUserFacingError, formatUserFacingMessage } from "../utils/userFacingError";
 import { formatCardTypeLabel } from "../services/cardTypeDisplay";
-import { resolveConceptEnglishName, splitLegacyCombinedConceptTitle } from "../services/conceptNaming";
+import {
+	shouldOfferEnglishAlias,
+	resolveConceptEnglishName,
+	splitLegacyCombinedConceptTitle,
+} from "../services/conceptNaming";
 import { buildConceptTagCatalogFromTags } from "../services/conceptTagCatalog";
 import { createConceptTagPicker } from "../ui/conceptTagPicker";
 import type { ConceptSummary } from "../models/conceptLibrary";
 import { chooseConceptNameConflictResolution } from "./conceptNameConflictModal";
+import type { ConceptNameConflict } from "../services/conceptNameConflict";
 
 interface ProposalDetailModalOptions {
+	englishAliasesEnabled?: boolean;
 	existingTags?: string[];
+	discardMergeDraft?(key: string): Promise<void> | void;
 	onChange?(): Promise<void> | void;
-	onMergeRequested?(existing: ConceptSummary, newConceptPath: string): Promise<void> | void;
+	onMergeRequested?(
+		existing: ConceptSummary,
+		proposalId: string,
+		onReturn: () => Promise<void>,
+	): Promise<void> | void;
 	onQueueCompleted?(): Promise<void> | void;
 	proposal: KnowledgeProposal;
 	proposalScopeIds?: string[];
@@ -192,20 +203,32 @@ export class ProposalDetailModal extends Modal {
 		const titleInput = this.createTextInput(parentEl, "Concept title", legacyTitle?.title ?? storedTitle);
 		this.conceptTitleInput = titleInput;
 		titleInput.addClass("mneme-concept-title-input");
-		const englishNameInput = this.createTextInput(
+		const englishNameField = this.createTextInputField(
 			parentEl,
-			"English Name",
+			"English Alias (optional)",
 			resolveConceptEnglishName(getString(payload, "englishName"), storedTitle) ?? "",
 		);
+		const englishNameInput = englishNameField.inputEl;
 		let observedTitle = titleInput.value.trim();
+		const updateEnglishNameUi = (titleChanged: boolean): void => {
+			const title = titleInput.value.trim();
+			const shouldShow = this.options.englishAliasesEnabled === true
+				&& !!title
+				&& shouldOfferEnglishAlias(title);
+			englishNameField.fieldEl.toggleClass("is-hidden", !shouldShow);
+			if (titleChanged) {
+				englishNameInput.value = "";
+			}
+		};
+		updateEnglishNameUi(false);
 		titleInput.addEventListener("input", () => {
 			const nextTitle = titleInput.value.trim();
 			if (nextTitle === observedTitle) return;
 			observedTitle = nextTitle;
-			englishNameInput.value = "";
+			updateEnglishNameUi(true);
 		});
 		const coreMeaningInput = this.createTextareaInput(parentEl, "Core Meaning", getString(payload, "coreMeaning"));
-		const whyItMattersInput = this.createTextareaInput(parentEl, "Why It Matters", getString(payload, "whyItMatters"));
+		const whyItMattersInput = this.createTextareaInput(parentEl, "Why It Matters (optional)", getString(payload, "whyItMatters"));
 		const learningModeInput = this.createSelectInput(parentEl, "Learning Mode", getString(payload, "learningMode"), [
 			["reviewable", "Reviewable"],
 			["exploratory", "Exploratory"],
@@ -225,16 +248,27 @@ export class ProposalDetailModal extends Modal {
 		titleInput.addEventListener("input", () => tagPicker.refresh());
 		coreMeaningInput.addEventListener("input", () => tagPicker.refresh());
 
-		this.collectStructuredPayload = () => ({
-			...payload,
-			coreMeaning: coreMeaningInput.value,
-			englishName: englishNameInput.value,
-			learningMode: learningModeInput.value,
-			suggestedImportance: importanceInput.value,
-			tags: tagPicker.getTags(),
-			title: titleInput.value,
-			whyItMatters: whyItMattersInput.value,
-		}) as KnowledgeProposalPayload;
+		this.collectStructuredPayload = () => {
+			const nextPayload: Record<string, unknown> = {
+				...payload,
+				coreMeaning: coreMeaningInput.value,
+				learningMode: learningModeInput.value,
+				suggestedImportance: importanceInput.value,
+				tags: tagPicker.getTags(),
+				title: titleInput.value,
+				whyItMatters: whyItMattersInput.value,
+			};
+			if (
+				this.options.englishAliasesEnabled
+				&& shouldOfferEnglishAlias(titleInput.value)
+				&& englishNameInput.value.trim()
+			) {
+				nextPayload.englishName = englishNameInput.value.trim();
+			} else {
+				delete nextPayload.englishName;
+			}
+			return nextPayload as unknown as KnowledgeProposalPayload;
+		};
 	}
 
 	private renderNewCardEditor(parentEl: HTMLElement): void {
@@ -292,16 +326,24 @@ export class ProposalDetailModal extends Modal {
 	}
 
 	private createTextInput(parentEl: HTMLElement, label: string, value = ""): HTMLInputElement {
-		const labelEl = parentEl.createEl("label", { cls: "mneme-proposal-detail-field" });
-		labelEl.createEl("span", { text: label });
-		const inputEl = labelEl.createEl("input", {
+		return this.createTextInputField(parentEl, label, value).inputEl;
+	}
+
+	private createTextInputField(
+		parentEl: HTMLElement,
+		label: string,
+		value = "",
+	): { fieldEl: HTMLLabelElement; inputEl: HTMLInputElement } {
+		const fieldEl = parentEl.createEl("label", { cls: "mneme-proposal-detail-field" });
+		fieldEl.createEl("span", { text: label });
+		const inputEl = fieldEl.createEl("input", {
 			attr: {
 				type: "text",
 			},
 		});
 		inputEl.value = value;
 
-		return inputEl;
+		return { fieldEl, inputEl };
 	}
 
 	private createSelectInput(
@@ -458,49 +500,7 @@ export class ProposalDetailModal extends Modal {
 			}
 
 			if (result.status === "name_conflict" && result.conflict) {
-				const resolution = await chooseConceptNameConflictResolution(this.app, result.conflict);
-				if (resolution === "refine_name") {
-					this.focusConceptTitle();
-					return;
-				}
-				if (resolution === "cancel") {
-					return;
-				}
-
-				const resolvedResult = await workflow.acceptProposal(this.proposal.id, {
-					nameConflictResolution: "keep_both",
-				});
-				if (resolvedResult.status !== "accepted") {
-					console.error("Mneme: Concept conflict resolution write failed", resolvedResult);
-					new Notice(`Mneme: Concept write failed: ${formatUserFacingMessage(resolvedResult.message, "Try again.")}`);
-					return;
-				}
-
-				if (resolution === "merge") {
-					const targetPath = resolvedResult.targetPaths?.find((path) => path.endsWith(".md"));
-					if (!targetPath || !this.options.onMergeRequested) {
-						new Notice("Mneme: Concept created, but Merge workspace is unavailable.");
-						await this.finishCompletedAction("Concept accepted.");
-						return;
-					}
-					try {
-						await this.options.onChange?.();
-					} catch (error) {
-						console.error("Mneme: Concept accepted but Inbox could not refresh before Merge", error);
-						new Notice("Mneme: Concept accepted. Inbox refresh failed, but Merge can continue.");
-					}
-					this.close();
-					try {
-						await this.options.onMergeRequested(result.conflict.existing, targetPath);
-						new Notice("Mneme: Concept accepted. Review the proposed Merge before committing it.");
-					} catch (error) {
-						console.error("Mneme: Concept accepted but Merge workspace could not open", error);
-						new Notice("Mneme: Concept accepted, but Merge workspace could not open. Use Merge Concepts to continue.");
-					}
-					return;
-				}
-
-				await this.finishCompletedAction("Concept accepted as a separate copy.");
+				await this.resolveNameConflict(workflow, result.conflict);
 				return;
 			}
 
@@ -522,13 +522,72 @@ export class ProposalDetailModal extends Modal {
 		}
 	}
 
+	private async resolveNameConflict(
+		workflow: InboxAcceptanceWorkflow,
+		conflict: ConceptNameConflict,
+	): Promise<void> {
+		const resolution = await chooseConceptNameConflictResolution(this.app, conflict);
+		const mergeDraftKey = `inbox:${this.proposal.id}`;
+		if (resolution === "refine_name") {
+			await this.options.discardMergeDraft?.(mergeDraftKey);
+			this.focusConceptTitle();
+			return;
+		}
+		if (resolution === "cancel") return;
+
+		if (resolution === "merge") {
+			if (!this.options.onMergeRequested) {
+				new Notice("Mneme: Merge workspace is unavailable. The Proposal remains in Inbox.");
+				return;
+			}
+			this.close();
+			try {
+				await this.options.onMergeRequested(
+					conflict.existing,
+					this.proposal.id,
+					() => this.returnToConflictOptions(workflow),
+				);
+				new Notice("Mneme: Review the Merge draft. The Proposal remains in Inbox until confirmation.");
+			} catch (error) {
+				console.error("Mneme: conflict Merge workspace could not open", error);
+				const detail = formatUserFacingError(error, "Try again from Inbox.");
+				new Notice(`Mneme: Merge workspace could not open: ${detail} The Proposal remains in Inbox.`);
+				this.open();
+			}
+			return;
+		}
+
+		const resolvedResult = await workflow.acceptProposal(this.proposal.id, {
+			nameConflictResolution: "keep_both",
+		});
+		if (resolvedResult.status !== "accepted") {
+			console.error("Mneme: Concept conflict resolution write failed", resolvedResult);
+			new Notice(`Mneme: Concept write failed: ${formatUserFacingMessage(resolvedResult.message, "Try again.")}`);
+			return;
+		}
+		await this.options.discardMergeDraft?.(mergeDraftKey);
+		await this.finishCompletedAction("Concept accepted as a separate copy.");
+	}
+
+	private async returnToConflictOptions(workflow: InboxAcceptanceWorkflow): Promise<void> {
+		const latest = await this.options.store.getProposal(this.proposal.id);
+		if (latest) this.proposal = latest;
+		this.open();
+		const result = await workflow.acceptProposal(this.proposal.id);
+		if (result.status === "name_conflict" && result.conflict) {
+			await this.resolveNameConflict(workflow, result.conflict);
+			return;
+		}
+		new Notice("Mneme: The Proposal changed. Review it again from Inbox.");
+	}
+
 	private focusConceptTitle(): void {
 		const input = this.conceptTitleInput;
 		if (!input) return;
 		input.focus();
 		input.select();
 		input.scrollIntoView({ behavior: "smooth", block: "center" });
-		new Notice("Mneme: Refine the Title. Changing it also requires reviewing the English Name.");
+		new Notice("Mneme: Refine the Title. The optional English Alias can be reviewed separately.");
 	}
 
 	private async reject(): Promise<void> {

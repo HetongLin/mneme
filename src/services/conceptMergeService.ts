@@ -21,6 +21,7 @@ import { appendConceptView } from "./conceptViewAppender";
 import { normalizePluginData } from "./reviewStateStore";
 
 export interface ConceptMergeVaultAdapter {
+	exists(path: string): Promise<boolean>;
 	listMarkdownFiles(): Promise<Array<{ path: string }>>;
 	modify(path: string, content: string): Promise<void>;
 	read(path: string): Promise<string>;
@@ -306,17 +307,31 @@ export class ConceptMergeService {
 				status: "blocked",
 			};
 		}
-		if (input.survivor.cardsPath && input.survivor.cardsPath === input.merged.cardsPath) {
+		const survivorCardsExist = input.survivor.cardsPath
+			? await this.vault.exists(input.survivor.cardsPath)
+			: false;
+		const mergedCardsExist = input.merged.cardsPath
+			? await this.vault.exists(input.merged.cardsPath)
+			: false;
+		if (
+			input.survivor.cardsPath
+			&& input.survivor.cardsPath === input.merged.cardsPath
+			&& (survivorCardsExist || mergedCardsExist)
+		) {
 			return { message: "Both Concepts reference the same Card Group. Repair that association first.", status: "blocked" };
 		}
 
-		const targetCardsPath = input.survivor.cardsPath ?? input.merged.cardsPath;
-		const survivorCardsBefore = input.survivor.cardsPath
+		const survivorCardsBefore = input.survivor.cardsPath && survivorCardsExist
 			? await this.vault.read(input.survivor.cardsPath)
 			: undefined;
-		const mergedCardsBefore = input.merged.cardsPath
+		const mergedCardsBefore = input.merged.cardsPath && mergedCardsExist
 			? await this.vault.read(input.merged.cardsPath)
 			: undefined;
+		const targetCardsPath = survivorCardsBefore
+			? input.survivor.cardsPath
+			: mergedCardsBefore
+				? input.merged.cardsPath
+				: input.survivor.cardsPath ?? input.merged.cardsPath;
 		if (survivorCardsBefore && !hasCardGroupIdentity(survivorCardsBefore, input.survivor.conceptId)) {
 			return { message: "The surviving Card Group association changed. Repair it first.", status: "blocked" };
 		}
@@ -342,19 +357,18 @@ export class ConceptMergeService {
 				"cards",
 				quoteYaml(toObsidianInternalLink(targetCardsPath, `${input.survivor.title} Cards`)),
 			);
-			if (!targetBefore) {
-				return { message: `Card Group not found: ${targetCardsPath}`, status: "blocked" };
+			if (targetBefore) {
+				let targetAfter = updateCardGroupAssociation(targetBefore, input.survivor);
+				if (sourceBlocks.length > 0) {
+					targetAfter = `${targetAfter.trimEnd()}\n\n${sourceBlocks.map((block) => block.raw).join("\n\n")}\n`;
+				}
+				writes.push({
+					after: targetAfter,
+					before: targetBefore,
+					label: "Surviving Card Group",
+					path: targetCardsPath,
+				});
 			}
-			let targetAfter = updateCardGroupAssociation(targetBefore, input.survivor);
-			if (sourceBlocks.length > 0) {
-				targetAfter = `${targetAfter.trimEnd()}\n\n${sourceBlocks.map((block) => block.raw).join("\n\n")}\n`;
-			}
-			writes.push({
-				after: targetAfter,
-				before: targetBefore,
-				label: "Surviving Card Group",
-				path: targetCardsPath,
-			});
 		}
 
 		if (survivorCardsBefore && mergedCardsBefore && input.merged.cardsPath) {

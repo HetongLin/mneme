@@ -31,7 +31,7 @@ export function createManualConceptMergeDraft(
 ): ConceptMergeDraft {
 	return {
 		coreMeaning: combineDistinctSections(first.coreMeaning, second.coreMeaning),
-		englishName: survivor.englishName?.trim() || survivor.primaryTitle?.trim() || survivor.title.trim(),
+		englishName: survivor.englishName?.trim() || "",
 		importance: strongerImportance(first.importance, second.importance),
 		learningMode: first.learningMode === "reviewable" || second.learningMode === "reviewable"
 			? "reviewable"
@@ -49,13 +49,15 @@ export function applyConceptMergeDraft(
 	const title = draft.title.trim();
 	const englishName = draft.englishName.trim();
 	if (!title) throw new Error("Merged Concept Title is required.");
-	if (!isCanonicalEnglishName(englishName)) {
-		throw new Error("Merged Concept English Name must be a canonical English term.");
+	if (englishName && !isCanonicalEnglishName(englishName)) {
+		throw new Error("Merged Concept English Alias must use Latin-script text.");
 	}
 	if (!draft.coreMeaning.trim()) throw new Error("Merged Concept Core Meaning is required.");
 
 	let updated = setFrontmatterScalar(markdown, "mneme_title", JSON.stringify(title));
-	updated = setFrontmatterScalar(updated, "mneme_english_name", JSON.stringify(englishName));
+	updated = englishName
+		? setFrontmatterScalar(updated, "mneme_english_name", JSON.stringify(englishName))
+		: removeFrontmatterScalar(updated, "mneme_english_name");
 	updated = replaceFirstHeading(updated, composeConceptDisplayTitle(title, englishName));
 	updated = updateConceptSections(updated, {
 		coreMeaning: draft.coreMeaning,
@@ -111,4 +113,14 @@ function setFrontmatterScalar(markdown: string, key: string, value: string): str
 	if (indexes[0] === undefined) lines.push(`${key}: ${value}`);
 	else lines[indexes[0]] = `${key}: ${value}`;
 	return `---\n${lines.join("\n")}\n---\n${markdown.slice(match[0]!.length)}`;
+}
+
+function removeFrontmatterScalar(markdown: string, key: string): string {
+	const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(markdown);
+	if (!match) throw new Error("Concept frontmatter is required.");
+	const lines = (match[1] ?? "").split(/\r?\n/);
+	const matching = lines.filter((line) => new RegExp(`^${key}\\s*:`).test(line));
+	if (matching.length > 1) throw new Error(`Frontmatter field appears more than once: ${key}`);
+	const retained = lines.filter((line) => !new RegExp(`^${key}\\s*:`).test(line));
+	return `---\n${retained.join("\n")}\n---\n${markdown.slice(match[0]!.length)}`;
 }

@@ -15,8 +15,13 @@ export interface AnalyzeSourceResult {
 	contentHash?: string;
 	message: string;
 	previousHash?: string;
+	record?: SourceAnalysisRecord;
 	sourcePath: string;
 	status: AnalyzeSourceStatus;
+}
+
+export interface AnalyzeSourceOptions {
+	persist?: boolean;
 }
 
 export type SourceContentReader = (sourcePath: string) => Promise<string>;
@@ -30,7 +35,10 @@ export class SourceAnalysisService {
 	) {
 	}
 
-	async analyzeSource(snapshot: SourceFileSnapshot): Promise<AnalyzeSourceResult> {
+	async analyzeSource(
+		snapshot: SourceFileSnapshot,
+		options: AnalyzeSourceOptions = {},
+	): Promise<AnalyzeSourceResult> {
 		try {
 			const previous = await this.store.getRecord(snapshot.path);
 			const initialDecision = shouldAnalyzeSource(previous, snapshot);
@@ -40,6 +48,7 @@ export class SourceAnalysisService {
 					contentHash: previous?.contentHash,
 					message: "No changes since last analysis.",
 					previousHash: previous?.contentHash,
+					record: previous,
 					sourcePath: snapshot.path,
 					status: "skipped_metadata_unchanged",
 				};
@@ -67,12 +76,15 @@ export class SourceAnalysisService {
 					status: "clean",
 				};
 
-				await this.store.upsertRecord(nextRecord);
+				if (options.persist !== false) {
+					await this.store.upsertRecord(nextRecord);
+				}
 
 				return {
 					contentHash,
 					message: "Content hash unchanged.",
 					previousHash: previous.contentHash,
+					record: nextRecord,
 					sourcePath: snapshot.path,
 					status: "skipped_hash_unchanged",
 				};
@@ -80,7 +92,9 @@ export class SourceAnalysisService {
 
 			const nextRecord = createSourceAnalysisRecord(snapshot, contentHash, previous, this.getTimestamp());
 
-			await this.store.upsertRecord(nextRecord);
+			if (options.persist !== false) {
+				await this.store.upsertRecord(nextRecord);
+			}
 
 			return {
 				contentHash,
@@ -88,6 +102,7 @@ export class SourceAnalysisService {
 					? "Source changed and is ready for proposal generation."
 					: "Source note indexed.",
 				previousHash: previous?.contentHash,
+				record: nextRecord,
 				sourcePath: snapshot.path,
 				status: "analyzed",
 			};

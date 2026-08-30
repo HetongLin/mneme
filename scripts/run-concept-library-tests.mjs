@@ -11,6 +11,8 @@ const tests = [
 	"tests/conceptIdEditor.test.ts",
 	"tests/conceptDuplicateDetector.test.ts",
 	"tests/conceptMergeService.test.ts",
+	"tests/incomingConceptMergeService.test.ts",
+	"tests/conceptConflictMergeDraftStore.test.ts",
 	"tests/conceptMergeDraft.test.ts",
 	"tests/conceptMergeAiService.test.ts",
 	"tests/conceptEnglishNameAiService.test.ts",

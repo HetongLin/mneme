@@ -70,6 +70,17 @@ class FailingConceptSourceLinkStore extends ConceptSourceLinkStore {
 	}
 }
 
+function createIdSequence(prefix: "card" | "concept"): () => string {
+	const alphabet = "23456789abcdefghjkmnpqrstuvwxyz";
+	let index = 0;
+
+	return () => {
+		const suffix = alphabet[index] ?? "z";
+		index += 1;
+		return `${prefix}-2222222${suffix}`;
+	};
+}
+
 async function createWriter(
 	proposals = {},
 	vault = new MemoryVaultAdapter(),
@@ -79,6 +90,7 @@ async function createWriter(
 		path: "Mneme/Concepts/Encapsulation/Concept.md",
 		title: "Encapsulation",
 	},
+	isCardIdReserved: (cardId: string) => Promise<boolean> = async () => false,
 ): Promise<{
 	storage: MemoryKnowledgeProposalStorage;
 	store: KnowledgeProposalStore;
@@ -88,11 +100,16 @@ async function createWriter(
 	const store = new KnowledgeProposalStore(storage);
 	const conceptSourceLinkStore = new ConceptSourceLinkStore(storage);
 	const sourceAnalysisStore = new SourceAnalysisStore(storage);
+	const cardIdFactory = createIdSequence("card");
+	const conceptIdFactory = createIdSequence("concept");
 	const writer = new ApprovedProposalWriter({
+		cardIdFactory,
+		conceptIdFactory,
 		conceptSourceLinkStore,
 		conceptScanner: {
 			scanConcepts: async () => [concept],
 		},
+		isCardIdReserved,
 		now: () => "2026-01-02T12:00:00.000Z",
 		proposalStore: store,
 		settingsProvider: () => DEFAULT_SETTINGS,
@@ -175,7 +192,8 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(result.status, "written");
 		assert.equal(vault.files.has("Mneme/Concepts/Encapsulation.md"), true);
 		const content = await vault.read("Mneme/Concepts/Encapsulation.md");
-		assert.match(content, /^---\nmneme_type: concept\nmneme_id: concept-encapsulation\nmneme_title: "Encapsulation"\nmneme_english_name: "Encapsulation"\nmneme_version: 1/m);
+		assert.match(content, /^---\nmneme_type: concept\nmneme_id: concept-22222222\nmneme_title: "Encapsulation"\nmneme_version: 1/m);
+		assert.equal(content.includes("mneme_english_name"), false);
 		assert.match(content, /## Core Meaning/);
 		assert.equal(content.includes("sourceHash"), false);
 		assert.equal(content.includes("fsrsState"), false);
@@ -192,8 +210,27 @@ async function runAsyncTests(): Promise<void> {
 		const content = await vault.read("Mneme/Cards/Encapsulation/Cards.md");
 		assert.match(content, /^---\nmneme_type: card_group\nmneme_concept_id: concept-encapsulation/m);
 		assert.match(content, /mneme_concept_id: concept-encapsulation/);
-		assert.match(content, /MNEME:CARD:start id="encapsulation-definition" type="definition"/);
+		assert.match(content, /MNEME:CARD:start id="card-22222222" type="definition"/);
+		assert.equal((content.match(/\bid=/g) ?? []).length, 1);
 		assert.equal((await store.getProposal(proposal.id))?.status, "written");
+	}
+
+	{
+		const proposal = createApprovedCardProposal("proposal-card-reserved-id");
+		const { vault, writer } = await createWriter(
+			{ [proposal.id]: proposal },
+			undefined,
+			undefined,
+			undefined,
+			async (cardId) => cardId === "card-22222222",
+		);
+		const result = await writer.writeApprovedProposal(proposal.id);
+
+		assert.equal(result.status, "written");
+		assert.match(
+			await vault.read("Mneme/Cards/Encapsulation/Cards.md"),
+			/MNEME:CARD:start id="card-22222223" type="definition"/,
+		);
 	}
 
 	{
@@ -219,7 +256,7 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(result.status, "written");
 		assert.match(
 			await vault.read("Mneme/Cards/Concept-Learning/Cards.md"),
-			/MNEME:CARD:start id="concept-learning-definition" type="definition"/,
+			/MNEME:CARD:start id="learning-definition" type="definition"/,
 		);
 	}
 
@@ -241,8 +278,8 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(cards.length, 2);
 		assert.deepEqual(cards.map((card) => card.front), ["What is encapsulation?", "Why hide representation?"]);
 		assert.deepEqual(cards.map((card) => card.explicitCardId), [
-			"encapsulation-definition",
-			"encapsulation-definition-2",
+			"card-22222222",
+			"card-22222223",
 		]);
 	}
 
@@ -473,15 +510,15 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(vault.files.get("Mneme/Concepts/Encapsulation.md"), "Existing content");
 		assert.match(
 			await vault.read("Mneme/Concepts/Encapsulation-2.md"),
-			/cards: "\[\[Mneme\/Cards\/Encapsulation-2\/Cards\|Encapsulation - 2 Cards\]\]"/,
+			/cards: "\[\[Mneme\/Cards\/Encapsulation-2\/Cards\|Encapsulation Cards\]\]"/,
 		);
 		assert.match(
 			await vault.read("Mneme/Concepts/Encapsulation-2.md"),
-			/^---\nmneme_type: concept\nmneme_id: concept-encapsulation-2\nmneme_title: "Encapsulation - 2"\nmneme_english_name: "Encapsulation"\nmneme_version: 1/m,
+			/^---\nmneme_type: concept\nmneme_id: concept-22222222\nmneme_title: "Encapsulation"\nmneme_version: 1/m,
 		);
-		assert.match(await vault.read("Mneme/Concepts/Encapsulation-2.md"), /^# Encapsulation - 2$/m);
+		assert.match(await vault.read("Mneme/Concepts/Encapsulation-2.md"), /^# Encapsulation$/m);
 		assert.deepEqual(storage.savedData?.sourceAnalysisRecords["Notes/Intro.md"].linkedConceptIds, [
-			"concept-encapsulation-2",
+			"concept-22222222",
 		]);
 	}
 
@@ -619,7 +656,7 @@ async function runAsyncTests(): Promise<void> {
 		await writer.writeApprovedProposal(proposal.id);
 
 		assert.deepEqual(storage.savedData?.sourceAnalysisRecords[sourceRecord.sourcePath].linkedConceptIds, [
-			"concept-encapsulation",
+			"concept-22222222",
 		]);
 	}
 
@@ -646,7 +683,7 @@ async function runAsyncTests(): Promise<void> {
 
 		assert.deepEqual(storage.savedData?.sourceAnalysisRecords[sourceRecord.sourcePath].linkedConceptIds, [
 			"existing-concept",
-			"concept-encapsulation",
+			"concept-22222222",
 		]);
 	}
 
@@ -662,7 +699,7 @@ async function runAsyncTests(): Promise<void> {
 		});
 		const sourceRecord = {
 			...createSourceRecord("Notes/Intro.md"),
-			linkedConceptIds: ["concept-encapsulation"],
+			linkedConceptIds: ["concept-22222222"],
 		};
 		const storage = new MemoryKnowledgeProposalStorage(createPluginData({ [proposal.id]: proposal }, {
 			[sourceRecord.sourcePath]: sourceRecord,
@@ -672,7 +709,7 @@ async function runAsyncTests(): Promise<void> {
 		await writer.writeApprovedProposal(proposal.id);
 
 		assert.deepEqual(storage.savedData?.sourceAnalysisRecords[sourceRecord.sourcePath].linkedConceptIds, [
-			"concept-encapsulation",
+			"concept-22222222",
 		]);
 	}
 
@@ -718,7 +755,8 @@ async function runAsyncTests(): Promise<void> {
 		const storage = new MemoryKnowledgeProposalStorage(createPluginData({ [proposal.id]: proposal }));
 		const vault = new MemoryVaultAdapter();
 		const writer = new ApprovedProposalWriter({
-			isConceptIdReserved: async (conceptId) => conceptId === "concept-encapsulation",
+			conceptIdFactory: createIdSequence("concept"),
+			isConceptIdReserved: async (conceptId) => conceptId === "concept-22222222",
 			proposalStore: new KnowledgeProposalStore(storage),
 			settingsProvider: () => DEFAULT_SETTINGS,
 			vaultAdapter: vault,
@@ -726,9 +764,9 @@ async function runAsyncTests(): Promise<void> {
 		const result = await writer.writeApprovedProposal(proposal.id);
 
 		assert.equal(result.status, "written");
-		assert.deepEqual(result.targetPaths, ["Mneme/Concepts/Encapsulation-2.md"]);
-		assert.match(await vault.read("Mneme/Concepts/Encapsulation-2.md"), /mneme_id: concept-encapsulation-2/);
-		assert.match(await vault.read("Mneme/Concepts/Encapsulation-2.md"), /^# Encapsulation - 2$/m);
+		assert.deepEqual(result.targetPaths, ["Mneme/Concepts/Encapsulation.md"]);
+		assert.match(await vault.read("Mneme/Concepts/Encapsulation.md"), /mneme_id: concept-22222223/);
+		assert.match(await vault.read("Mneme/Concepts/Encapsulation.md"), /^# Encapsulation$/m);
 	}
 
 	{
@@ -744,22 +782,23 @@ async function runAsyncTests(): Promise<void> {
 		const storage = new MemoryKnowledgeProposalStorage(createPluginData({ [proposal.id]: proposal }));
 		const vault = new MemoryVaultAdapter();
 		const writer = new ApprovedProposalWriter({
-			isConceptIdReserved: async (conceptId) => conceptId === "concept-spacing-effect",
+			conceptIdFactory: createIdSequence("concept"),
+			isConceptIdReserved: async (conceptId) => conceptId === "concept-22222222",
 			proposalStore: new KnowledgeProposalStore(storage),
-			settingsProvider: () => DEFAULT_SETTINGS,
+			settingsProvider: () => ({ ...DEFAULT_SETTINGS, suggestEnglishAliases: true }),
 			vaultAdapter: vault,
 		});
 		const result = await writer.writeApprovedProposal(proposal.id);
-		const targetPath = "Mneme/Concepts/间隔效应-(Spacing-Effect)-2.md";
+		const targetPath = "Mneme/Concepts/间隔效应-(Spacing-Effect).md";
 		const markdown = await vault.read(targetPath);
 
 		assert.equal(result.status, "written");
 		assert.deepEqual(result.targetPaths, [targetPath]);
-		assert.match(markdown, /mneme_id: concept-spacing-effect-2/);
-		assert.match(markdown, /mneme_title: "间隔效应 - 2"/);
+		assert.match(markdown, /mneme_id: concept-22222223/);
+		assert.match(markdown, /mneme_title: "间隔效应"/);
 		assert.match(markdown, /mneme_english_name: "Spacing Effect"/);
-		assert.match(markdown, /^# 间隔效应 - 2 \(Spacing Effect\)$/m);
-		assert.match(markdown, /\|间隔效应 - 2 \(Spacing Effect\) Cards\]\]/);
+		assert.match(markdown, /^# 间隔效应 \(Spacing Effect\)$/m);
+		assert.match(markdown, /\|间隔效应 \(Spacing Effect\) Cards\]\]/);
 	}
 
 	{

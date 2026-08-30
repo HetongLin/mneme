@@ -34,8 +34,14 @@ export const INBOX_VIEW_TYPE = "mneme-inbox-view";
 export type InboxTab = "concepts" | "cards" | "other";
 
 export interface InboxViewActions {
+	discardMergeDraft?(key: string): Promise<void> | void;
+	englishAliasesEnabled?(): boolean;
 	listConceptTags?(): Promise<string[]>;
-	mergeConcepts?(existing: ConceptSummary, newConceptPath: string): Promise<void> | void;
+	mergeConcepts?(
+		existing: ConceptSummary,
+		proposalId: string,
+		onReturn: () => Promise<void>,
+	): Promise<void> | void;
 	openConceptLibrary?(): Promise<void> | void;
 	startConceptReview?(conceptId: string): Promise<"failed" | "no_cards" | "started">;
 }
@@ -281,11 +287,14 @@ export class MnemeInboxView extends ItemView {
 			console.error("Mneme: failed to load existing Concept tags for Inbox", error);
 		}
 		new ProposalDetailModal(this.app, {
+			discardMergeDraft: (key) => this.actions.discardMergeDraft?.(key),
+			englishAliasesEnabled: this.actions.englishAliasesEnabled?.() ?? false,
 			existingTags,
 			onChange: () => this.refresh(),
-			onMergeRequested: (existing, newConceptPath) => this.actions.mergeConcepts?.(
+			onMergeRequested: (existing, proposalId, onReturn) => this.actions.mergeConcepts?.(
 				existing,
-				newConceptPath,
+				proposalId,
+				onReturn,
 			),
 			onQueueCompleted: () => this.finishGenerateToReviewIfResolved(),
 			proposal,

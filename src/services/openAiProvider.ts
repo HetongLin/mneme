@@ -67,6 +67,7 @@ export function buildOpenAiKnowledgeProposalPayload(
 		maxInputChars: settings.aiMaxInputChars,
 		model: settings.openaiModel,
 		requestShape: "responses",
+		suggestEnglishAliases: settings.suggestEnglishAliases,
 		timeoutMs: settings.aiRequestTimeoutMs,
 	});
 }

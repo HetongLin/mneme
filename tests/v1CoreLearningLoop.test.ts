@@ -15,7 +15,7 @@ import { MockAiProvider } from "../src/services/mockAiProvider";
 import { ReviewStateStore } from "../src/services/reviewStateStore";
 import { SourceAnalysisService } from "../src/services/sourceAnalysisService";
 import { SourceAnalysisStore } from "../src/services/sourceAnalysisStore";
-import { buildCardGroupPath, createMnemeConceptId } from "../src/utils/markdownPath";
+import { buildCardGroupPath } from "../src/utils/markdownPath";
 import { createPluginData, MemoryKnowledgeProposalStorage } from "./knowledgeProposalTestUtils";
 
 class MemoryVault implements MnemeVaultAdapter {
@@ -121,7 +121,9 @@ async function run(): Promise<void> {
 	assert.ok(conceptPath);
 	const conceptMarkdown = await vault.read(conceptPath);
 	const conceptTitle = conceptProposal.payload.title;
-	const conceptId = createMnemeConceptId(conceptTitle);
+	const conceptId = conceptMarkdown.match(/^mneme_id:\s*(\S+)$/m)?.[1];
+	assert.match(conceptId ?? "", /^concept-[23456789abcdefghjkmnpqrstuvwxyz]{8}$/);
+	if (!conceptId) throw new Error("Written Concept is missing mneme_id.");
 	approvedConcept = {
 		cardsPath: buildCardGroupPath(settings.cardsFolder, conceptTitle),
 		conceptId,

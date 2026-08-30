@@ -73,6 +73,22 @@ import { createProposal } from "./knowledgeProposalTestUtils";
 }
 
 {
+	const proposal = createProposal("proposal-missing-concept-id", {
+		kind: "new_card",
+		payload: {
+			card: {
+				back: "Answer",
+				front: "Question",
+			},
+		} as never,
+	});
+	const result = validateKnowledgeProposalPayload(proposal);
+
+	assert.equal(result.valid, false);
+	assert.equal(result.errors.includes("New card Concept id is required."), true);
+}
+
+{
 	const proposal = createProposal("proposal-e", {
 		kind: "revise_card",
 		payload: {

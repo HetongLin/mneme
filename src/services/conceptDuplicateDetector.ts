@@ -202,7 +202,7 @@ function describeMergeSimilarity(input: {
 	titleSimilarity: number;
 }): string[] {
 	const reasons: string[] = [];
-	if (input.englishSimilarity === 1) reasons.push("Same English Name");
+	if (input.englishSimilarity === 1) reasons.push("Same English Alias");
 	if (input.titleSimilarity > 0) reasons.push(`Title overlap ${formatPercent(input.titleSimilarity)}`);
 	if (input.coreSimilarity > 0) reasons.push(`Core Meaning overlap ${formatPercent(input.coreSimilarity)}`);
 	if (input.tagSimilarity > 0) reasons.push(`Tag overlap ${formatPercent(input.tagSimilarity)}`);

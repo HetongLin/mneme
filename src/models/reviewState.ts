@@ -4,6 +4,7 @@ import type { KnowledgeProposal } from "./knowledgeProposal";
 import type { ConceptSourceLink } from "./conceptSource";
 import type { ManualConceptDraft } from "./manualConceptDraft";
 import type { ManualCardDraft } from "./manualCardDraft";
+import type { ConceptConflictMergeDraftRecord } from "./conceptConflictMergeDraft";
 
 export type ReviewRating = "again" | "hard" | "good" | "easy";
 export type FsrsCardState = "New" | "Learning" | "Review" | "Relearning";
@@ -86,6 +87,7 @@ export interface MnemePluginData {
 	suspendedCards: Record<string, CardReviewSuspension>;
 	cardTombstones: Record<string, CardTombstone>;
 	conceptDuplicateDismissals: Record<string, ConceptDuplicateDismissal>;
+	conceptConflictMergeDrafts: Record<string, ConceptConflictMergeDraftRecord>;
 	conceptMergeRecords: Record<string, ConceptMergeRecord>;
 	schemaVersion: number;
 	settings: MnemeSettings;

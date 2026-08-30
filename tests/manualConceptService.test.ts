@@ -46,6 +46,7 @@ class MemoryPluginStorage {
 
 async function run(): Promise<void> {
 	const vault = new MemoryVault();
+	const aliasSettings = { ...DEFAULT_SETTINGS, suggestEnglishAliases: true };
 	const first = await createManualConcept({
 		coreMeaning: "向量空间对向量加法和标量乘法封闭。",
 		englishName: "Vector Space",
@@ -53,7 +54,7 @@ async function run(): Promise<void> {
 		learningMode: "reviewable",
 		tags: ["线性代数", "Linear Algebra"],
 		title: "向量空间",
-	}, DEFAULT_SETTINGS, vault, () => "concept_manual_one");
+	}, aliasSettings, vault, () => "concept_manual_one");
 	const markdown = vault.files.get(first.path) ?? "";
 
 	assert.equal(first.path, "Mneme/Concepts/向量空间-(Vector-Space).md");
@@ -70,19 +71,19 @@ async function run(): Promise<void> {
 		coreMeaning: "A separate user-authored Concept.",
 		englishName: "Vector Space",
 		title: "向量空间",
-	}, DEFAULT_SETTINGS, vault);
+	}, aliasSettings, vault, () => "concept-k7m3p9qx");
 	const secondMarkdown = vault.files.get(second.path) ?? "";
 	assert.equal(second.path, "Mneme/Concepts/向量空间-(Vector-Space)-2.md");
-	assert.equal(second.conceptId, "concept-vector-space-2");
-	assert.match(secondMarkdown, /mneme_title: "向量空间 - 2"/);
-	assert.match(secondMarkdown, /^# 向量空间 - 2 \(Vector Space\)$/m);
+	assert.equal(second.conceptId, "concept-k7m3p9qx");
+	assert.match(secondMarkdown, /mneme_title: "向量空间"/);
+	assert.match(secondMarkdown, /^# 向量空间 \(Vector Space\)$/m);
 
 	const legacyCombined = await createManualConcept({
 		coreMeaning: "间隔效应把学习分散到多个时间点。",
 		title: "间隔效应 (Spacing Effect)",
-	}, DEFAULT_SETTINGS, vault);
+	}, aliasSettings, vault, () => "concept-gjsl5r2n");
 	const legacyCombinedMarkdown = vault.files.get(legacyCombined.path) ?? "";
-	assert.equal(legacyCombined.conceptId, "concept-spacing-effect");
+	assert.equal(legacyCombined.conceptId, "concept-gjsl5r2n");
 	assert.match(legacyCombinedMarkdown, /mneme_title: "间隔效应"/);
 	assert.match(legacyCombinedMarkdown, /mneme_english_name: "Spacing Effect"/);
 	assert.match(legacyCombinedMarkdown, /^# 间隔效应 \(Spacing Effect\)$/m);
@@ -92,9 +93,19 @@ async function run(): Promise<void> {
 			coreMeaning: "无效英文名。",
 			englishName: "间隔效应",
 			title: "间隔效应",
-		}, DEFAULT_SETTINGS, vault),
-		/canonical English term/,
+		}, aliasSettings, vault),
+		/English Alias must contain only Latin-script letters/,
 	);
+
+	const noAlias = await createManualConcept({
+		coreMeaning: "不要求英文别名也可以创建。",
+		englishName: "Ignored Alias",
+		title: "无需英文别名",
+	}, DEFAULT_SETTINGS, vault, () => "concept-n3x7q5rm");
+	const noAliasMarkdown = vault.files.get(noAlias.path) ?? "";
+	assert.equal(noAlias.conceptId, "concept-n3x7q5rm");
+	assert.equal(noAliasMarkdown.includes("mneme_english_name"), false);
+	assert.match(noAliasMarkdown, /^# 无需英文别名$/m);
 
 	const storage = new MemoryPluginStorage();
 	storage.data.sourceAnalysisRecords["Notes/Information Theory.md"] = {

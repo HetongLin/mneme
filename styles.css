@@ -9,8 +9,8 @@ If your plugin does not need CSS, delete this file.
 
 .mneme-review-view {
 	color: var(--text-normal);
-	font-family: var(--font-text);
-	padding: 28px;
+	font-family: var(--font-interface-theme);
+	padding: var(--size-4-6);
 }
 
 .mneme-review-view.mneme-review-flashcard-mode {
@@ -44,23 +44,26 @@ If your plugin does not need CSS, delete this file.
 .mneme-review-header {
 	align-items: flex-start;
 	display: flex;
-	gap: 16px;
+	gap: var(--size-4-4);
 	justify-content: space-between;
-	margin-bottom: 24px;
+	margin-bottom: var(--size-4-6);
 }
 
 .mneme-review-title {
 	font-size: 28px;
 	font-weight: 650;
-	letter-spacing: 0;
+	letter-spacing: -0.02em;
 	line-height: 1.15;
 	margin: 0;
+	text-wrap: balance;
 }
 
 .mneme-review-subtitle {
 	color: var(--text-muted);
 	font-family: var(--font-ui-medium);
-	margin: 6px 0 0;
+	line-height: 1.45;
+	margin: var(--size-4-1) 0 0;
+	max-width: 62ch;
 }
 
 .mneme-review-toolbar,
@@ -85,8 +88,8 @@ If your plugin does not need CSS, delete this file.
 
 .mneme-review-summary span {
 	background: var(--background-secondary);
-	border-radius: var(--radius-m);
-	padding: 4px 10px;
+	border-radius: var(--radius-s);
+	padding: var(--size-4-1) var(--size-4-2);
 }
 
 .mneme-review-status {
@@ -563,29 +566,28 @@ If your plugin does not need CSS, delete this file.
 }
 
 .mneme-concept-library-grid {
-	align-items: stretch;
+	align-items: start;
 	display: grid;
-	gap: 18px;
-	grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
-	margin: 18px 0 32px;
+	gap: var(--size-4-4);
+	grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
+	margin: var(--size-4-4) 0 var(--size-4-8);
 }
 
 .mneme-concept-library-card {
 	background: var(--background-primary);
 	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-l);
+	border-radius: var(--radius-m);
 	display: flex;
 	flex-direction: column;
-	min-height: 240px;
+	min-height: 0;
 	overflow: hidden;
-	transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+	transition: background-color 140ms ease, border-color 140ms ease;
 }
 
 .mneme-concept-library-card:hover,
 .mneme-concept-library-card:focus-within {
+	background: var(--background-secondary-alt);
 	border-color: var(--background-modifier-border-hover);
-	box-shadow: var(--shadow-s);
-	transform: translateY(-1px);
 }
 
 .mneme-concept-library-card-open,
@@ -600,7 +602,7 @@ If your plugin does not need CSS, delete this file.
 	display: flex;
 	flex: 1;
 	flex-direction: column;
-	padding: 24px;
+	padding: var(--size-4-5);
 	text-align: start;
 	white-space: normal;
 	width: 100%;
@@ -612,17 +614,19 @@ If your plugin does not need CSS, delete this file.
 }
 
 .mneme-concept-library-card-title {
-	font-size: 21px;
+	font-size: 19px;
 	font-weight: 650;
-	line-height: 1.25;
-	margin: 0 0 18px;
+	letter-spacing: -0.01em;
+	line-height: 1.3;
+	margin: 0 0 var(--size-4-3);
+	text-wrap: balance;
 }
 
 .mneme-concept-library-card-meaning {
 	color: var(--text-muted);
 	font-family: var(--font-text);
-	font-size: 16px;
-	line-height: 1.65;
+	font-size: var(--font-ui-medium);
+	line-height: 1.55;
 	margin: 0;
 	width: 100%;
 }
@@ -631,7 +635,7 @@ If your plugin does not need CSS, delete this file.
 	border-top: 1px solid var(--background-modifier-border);
 	color: var(--text-muted);
 	font-family: var(--font-ui-small);
-	padding: 10px 16px 12px;
+	padding: var(--size-4-2) var(--size-4-4) var(--size-4-3);
 }
 
 .mneme-concept-library-review-button {
@@ -711,7 +715,7 @@ If your plugin does not need CSS, delete this file.
 	}
 
 	.mneme-concept-library-card {
-		min-height: 210px;
+		min-height: 0;
 	}
 }
 
@@ -757,24 +761,54 @@ If your plugin does not need CSS, delete this file.
 
 .mneme-inbox-tabs {
 	align-items: center;
-	border-bottom: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+	border-radius: var(--radius-m);
 	display: flex;
 	flex-wrap: wrap;
-	gap: 8px;
-	margin-bottom: 4px;
-	padding-bottom: 10px;
+	gap: var(--size-4-1);
+	margin-bottom: var(--size-4-2);
+	padding: var(--size-4-1);
 }
 
 .mneme-review-view button.mneme-inbox-tab {
 	background: transparent;
-	border: 1px solid var(--background-modifier-border);
+	border: 0;
+	box-shadow: none;
 	color: var(--text-muted);
+	flex: 1 1 auto;
 }
 
 .mneme-review-view button.mneme-inbox-tab.is-active {
-	background: var(--interactive-accent);
-	border-color: var(--interactive-accent);
-	color: var(--text-on-accent);
+	background: var(--background-primary);
+	box-shadow: var(--shadow-s);
+	color: var(--text-normal);
+}
+
+.mneme-inbox-view .mneme-review-queue {
+	gap: 0;
+}
+
+.mneme-inbox-view .mneme-inbox-proposal {
+	background: transparent;
+	border: 0;
+	border-bottom: 1px solid var(--background-modifier-border);
+	border-radius: 0;
+	gap: 0;
+	padding: var(--size-4-4) 0;
+}
+
+.mneme-inbox-view .mneme-inbox-proposal:last-child {
+	border-bottom: 0;
+}
+
+.mneme-inbox-view .mneme-review-queue-title {
+	font-size: var(--font-ui-medium);
+	line-height: 1.35;
+}
+
+.mneme-inbox-view .mneme-review-actions {
+	flex-wrap: nowrap;
+	gap: var(--size-4-2);
 }
 
 .mneme-proposal-detail-modal-metadata {
@@ -802,6 +836,11 @@ If your plugin does not need CSS, delete this file.
 	font-family: var(--font-ui-small);
 	gap: 6px;
 	margin: 10px 0;
+}
+
+.mneme-proposal-detail-field[hidden],
+.mneme-proposal-detail-field.is-hidden {
+	display: none;
 }
 
 .mneme-proposal-detail-field input,
@@ -1284,13 +1323,13 @@ If your plugin does not need CSS, delete this file.
 }
 
 .mneme-concept-merge-section {
-	background: var(--background-secondary);
+	background: var(--background-primary);
 	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-l);
+	border-radius: var(--radius-m);
 	display: grid;
-	gap: 14px;
-	margin: 18px 0;
-	padding: 18px;
+	gap: var(--size-4-3);
+	margin: var(--size-4-4) 0;
+	padding: var(--size-4-5);
 }
 
 .mneme-concept-merge-section > h3,
@@ -1360,11 +1399,80 @@ If your plugin does not need CSS, delete this file.
 	white-space: pre-wrap;
 }
 
-.mneme-concept-merge-confirm {
+.mneme-concept-merge-confirmation-modal .modal-content {
+	display: grid;
+	gap: var(--size-4-4);
+}
+
+.mneme-concept-merge-confirmation-modal .mneme-concept-merge-impact,
+.mneme-concept-merge-confirmation-modal .mneme-concept-merge-confirmation-description {
+	margin: 0;
+}
+
+.mneme-concept-merge-confirmation-description {
+	color: var(--text-muted);
+	line-height: var(--line-height-normal);
+}
+
+.mneme-concept-merge-confirmation-details {
+	border-bottom: 1px solid var(--background-modifier-border);
+	border-top: 1px solid var(--background-modifier-border);
+	margin: 0;
+	padding: var(--size-4-3) 0;
+}
+
+.mneme-concept-merge-confirmation-change {
+	margin: var(--size-4-3) 0 0;
+}
+
+.mneme-concept-merge-confirmation-change h5 {
+	margin: var(--size-4-3) 0 var(--size-4-1);
+}
+
+.mneme-concept-merge-confirmation-change pre {
+	max-height: 40vh;
+	overflow: auto;
+	white-space: pre-wrap;
+}
+
+.mneme-concept-merge-confirmation-actions {
+	display: flex;
+	gap: var(--size-4-2);
+	justify-content: flex-end;
+}
+
+.mneme-concept-merge-confirmation-actions button:focus-visible {
+	outline: 2px solid var(--background-modifier-border-focus);
+	outline-offset: 2px;
+}
+
+@media (pointer: coarse) {
+	.mneme-concept-merge-confirmation-actions button {
+		min-height: 44px;
+	}
+}
+
+@media (max-width: 720px) {
+	.mneme-concept-merge-confirmation-actions {
+		align-items: stretch;
+		flex-direction: column-reverse;
+	}
+
+	.mneme-concept-merge-confirmation-actions button {
+		width: 100%;
+	}
+}
+
+.mneme-concept-conflict-merge-step-heading {
 	align-items: center;
 	display: flex;
-	flex-direction: row;
-	gap: 8px;
+	flex-wrap: wrap;
+	gap: 12px;
+	justify-content: space-between;
+}
+
+.mneme-concept-conflict-merge-step-heading h3 {
+	margin: 0;
 }
 
 .mneme-concept-name-conflict-comparison {
@@ -1377,18 +1485,29 @@ If your plugin does not need CSS, delete this file.
 .mneme-concept-name-conflict-item {
 	background: var(--background-secondary);
 	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-l);
+	border-radius: var(--radius-m);
 	min-width: 0;
-	padding: 16px;
+	padding: var(--size-4-4);
 }
 
-.mneme-concept-name-conflict-item h3 {
-	margin: 8px 0;
+.mneme-concept-name-conflict-label {
+	color: var(--text-muted);
+	display: block;
+	font-family: var(--font-ui-small);
+	margin-bottom: 16px;
+}
+
+.mneme-concept-name-conflict-item .mneme-concept-library-card-title {
+	margin-bottom: 14px;
 	overflow-wrap: anywhere;
 }
 
-.mneme-concept-name-conflict-item p {
-	margin: 6px 0 0;
+.mneme-concept-name-conflict-item .mneme-concept-library-card-meaning > :first-child {
+	margin-top: 0;
+}
+
+.mneme-concept-name-conflict-item .mneme-concept-library-card-meaning > :last-child {
+	margin-bottom: 0;
 }
 
 .mneme-concept-name-conflict-meaning,
@@ -1408,4 +1527,18 @@ If your plugin does not need CSS, delete this file.
 	.mneme-concept-name-conflict-comparison {
 		grid-template-columns: 1fr;
 	}
+}
+.mneme-ai-operation-status {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--size-2-2);
+}
+
+.mneme-ai-operation-status::before {
+	width: 0.5rem;
+	height: 0.5rem;
+	border-radius: 50%;
+	background: var(--interactive-accent);
+	content: "";
+	opacity: 0.8;
 }

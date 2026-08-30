@@ -47,6 +47,23 @@ import { createProposal } from "./knowledgeProposalTestUtils";
 }
 
 {
+	const proposal = createProposal("proposal-english-alias", {
+		kind: "new_concept",
+		payload: {
+			coreMeaning: "A model may return a redundant alias.",
+			englishName: "Decision Tree Inductive Bias",
+			title: "Inductive Bias of Decision Tree Learning",
+		},
+	});
+
+	assert.equal(getProposalTitle(proposal), "Inductive Bias of Decision Tree Learning");
+	assert.equal(
+		getProposalHighlights(proposal).some((highlight) => highlight.label === "English Alias"),
+		false,
+	);
+}
+
+{
 	const proposal = createProposal("proposal-b", {
 		kind: "new_card",
 		payload: {
@@ -61,9 +78,9 @@ import { createProposal } from "./knowledgeProposalTestUtils";
 		},
 	});
 
-	assert.equal(getProposalTitle(proposal), "encapsulation-definition");
+	assert.equal(getProposalTitle(proposal), "What is encapsulation?");
 	assert.deepEqual(getProposalHighlights(proposal).slice(0, 4), [
-		{ label: "Card ID", value: "encapsulation-definition" },
+		{ label: "Card ID", value: "Assigned on write" },
 		{ label: "Card Group", value: "Cards.md" },
 		{ label: "Card Type", value: "Definition" },
 		{ label: "Front", value: "What is encapsulation?" },
@@ -86,7 +103,7 @@ import { createProposal } from "./knowledgeProposalTestUtils";
 		},
 	});
 
-	assert.equal(getProposalTitle(proposal), "encapsulation-definition-2");
+	assert.equal(getProposalTitle(proposal), "Second definition question");
 	assert.equal(getProposalHighlights(proposal)[0]?.value, "encapsulation-definition-2");
 }
 
@@ -105,8 +122,8 @@ import { createProposal } from "./knowledgeProposalTestUtils";
 		},
 	});
 
-	assert.equal(getProposalTitle(proposal), "concept-learning-definition-2");
-	assert.equal(getProposalHighlights(proposal)[0]?.value, "concept-learning-definition-2");
+	assert.equal(getProposalTitle(proposal), "What is concept learning?");
+	assert.equal(getProposalHighlights(proposal)[0]?.value, "learning-definition-2");
 }
 
 {
@@ -123,7 +140,7 @@ import { createProposal } from "./knowledgeProposalTestUtils";
 		},
 	});
 
-	assert.equal(getProposalTitle(proposal), "spacing-effect-2-definition");
+	assert.equal(getProposalTitle(proposal), "什么是间隔效应？");
 }
 
 {

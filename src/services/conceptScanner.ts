@@ -19,6 +19,7 @@ import {
 	extractWhyItMatters,
 	parseConceptTitle,
 } from "./conceptMarkdownParser";
+import { parseSimpleFrontmatter } from "./simpleFrontmatter";
 import { detectConceptDuplicates } from "./conceptDuplicateDetector";
 import { parseConceptRetentionTarget } from "./conceptRetentionPolicy";
 import {
@@ -66,13 +67,16 @@ export class ConceptScanner {
 		}> = [];
 
 		for (const file of files) {
-			const frontmatter = await this.options.vault.getFrontmatter(file.path);
+			const markdown = await this.options.vault.readMarkdown(file.path);
+			const cachedFrontmatter = await this.options.vault.getFrontmatter(file.path);
+			const frontmatter = isRecord(cachedFrontmatter)
+				? cachedFrontmatter
+				: parseSimpleFrontmatter(markdown);
 
 			if (!isMnemeConceptFrontmatter(frontmatter)) {
 				continue;
 			}
 
-			const markdown = await this.options.vault.readMarkdown(file.path);
 			candidates.push({
 				cardsPath: getCardGroupPathFromConceptFrontmatter(frontmatter),
 				conceptId: getConceptIdFromFrontmatter(frontmatter),
@@ -232,6 +236,10 @@ function normalizeTag(value: string): string {
 		.trim()
 		.toLocaleLowerCase()
 		.replace(/\s+/g, "-");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function compareConceptSummariesByTitle(first: ConceptSummary, second: ConceptSummary): number {

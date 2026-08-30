@@ -67,6 +67,19 @@ export interface AiJsonHttpClient {
 	postJson(input: AiJsonHttpRequest): Promise<unknown>;
 }
 
+export function formatAiHttpResponseError(
+	status: number,
+	json: unknown,
+	text: string,
+): string {
+	const details = extractAiHttpErrorDetails(json)
+		?? normalizeAiHttpErrorText(text);
+
+	return details
+		? `AI provider request failed (${status}): ${details}`
+		: `AI provider request failed (${status}).`;
+}
+
 export interface LogSafeAiConfig {
 	allowedAiCardTypes: CardDraftType[];
 	aiCaptureEnabled: boolean;
@@ -79,6 +92,7 @@ export interface LogSafeAiConfig {
 	openaiApiKeyConfigured: boolean;
 	openaiBaseUrl: string;
 	openaiModel: string;
+	suggestEnglishAliases: boolean;
 }
 
 export interface AiProviderConfigValidationResult {
@@ -171,6 +185,7 @@ export function toLogSafeAiConfig(settings: MnemeSettings): LogSafeAiConfig {
 		openaiApiKeyConfigured: settings.openaiApiKey.trim().length > 0,
 		openaiBaseUrl: settings.openaiBaseUrl,
 		openaiModel: settings.openaiModel,
+		suggestEnglishAliases: settings.suggestEnglishAliases,
 	};
 }
 
@@ -196,4 +211,23 @@ export function validateCardGenerationResponse(proposals: KnowledgeProposal[]): 
 		valid: errors.length === 0,
 		warnings: [],
 	};
+}
+
+function extractAiHttpErrorDetails(value: unknown): string | undefined {
+	if (!isRecord(value)) return undefined;
+	if (typeof value.error === "string") return normalizeAiHttpErrorText(value.error);
+	if (isRecord(value.error) && typeof value.error.message === "string") {
+		return normalizeAiHttpErrorText(value.error.message);
+	}
+	if (typeof value.message === "string") return normalizeAiHttpErrorText(value.message);
+	return undefined;
+}
+
+function normalizeAiHttpErrorText(value: string): string | undefined {
+	const normalized = value.replace(/\s+/gu, " ").trim();
+	return normalized ? normalized.slice(0, 500) : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }

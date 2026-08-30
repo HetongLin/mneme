@@ -1,5 +1,6 @@
 import { requestUrl } from "obsidian";
 import type { AiJsonHttpClient, AiJsonHttpRequest } from "./aiProvider";
+import { formatAiHttpResponseError } from "./aiProvider";
 
 export class ObsidianAiHttpClient implements AiJsonHttpClient {
 	async postJson(input: AiJsonHttpRequest): Promise<unknown> {
@@ -8,10 +9,16 @@ export class ObsidianAiHttpClient implements AiJsonHttpClient {
 			contentType: "application/json",
 			headers: input.headers,
 			method: "POST",
+			throw: false,
 			url: input.url,
 		});
+		const response = await withTimeout(request, input.timeoutMs);
 
-		return withTimeout(request.then((response) => response.json), input.timeoutMs);
+		if (response.status >= 400) {
+			throw new Error(formatAiHttpResponseError(response.status, response.json, response.text));
+		}
+
+		return response.json;
 	}
 }
 

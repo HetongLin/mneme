@@ -1,7 +1,10 @@
 import type { MnemeSettings } from "../models/settings";
+import type { SourceAnalysisRecord } from "../models/sourceAnalysis";
 import type { SourceFileSnapshot } from "./sourceAnalysisDecision";
 import type { AiProposalResponse, AiProvider } from "./aiProvider";
 import type { AiGenerationLock } from "./aiGenerationLock";
+import type { AiOperationProgress, AiOperationProgressListener } from "./aiOperationProgress";
+import { reportAiOperationProgress } from "./aiOperationProgress";
 import { validateAiProviderConfig, validateConceptCaptureResponse } from "./aiProvider";
 import { createAiConceptCaptureFingerprint, getEffectiveConceptCaptureChunkSize } from "./aiCaptureFingerprint";
 import { consolidateAiConceptProposals } from "./aiConceptProposalConsolidator";
@@ -18,6 +21,7 @@ import {
 	reconcileGeneratedConceptTags,
 } from "./conceptTagCatalog";
 import type { KnowledgeProposal } from "../models/knowledgeProposal";
+import { shouldOfferEnglishAlias } from "./conceptNaming";
 
 export type AiConceptCaptureStatus =
 	| "captured"
@@ -26,6 +30,7 @@ export type AiConceptCaptureStatus =
 	| "indexed_ai_disabled"
 	| "invalid_config"
 	| "invalid_response"
+	| "source_changed"
 	| "skipped_ai_already_captured";
 
 export interface AiConceptCaptureResult {
@@ -42,20 +47,36 @@ export interface AiConceptCaptureServiceOptions {
 	createProvider: (settings: MnemeSettings) => AiProvider;
 	existingTagsProvider?: () => Promise<string[]>;
 	generationLock: AiGenerationLock;
+	onProgress?: AiOperationProgressListener;
 	proposalStore: KnowledgeProposalStore;
 	readSourceContent: (sourcePath: string) => Promise<string>;
+	resolveCurrentSource?: (
+		snapshot: SourceFileSnapshot,
+	) => Promise<ResolvedSourceSnapshot | undefined>;
 	settingsProvider: () => MnemeSettings;
 	sourceAnalysisService: SourceAnalysisService;
 	sourceAnalysisStore: SourceAnalysisStore;
 	timestampProvider?: () => string;
 }
 
+export interface AiConceptCaptureAnalyzeOptions {
+	generationKey?: string;
+}
+
+export interface ResolvedSourceSnapshot extends SourceFileSnapshot {
+	contentHash: string;
+}
+
 export class AiConceptCaptureService {
 	constructor(private readonly options: AiConceptCaptureServiceOptions) {
 	}
 
-	async analyze(snapshot: SourceFileSnapshot): Promise<AiConceptCaptureResult> {
-		const lease = this.options.generationLock.tryAcquire("concept_capture", snapshot.path);
+	async analyze(
+		snapshot: SourceFileSnapshot,
+		analyzeOptions: AiConceptCaptureAnalyzeOptions = {},
+	): Promise<AiConceptCaptureResult> {
+		const generationKey = analyzeOptions.generationKey ?? snapshot.path;
+		const lease = this.options.generationLock.tryAcquire("concept_capture", generationKey);
 
 		if (!lease) {
 			return {
@@ -73,7 +94,8 @@ export class AiConceptCaptureService {
 	}
 
 	private async analyzeWithLock(snapshot: SourceFileSnapshot): Promise<AiConceptCaptureResult> {
-		const sourceAnalysis = await this.options.sourceAnalysisService.analyzeSource(snapshot);
+		this.reportProgress("preparing", "Preparing Source Note…");
+		const sourceAnalysis = await this.options.sourceAnalysisService.analyzeSource(snapshot, { persist: false });
 
 		if (sourceAnalysis.status === "failed" || !sourceAnalysis.contentHash) {
 			return this.result("failed", sourceAnalysis.message, sourceAnalysis);
@@ -82,6 +104,7 @@ export class AiConceptCaptureService {
 		const settings = this.options.settingsProvider();
 
 		if (!settings.aiCaptureEnabled) {
+			await this.persistPreparedRecord(snapshot.path, sourceAnalysis.record);
 			return this.result(
 				"indexed_ai_disabled",
 				"Source note indexed. Enable AI Capture to generate Concept proposals.",
@@ -92,10 +115,11 @@ export class AiConceptCaptureService {
 		const configValidation = validateAiProviderConfig(settings);
 
 		if (!configValidation.valid) {
+			await this.persistPreparedRecord(snapshot.path, sourceAnalysis.record);
 			return this.result("invalid_config", configValidation.errors.join(" "), sourceAnalysis);
 		}
 
-		const sourceRecord = await this.options.sourceAnalysisStore.getRecord(snapshot.path);
+		const sourceRecord = sourceAnalysis.record;
 
 		if (!sourceRecord) {
 			return this.result("failed", "Source analysis record was not found after indexing.", sourceAnalysis);
@@ -109,6 +133,7 @@ export class AiConceptCaptureService {
 			);
 
 			if (sourceRecord.lastAiCaptureFingerprint === captureFingerprint) {
+				await this.persistPreparedRecord(snapshot.path, sourceRecord);
 				return this.result(
 					"skipped_ai_already_captured",
 					formatPreviousCaptureMessage(sourceRecord),
@@ -132,6 +157,12 @@ export class AiConceptCaptureService {
 				let response: AiProposalResponse;
 
 				try {
+					this.reportProgress(
+						"requesting",
+						chunks.length === 1
+							? "Waiting for AI response…"
+							: `Waiting for AI response (${chunk.index}/${chunk.total})…`,
+					);
 					response = await provider.generateKnowledgeProposals({
 						languageReferenceContent: sourceContent,
 						mode: "concept_capture",
@@ -154,6 +185,7 @@ export class AiConceptCaptureService {
 					);
 				}
 
+				this.reportProgress("validating", "Validating AI response…");
 				const validation = validateAiStructuredProposalResponse(response.structuredResponse);
 
 				if (!validation.valid) {
@@ -223,32 +255,76 @@ export class AiConceptCaptureService {
 				);
 			}
 
-			const now = this.options.timestampProvider?.() ?? new Date().toISOString();
 			const tagCatalog = buildConceptTagCatalogFromTags(await this.readExistingTags());
-			const proposals = normalizeAiStructuredProposalResponse(aggregatedResponse, {
+			const currentSource = await this.resolveCurrentSource(snapshot, sourceAnalysis.contentHash);
+
+			if (!currentSource) {
+				await this.options.sourceAnalysisStore.removeRecord(snapshot.path);
+				return this.result(
+					"source_changed",
+					"The Source Note was deleted while AI analysis was running. The response was discarded. Reopen the note and analyze it again if needed.",
+					sourceAnalysis,
+				);
+			}
+
+			if (currentSource.contentHash !== sourceAnalysis.contentHash) {
+				await this.options.sourceAnalysisStore.moveRecord(snapshot.path, {
+					...sourceRecord,
+					mtime: currentSource.mtime,
+					size: currentSource.size,
+					sourcePath: currentSource.path,
+					status: "stale",
+				});
+				return this.result(
+					"source_changed",
+					"The Source Note changed while AI analysis was running. The outdated response was discarded. Analyze the current note again.",
+					sourceAnalysis,
+				);
+			}
+
+			const finalFingerprint = currentSource.path === snapshot.path
+				? captureFingerprint
+				: await createAiConceptCaptureFingerprint(
+					sourceAnalysis.contentHash,
+					currentSource.path,
+					settings,
+				);
+			const finalResponse = remapConceptCaptureSourcePath(
+				aggregatedResponse,
+				snapshot.path,
+				currentSource.path,
+			);
+			const now = this.options.timestampProvider?.() ?? new Date().toISOString();
+			const proposals = normalizeAiStructuredProposalResponse(finalResponse, {
 				idFactory: (_proposal, index) => [
 					"ai-proposal",
 					sourceAnalysis.contentHash?.slice(0, 12),
-					captureFingerprint.slice(0, 12),
+					finalFingerprint.slice(0, 12),
 					index + 1,
 				].join("-"),
 				now,
-			}).map((proposal) => reconcileProposalTags(proposal, tagCatalog));
+			})
+				.map((proposal) => applyEnglishAliasSetting(proposal, settings.suggestEnglishAliases))
+				.map((proposal) => reconcileProposalTags(proposal, tagCatalog));
 			const captureValidation = validateConceptCaptureResponse(proposals);
 
 			if (!captureValidation.valid) {
 				return this.result("invalid_response", captureValidation.errors.join(" "), sourceAnalysis);
 			}
 
+			this.reportProgress("saving", "Saving Concept proposals…");
 			await this.options.proposalStore.upsertProposals(proposals);
 
-			await this.options.sourceAnalysisStore.upsertRecord({
+			await this.options.sourceAnalysisStore.moveRecord(snapshot.path, {
 				...sourceRecord,
 				lastAiCaptureAnalyzedChars: analyzedChars,
 				lastAiCaptureChunkCount: chunks.length,
-				lastAiCaptureFingerprint: captureFingerprint,
+				lastAiCaptureFingerprint: finalFingerprint,
 				lastAiCaptureTotalChars: sourceContent.length,
+				mtime: currentSource.mtime,
 				pendingProposalIds: unique([...sourceRecord.pendingProposalIds, ...proposals.map(({ id }) => id)]),
+				size: currentSource.size,
+				sourcePath: currentSource.path,
 			});
 
 			return {
@@ -278,6 +354,28 @@ export class AiConceptCaptureService {
 		}
 	}
 
+	private async persistPreparedRecord(
+		previousPath: string,
+		record: SourceAnalysisRecord | undefined,
+	): Promise<void> {
+		if (!record) return;
+		await this.options.sourceAnalysisStore.moveRecord(previousPath, record);
+	}
+
+	private async resolveCurrentSource(
+		snapshot: SourceFileSnapshot,
+		contentHash: string,
+	): Promise<ResolvedSourceSnapshot | undefined> {
+		return this.options.resolveCurrentSource?.(snapshot) ?? {
+			...snapshot,
+			contentHash,
+		};
+	}
+
+	private reportProgress(stage: AiOperationProgress["stage"], message: string): void {
+		reportAiOperationProgress(this.options.onProgress, stage, message);
+	}
+
 	private result(
 		status: AiConceptCaptureStatus,
 		message: string,
@@ -286,6 +384,25 @@ export class AiConceptCaptureService {
 	): AiConceptCaptureResult {
 		return { ...coverage, message, proposalCount: 0, sourceAnalysis, status };
 	}
+}
+
+function applyEnglishAliasSetting(
+	proposal: KnowledgeProposal,
+	suggestEnglishAliases: boolean,
+): KnowledgeProposal {
+	if (
+		proposal.kind !== "new_concept"
+		|| !proposal.payload
+		|| (
+			suggestEnglishAliases
+			&& shouldOfferEnglishAlias(proposal.payload.title)
+		)
+	) {
+		return proposal;
+	}
+	const { englishName: _englishName, ...payload } = proposal.payload;
+
+	return { ...proposal, payload };
 }
 
 function reconcileProposalTags(
@@ -306,6 +423,26 @@ function reconcileProposalTags(
 
 function unique(values: string[]): string[] {
 	return [...new Set(values)];
+}
+
+function remapConceptCaptureSourcePath(
+	response: AiConceptCaptureResponseV1,
+	previousPath: string,
+	currentPath: string,
+): AiConceptCaptureResponseV1 {
+	if (previousPath === currentPath) return response;
+
+	return {
+		...response,
+		proposals: response.proposals.map((proposal) => ({
+			...proposal,
+			evidence: proposal.evidence.map((evidence) => ({
+				...evidence,
+				sourcePath: evidence.sourcePath === previousPath ? currentPath : evidence.sourcePath,
+			})),
+		})),
+		source: { ...response.source, path: currentPath },
+	};
 }
 
 function formatCaptureMessage(proposalCount: number, analyzedChars: number, totalChars: number, chunkCount: number): string {

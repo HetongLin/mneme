@@ -67,6 +67,7 @@ export function buildDeepSeekKnowledgeProposalPayload(
 		maxInputChars: settings.aiMaxInputChars,
 		model: settings.deepseekModel,
 		requestShape: "chat_completions",
+		suggestEnglishAliases: settings.suggestEnglishAliases,
 		timeoutMs: settings.aiRequestTimeoutMs,
 	});
 }

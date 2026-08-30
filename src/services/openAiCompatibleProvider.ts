@@ -9,6 +9,7 @@ export interface OpenAiCompatibleProviderConfig {
 	maxInputChars: number;
 	model: string;
 	requestShape: "responses" | "chat_completions";
+	suggestEnglishAliases: boolean;
 	timeoutMs: number;
 }
 
@@ -65,7 +66,7 @@ const SHARED_PROTOCOL_PROMPT = [
 ].join("\n");
 
 const CONCEPT_FIELD_LOCK_GUIDANCE = [
-	"Do not rename, remove, replace, or reinterpret required Concept fields such as conceptTitle, englishName, coreMeaning, whyItMatters, learningMode, suggestedImportance, tags, relatedConceptHints, views, evidence, rationale, or confidence.",
+	"Do not rename, remove, replace, or reinterpret Concept fields such as conceptTitle, coreMeaning, whyItMatters, learningMode, suggestedImportance, tags, relatedConceptHints, views, evidence, rationale, or confidence.",
 	"Core Meaning and Why It Matters are fixed Mneme product fields: write content inside them, but do not replace them with different field names or a standalone Markdown document.",
 ].join(" ");
 
@@ -102,7 +103,7 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 	};
 	const systemPrompt = input.mode === "card_generation"
 		? buildCardGenerationSystemPrompt(allowedCardTypes)
-		: buildConceptCaptureSystemPrompt();
+		: buildConceptCaptureSystemPrompt(config.suggestEnglishAliases);
 	const requestContext = input.mode === "card_generation"
 		? {
 			allowedCardTypes,
@@ -121,6 +122,7 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 			languageContract,
 			formattingContract,
 			mode: input.mode,
+			suggestEnglishAliases: config.suggestEnglishAliases,
 			sourceContent,
 			sourceChunk: input.sourceChunk,
 			sourceHash: input.sourceHash,
@@ -145,7 +147,9 @@ export function buildOpenAiCompatibleKnowledgeProposalPayload(
 
 	if (config.requestShape === "responses") {
 		payload.input = messages;
-		payload.text = { format: createResponsesFormat(input.mode, allowedCardTypes) };
+		payload.text = {
+			format: createResponsesFormat(input.mode, allowedCardTypes, config.suggestEnglishAliases),
+		};
 	} else {
 		payload.messages = messages;
 		payload.response_format = { type: "json_object" };
@@ -161,10 +165,10 @@ function buildCardGenerationSystemPrompt(allowedCardTypes: CardDraftType[]): str
 	].join("\n");
 }
 
-function buildConceptCaptureSystemPrompt(): string {
+function buildConceptCaptureSystemPrompt(suggestEnglishAliases: boolean): string {
 	return [
-		...buildConceptCaptureProtocolPrompt(),
-		...buildConceptCaptureProductPolicyPrompt(),
+		...buildConceptCaptureProtocolPrompt(suggestEnglishAliases),
+		...buildConceptCaptureProductPolicyPrompt(suggestEnglishAliases),
 	].join("\n");
 }
 
@@ -200,7 +204,7 @@ function buildCardGenerationProductPolicyPrompt(allowedCardTypes: CardDraftType[
 	];
 }
 
-function buildConceptCaptureProtocolPrompt(): string[] {
+function buildConceptCaptureProtocolPrompt(suggestEnglishAliases: boolean): string[] {
 	return [
 		"Return one JSON object with schemaVersion 'mneme.ai.proposals.v1', mode 'concept_capture', the exact source path/hash, proposals, and string warnings.",
 		SHARED_PROTOCOL_PROMPT,
@@ -208,8 +212,11 @@ function buildConceptCaptureProtocolPrompt(): string[] {
 		"Concept capture may return only new_concept proposals. Every returned proposal must be fully actionable in Mneme's Review Gate.",
 		"Every proposal requires kind, title, rationale, confidence from 0 to 1, at least one evidence entry with sourcePath/quote/explanation, and a kind-specific payload. Each evidence quote must be an exact, non-empty excerpt from sourceContent and sourcePath must exactly equal the supplied sourcePath.",
 		"Evidence quote must be copied character-for-character from sourceContent. Do not paraphrase, summarize, translate, repair, or quote from your generated Concept text. If no exact sourceContent quote supports a proposal, omit that proposal.",
-		"Payloads: new_concept={conceptTitle,englishName,coreMeaning,whyItMatters,learningMode,suggestedImportance,tags,relatedConceptHints,views[{title,body}]}.",
+		`Payloads: new_concept={conceptTitle,${suggestEnglishAliases ? "englishName," : ""}coreMeaning,whyItMatters,learningMode,suggestedImportance,tags,relatedConceptHints,views[{title,body}]}.`,
 		CONCEPT_FIELD_LOCK_GUIDANCE,
+		suggestEnglishAliases
+			? "englishName is an optional display alias requested by the user; it never determines Concept identity."
+			: "Do not return englishName. English aliases are disabled for this request.",
 		"For new_concept payloads, learningMode must be exactly 'reviewable' or 'exploratory'; do not use values like definition, application, recall, or understanding.",
 		"For new_concept payloads, suggestedImportance must be exactly 'low', 'normal', 'high', or 'critical'; use 'normal' when unsure.",
 		"Never return link_existing_concept, add_view, update_concept, merge_concept, new_card, revise_card, split_card, merge_card, or retire_card.",
@@ -217,7 +224,7 @@ function buildConceptCaptureProtocolPrompt(): string[] {
 	];
 }
 
-function buildConceptCaptureProductPolicyPrompt(): string[] {
+function buildConceptCaptureProductPolicyPrompt(suggestEnglishAliases: boolean): string[] {
 	return [
 		"The user JSON may contain sourceChunk, identifying this sourceContent as one exact slice of a longer Source Note. Analyze every durable knowledge change supported by this slice. Do not treat the slice as the complete note, do not invent missing surrounding content, and do not defer useful Concepts merely because Mneme will consolidate other chunks separately.",
 		"Work extraction-first, not summary-first. Do not summarize this chunk as one broad chapter or topic Concept when it contains multiple independently learnable Concepts.",
@@ -227,7 +234,9 @@ function buildConceptCaptureProductPolicyPrompt(): string[] {
 		"A new_concept must represent exactly one independently explainable, durable knowledge unit that remains useful beyond the current note and is coherent enough to review or build on later.",
 		"Do not create a Concept from a section heading, organizational label, isolated fact, incidental example, anecdote, background sentence, or repeated paraphrase. A heading is not enough by itself, but a heading plus a definition, theorem, algorithm, procedure, boundary, contrast, or named hypothesis underneath is strong evidence for an independent Concept. Treat examples as evidence or supporting Views unless they express a reusable general concept.",
 		"Use the shortest unambiguous canonical or established primary-language name for new_concept proposal.title and payload.conceptTitle. Name the knowledge itself, not the Source Note's purpose, application context, domain, tool, course, or lesson wording.",
-		"For every new_concept, return englishName as the canonical full English term in plain Latin-script text. For English output, englishName normally equals conceptTitle. For Chinese or other non-English output, conceptTitle contains only the primary-language name and englishName contains the separate standard English name; do not append '(English Name)' inside conceptTitle because Mneme composes the bilingual Display Title.",
+		suggestEnglishAliases
+			? "For every new_concept whose conceptTitle is not already English, return englishName as a concise canonical English alias in Latin script. When conceptTitle is already English, return an empty englishName so Mneme does not show a redundant alias. English aliases are optional display metadata and never determine identity."
+			: "English aliases are disabled. Return conceptTitle only in the source note's learning language and omit englishName.",
 		"Do not append contextual qualifiers such as 'for Hypothesis Evaluation', 'in Healthcare', or 'using Python' unless the full phrase is itself the established name of a genuinely distinct Concept. Prefer 'Bayes Theorem' over 'Bayes Theorem for Hypothesis Evaluation'.",
 		"For reusable relationships, name the relationship directly instead of copying a conjunction-style section heading. Prefer 'Least Squares as Maximum Likelihood' over 'Maximum Likelihood and Least-Squared Error'. If the relationship is only a perspective on a canonical Concept, put that context in whyItMatters or a View rather than creating a context-qualified duplicate.",
 		"Concept capture is context-free extraction. The user JSON intentionally does not include the vault's approved Concepts, Inbox proposals, existing Concept names, or existing tags. Do not decide whether a Concept already exists elsewhere in the vault, do not suppress a grounded Concept because it might be a duplicate, and do not propose links, updates, or merges. Mneme handles same-name writes deterministically and offers user-triggered Guided Merge later.",
@@ -261,12 +270,16 @@ function normalizeAllowedCardTypes(value: readonly CardDraftType[] | undefined):
 	return allowed.size > 0 ? [...CARD_DRAFT_TYPES].filter((type) => allowed.has(type)) : [...CARD_DRAFT_TYPES];
 }
 
-function createResponsesFormat(mode: AiProposalRequest["mode"], allowedCardTypes: CardDraftType[]): ResponsesJsonSchemaFormat {
+function createResponsesFormat(
+	mode: AiProposalRequest["mode"],
+	allowedCardTypes: CardDraftType[],
+	suggestEnglishAliases: boolean,
+): ResponsesJsonSchemaFormat {
 	return {
 		name: "mneme_knowledge_proposals",
 		schema: mode === "card_generation"
 			? createCardGenerationResponseJsonSchema(allowedCardTypes)
-			: createKnowledgeProposalResponseJsonSchema(),
+			: createKnowledgeProposalResponseJsonSchema(suggestEnglishAliases),
 		strict: true,
 		type: "json_schema",
 	};
@@ -328,7 +341,7 @@ function createCardGenerationResponseJsonSchema(allowedCardTypes: CardDraftType[
 	};
 }
 
-function createKnowledgeProposalResponseJsonSchema(): Record<string, unknown> {
+function createKnowledgeProposalResponseJsonSchema(suggestEnglishAliases: boolean): Record<string, unknown> {
 	const evidence = {
 		additionalProperties: false,
 		properties: {
@@ -369,7 +382,7 @@ function createKnowledgeProposalResponseJsonSchema(): Record<string, unknown> {
 				items: proposal("new_concept", {
 					conceptTitle: { type: "string" },
 					coreMeaning: { type: "string" },
-					englishName: { type: "string" },
+					...(suggestEnglishAliases ? { englishName: { type: "string" } } : {}),
 					whyItMatters: { type: "string" },
 					learningMode: { enum: ["reviewable", "exploratory"], type: "string" },
 					relatedConceptHints: { items: { type: "string" }, type: "array" },
@@ -384,7 +397,17 @@ function createKnowledgeProposalResponseJsonSchema(): Record<string, unknown> {
 						},
 						type: "array",
 					},
-				}, ["conceptTitle", "englishName", "coreMeaning", "whyItMatters", "learningMode", "relatedConceptHints", "suggestedImportance", "tags", "views"]),
+				}, [
+					"conceptTitle",
+					...(suggestEnglishAliases ? ["englishName"] : []),
+					"coreMeaning",
+					"whyItMatters",
+					"learningMode",
+					"relatedConceptHints",
+					"suggestedImportance",
+					"tags",
+					"views",
+				]),
 				type: "array",
 			},
 			schemaVersion: { const: "mneme.ai.proposals.v1", type: "string" },

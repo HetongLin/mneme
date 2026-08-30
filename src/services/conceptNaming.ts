@@ -1,11 +1,10 @@
-import { createMnemeConceptId } from "../utils/markdownPath";
-
 const TRAILING_ENGLISH_NAME = /^(.*?)\s*\(([^()]*[A-Za-z][^()]*)\)\s*$/u;
 
 export function composeConceptDisplayTitle(title: string, englishName: string): string {
 	const primary = title.trim();
 	const english = englishName.trim();
 	if (!primary) return english;
+	if (!shouldOfferEnglishAlias(primary)) return primary;
 	if (!english || normalizeForComparison(primary) === normalizeForComparison(english)) return primary;
 
 	const split = splitLegacyCombinedConceptTitle(primary);
@@ -23,30 +22,53 @@ export function resolveConceptEnglishName(englishName: string | undefined, title
 	const split = splitLegacyCombinedConceptTitle(title);
 	if (split) return split.englishName;
 
-	const normalizedTitle = title.trim();
-	return containsLatinLetter(normalizedTitle) && !containsHanCharacter(normalizedTitle)
-		? normalizedTitle
-		: undefined;
-}
-
-export function createReadableConceptId(englishName: string): string {
-	return createMnemeConceptId(englishName);
+	return undefined;
 }
 
 export function isCanonicalEnglishName(value: string | undefined): boolean {
 	const normalized = value?.trim() ?? "";
+	let hasLatinLetter = false;
 
-	return containsLatinLetter(normalized) && !containsHanCharacter(normalized);
+	for (const character of normalized) {
+		if (!/\p{L}/u.test(character)) continue;
+		if (!/\p{Script=Latin}/u.test(character)) return false;
+		hasLatinLetter = true;
+	}
+
+	return hasLatinLetter;
+}
+
+export function shouldOfferEnglishAlias(title: string): boolean {
+	let hasLatinLetter = false;
+
+	for (const character of title) {
+		if (!/\p{L}/u.test(character)) continue;
+		if (!/\p{Script=Latin}/u.test(character)) return true;
+		hasLatinLetter = true;
+	}
+
+	return !hasLatinLetter;
 }
 
 export function normalizeConceptNames(
 	title: string,
 	englishName?: string,
+	allowEnglishAlias = true,
 ): { displayTitle: string; englishName: string; title: string } {
 	const enteredTitle = title.trim();
+	if (!allowEnglishAlias) {
+		return {
+			displayTitle: enteredTitle,
+			englishName: "",
+			title: enteredTitle,
+		};
+	}
+
 	const legacyCombinedTitle = splitLegacyCombinedConceptTitle(enteredTitle);
 	const primaryTitle = legacyCombinedTitle?.title ?? enteredTitle;
-	const canonicalEnglishName = resolveConceptEnglishName(englishName, enteredTitle) ?? primaryTitle;
+	const canonicalEnglishName = shouldOfferEnglishAlias(primaryTitle)
+		? resolveConceptEnglishName(englishName, enteredTitle) ?? ""
+		: "";
 
 	return {
 		displayTitle: composeConceptDisplayTitle(primaryTitle, canonicalEnglishName),
@@ -73,10 +95,6 @@ export function splitLegacyCombinedConceptTitle(
 
 function normalizeForComparison(value: string): string {
 	return value.normalize("NFKC").trim().toLocaleLowerCase().replace(/\s+/g, " ");
-}
-
-function containsLatinLetter(value: string): boolean {
-	return /[A-Za-z]/u.test(value);
 }
 
 function containsHanCharacter(value: string): boolean {

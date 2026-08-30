@@ -3,10 +3,10 @@ import type { MnemeSettings } from "../models/settings";
 import { buildCardGroupPath, buildConceptPath, normalizeVaultPath, toObsidianInternalLink } from "../utils/markdownPath";
 import { renderConceptMarkdown } from "./conceptMarkdownRenderer";
 import {
-	createReadableConceptId,
 	isCanonicalEnglishName,
 	normalizeConceptNames,
 } from "./conceptNaming";
+import { createRandomConceptId } from "./entityId";
 
 export interface ManualConceptInput {
 	coreMeaning: string;
@@ -52,37 +52,40 @@ export async function createManualConcept(
 		throw new Error("Core Meaning is required.");
 	}
 
-	const names = normalizeConceptNames(enteredTitle, input.englishName);
-	if (!isCanonicalEnglishName(names.englishName)) {
-		throw new Error("English Name must contain a canonical English term without Chinese characters.");
+	const names = normalizeConceptNames(
+		enteredTitle,
+		input.englishName,
+		settings.suggestEnglishAliases,
+	);
+	if (names.englishName && !isCanonicalEnglishName(names.englishName)) {
+		throw new Error("English Alias must contain only Latin-script letters.");
 	}
 	const title = names.title;
 	const englishName = names.englishName;
 	const baseDisplayTitle = names.displayTitle;
 	const desiredPath = buildConceptPath(settings.conceptsFolder, baseDisplayTitle);
-	const baseConceptId = createId ? createId() : createReadableConceptId(englishName);
-	let conceptId = baseConceptId;
-	let displayTitle = baseDisplayTitle;
-	let primaryTitle = title;
+	const nextConceptId = createId ?? createRandomConceptId;
+	let conceptId = nextConceptId();
+	for (let attempt = 0; await isConceptIdReserved?.(conceptId) === true; attempt += 1) {
+		if (attempt >= 127) {
+			throw new Error("No available random Concept ID could be allocated.");
+		}
+		conceptId = nextConceptId();
+	}
 	let path = desiredPath;
 	let suffix = 1;
-	while (await vault.exists(path) || await isConceptIdReserved?.(conceptId) === true) {
+	while (await vault.exists(path)) {
 		suffix += 1;
-		conceptId = `${baseConceptId}-${suffix}`;
-		primaryTitle = `${title} - ${suffix}`;
-		displayTitle = baseDisplayTitle === title
-			? primaryTitle
-			: normalizeConceptNames(primaryTitle, englishName).displayTitle;
 		path = appendPathSuffix(desiredPath, suffix);
 		if (suffix >= 10_000) {
-			throw new Error("No available readable Concept identity could be allocated.");
+			throw new Error("No available Concept path could be allocated.");
 		}
 	}
 	await ensureParentFolders(path, vault);
 
 	const cardGroupPath = buildCardGroupPath(settings.cardsFolder, getMarkdownFileStem(path));
 	const markdown = renderConceptMarkdown({
-		cardGroupLink: toObsidianInternalLink(cardGroupPath, `${displayTitle} Cards`),
+		cardGroupLink: toObsidianInternalLink(cardGroupPath, `${baseDisplayTitle} Cards`),
 		conceptId,
 		coreMeaning,
 		englishName,
@@ -90,7 +93,7 @@ export async function createManualConcept(
 		learningMode: input.learningMode ?? "reviewable",
 		sourcePath: input.sourcePath?.trim() || undefined,
 		tags: input.tags,
-		title: primaryTitle,
+		title,
 		whyItMatters: input.whyItMatters,
 	});
 	await vault.create(path, markdown);

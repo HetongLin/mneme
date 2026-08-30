@@ -16,6 +16,7 @@ import type {
 	ConceptNameConflictResolution,
 } from "../services/conceptNameConflict";
 import { chooseConceptNameConflictResolution } from "../modals/conceptNameConflictModal";
+import { shouldOfferEnglishAlias } from "../services/conceptNaming";
 
 export const CONCEPT_COMPOSER_VIEW_TYPE = "mneme-concept-composer-view";
 let sourceListId = 0;
@@ -23,12 +24,18 @@ let sourceListId = 0;
 export interface ConceptComposerOptions {
 	canSuggestEnglishName(): boolean;
 	create(input: ManualConceptInput): Promise<ManualConceptResult>;
+	discardMergeDraft(key: string): Promise<void> | void;
 	draftStore: ManualConceptDraftStore;
-	findNameConflict(input: Pick<ManualConceptInput, "englishName" | "title">): Promise<ConceptNameConflict | undefined>;
+	englishAliasesEnabled(): boolean;
+	findNameConflict(input: Pick<ManualConceptInput, "coreMeaning" | "englishName" | "title">): Promise<ConceptNameConflict | undefined>;
 	getCurrentSourcePath(): string | undefined;
 	listSourcePaths(): string[];
 	onCreated(result: ManualConceptResult): Promise<void> | void;
-	openMerge(existing: ConceptSummary, created: ManualConceptResult): Promise<void> | void;
+	openMerge(
+		existing: ConceptSummary,
+		draft: ManualConceptDraft,
+		onReturn: () => Promise<void>,
+	): Promise<void> | void;
 	openConceptMarkdown(path: string): Promise<void> | void;
 	scanConcepts(): Promise<ConceptSummary[]>;
 	suggestEnglishName(title: string, coreMeaning: string): Promise<{ englishName: string }>;
@@ -122,6 +129,13 @@ export class MnemeConceptComposerView extends ItemView {
 		await this.persistCurrentDraft();
 	}
 
+	async completeConflictMerge(): Promise<void> {
+		const sourcePath = this.readDraft().sourcePath?.trim();
+		this.resetAfterCreate(sourcePath);
+		await this.persistCurrentDraft();
+		this.statusEl.setText("Merged into the existing Concept. Ready to create another Concept.");
+	}
+
 	private render(): void {
 		this.contentEl.empty();
 		const headerEl = this.contentEl.createDiv({ cls: "mneme-concept-composer-header" });
@@ -148,7 +162,7 @@ export class MnemeConceptComposerView extends ItemView {
 		this.whyItMattersEl = createMarkdownLivePreviewField({
 			app: this.app,
 			component: this.markdownComponent,
-			label: "Why It Matters",
+			label: "Why It Matters (optional)",
 			parentEl: formEl,
 			placeholder: "Why is it useful, important, or worth remembering?",
 			sourcePath: "",
@@ -218,17 +232,17 @@ export class MnemeConceptComposerView extends ItemView {
 		this.englishNameFieldEl = parentEl.createEl("label", {
 			cls: "mneme-proposal-detail-field mneme-concept-composer-english-name",
 		});
-		this.englishNameFieldEl.createEl("span", { text: "English Name" });
+		this.englishNameFieldEl.createEl("span", { text: "English Alias (optional)" });
 		const rowEl = this.englishNameFieldEl.createDiv({
 			cls: "mneme-concept-composer-english-name-row",
 		});
 		this.englishNameEl = rowEl.createEl("input", {
 			attr: {
-				placeholder: "Canonical English name",
+				placeholder: "Canonical English alias",
 				type: "text",
 			},
 		});
-		this.englishNameEl.value = containsNonLatinLetter(this.draft.title)
+		this.englishNameEl.value = this.options.englishAliasesEnabled() && shouldOfferEnglishAlias(this.draft.title)
 			? this.draft.englishName
 			: "";
 		this.englishNameButtonEl = rowEl.createEl("button", {
@@ -237,7 +251,7 @@ export class MnemeConceptComposerView extends ItemView {
 		});
 		this.englishNameButtonEl.addEventListener("click", () => void this.generateEnglishName());
 		this.englishNameAssistEl = this.englishNameFieldEl.createEl("small", {
-			text: "Required for a non-English Title. Enter it manually or generate a suggestion.",
+			text: "Optional display alias for a non-English Title. It never controls Concept identity.",
 		});
 	}
 
@@ -319,8 +333,7 @@ export class MnemeConceptComposerView extends ItemView {
 			return;
 		}
 		this.lastObservedTitle = title;
-		// Title and English Name are one reviewed naming pair. Never keep an
-		// English Name after the primary Title changes.
+		// An alias describes the current Title, so clear it when that Title changes.
 		this.englishNameEl.value = "";
 		this.englishNameRequest += 1;
 		this.updateEnglishNameUi();
@@ -331,18 +344,18 @@ export class MnemeConceptComposerView extends ItemView {
 		const title = this.titleEl.value.trim();
 		const coreMeaning = this.coreMeaningEl.value.trim();
 		if (!title || !coreMeaning) {
-			new Notice("Mneme: Complete Title and Core Meaning before generating an English Name.");
+			new Notice("Mneme: Complete Title and Core Meaning before generating an English Alias.");
 			return;
 		}
 		if (!this.options.canSuggestEnglishName()) {
-			new Notice("Mneme: Configure and enable AI capture, or enter the English Name manually.");
+			new Notice("Mneme: Enable English Alias suggestions and configure AI capture, or enter the alias manually.");
 			return;
 		}
 
 		const request = this.englishNameRequest += 1;
 		this.englishNameButtonEl.disabled = true;
 		this.englishNameButtonEl.setText("Generating...");
-		this.englishNameAssistEl.setText("Generating a canonical English Name from Title and Core Meaning…");
+		this.englishNameAssistEl.setText("Generating a canonical English Alias from Title and Core Meaning…");
 		try {
 			const suggestion = await this.options.suggestEnglishName(title, coreMeaning);
 			if (
@@ -360,9 +373,9 @@ export class MnemeConceptComposerView extends ItemView {
 			this.scheduleDraftSave();
 		} catch (error) {
 			if (request !== this.englishNameRequest) return;
-			console.error("Mneme: English Name generation failed", error);
-			this.englishNameAssistEl.setText("AI generation failed. Enter the English Name manually or try again.");
-			new Notice(`Mneme: ${error instanceof Error ? error.message : "English Name could not be generated."}`);
+			console.error("Mneme: English Alias generation failed", error);
+			this.englishNameAssistEl.setText("AI generation failed. Enter the English Alias manually or try again.");
+			new Notice(`Mneme: ${error instanceof Error ? error.message : "English Alias could not be generated."}`);
 		} finally {
 			if (request === this.englishNameRequest) {
 				this.englishNameButtonEl.setText("Generate with AI");
@@ -373,7 +386,9 @@ export class MnemeConceptComposerView extends ItemView {
 
 	private updateEnglishNameUi(resetHelp = true): void {
 		const title = this.titleEl.value.trim();
-		const shouldShow = !!title && containsNonLatinLetter(title);
+		const shouldShow = this.options.englishAliasesEnabled()
+			&& !!title
+			&& shouldOfferEnglishAlias(title);
 		this.englishNameFieldEl.toggleClass("is-hidden", !shouldShow);
 		if (!shouldShow) return;
 		const canGenerate = !!this.coreMeaningEl.value.trim() && this.options.canSuggestEnglishName();
@@ -381,15 +396,15 @@ export class MnemeConceptComposerView extends ItemView {
 		if (!resetHelp) return;
 		if (!this.options.canSuggestEnglishName()) {
 			this.englishNameAssistEl.setText(
-				"Required for a non-English Title. Enter it manually, or enable AI capture to generate it.",
+				"Optional English display alias. Enable AI capture to generate a suggestion, or enter it manually.",
 			);
 		} else if (!this.coreMeaningEl.value.trim()) {
 			this.englishNameAssistEl.setText(
-				"Required for a non-English Title. Complete Core Meaning to enable AI generation, or enter it manually.",
+				"Optional English display alias. Complete Core Meaning to enable AI generation, or enter it manually.",
 			);
 		} else {
 			this.englishNameAssistEl.setText(
-				"Required for a non-English Title. Enter it manually or generate a suggestion.",
+				"Optional English display alias. It never controls Concept identity.",
 			);
 		}
 	}
@@ -429,7 +444,9 @@ export class MnemeConceptComposerView extends ItemView {
 		const title = this.titleEl.value;
 		return {
 			coreMeaning: this.coreMeaningEl.value,
-			englishName: containsNonLatinLetter(title) ? this.englishNameEl.value : "",
+			englishName: this.options.englishAliasesEnabled() && shouldOfferEnglishAlias(title)
+				? this.englishNameEl.value
+				: "",
 			importance: this.importanceEl.value as ConceptImportance,
 			learningMode: this.learningModeEl.value as ConceptLearningMode,
 			...(sourcePath ? { sourcePath } : {}),
@@ -440,7 +457,12 @@ export class MnemeConceptComposerView extends ItemView {
 		};
 	}
 
-	private async createConcept(): Promise<void> {
+	private async createConcept(
+		resolvedConflict?: {
+			conflict: ConceptNameConflict;
+			resolution: ConceptNameConflictResolution;
+		},
+	): Promise<void> {
 		if (this.isSaving) return;
 		let draft = this.readDraft();
 		if (!draft.title.trim() || !draft.coreMeaning.trim()) {
@@ -458,26 +480,34 @@ export class MnemeConceptComposerView extends ItemView {
 		this.createButtonEl.disabled = true;
 		this.createButtonEl.setText("Checking...");
 		try {
-			if (containsNonLatinLetter(draft.title) && !draft.englishName.trim()) {
-				this.updateEnglishNameUi();
-				new Notice("Mneme: Enter or generate the English Name before creating this non-English Concept.");
-				return;
-			}
 			await this.flushDraft();
-			const nameConflict = await this.options.findNameConflict({
-				englishName: draft.englishName,
-				title: draft.title,
-			});
-			let conflictResolution: ConceptNameConflictResolution | undefined;
+			draft = this.draft;
+			const nameConflict = resolvedConflict?.conflict ?? await this.options.findNameConflict({
+					coreMeaning: draft.coreMeaning,
+					englishName: draft.englishName,
+					title: draft.title,
+				});
+			let conflictResolution = resolvedConflict?.resolution;
 			if (nameConflict) {
-				conflictResolution = await chooseConceptNameConflictResolution(this.app, nameConflict);
+				conflictResolution ??= await chooseConceptNameConflictResolution(this.app, nameConflict);
 				if (conflictResolution === "refine_name") {
+					await this.options.discardMergeDraft("manual");
 					this.focusTitleForRefinement();
 					return;
 				}
 				if (conflictResolution === "cancel") {
 					return;
 				}
+				if (conflictResolution === "merge") {
+					await this.options.openMerge(
+						nameConflict.existing,
+						draft,
+						() => this.returnToConflictOptions(nameConflict),
+					);
+					new Notice("Mneme: Review the Merge draft. Your Create Concept draft remains saved.");
+					return;
+				}
+				await this.options.discardMergeDraft("manual");
 			}
 			const assessment = assessManualConceptDuplicates(
 				draft.title,
@@ -525,15 +555,6 @@ export class MnemeConceptComposerView extends ItemView {
 				console.error("Mneme: Concept created but dependent views could not refresh", error);
 				new Notice("Mneme: Concept created, but Concept Library could not refresh.");
 			}
-			if (conflictResolution === "merge" && nameConflict) {
-				try {
-					await this.options.openMerge(nameConflict.existing, result);
-					new Notice("Mneme: Review the proposed Merge before committing it.");
-				} catch (error) {
-					console.error("Mneme: Concept created but Merge workspace could not open", error);
-					new Notice("Mneme: Concept created, but Merge workspace could not open. Use Merge Concepts to continue.");
-				}
-			}
 		} catch (error) {
 			console.error("Mneme: manual Concept creation failed", error);
 			new Notice(`Mneme: ${error instanceof Error ? error.message : "Concept could not be created."}`);
@@ -549,12 +570,34 @@ export class MnemeConceptComposerView extends ItemView {
 		}
 	}
 
+	private async returnToConflictOptions(conflict: ConceptNameConflict): Promise<void> {
+		await this.app.workspace.revealLeaf(this.leaf);
+		const resolution = await chooseConceptNameConflictResolution(this.app, conflict);
+		if (resolution === "refine_name") {
+			await this.options.discardMergeDraft("manual");
+			this.focusTitleForRefinement();
+			return;
+		}
+		if (resolution === "cancel") return;
+		if (resolution === "merge") {
+			await this.flushDraft();
+			await this.options.openMerge(
+				conflict.existing,
+				this.draft,
+				() => this.returnToConflictOptions(conflict),
+			);
+			return;
+		}
+		await this.options.discardMergeDraft("manual");
+		await this.createConcept({ conflict, resolution });
+	}
+
 	private focusTitleForRefinement(): void {
 		this.titleEl.focus();
 		this.titleEl.select();
 		this.titleEl.scrollIntoView({ behavior: "smooth", block: "center" });
 		this.statusEl.setText(
-			"Refine the Title to distinguish this Concept. Changing it clears the English Name so the naming pair can be reviewed again.",
+			"Refine the Title to distinguish this Concept. Changing it clears the optional English Alias.",
 		);
 	}
 
@@ -622,11 +665,4 @@ export class MnemeConceptComposerView extends ItemView {
 			if (!this.hasRendered) this.tagCatalog = [];
 		}
 	}
-}
-
-function containsNonLatinLetter(value: string): boolean {
-	for (const character of value) {
-		if (/\p{L}/u.test(character) && !/\p{Script=Latin}/u.test(character)) return true;
-	}
-	return false;
 }

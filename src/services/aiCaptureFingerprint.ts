@@ -27,6 +27,7 @@ export async function createAiConceptCaptureFingerprint(
 		provider: settings.aiProvider,
 		providerConfig,
 		sourcePath,
+		suggestEnglishAliases: settings.suggestEnglishAliases,
 	}));
 }
 

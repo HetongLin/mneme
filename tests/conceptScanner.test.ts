@@ -92,6 +92,37 @@ async function runAsyncTests(): Promise<void> {
 	{
 		const scanner = new ConceptScanner({
 			vault: new MemoryConceptVaultAdapter({
+				"Mneme/Concepts/Freshly-Written.md": {
+					markdown: [
+						"---",
+						"mneme_type: concept",
+						"mneme_id: concept-freshly-written",
+						"mneme_title: \"Freshly Written\"",
+						"learning_mode: reviewable",
+						"importance: normal",
+						"tags: [mneme, acceptance-test]",
+						"---",
+						"",
+						"# Freshly Written",
+						"",
+						"## Core Meaning",
+						"",
+						"This Concept is visible before Obsidian's metadata cache catches up.",
+					].join("\n"),
+				},
+			}),
+		});
+		const concepts = await scanner.scanConcepts();
+
+		assert.equal(concepts.length, 1);
+		assert.equal(concepts[0].conceptId, "concept-freshly-written");
+		assert.equal(concepts[0].title, "Freshly Written");
+		assert.deepEqual(concepts[0].tags, ["mneme", "acceptance-test"]);
+	}
+
+	{
+		const scanner = new ConceptScanner({
+			vault: new MemoryConceptVaultAdapter({
 				"Mneme/Concepts/Bayes-Theorem.md": {
 					frontmatter: {
 						cards_folder: "Mneme/Cards/Bayes-Theorem",

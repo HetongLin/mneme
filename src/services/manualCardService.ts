@@ -3,8 +3,8 @@ import { CARD_DRAFT_TYPES, type CardDraftType } from "../models/knowledgeProposa
 import type { MnemeSettings } from "../models/settings";
 import { buildCardGroupPath, normalizeVaultPath, toObsidianInternalLink } from "../utils/markdownPath";
 import { appendCardGroupDraft } from "./cardGroupWriter";
-import { createReadableCardId } from "./cardIdNaming";
 import { parseMnemeCards } from "./cardMarkerParser";
+import { createRandomCardId } from "./entityId";
 import { renderCardGroupMarkdown } from "./markdownProposalRenderer";
 
 export interface ManualCardInput {
@@ -34,6 +34,7 @@ export async function createManualCard(
 	settings: MnemeSettings,
 	vault: ManualCardVault,
 	historicalCardIds: ReadonlySet<string> = new Set(),
+	createId: () => string = createRandomCardId,
 ): Promise<ManualCardResult> {
 	const front = input.front.trim();
 	const back = input.back.trim();
@@ -49,7 +50,13 @@ export async function createManualCard(
 		.flatMap((card) => card.explicitCardId ? [card.explicitCardId] : [])) {
 		reservedIds.add(cardId);
 	}
-	const cardId = createReadableCardId(input.concept.conceptId, input.cardType, reservedIds);
+	let cardId = createId();
+	for (let attempt = 0; reservedIds.has(cardId); attempt += 1) {
+		if (attempt >= 127) {
+			throw new Error("No available random Card ID could be allocated.");
+		}
+		cardId = createId();
+	}
 	const draft = renderCardGroupMarkdown({
 		back,
 		cardId,

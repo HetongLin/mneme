@@ -220,6 +220,53 @@ async function runAsyncTests(): Promise<void> {
 	}
 
 	{
+		const files = createFiles();
+		delete files[survivor.cardsPath as string];
+		delete files[merged.cardsPath as string];
+		const vault = new MemoryMergeVault(files);
+		const storage = new MemoryMergeStorage(createData());
+		const service = new ConceptMergeService(vault, storage);
+		const prepared = await service.prepare({
+			merged,
+			preserveMergedAsView: false,
+			survivor,
+		});
+
+		assert.equal(prepared.status, "ready");
+		if (prepared.status === "ready") {
+			assert.equal(prepared.plan.cardsMoved, 0);
+			assert.equal(prepared.plan.cardsPreserved, 0);
+			assert.equal(prepared.plan.targetCardsPath, survivor.cardsPath);
+			assert.equal(
+				prepared.plan.writes.some((write) => write.path === survivor.cardsPath || write.path === merged.cardsPath),
+				false,
+			);
+			const finalConcept = prepared.plan.writes.find((write) => write.path === survivor.path)?.after ?? "";
+			assert.match(finalConcept, /cards: "\[\[Mneme\/Cards\/Alpha\/Card\|Alpha Cards\]\]"/);
+			assert.deepEqual(await service.execute(prepared.plan, finalConcept), { status: "merged" });
+		}
+	}
+
+	{
+		const files = createFiles();
+		delete files[survivor.cardsPath as string];
+		const vault = new MemoryMergeVault(files);
+		const service = new ConceptMergeService(vault, new MemoryMergeStorage(createData()));
+		const prepared = await service.prepare({
+			merged,
+			preserveMergedAsView: false,
+			survivor,
+		});
+
+		assert.equal(prepared.status, "ready");
+		if (prepared.status === "ready") {
+			assert.equal(prepared.plan.targetCardsPath, merged.cardsPath);
+			const adoptedCards = prepared.plan.writes.find((write) => write.path === merged.cardsPath)?.after ?? "";
+			assert.match(adoptedCards, /mneme_concept_id: concept-a/);
+		}
+	}
+
+	{
 		const vault = new MemoryMergeVault(createFiles());
 		const storage = new MemoryMergeStorage(createData());
 		const service = new ConceptMergeService(vault, storage);
@@ -243,6 +290,10 @@ async function runAsyncTests(): Promise<void> {
 
 class MemoryMergeVault implements ConceptMergeVaultAdapter {
 	constructor(public files: Record<string, string>) {
+	}
+
+	async exists(path: string): Promise<boolean> {
+		return this.files[path] !== undefined;
 	}
 
 	async read(path: string): Promise<string> {

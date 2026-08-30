@@ -2,6 +2,7 @@ import type { MnemeSettings } from "../models/settings";
 import { AI_PROPOSAL_SCHEMA_VERSION } from "./aiProposalSchema";
 import type { AiProposalRequest, AiProposalResponse, AiProvider } from "./aiProvider";
 import { toLogSafeAiConfig } from "./aiProvider";
+import { shouldOfferEnglishAlias } from "./conceptNaming";
 
 export class MockAiProvider implements AiProvider {
 	constructor(private readonly settings: MnemeSettings) {
@@ -36,7 +37,9 @@ export class MockAiProvider implements AiProvider {
 					payload: {
 						conceptTitle: title,
 						coreMeaning: `Review the central idea from ${input.sourcePath}.`,
-						englishName: title,
+						...(this.settings.suggestEnglishAliases && shouldOfferEnglishAlias(title)
+							? { englishName: "Concept from Source Note" }
+							: {}),
 						whyItMatters: `Use this Concept to review knowledge from ${input.sourcePath}.`,
 						learningMode: "reviewable",
 						relatedConceptHints: [],

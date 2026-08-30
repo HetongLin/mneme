@@ -34,6 +34,7 @@ import {
 			openaiBaseUrl: "https://example.test/v1/",
 			openaiModel: "gpt-test",
 			showAdvancedDiagnostics: true,
+			suggestEnglishAliases: true,
 		},
 	});
 
@@ -57,6 +58,7 @@ import {
 		openaiBaseUrl: "https://example.test/v1",
 		openaiModel: "gpt-test",
 		showAdvancedDiagnostics: true,
+		suggestEnglishAliases: true,
 	});
 }
 
@@ -80,6 +82,7 @@ import {
 		openaiBaseUrl: "",
 		openaiModel: "",
 		showAdvancedDiagnostics: "yes",
+		suggestEnglishAliases: "yes",
 	});
 
 	assert.deepEqual(settings, {
@@ -102,6 +105,7 @@ import {
 		openaiBaseUrl: DEFAULT_SETTINGS.openaiBaseUrl,
 		openaiModel: DEFAULT_SETTINGS.openaiModel,
 		showAdvancedDiagnostics: false,
+		suggestEnglishAliases: false,
 	});
 }
 
@@ -115,6 +119,7 @@ import {
 	assert.equal(settings.aiRequestTimeoutMs, 120000);
 	assert.equal(settings.fsrsEnabled, true);
 	assert.equal(settings.showAdvancedDiagnostics, false);
+	assert.equal(settings.suggestEnglishAliases, false);
 	assert.equal(settings.deepseekApiKey, "");
 	assert.equal(settings.deepseekBaseUrl, "https://api.deepseek.com");
 	assert.equal(settings.deepseekModel, "deepseek-v4-flash");
@@ -215,12 +220,14 @@ import {
 		fsrsEnabled: false,
 		openaiApiKey: "sk-updated",
 		showAdvancedDiagnostics: true,
+		suggestEnglishAliases: true,
 	});
 
 	assert.equal((data.settings as typeof DEFAULT_SETTINGS).fsrsRequestRetention, 0.82);
 	assert.equal((data.settings as typeof DEFAULT_SETTINGS).fsrsEnableFuzz, true);
 	assert.equal((data.settings as typeof DEFAULT_SETTINGS).fsrsEnabled, false);
 	assert.equal((data.settings as typeof DEFAULT_SETTINGS).showAdvancedDiagnostics, true);
+	assert.equal((data.settings as typeof DEFAULT_SETTINGS).suggestEnglishAliases, true);
 	assert.equal("dailyCardLimit" in (data.settings as Record<string, unknown>), false);
 	assert.equal("dailyConceptLimit" in (data.settings as Record<string, unknown>), false);
 	assert.equal("cardsPerConceptLimit" in (data.settings as Record<string, unknown>), false);

@@ -450,9 +450,8 @@ function validateNewConceptPayload(payload: Record<string, unknown>, path: strin
 
 	requireNonEmptyString(payload.conceptTitle, `${path}.payload.conceptTitle`, errors);
 	requireNonEmptyString(payload.coreMeaning, `${path}.payload.coreMeaning`, errors);
-	requireNonEmptyString(payload.englishName, `${path}.payload.englishName`, errors);
 	if (typeof payload.englishName === "string" && payload.englishName.trim() && !isCanonicalEnglishName(payload.englishName)) {
-		errors.push(`${path}.payload.englishName must be a canonical English term without Chinese characters.`);
+		errors.push(`${path}.payload.englishName must be a Latin-script English alias.`);
 	}
 	requireNonEmptyString(payload.whyItMatters, `${path}.payload.whyItMatters`, errors);
 	requireLiteralOneOf(payload.learningMode, ["reviewable", "exploratory"], `${path}.payload.learningMode`, errors);

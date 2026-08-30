@@ -1,10 +1,11 @@
-import { App, Modal } from "obsidian";
+import { App, Component, MarkdownRenderer, Modal } from "obsidian";
 import type {
 	ConceptNameConflict,
 	ConceptNameConflictResolution,
 } from "../services/conceptNameConflict";
 
 export class ConceptNameConflictModal extends Modal {
+	private readonly markdownComponent = new Component();
 	private resolved = false;
 
 	constructor(
@@ -16,10 +17,11 @@ export class ConceptNameConflictModal extends Modal {
 	}
 
 	onOpen(): void {
+		this.markdownComponent.load();
 		this.titleEl.setText("Concept Name Conflict");
 		this.contentEl.addClass("mneme-concept-name-conflict-modal");
 		this.contentEl.createEl("p", {
-			text: "A Concept already uses this name or identity. Choose how Mneme should continue.",
+			text: "A Concept already uses this title, alias, or path. Choose how Mneme should continue.",
 		});
 
 		const comparisonEl = this.contentEl.createDiv({
@@ -29,14 +31,15 @@ export class ConceptNameConflictModal extends Modal {
 			comparisonEl,
 			"Existing Concept",
 			this.conflict.existing.title,
-			this.conflict.existing.englishName,
 			this.conflict.existing.coreMeaning,
+			this.conflict.existing.path,
 		);
 		this.renderConcept(
 			comparisonEl,
 			"Incoming Concept",
 			this.conflict.candidate.displayTitle,
-			this.conflict.candidate.englishName,
+			this.conflict.candidate.coreMeaning,
+			this.conflict.candidate.path,
 		);
 
 		const reasons = this.conflict.reasons.map(formatReason).join(", ");
@@ -55,6 +58,7 @@ export class ConceptNameConflictModal extends Modal {
 	}
 
 	onClose(): void {
+		this.markdownComponent.unload();
 		this.contentEl.empty();
 		if (!this.resolved) {
 			this.resolved = true;
@@ -66,21 +70,30 @@ export class ConceptNameConflictModal extends Modal {
 		parentEl: HTMLElement,
 		label: string,
 		title: string,
-		englishName?: string,
-		coreMeaning?: string,
+		coreMeaning: string | undefined,
+		sourcePath: string,
 	): void {
-		const conceptEl = parentEl.createDiv({ cls: "mneme-concept-name-conflict-item" });
-		conceptEl.createEl("strong", { text: label });
-		conceptEl.createEl("h3", { text: title });
-		if (englishName && !title.includes(englishName)) {
-			conceptEl.createEl("p", { text: `English Name: ${englishName}` });
-		}
-		if (coreMeaning) {
-			conceptEl.createEl("p", {
-				cls: "mneme-concept-name-conflict-meaning",
-				text: coreMeaning,
+		const conceptEl = parentEl.createEl("article", {
+			cls: "mneme-concept-name-conflict-item",
+		});
+		conceptEl.createEl("strong", {
+			cls: "mneme-concept-name-conflict-label",
+			text: label,
+		});
+		conceptEl.createEl("h3", {
+			cls: "mneme-concept-library-card-title",
+			text: title,
+		});
+		const meaningEl = conceptEl.createDiv({
+			cls: "mneme-concept-library-card-meaning mneme-concept-name-conflict-meaning",
+		});
+		const markdown = coreMeaning?.trim() || "No Core Meaning yet.";
+		void MarkdownRenderer.render(this.app, markdown, meaningEl, sourcePath, this.markdownComponent)
+			.catch((error) => {
+				console.error("Mneme: failed to render conflict Core Meaning", error);
+				meaningEl.empty();
+				meaningEl.setText(markdown);
 			});
-		}
 	}
 
 	private createAction(
@@ -112,7 +125,6 @@ export function chooseConceptNameConflictResolution(
 }
 
 function formatReason(reason: ConceptNameConflict["reasons"][number]): string {
-	if (reason === "english_name") return "English Name";
-	if (reason === "concept_id") return "Concept ID";
+	if (reason === "english_alias") return "English Alias";
 	return reason.charAt(0).toLocaleUpperCase() + reason.slice(1);
 }

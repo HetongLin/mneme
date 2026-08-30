@@ -552,11 +552,6 @@ export class MnemeConceptLibraryView extends ItemView {
 				void this.reviewConceptCards(concept);
 			});
 		});
-		if (this.actions.createCard) {
-			footerEl.createEl("button", { text: "Create Card" }, (buttonEl) => {
-				buttonEl.addEventListener("click", () => void this.actions.createCard?.(concept));
-			});
-		}
 
 		const sourceFilesEl = footerEl.createEl("details", { cls: "mneme-concept-library-source-files" });
 		sourceFilesEl.createEl("summary", { text: "Source Files" });

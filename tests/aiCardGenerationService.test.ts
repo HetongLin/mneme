@@ -99,13 +99,19 @@ async function run(): Promise<void> {
 		assert.equal(proposals.length, 1);
 		assert.equal(proposals[0]?.kind, "new_card");
 		assert.equal(proposals[0]?.conceptId, concept.conceptId);
-		assert.equal(proposals[0]?.cardId, "encapsulation-definition");
+		assert.equal(proposals[0]?.cardId, "card-22222222");
 		assert.equal(proposals[0]?.sourcePath, concept.conceptPath);
 		assert.equal(proposals[0]?.status, "suggested");
 		assert.equal(
 			(await fixture.sourceAnalysisStore.getRecord(concept.conceptPath))?.lastCardGenerationFingerprint,
 			await cardGenerationFingerprint(fixture.settings),
 		);
+		assert.deepEqual(fixture.progressMessages, [
+			"Preparing written Concept…",
+			"Waiting for AI response…",
+			"Validating AI response…",
+			"Saving Card proposals…",
+		]);
 	}
 
 	{
@@ -120,7 +126,7 @@ async function run(): Promise<void> {
 		const proposals = await fixture.proposalStore.listActive();
 
 		assert.equal(result.status, "generated");
-		assert.equal(proposals[0]?.cardId, "spacing-effect-definition");
+		assert.equal(proposals[0]?.cardId, "card-22222222");
 	}
 
 	{
@@ -135,7 +141,7 @@ async function run(): Promise<void> {
 		const proposals = await fixture.proposalStore.listActive();
 
 		assert.equal(result.status, "generated");
-		assert.equal(proposals[0]?.cardId, "concept-learning-definition");
+		assert.equal(proposals[0]?.cardId, "card-22222222");
 	}
 
 	{
@@ -198,9 +204,7 @@ async function run(): Promise<void> {
 		assert.equal(proposals.length, fixture.provider.callCount);
 		assert.deepEqual(
 			proposals.map((proposal) => proposal.cardId),
-			Array.from({ length: fixture.provider.callCount }, (_, index) => (
-				index === 0 ? "version-space-definition" : `version-space-definition-${index + 1}`
-			)),
+			Array.from({ length: fixture.provider.callCount }, (_, index) => createFixtureCardId(index)),
 		);
 		assert.equal(result.message.includes("approved Concept characters across"), true);
 		assert.equal(fixture.provider.lastRequest?.sourceContent.length <= fixture.settings.aiMaxInputChars, true);
@@ -632,16 +636,34 @@ function createFixture(settingsOverrides: Partial<typeof DEFAULT_SETTINGS>) {
 	const sourceAnalysisStore = new SourceAnalysisStore(storage);
 	const provider = new CountingProvider(new MockAiProvider(settings));
 	const generationLock = new AiGenerationLock();
+	const progressMessages: string[] = [];
+	let cardIdIndex = 0;
 	const service = new AiCardGenerationService({
+		cardIdFactory: () => createFixtureCardId(cardIdIndex++),
 		createProvider: () => provider,
 		generationLock,
+		onProgress: ({ message }) => progressMessages.push(message),
 		proposalStore,
 		settingsProvider: () => settings,
 		sourceAnalysisStore,
 		timestampProvider: () => "2026-01-02T12:00:00.000Z",
 	});
 
-	return { generationLock, proposalStore, provider, service, settings, sourceAnalysisStore };
+	return {
+		generationLock,
+		progressMessages,
+		proposalStore,
+		provider,
+		service,
+		settings,
+		sourceAnalysisStore,
+	};
+}
+
+function createFixtureCardId(index: number): string {
+	const alphabet = "23456789abcdefghjkmnpqrstuvwxyz";
+	const suffix = alphabet[index] ?? "z";
+	return `card-2222222${suffix}`;
 }
 
 class CountingProvider implements AiProvider {
@@ -680,6 +702,7 @@ class CountingProvider implements AiProvider {
 						openaiApiKeyConfigured: false,
 						openaiBaseUrl: "",
 						openaiModel: "",
+						suggestEnglishAliases: false,
 					},
 					warnings: [],
 				},
