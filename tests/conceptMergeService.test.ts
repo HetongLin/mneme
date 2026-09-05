@@ -77,6 +77,23 @@ async function runAsyncTests(): Promise<void> {
 		const service = new ConceptMergeService(vault, storage);
 		const prepared = await service.prepare({ merged, preserveMergedAsView: false, survivor });
 		assert.equal(prepared.status, "ready");
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		const finalConcept = prepared.plan.writes.find((write) => write.path === survivor.path)?.after ?? "";
+		vault.racePath = survivor.path;
+		vault.raceEdit = "\nEdit made after the initial check\n";
+		const result = await service.execute(prepared.plan, finalConcept);
+
+		assert.equal(result.status, "conflict");
+		assert.match(vault.files[survivor.path] ?? "", /Edit made after the initial check/);
+		assert.equal(storage.saveCount, 0);
+	}
+
+	{
+		const vault = new MemoryMergeVault(createFiles());
+		const storage = new MemoryMergeStorage(createData());
+		const service = new ConceptMergeService(vault, storage);
+		const prepared = await service.prepare({ merged, preserveMergedAsView: false, survivor });
+		assert.equal(prepared.status, "ready");
 		if (prepared.status !== "ready") {
 			return;
 		}
@@ -181,6 +198,44 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(result.status, "failed");
 		assert.deepEqual(vault.files, before);
 		assert.equal(JSON.stringify(storage.data), dataBefore);
+	}
+
+	{
+		const vault = new MemoryMergeVault(createFiles());
+		const storage = new MemoryMergeStorage(createData());
+		const service = new ConceptMergeService(vault, storage);
+		const prepared = await service.prepare({ merged, preserveMergedAsView: true, survivor });
+		assert.equal(prepared.status, "ready");
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		storage.partialFailOnce = true;
+		vault.rollbackRaceAfter = prepared.plan.writes.filter((write) => write.after !== write.before).length;
+		vault.rollbackRacePath = survivor.path;
+		const finalConcept = prepared.plan.writes.find((write) => write.path === survivor.path)?.after ?? "";
+		const result = await service.execute(prepared.plan, finalConcept);
+
+		assert.equal(result.status, "failed");
+		assert.match(vault.files[survivor.path] ?? "", /Edit made during rollback/);
+		assert.equal(JSON.stringify(storage.data), JSON.stringify(createData()));
+	}
+
+	{
+		const vault = new MemoryMergeVault(createFiles());
+		const storage = new MemoryMergeStorage(createData());
+		const service = new ConceptMergeService(vault, storage);
+		const prepared = await service.prepare({ merged, preserveMergedAsView: true, survivor });
+		assert.equal(prepared.status, "ready");
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		const changedPath = prepared.plan.writes.find((write) => write.path === merged.path)?.path;
+		if (!changedPath) throw new Error("Expected merged concept write");
+		vault.changeAfterCommit = 1;
+		vault.changeAfterCommitPath = changedPath;
+		const finalConcept = prepared.plan.writes.find((write) => write.path === survivor.path)?.after ?? "";
+		const result = await service.execute(prepared.plan, finalConcept);
+
+		assert.equal(result.status, "conflict");
+		assert.equal(vault.files[survivor.path], createFiles()[survivor.path]);
+		assert.match(vault.files[changedPath] ?? "", /Edit made during execution/);
+		assert.equal(JSON.stringify(storage.data), JSON.stringify(createData()));
 	}
 
 	{
@@ -289,6 +344,14 @@ async function runAsyncTests(): Promise<void> {
 }
 
 class MemoryMergeVault implements ConceptMergeVaultAdapter {
+	commitCount = 0;
+	racePath?: string;
+	raceEdit?: string;
+	rollbackRaceAfter?: number;
+	rollbackRacePath?: string;
+	changeAfterCommit?: number;
+	changeAfterCommitPath?: string;
+
 	constructor(public files: Record<string, string>) {
 	}
 
@@ -298,9 +361,7 @@ class MemoryMergeVault implements ConceptMergeVaultAdapter {
 
 	async read(path: string): Promise<string> {
 		const content = this.files[path];
-		if (content === undefined) {
-			throw new Error(`Missing file: ${path}`);
-		}
+		if (content === undefined) throw new Error(`Missing file: ${path}`);
 		return content;
 	}
 
@@ -308,11 +369,29 @@ class MemoryMergeVault implements ConceptMergeVaultAdapter {
 		return Object.keys(this.files).filter((path) => path.endsWith(".md")).map((path) => ({ path }));
 	}
 
-	async modify(path: string, content: string): Promise<void> {
-		if (this.files[path] === undefined) {
-			throw new Error(`Missing file: ${path}`);
+	async process(path: string, transform: (current: string) => string): Promise<void> {
+		this.maybeRaceDuringRollback(path);
+		if (this.racePath === path && this.raceEdit) {
+			this.files[path] += this.raceEdit;
+			this.racePath = undefined;
+			this.raceEdit = undefined;
 		}
-		this.files[path] = content;
+		const current = this.files[path];
+		if (current === undefined) throw new Error(`Missing file: ${path}`);
+		const next = transform(current);
+		this.files[path] = next;
+		this.commitCount += 1;
+		if (this.changeAfterCommit === this.commitCount && this.changeAfterCommitPath) {
+			this.files[this.changeAfterCommitPath] += "\nEdit made during execution\n";
+			this.changeAfterCommit = undefined;
+		}
+	}
+
+	private maybeRaceDuringRollback(path: string): void {
+		if (path === this.rollbackRacePath && this.rollbackRaceAfter !== undefined && this.commitCount >= this.rollbackRaceAfter) {
+			this.rollbackRaceAfter = undefined;
+			this.files[path] = `${this.files[path] ?? ""}\nEdit made during rollback\n`;
+		}
 	}
 }
 

@@ -55,6 +55,23 @@ async function runAsyncTests(): Promise<void> {
 		const prepared = await service.prepareAdd(alpha, beta);
 		assert.equal(prepared.status, "ready");
 		if (prepared.status !== "ready") throw new Error(prepared.message);
+		vault.racePath = alpha.path;
+		vault.raceEdit = "\nEdit made after the initial check\n";
+
+		const result = await service.execute(prepared.plan);
+		assert.equal(result.status, "conflict");
+		assert.match(vault.files[alpha.path] ?? "", /Edit made after the initial check/);
+	}
+
+	{
+		const vault = new MemoryVault({
+			[alpha.path]: conceptMarkdown(alpha),
+			[beta.path]: conceptMarkdown(beta),
+		});
+		const service = new RelatedConceptService(vault);
+		const prepared = await service.prepareAdd(alpha, beta);
+		assert.equal(prepared.status, "ready");
+		if (prepared.status !== "ready") throw new Error(prepared.message);
 		vault.failOnPath = beta.path;
 
 		const result = await service.execute(prepared.plan);
@@ -62,26 +79,62 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(vault.files[alpha.path], conceptMarkdown(alpha));
 		assert.equal(vault.files[beta.path], conceptMarkdown(beta));
 	}
+
+	{
+		const vault = new MemoryVault({
+			[alpha.path]: conceptMarkdown(alpha),
+			[beta.path]: conceptMarkdown(beta),
+		});
+		const service = new RelatedConceptService(vault);
+		const prepared = await service.prepareAdd(alpha, beta);
+		assert.equal(prepared.status, "ready");
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		vault.failOnPath = beta.path;
+		vault.rollbackRace = true;
+
+		const result = await service.execute(prepared.plan);
+		assert.equal(result.status, "failed");
+		assert.match(vault.files[alpha.path] ?? "", /\[\[Mneme\/Concepts\/Beta\|Beta\]\]/);
+		assert.match(vault.files[alpha.path] ?? "", /Edit made during rollback/);
+		assert.equal(vault.files[beta.path], conceptMarkdown(beta));
+	}
 }
 
 class MemoryVault implements RelatedConceptVaultAdapter {
 	failOnPath?: string;
+	modifyCount = 0;
+	racePath?: string;
+	raceEdit?: string;
+	rollbackRace = false;
 
 	constructor(public files: Record<string, string>) {
-	}
-
-	async modify(path: string, content: string): Promise<void> {
-		if (this.failOnPath === path) {
-			this.failOnPath = undefined;
-			throw new Error("Write failed");
-		}
-		this.files[path] = content;
 	}
 
 	async read(path: string): Promise<string> {
 		const markdown = this.files[path];
 		if (markdown === undefined) throw new Error(`Missing ${path}`);
 		return markdown;
+	}
+
+	async process(path: string, transform: (current: string) => string): Promise<void> {
+		if (this.failOnPath === path) {
+			this.failOnPath = undefined;
+			throw new Error("Write failed");
+		}
+		if (this.rollbackRace && this.modifyCount > 0) {
+			this.rollbackRace = false;
+			this.files[path] += "\nEdit made during rollback\n";
+		}
+		if (this.racePath === path && this.raceEdit) {
+			this.files[path] += this.raceEdit;
+			this.racePath = undefined;
+			this.raceEdit = undefined;
+		}
+		const current = this.files[path];
+		if (current === undefined) throw new Error(`Missing ${path}`);
+		const next = transform(current);
+		this.files[path] = next;
+		this.modifyCount += 1;
 	}
 }
 

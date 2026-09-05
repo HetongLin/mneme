@@ -3,11 +3,13 @@ import {
 	addRelatedConceptLink,
 	removeRelatedConceptLink,
 } from "./conceptRelatedLinks";
+import {
+	executeMarkdownWriteTransaction,
+	MarkdownWriteConflict,
+	type TransactionalMarkdownVault,
+} from "./markdownWriteTransaction";
 
-export interface RelatedConceptVaultAdapter {
-	modify(path: string, content: string): Promise<void>;
-	read(path: string): Promise<string>;
-}
+export type RelatedConceptVaultAdapter = TransactionalMarkdownVault;
 
 export interface RelatedConceptWrite {
 	after: string;
@@ -50,32 +52,14 @@ export class RelatedConceptService {
 				}
 			}
 
-			const written: RelatedConceptWrite[] = [];
-			try {
-				for (const write of plan.writes) {
-					if (write.after === write.before) continue;
-					await this.vault.modify(write.path, write.after);
-					written.push(write);
-				}
-			} catch (error) {
-				const rollbackErrors: string[] = [];
-				for (const write of [...written].reverse()) {
-					try {
-						if (await this.vault.read(write.path) !== write.after) {
-							rollbackErrors.push(`${write.path}: changed after Mneme wrote it; rollback did not overwrite the newer content`);
-							continue;
-						}
-						await this.vault.modify(write.path, write.before);
-					} catch (rollbackError) {
-						rollbackErrors.push(`${write.path}: ${formatError(rollbackError)}`);
-					}
-				}
-				throw new Error(`${formatError(error)}${rollbackErrors.length ? ` Rollback also failed: ${rollbackErrors.join("; ")}` : ""}`);
-			}
+			await executeMarkdownWriteTransaction(this.vault, plan.writes);
 
 			return { status: plan.action === "add" ? "linked" : "unlinked" };
 		} catch (error) {
-			return { message: formatError(error), status: "failed" };
+			return {
+				message: formatError(error),
+				status: error instanceof MarkdownWriteConflict ? "conflict" : "failed",
+			};
 		}
 	}
 

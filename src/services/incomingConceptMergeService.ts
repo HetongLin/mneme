@@ -17,11 +17,13 @@ import {
 } from "./conceptMergeDraft";
 import { applyProposalStatus } from "./knowledgeProposalLifecycle";
 import { normalizePluginData } from "./reviewStateStore";
+import {
+	executeMarkdownWriteTransaction,
+	MarkdownWriteConflict,
+	type TransactionalMarkdownVault,
+} from "./markdownWriteTransaction";
 
-export interface IncomingConceptMergeVault {
-	modify(path: string, content: string): Promise<void>;
-	read(path: string): Promise<string>;
-}
+export type IncomingConceptMergeVault = TransactionalMarkdownVault;
 
 export interface IncomingConceptMergeStorage {
 	loadData(): Promise<unknown>;
@@ -181,43 +183,20 @@ export class IncomingConceptMergeService {
 				};
 			}
 
-			await this.vault.modify(plan.existing.path, plan.after);
-			try {
-				await this.storage.saveData(plan.nextData);
-			} catch (error) {
-				const rollbackErrors: string[] = [];
-				try {
-					if (await this.vault.read(plan.existing.path) === plan.after) {
-						await this.vault.modify(plan.existing.path, plan.before);
-					} else {
-						rollbackErrors.push(`${plan.existing.path} changed after Mneme wrote it`);
-					}
-				} catch (rollbackError) {
-					rollbackErrors.push(
-						`${plan.existing.path}: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`,
-					);
-				}
-				try {
-					await this.storage.saveData(latestData);
-				} catch (rollbackError) {
-					rollbackErrors.push(
-						`plugin data: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`,
-					);
-				}
-				if (rollbackErrors.length > 0) {
-					throw new Error([
-						error instanceof Error ? error.message : String(error),
-						`Rollback also failed: ${rollbackErrors.join("; ")}`,
-					].join(" "));
-				}
-				throw error;
-			}
+			await executeMarkdownWriteTransaction(this.vault, [{
+				after: plan.after,
+				before: plan.before,
+				path: plan.existing.path,
+			}], {
+				commit: () => this.storage.saveData(plan.nextData),
+				rollback: () => this.storage.saveData(latestData),
+			});
 
 			return { status: "merged" };
 		} catch (error) {
 			return {
 				message: error instanceof Error ? error.message : "Incoming Concept Merge failed.",
-				status: "failed",
+				status: error instanceof MarkdownWriteConflict ? "conflict" : "failed",
 			};
 		}
 	}

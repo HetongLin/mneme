@@ -19,12 +19,15 @@ import {
 import { createConceptSourceLinkId } from "./conceptSourceLinking";
 import { appendConceptView } from "./conceptViewAppender";
 import { normalizePluginData } from "./reviewStateStore";
+import {
+	executeMarkdownWriteTransaction,
+	MarkdownWriteConflict,
+	type TransactionalMarkdownVault,
+} from "./markdownWriteTransaction";
 
-export interface ConceptMergeVaultAdapter {
+export interface ConceptMergeVaultAdapter extends TransactionalMarkdownVault {
 	exists(path: string): Promise<boolean>;
 	listMarkdownFiles(): Promise<Array<{ path: string }>>;
-	modify(path: string, content: string): Promise<void>;
-	read(path: string): Promise<string>;
 }
 
 export interface ConceptMergeStorage {
@@ -238,48 +241,16 @@ export class ConceptMergeService {
 				return { message: "Mneme state changed after preview. Rebuild the merge preview.", status: "conflict" };
 			}
 
-			const written: ConceptMergeWrite[] = [];
-			let dataWriteAttempted = false;
-			try {
-				for (const write of writes) {
-					if (write.after !== write.before) {
-						await this.vault.modify(write.path, write.after);
-						written.push(write);
-					}
-				}
-				dataWriteAttempted = true;
-				await this.storage.saveData(plan.nextData);
-			} catch (error) {
-				const rollbackErrors: string[] = [];
-				for (const write of [...written].reverse()) {
-					try {
-						if (await this.vault.read(write.path) !== write.after) {
-							rollbackErrors.push(`${write.path}: changed after Mneme wrote it; rollback did not overwrite the newer content`);
-							continue;
-						}
-						await this.vault.modify(write.path, write.before);
-					} catch (rollbackError) {
-						rollbackErrors.push(`${write.path}: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`);
-					}
-				}
-				if (dataWriteAttempted) {
-					try {
-						await this.storage.saveData(latestData);
-					} catch (rollbackError) {
-						rollbackErrors.push(`plugin data: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`);
-					}
-				}
-				if (rollbackErrors.length > 0) {
-					throw new Error(`${error instanceof Error ? error.message : String(error)} Rollback also failed: ${rollbackErrors.join("; ")}`);
-				}
-				throw error;
-			}
+			await executeMarkdownWriteTransaction(this.vault, writes, {
+				commit: () => this.storage.saveData(plan.nextData),
+				rollback: () => this.storage.saveData(latestData),
+			});
 
 			return { status: "merged" };
 		} catch (error) {
 			return {
 				message: error instanceof Error ? error.message : "Guided Merge failed.",
-				status: "failed",
+				status: error instanceof MarkdownWriteConflict ? "conflict" : "failed",
 			};
 		}
 	}

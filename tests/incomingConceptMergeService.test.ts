@@ -123,6 +123,31 @@ async function runAsyncTests(): Promise<void> {
 	);
 
 	{
+		const raceVault = new MemoryIncomingMergeVault({ [existing.path]: conceptMarkdown(existing) });
+		const raceData = createDefaultPluginData();
+		raceData.knowledgeProposals[proposal.id] = proposal;
+		const raceStorage = new MemoryIncomingMergeStorage(raceData);
+		const raceService = new IncomingConceptMergeService(raceVault, raceStorage, () => now);
+		const racePrepared = await raceService.prepare({
+			draft: {
+				coreMeaning: "Merged.", englishName: "", importance: "normal", learningMode: "reviewable",
+				tags: [], title: "Shared title", whyItMatters: "",
+			},
+			existing,
+			origin: { kind: "inbox", proposalId: proposal.id, proposalUpdatedAt: proposal.updatedAt },
+		});
+		assert.equal(racePrepared.status, "ready");
+		if (racePrepared.status !== "ready") throw new Error(racePrepared.message);
+		raceVault.racePath = existing.path;
+		raceVault.raceEdit = "\nEdit made after the initial check\n";
+		const raceResult = await raceService.execute(racePrepared.plan);
+
+		assert.equal(raceResult.status, "conflict");
+		assert.match(raceVault.files[existing.path] ?? "", /Edit made after the initial check/);
+		assert.equal(raceStorage.saveCount, 0);
+	}
+
+	{
 		const manualDraft = {
 			coreMeaning: "Manual incoming meaning.",
 			englishName: "",
@@ -223,7 +248,6 @@ async function runAsyncTests(): Promise<void> {
 		const rollbackVault = new MemoryIncomingMergeVault({
 			[existing.path]: conceptMarkdown(existing),
 		});
-		const before = rollbackVault.files[existing.path];
 		const rollbackStorage = new MemoryIncomingMergeStorage(rollbackData);
 		const rollbackService = new IncomingConceptMergeService(
 			rollbackVault,
@@ -250,6 +274,7 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(rollbackPrepared.status, "ready");
 		if (rollbackPrepared.status !== "ready") throw new Error(rollbackPrepared.message);
 		rollbackStorage.partialFailOnce = true;
+		const before = rollbackVault.files[existing.path];
 
 		const rollbackResult = await rollbackService.execute(rollbackPrepared.plan);
 
@@ -257,24 +282,64 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(rollbackVault.files[existing.path], before);
 		assert.equal(rollbackStorage.data.knowledgeProposals[proposal.id]?.status, "edited");
 	}
+
+	{
+		const rollbackData = createDefaultPluginData();
+		rollbackData.knowledgeProposals[proposal.id] = proposal;
+		const rollbackVault = new MemoryIncomingMergeVault({ [existing.path]: conceptMarkdown(existing) });
+		const rollbackStorage = new MemoryIncomingMergeStorage(rollbackData);
+		const rollbackService = new IncomingConceptMergeService(rollbackVault, rollbackStorage, () => now);
+		const rollbackPrepared = await rollbackService.prepare({
+			draft: {
+				coreMeaning: "Merged.", englishName: "", importance: "normal", learningMode: "reviewable",
+				tags: [], title: "Shared title", whyItMatters: "",
+			},
+			existing,
+			origin: { kind: "inbox", proposalId: proposal.id, proposalUpdatedAt: proposal.updatedAt },
+		});
+		assert.equal(rollbackPrepared.status, "ready");
+		if (rollbackPrepared.status !== "ready") throw new Error(rollbackPrepared.message);
+		rollbackStorage.partialFailOnce = true;
+		rollbackVault.rollbackRace = true;
+
+		const rollbackResult = await rollbackService.execute(rollbackPrepared.plan);
+
+		assert.equal(rollbackResult.status, "failed");
+		assert.match(rollbackVault.files[existing.path] ?? "", /Merged\./);
+		assert.match(rollbackVault.files[existing.path] ?? "", /Edit made during rollback/);
+	}
 }
 
 class MemoryIncomingMergeVault implements IncomingConceptMergeVault {
 	modifyCount = 0;
+	racePath?: string;
+	raceEdit?: string;
+	rollbackRace = false;
 
 	constructor(public files: Record<string, string>) {
-	}
-
-	async modify(path: string, content: string): Promise<void> {
-		if (this.files[path] === undefined) throw new Error(`Missing file: ${path}`);
-		this.files[path] = content;
-		this.modifyCount += 1;
 	}
 
 	async read(path: string): Promise<string> {
 		const content = this.files[path];
 		if (content === undefined) throw new Error(`Missing file: ${path}`);
 		return content;
+	}
+
+	async process(path: string, transform: (current: string) => string): Promise<void> {
+		if (this.rollbackRace && this.modifyCount > 0) {
+			this.rollbackRace = false;
+			this.files[path] += "\nEdit made during rollback\n";
+		}
+		if (this.racePath === path && this.raceEdit) {
+			this.files[path] += this.raceEdit;
+			this.racePath = undefined;
+			this.raceEdit = undefined;
+		}
+		const current = this.files[path];
+		if (current === undefined) throw new Error(`Missing file: ${path}`);
+		const next = transform(current);
+		this.files[path] = next;
+		this.modifyCount += 1;
 	}
 }
 
