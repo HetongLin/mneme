@@ -2,7 +2,15 @@
 
 Updated: 2026-09-05
 
-## 本次交接摘要
+## 2026-09-05 代码审查后续
+
+- 已先构建并提交审查前备份：`83deb3f`，其父提交 `9cd98ad` 是原产品代码。
+- 当前审查/重构分支：`refactor/review-transaction-safety`；本轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，之后另有审查文档提交。
+- 本轮修复合并/Related 的并发覆盖、Card 并发追加丢失、Review 重复动作跳卡，并提取共用 Markdown 事务与 Review 动作保护。
+- `npm run test:all`、`npm run build`、`npm run check:release -- 1.0.0` 均已通过。详细证据、最终验证和仍未修复的持久化/重试问题见 [CODE_REVIEW_2026-09-05.md](CODE_REVIEW_2026-09-05.md)。下一轮优先处理报告中的 P1 状态事务问题。
+- 以下录像/验收摘要描述审查前的 `9cd98ad`，旧 ZIP 与录像未被替换，也不代表本轮修改已完成真实 Vault 或跨平台验收。
+
+## 审查前验收交接摘要
 
 - 当前版本为 `1.0.0`，最新本地代码提交为 `9cd98ad`。本轮只更新交接文档，没有改代码，也没有重新运行测试。
 - 最近完成的任务是独立测试 Vault 内的自行验收与录像交付：2026-08-30 录制核心流程，2026-09-04 补录重名冲突返回/取消。
@@ -34,7 +42,7 @@ ADRs are authoritative when documents conflict.
 
 ## Critical Workspace Warning
 
-The current branch is:
+The branch at the acceptance handoff was (the review continuation above names the current branch):
 
 ```text
 codex/task-054-stale-source-remove
@@ -271,7 +279,7 @@ Lightweight organization may be reconsidered only if Tags, search, Related Conce
 - docs/ROADMAP.md
 - docs/V1_RELEASE_CHECKLIST.md
 
-注意：当前版本 1.0.0，分支 `codex/task-054-stale-source-remove`，最新代码提交为 `9cd98ad`。交接文档已于 2026-09-05 更新，可能尚未提交；另有长期存在的未跟踪 `mneme` 自链接和 `release-artifacts/`。先只读检查 git status，保留所有现有修改、验收 Vault 与录像。
+注意：当前版本 1.0.0，审查重构分支为 `refactor/review-transaction-safety`，审查前备份提交为 `83deb3f`；最新提交请以 git log 为准。请先读 docs/CODE_REVIEW_2026-09-05.md 的已修复与未修复事项。另有长期存在的未跟踪 `mneme` 自链接和 `release-artifacts/`。先只读检查 git status，保留所有现有修改、验收 Vault 与录像。
 
 v1.0 功能已经完成。产品定位已调整为面向自我导向终生学习者的个人知识记忆插件，核心闭环是 Source Note → Concept → Card → Review → Concept Library。
 
