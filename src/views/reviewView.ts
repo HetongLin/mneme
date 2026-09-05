@@ -30,6 +30,7 @@ import {
 } from "../services/todaysFocusSelector";
 import { formatUserFacingError } from "../utils/userFacingError";
 import type { ConceptSummary } from "../models/conceptLibrary";
+import { ReviewActionGuard } from "../services/reviewActionGuard";
 
 export const REVIEW_VIEW_TYPE = "mneme-review-view";
 
@@ -62,6 +63,7 @@ export class MnemeReviewView extends ItemView {
 	private deletedCardCount = 0;
 	private detailsConceptId: string | null = null;
 	private readonly loader: ConceptLoader;
+	private readonly actionGuard = new ReviewActionGuard();
 	private isAnswerShown = false;
 	private isCompletionQueueFresh = false;
 	private isReviewComplete = false;
@@ -109,6 +111,7 @@ export class MnemeReviewView extends ItemView {
 	}
 
 	protected async onClose(): Promise<void> {
+		this.actionGuard.beginSession();
 		this.contentEl.empty();
 	}
 
@@ -583,6 +586,7 @@ export class MnemeReviewView extends ItemView {
 		const actionBarEl = parentEl.createDiv({ cls: "mneme-review-action-bar" });
 		const leftEl = actionBarEl.createDiv({ cls: "mneme-review-action-bar-edge" });
 		leftEl.createEl("button", { text: "Edit" }, (buttonEl) => {
+			buttonEl.disabled = this.actionGuard.isBusy;
 			buttonEl.addEventListener("click", () => this.openCardEditor(queueCard.card));
 		});
 
@@ -592,6 +596,7 @@ export class MnemeReviewView extends ItemView {
 				cls: "mneme-review-show-answer-button",
 				text: "Show Answer",
 			}, (buttonEl) => {
+				buttonEl.disabled = this.actionGuard.isBusy;
 				buttonEl.addEventListener("click", () => this.showAnswer());
 			});
 		} else {
@@ -600,6 +605,7 @@ export class MnemeReviewView extends ItemView {
 					cls: `mneme-review-rating-button mneme-review-rating-${rating.value}`,
 					text: rating.label,
 				}, (buttonEl) => {
+					buttonEl.disabled = this.actionGuard.isBusy;
 					buttonEl.addEventListener("click", () => {
 						void this.rateCurrentCard(rating.value);
 					});
@@ -609,6 +615,7 @@ export class MnemeReviewView extends ItemView {
 
 		const rightEl = actionBarEl.createDiv({ cls: "mneme-review-action-bar-edge mneme-review-action-bar-end" });
 		rightEl.createEl("button", { text: "More ▾" }, (buttonEl) => {
+			buttonEl.disabled = this.actionGuard.isBusy;
 			buttonEl.addEventListener("click", () => {
 				this.openCardActionsMenu(buttonEl, concept, queueCard);
 			});
@@ -1097,6 +1104,7 @@ export class MnemeReviewView extends ItemView {
 			return;
 		}
 
+		this.actionGuard.beginSession();
 		this.mode = "flashcard";
 		this.sessionSource = source;
 		this.selectedConcept = concept;
@@ -1136,6 +1144,7 @@ export class MnemeReviewView extends ItemView {
 	}
 
 	private skipCurrentCard(): void {
+		if (this.actionGuard.isBusy) return;
 		const card = this.getCurrentReviewableCard();
 
 		if (!card) {
@@ -1158,6 +1167,9 @@ export class MnemeReviewView extends ItemView {
 		if (!card) {
 			return;
 		}
+		const action = this.actionGuard.begin("more", card.cardId);
+		if (!action) return;
+		this.setReviewActionButtonsDisabled(true);
 
 		try {
 			const now = new Date();
@@ -1166,6 +1178,7 @@ export class MnemeReviewView extends ItemView {
 				startOfNextLocalDay(now),
 				now,
 			);
+			if (!this.actionGuard.isCurrent(action)) return;
 			this.activeDeferrals[card.cardId] = deferral;
 			this.selectedCards.splice(this.selectedCardIndex, 1);
 			this.deferredCardCount += 1;
@@ -1183,11 +1196,15 @@ export class MnemeReviewView extends ItemView {
 				this.render();
 			}
 		} catch (error) {
+			if (!this.actionGuard.isCurrent(action)) return;
 			console.error("Mneme: failed to defer Card review", {
 				cardId: card.cardId,
 				error,
 			});
 			new Notice("Mneme: Card could not be moved to tomorrow.");
+		} finally {
+			this.actionGuard.finish(action);
+			this.setReviewActionButtonsDisabled(false);
 		}
 	}
 
@@ -1197,9 +1214,13 @@ export class MnemeReviewView extends ItemView {
 		if (!card) {
 			return;
 		}
+		const action = this.actionGuard.begin("more", card.cardId);
+		if (!action) return;
+		this.setReviewActionButtonsDisabled(true);
 
 		try {
 			const suspension = await this.reviewStateStore.suspendCard(card.cardId);
+			if (!this.actionGuard.isCurrent(action)) return;
 			this.activeSuspensions[card.cardId] = suspension;
 			this.selectedCards.splice(this.selectedCardIndex, 1);
 			this.suspendedCardCount += 1;
@@ -1217,8 +1238,12 @@ export class MnemeReviewView extends ItemView {
 				this.render();
 			}
 		} catch (error) {
+			if (!this.actionGuard.isCurrent(action)) return;
 			console.error("Mneme: failed to suspend Card", { cardId: card.cardId, error });
 			new Notice("Mneme: Card could not be suspended.");
+		} finally {
+			this.actionGuard.finish(action);
+			this.setReviewActionButtonsDisabled(false);
 		}
 	}
 
@@ -1240,9 +1265,13 @@ export class MnemeReviewView extends ItemView {
 			new Notice("Mneme: assign a stable Card ID before archiving this Card.");
 			return;
 		}
+		const action = this.actionGuard.begin("more", card.cardId);
+		if (!action) return;
+		this.setReviewActionButtonsDisabled(true);
 
 		try {
 			const retirement = await this.reviewStateStore.retireCard(card.cardId);
+			if (!this.actionGuard.isCurrent(action)) return;
 			this.activeRetirements[card.cardId] = retirement;
 			delete this.activeDeferrals[card.cardId];
 			delete this.activeSuspensions[card.cardId];
@@ -1261,8 +1290,12 @@ export class MnemeReviewView extends ItemView {
 				this.render();
 			}
 		} catch (error) {
+			if (!this.actionGuard.isCurrent(action)) return;
 			console.error("Mneme: failed to archive Card", { cardId: card.cardId, error });
 			new Notice("Mneme: Card could not be archived.");
+		} finally {
+			this.actionGuard.finish(action);
+			this.setReviewActionButtonsDisabled(false);
 		}
 	}
 
@@ -1326,37 +1359,46 @@ export class MnemeReviewView extends ItemView {
 			await this.refreshCompletedReviewSession();
 			return;
 		}
+		const action = this.actionGuard.begin("rating", card.cardId);
+		if (!action) return;
+		this.setReviewActionButtonsDisabled(true);
 
-		let updatedReviewState: CardReviewState;
 		try {
-			updatedReviewState = await this.reviewStateStore.recordReview(card.cardId, rating, {
-				requestRetention: concept.concept.retentionTarget,
-			});
-		} catch (error) {
-			console.error("Mneme: failed to record review rating", {
+			let updatedReviewState: CardReviewState;
+			try {
+				updatedReviewState = await this.reviewStateStore.recordReview(card.cardId, rating, {
+					requestRetention: concept.concept.retentionTarget,
+				});
+			} catch (error) {
+				if (!this.actionGuard.isCurrent(action)) return;
+				console.error("Mneme: failed to record review rating", {
+					cardId: card.cardId,
+					conceptTitle: concept.title,
+					error,
+					rating,
+				});
+				const detail = formatUserFacingError(error, "Try the rating again.");
+				this.statusMessage = `Could not record review: ${detail}`;
+				new Notice(`Mneme: Could not record review: ${detail}`);
+				this.render();
+				return;
+			}
+			if (!this.actionGuard.isCurrent(action)) return;
+
+			console.info("Mneme: review rating selected", {
 				cardId: card.cardId,
+				cardIndex: this.selectedCardIndex + 1,
 				conceptTitle: concept.title,
-				error,
+				path: card.card.path,
 				rating,
+				updatedReviewState,
 			});
-			const detail = formatUserFacingError(error, "Try the rating again.");
-			this.statusMessage = `Could not record review: ${detail}`;
-			new Notice(`Mneme: Could not record review: ${detail}`);
-			this.render();
-			return;
-		}
-
-		console.info("Mneme: review rating selected", {
-			cardId: card.cardId,
-			cardIndex: this.selectedCardIndex + 1,
-			conceptTitle: concept.title,
-			path: card.card.path,
-			rating,
-			updatedReviewState,
-		});
-
-		if (this.advanceToNextCard()) {
-			await this.refreshCompletedReviewSession();
+			if (this.advanceToNextCard()) {
+				await this.refreshCompletedReviewSession();
+			}
+		} finally {
+			this.actionGuard.finish(action);
+			this.setReviewActionButtonsDisabled(false);
 		}
 	}
 
@@ -1421,6 +1463,7 @@ export class MnemeReviewView extends ItemView {
 	}
 
 	private resetReviewState(): void {
+		this.actionGuard.beginSession();
 		this.mode = "queue";
 		this.detailsConceptId = null;
 		this.selectedConcept = null;
@@ -1439,6 +1482,12 @@ export class MnemeReviewView extends ItemView {
 
 	private getCurrentReviewableCard(): ReviewQueueCard | undefined {
 		return this.selectedCards[this.selectedCardIndex];
+	}
+
+	private setReviewActionButtonsDisabled(disabled: boolean): void {
+		for (const button of Array.from(this.contentEl.querySelectorAll<HTMLButtonElement>(".mneme-review-action-bar button"))) {
+			button.disabled = disabled;
+		}
 	}
 
 	private getExcludedCardIds(): Set<string> {
