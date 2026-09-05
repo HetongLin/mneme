@@ -1,6 +1,14 @@
 # Mneme Next-Session Hand-off
 
-Updated: 2026-07-23
+Updated: 2026-09-05
+
+## 本次交接摘要
+
+- 当前版本为 `1.0.0`，最新本地代码提交为 `9cd98ad`。本轮只更新交接文档，没有改代码，也没有重新运行测试。
+- 最近完成的任务是独立测试 Vault 内的自行验收与录像交付：2026-08-30 录制核心流程，2026-09-04 补录重名冲突返回/取消。
+- 两段 720p 录像已交给用户判断 UI；本次录制使用 Mock provider，不构成真实模型中英文提取质量的验收。
+- 下一步优先接收用户的录像/手动测试反馈；若继续验收，补真实 provider 的中文、混合语言、长文本质量及尚未完整覆盖的发布门槛。
+- 不要把此次专项通过解读为所有场景、所有平台均通过。测试 Vault 内还保留 1 个 Inbox Proposal 和 1 个合并草稿，供继续验收。
 
 ## Start Here
 
@@ -32,13 +40,15 @@ The current branch is:
 codex/task-054-stale-source-remove
 ```
 
-The branch name does not describe the current product scope. The v1.0 implementation and its supporting documentation were committed locally as:
+The branch name does not describe the current product scope. Relevant local commits are:
 
 ```text
+9cd98ad feat: finalize lifelong learning capture and merge flows
+9af59c5 docs: define lifelong learning release direction
 8f65f89 feat: complete Mneme v1.0 learning workflow
 ```
 
-The current working tree may contain the post-v1.0 product-direction documentation revision plus the long-standing untracked `mneme` self-link and `release-artifacts/`.
+At the start of this handoff update, tracked files were clean. The only untracked entries were the long-standing `mneme` self-link and `release-artifacts/`. This handoff update is a subsequent documentation-only working-tree change.
 
 Do not:
 
@@ -47,17 +57,18 @@ Do not:
 - delete `release-artifacts/` without inspecting it;
 - refactor unrelated areas while beginning the next version.
 
-Inspect `git status` and the actual files first. Preserve all existing user changes. Committing, tagging, pushing, or publishing requires explicit user authorization and intentional scope review.
+Inspect `git status` and the actual files first. Preserve all existing user changes. Follow the repository's autonomous local Git policy in `AGENTS.md`; do not infer permission to push, tag a release, or publish from a request for a handoff.
 
 ## Current Verified State
 
 Mneme metadata is at `1.0.0`. The v1.0 feature set is functionally complete, although the final cross-platform publication checklist is not complete.
 
-Verified again on 2026-07-23 from the current working tree:
+The preceding implementation/release-preparation work reported these checks passing for the current release candidate. They were not rerun for this documentation-only handoff:
 
 ```text
 npm run test:all  # passed
 npm run build     # passed
+npm run check:release -- 1.0.0  # passed
 ```
 
 The current implementation includes:
@@ -131,16 +142,74 @@ The current implementation includes:
 - Tags are English lowercase slugs.
 - AI should prefer a few broad stable tags and avoid generic or near-duplicate tag explosion.
 
-## Remaining v1.0 Publication Work
+## Latest Acceptance Evidence and Deliverables
 
-The feature set is complete, but publication readiness still requires:
+All paths below are relative to the repository unless stated otherwise. Keep the artifacts and disposable Vaults; do not clean them as ordinary build output.
 
-- completing the disposable macOS `PRE_AI_ACCEPTANCE_CHECKLIST`;
-- full plugin reload and Obsidian restart regression;
-- Windows real-vault validation;
-- clean installation using only `main.js`, `styles.css`, and `manifest.json`.
+### Release candidate
 
-These are release gates, not missing v1.0 product functions.
+- ZIP: `release-artifacts/mneme-1.0.0-9cd98ad.zip`
+- SHA-256, rechecked on 2026-09-05: `c781f417262f66c74ae7b7e7932ae5524a59d4b104acea9d6dbb56e0035f454a`
+- Older ZIPs coexist in this directory. Use the `9cd98ad` artifact for this handoff.
+
+### Videos delivered to the user
+
+| Recording | File | Approximate size |
+| --- | --- | --- |
+| Core workflow, recorded 2026-08-30 | `release-artifacts/mneme-1.0-recorded-acceptance-720p.m4v` | 588 MB |
+| Conflict Back/Cancel, recorded 2026-09-04 | `release-artifacts/mneme-1.0-conflict-rollback-720p.m4v` | 104 MB |
+
+Both are silent screen recordings. Their original `.mov` files remain alongside them (approximately 1.2 GB and 246 MB). Both conversions completed successfully and the output containers were identified as M4V. Do not claim that every frame was reviewed or that all product scenarios are covered.
+
+### Disposable Vaults and fixtures
+
+- `release-artifacts/Mneme_Release_Candidate`: release-candidate/manual test Vault.
+- `release-artifacts/Mneme_Recorded_Acceptance`: recorded acceptance Vault, using Mock provider; no real API key was copied for recording.
+- `Manual Acceptance/` exists in both Vaults. It contains 11 fixtures/guide files: a Chinese guide, English structured note, Chinese structured note, mixed-language note, long English note (13,610 characters), long Chinese note (6,227 characters), Markdown edge cases, low-knowledge noise, two identically named `Retrieval Practice.md` notes in different folders, and a findings log.
+- User guide: `release-artifacts/Mneme_Release_Candidate/Manual Acceptance/00-手动验收指南.md`.
+- Findings log: `release-artifacts/Mneme_Release_Candidate/Manual Acceptance/99-验收问题记录.md`.
+- The recording work did not modify the user's formal `Mneme_ob` Vault.
+
+### What the recorded run established
+
+- Fresh test-Vault installation and Mneme 1.0.0 activation.
+- English Mock capture → editable Concept Proposal → accepted Concept Markdown.
+- Title edited to `Recorded durable learning` before acceptance; persisted ID is `concept-jngn8gvs`.
+- Card generation → editable Card Proposal → accepted canonical Card Group. Edited Front is `What distinguishes durable learning from rereading?`; Card ID is `card-pv6kww7j`.
+- Review → Show Answer → Good → completion. The persisted state contains one review event and one FSRS state with `reviewCount: 1`, `lastRating: good`.
+- Long English scanning displayed evidence from beginning/middle/later regions in the resulting Proposal. This verifies the Mock chunk/aggregation path, not semantic completeness. The Proposal was rejected.
+- Same-title conflict displayed both Existing and Incoming titles/Core Meanings.
+- Enter Merge → Back to Conflict Options → Cancel returned to Proposal Review; closing Proposal Review left the item in Inbox.
+- The resumed run began with the same pending Proposal still present after the earlier session ended.
+
+Disk state rechecked on 2026-09-05 in `Mneme_Recorded_Acceptance`:
+
+```text
+knowledgeProposals: 1
+conceptConflictMergeDrafts: 1
+conceptMergeRecords: 0
+reviewEvents: 1
+reviewStates: 1
+aiProvider: mock
+```
+
+The Concepts folder contains only `Concept-From-Retrieval-Practice.md` and `Recorded-Durable-Learning.md`; no `-2` Concept was created. A saved draft is expected pending state, not an applied merge. The supplementary recording did not exercise final merge confirmation or the manual Create Concept close path.
+
+### Remaining acceptance and publication work
+
+- User judgment of UI polish from the delivered recordings and manual use.
+- Real provider extraction quality for English, Chinese, mixed language, long notes, and low-knowledge noise. Mock results cannot close this item.
+- Reconcile each row of `CURRENT_VERSION_ACCEPTANCE_CHECKLIST.md` and `V1_RELEASE_CHECKLIST.md` with dated evidence. These older checklists still contain outdated artifact hashes and unchecked installation items; do not copy their status blindly or mark all complete from the narrow recording.
+- The macOS clean-install/core-loop path was exercised in the recording. A full plugin reload/Obsidian restart matrix across Inbox, manual Composer, FSRS, controls, and Library is not established by this supplemental recording alone.
+- Windows same-artifact validation remains pending. The manifest also declares `isDesktopOnly: false`; the recordings provide no mobile-platform evidence.
+- No release publication is established by this handoff. Address remaining release gates before declaring publication-ready.
+
+### Operational notes for continuation
+
+- The recording Vault may not be the active Obsidian window. Verify the Vault name before any test action; the user has other personal Vaults open.
+- On 2026-09-04, the CLI initially reported that it could not find Obsidian. Opening the registered Vault with `open -a Obsidian 'obsidian://open?vault=Mneme_Recorded_Acceptance'` restored the correct window; do not interpret that CLI error as a Mneme bug.
+- Current UI automation is available through `mcp__cua_repl`; inspect fresh UI state after actions. An earlier computer-use skill cache path no longer exists; discover current tools/skills instead of copying that path.
+- `screencapture` and `avconvert` needed approved execution outside the sandbox. Fixed-duration recording and 720p conversion worked. Prior process/session IDs are stale and must not be reused.
 
 ## Current Product Direction
 
@@ -178,12 +247,11 @@ Lightweight organization may be reconsidered only if Tags, search, Related Conce
 ## Recommended First Actions in the New Session
 
 1. Inspect `git status` and the current diff without modifying it.
-2. Re-read ADR 0019 and the current Product Spec/Roadmap before proposing new features.
-3. Complete the remaining v1.0 publication gates before starting a major feature.
-4. Identify a concrete core-loop friction from real use.
-5. Produce a small, testable implementation plan that adds no new learning mode or competing state model.
-6. Preserve existing Concept/Card/FSRS formats.
-7. Run `npm run test:all` and `npm run build`.
+2. Read the latest acceptance evidence above and the user's feedback on the recordings; preserve the pending test Proposal/draft.
+3. If no concrete defect has been reported, continue the remaining acceptance gates rather than inventing new features.
+4. Before product changes, re-read ADR 0019 and the current Product Spec/Roadmap.
+5. Scope any fix to observed friction, preserving Concept/Card/FSRS formats and the current simple product loop.
+6. After code changes, run appropriate tests, `npm run build`, and the release checks where relevant. Do not repeat the entire suite merely to hand off documentation.
 
 ## Paste-ready Prompt for the New Conversation
 
@@ -203,18 +271,17 @@ Lightweight organization may be reconsidered only if Tags, search, Related Conce
 - docs/ROADMAP.md
 - docs/V1_RELEASE_CHECKLIST.md
 
-注意：v1.0 实现已提交为 `8f65f89`。当前工作树可能仍有产品路线文档修改，以及长期存在的未跟踪 `mneme` 自链接和 `release-artifacts/`。不得 reset、checkout、clean、覆盖或删除任何现有修改。先只读检查 git status 和当前实现。
+注意：当前版本 1.0.0，分支 `codex/task-054-stale-source-remove`，最新代码提交为 `9cd98ad`。交接文档已于 2026-09-05 更新，可能尚未提交；另有长期存在的未跟踪 `mneme` 自链接和 `release-artifacts/`。先只读检查 git status，保留所有现有修改、验收 Vault 与录像。
 
 v1.0 功能已经完成。产品定位已调整为面向自我导向终生学习者的个人知识记忆插件，核心闭环是 Source Note → Concept → Card → Review → Concept Library。
 
 Course Context、Exam Mode、Use Mode、AI Answer Grading、Project Discovery 和内置学习 Agent 已退出产品路线。普通复习不得调用 AI；AI 仅用于用户明确触发、边界清楚的 Concept/Card 提取或草拟。Knowledge Context Pack 和 Anki TSV 只是导出工具，不是独立 Mode。
 
-先不要直接编码。请先：
-1. 核对 hand-off 与当前代码是否一致；
-2. 完成或核对 v1.0 发布验收剩余项；
-3. 从真实使用中识别一个核心闭环摩擦点；
-4. 给出不新增 Mode 或竞争状态模型的最小改进和验收标准；
-5. 等我确认后再实现。
+最近完成的是自行验收与录像交付。两段 720p 录像位于 release-artifacts/，分别为 mneme-1.0-recorded-acceptance-720p.m4v 和 mneme-1.0-conflict-rollback-720p.m4v。录制使用 Mock provider：核心写入/复习流程与冲突返回通过，不代表真实模型的中英文语义质量通过。
+
+录制 Vault 是 release-artifacts/Mneme_Recorded_Acceptance，仍保留 1 个待审 Proposal、1 个合并草稿、1 次 Good 复习；没有产生 -2 Concept。手动测试指南和中英文/长文本/边界样本在 release-artifacts/Mneme_Release_Candidate/Manual Acceptance/。不要误操作我的其他 Vault。
+
+请先核对当前状态和我对录像的反馈，再继续明确的缺陷修复或剩余验收。重点剩余项是真实 provider 内容质量、完整重启回归矩阵及 Windows 验收。不要把旧清单的全部条目自动勾选，不要直接扩展功能或发布。
 
 所有固定 UI 标签使用英文。FSRS 继续完全控制 Card 调度；只有正常 Card Review 中由用户确认的 Again/Hard/Good/Easy 可以更新 FSRS。
 ```
