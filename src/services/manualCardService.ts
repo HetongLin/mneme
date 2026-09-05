@@ -25,7 +25,7 @@ export interface ManualCardVault {
 	create(path: string, content: string): Promise<void>;
 	createFolder(path: string): Promise<void>;
 	exists(path: string): Promise<boolean>;
-	modify(path: string, content: string): Promise<void>;
+	process(path: string, transform: (current: string) => string): Promise<void>;
 	read(path: string): Promise<string>;
 }
 
@@ -72,9 +72,11 @@ export async function createManualCard(
 	if (existing === undefined) {
 		await vault.create(cardsPath, draft);
 	} else {
-		const appendResult = appendCardGroupDraft(existing, draft);
-		if (appendResult.status === "invalid") throw new Error(appendResult.message);
-		if (appendResult.status === "appended") await vault.modify(cardsPath, appendResult.markdown);
+		await vault.process(cardsPath, (current) => {
+			const appendResult = appendCardGroupDraft(current, draft);
+			if (appendResult.status === "invalid") throw new Error(appendResult.message);
+			return appendResult.markdown;
+		});
 	}
 
 	return { cardId, cardsPath, conceptId: input.concept.conceptId };

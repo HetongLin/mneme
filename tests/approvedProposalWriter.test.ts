@@ -14,6 +14,14 @@ class MemoryVaultAdapter implements MnemeVaultAdapter {
 	createdFolders = new Set<string>();
 	files = new Map<string, string>();
 	shouldFailCreate = false;
+	beforeNextWrite?: (current: string) => string;
+	private readBarrier?: { count: number; promise: Promise<void>; release: () => void };
+
+	armReadBarrier(): void {
+		let release!: () => void;
+		const promise = new Promise<void>((resolve) => { release = resolve; });
+		this.readBarrier = { count: 0, promise, release };
+	}
 
 	constructor(initialFiles: Record<string, string> = {}) {
 		for (const [path, content] of Object.entries(initialFiles)) {
@@ -51,6 +59,15 @@ class MemoryVaultAdapter implements MnemeVaultAdapter {
 		if (content === undefined) {
 			throw new Error(`Missing file: ${path}`);
 		}
+		const barrier = this.readBarrier;
+		if (barrier) {
+			barrier.count += 1;
+			if (barrier.count >= 2) {
+				this.readBarrier = undefined;
+				barrier.release();
+			}
+			await barrier.promise;
+		}
 
 		return content;
 	}
@@ -60,7 +77,19 @@ class MemoryVaultAdapter implements MnemeVaultAdapter {
 			throw new Error(`Missing file: ${path}`);
 		}
 
+		const current = this.files.get(path)!;
+		this.files.set(path, this.beforeNextWrite?.(current) ?? current);
+		this.beforeNextWrite = undefined;
 		this.files.set(path, content);
+	}
+
+	async process(path: string, transform: (current: string) => string): Promise<void> {
+		const content = this.files.get(path);
+		if (content === undefined) throw new Error(`Missing file: ${path}`);
+		const latest = this.beforeNextWrite?.(content) ?? content;
+		this.beforeNextWrite = undefined;
+		this.files.set(path, latest);
+		this.files.set(path, transform(latest));
 	}
 }
 
@@ -280,6 +309,44 @@ async function runAsyncTests(): Promise<void> {
 		assert.deepEqual(cards.map((card) => card.explicitCardId), [
 			"card-22222222",
 			"card-22222223",
+		]);
+	}
+
+	{
+		const first = createApprovedCardProposal("proposal-card-user-edit");
+		const second = createApprovedCardProposal("proposal-card-after-user-edit");
+		second.payload!.card.front = "Why hide representation?";
+		const proposals = { [first.id]: first, [second.id]: second };
+		const vault = new MemoryVaultAdapter();
+		const { writer } = await createWriter(proposals, vault);
+
+		assert.equal((await writer.writeApprovedProposal(first.id)).status, "written");
+		vault.beforeNextWrite = (current) => `${current}\n\n<!-- concurrent user edit -->\n`;
+		assert.equal((await writer.writeApprovedProposal(second.id)).status, "written");
+		assert.match(await vault.read("Mneme/Cards/Encapsulation/Cards.md"), /concurrent user edit/);
+	}
+
+	{
+		const original = createApprovedCardProposal("proposal-card-original-concurrent");
+		const first = createApprovedCardProposal("proposal-card-concurrent-a");
+		const second = createApprovedCardProposal("proposal-card-concurrent-b");
+		first.payload!.card.front = "Question A?";
+		second.payload!.card.front = "Question B?";
+		const proposals = { [original.id]: original, [first.id]: first, [second.id]: second };
+		const vault = new MemoryVaultAdapter();
+		const { writer } = await createWriter(proposals, vault);
+		assert.equal((await writer.writeApprovedProposal(original.id)).status, "written");
+		vault.armReadBarrier();
+		await Promise.all([
+			writer.writeApprovedProposal(first.id),
+			writer.writeApprovedProposal(second.id),
+		]);
+		const cards = parseMnemeCards(await vault.read("Mneme/Cards/Encapsulation/Cards.md"));
+		assert.deepEqual(cards.map((card) => card.front), [
+			"What is encapsulation?", "Question A?", "Question B?",
+		]);
+		assert.deepEqual(cards.map((card) => card.explicitCardId), [
+			"card-22222222", "card-22222223", "card-22222224",
 		]);
 	}
 

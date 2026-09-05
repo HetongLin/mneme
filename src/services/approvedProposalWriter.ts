@@ -38,6 +38,7 @@ export interface MnemeVaultAdapter {
 	createFolder(path: string): Promise<void>;
 	exists(path: string): Promise<boolean>;
 	modify(path: string, content: string): Promise<void>;
+	process(path: string, transform: (current: string) => string): Promise<void>;
 	read(path: string): Promise<string>;
 }
 
@@ -658,14 +659,11 @@ export class ApprovedProposalWriter {
 				return;
 			}
 
-			const existing = await this.options.vaultAdapter.read(draft.targetPath);
-			const appendResult = appendCardGroupDraft(existing, draft.content);
-			if (appendResult.status === "invalid") {
-				throw new Error(appendResult.message);
-			}
-			if (appendResult.status === "appended") {
-				await this.options.vaultAdapter.modify(draft.targetPath, appendResult.markdown);
-			}
+			await this.options.vaultAdapter.process(draft.targetPath, (current) => {
+				const appendResult = appendCardGroupDraft(current, draft.content);
+				if (appendResult.status === "invalid") throw new Error(appendResult.message);
+				return appendResult.markdown;
+			});
 			return;
 		}
 

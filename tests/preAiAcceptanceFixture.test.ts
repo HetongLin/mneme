@@ -70,6 +70,12 @@ class MemoryVaultAdapter implements MnemeVaultAdapter {
 
 		this.files.set(path, content);
 	}
+
+	async process(path: string, transform: (current: string) => string): Promise<void> {
+		const content = this.files.get(path);
+		if (content === undefined) throw new Error(`Missing file: ${path}`);
+		this.files.set(path, transform(content));
+	}
 }
 
 class MemoryConceptScanner implements ConceptSummaryScanner {

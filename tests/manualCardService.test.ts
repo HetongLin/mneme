@@ -7,6 +7,14 @@ import { createManualCard } from "../src/services/manualCardService";
 class MemoryVault {
 	files = new Map<string, string>();
 	folders = new Set<string>();
+	beforeNextWrite?: (current: string) => string;
+	private readBarrier?: { count: number; promise: Promise<void>; release: () => void };
+
+	armReadBarrier(): void {
+		let release!: () => void;
+		const promise = new Promise<void>((resolve) => { release = resolve; });
+		this.readBarrier = { count: 0, promise, release };
+	}
 
 	async create(path: string, content: string): Promise<void> {
 		if (this.files.has(path)) throw new Error("exists");
@@ -23,12 +31,33 @@ class MemoryVault {
 
 	async modify(path: string, content: string): Promise<void> {
 		if (!this.files.has(path)) throw new Error("missing");
+		const current = this.files.get(path)!;
+		this.files.set(path, this.beforeNextWrite?.(current) ?? current);
+		this.beforeNextWrite = undefined;
 		this.files.set(path, content);
+	}
+
+	async process(path: string, transform: (current: string) => string): Promise<void> {
+		const content = this.files.get(path);
+		if (content === undefined) throw new Error("missing");
+		const latest = this.beforeNextWrite?.(content) ?? content;
+		this.beforeNextWrite = undefined;
+		this.files.set(path, latest);
+		this.files.set(path, transform(latest));
 	}
 
 	async read(path: string): Promise<string> {
 		const content = this.files.get(path);
 		if (content === undefined) throw new Error("missing");
+		const barrier = this.readBarrier;
+		if (barrier) {
+			barrier.count += 1;
+			if (barrier.count >= 2) {
+				this.readBarrier = undefined;
+				barrier.release();
+			}
+			await barrier.promise;
+		}
 		return content;
 	}
 }
@@ -70,6 +99,29 @@ async function run(): Promise<void> {
 		"card-k7m3p9qx",
 	]);
 	assert.equal(cards[1]?.rubric, "Mention distributed practice and retention.");
+
+	vault.beforeNextWrite = (current) => `${current}\n\n<!-- concurrent user edit -->\n`;
+	await createManualCard({
+		back: "Distributed practice improves long-term retention.",
+		cardType: "definition",
+		concept,
+		front: "Why does spacing help learning?",
+	}, DEFAULT_SETTINGS, vault, new Set(), () => "card-atomic3");
+	assert.match(vault.files.get(second.cardsPath) ?? "", /concurrent user edit/);
+
+	const concurrentVault = new MemoryVault();
+	await createManualCard({
+		back: "The original card.", cardType: "definition", concept, front: "Original?",
+	}, DEFAULT_SETTINGS, concurrentVault, new Set(), () => "card-original");
+	concurrentVault.armReadBarrier();
+	await Promise.all([
+		createManualCard({ back: "Answer A", cardType: "definition", concept, front: "Question A?" }, DEFAULT_SETTINGS, concurrentVault, new Set(), () => "card-concurrent-a"),
+		createManualCard({ back: "Answer B", cardType: "definition", concept, front: "Question B?" }, DEFAULT_SETTINGS, concurrentVault, new Set(), () => "card-concurrent-b"),
+	]);
+	const concurrentCards = parseMnemeCards(concurrentVault.files.get(concept.cardsPath) ?? "");
+	assert.deepEqual(concurrentCards.map((card) => card.explicitCardId), [
+		"card-original", "card-concurrent-a", "card-concurrent-b",
+	]);
 
 	const historicalIdConcept: ConceptSummary = {
 		conceptId: "concept-historical-example",
