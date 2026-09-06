@@ -5,11 +5,13 @@ Updated: 2026-09-06
 ## 2026-09-05 至 09-06 代码审查后续
 
 - 已先构建并提交审查前备份：`83deb3f`，其父提交 `9cd98ad` 是原产品代码。
-- 当前审查/重构分支：`refactor/state-persistence`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，之后另有交接/审查文档提交。
+- 当前审查/重构分支：`refactor/approved-write-recovery`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，之后另有交接/审查文档提交。
 - 第一轮修复合并/Related 的并发覆盖、Card 并发追加丢失、Review 重复动作跳卡，并提取共用 Markdown 事务与 Review 动作保护。
 - 第二轮让所有当前 `data.json` 写入共用完整读/检查/改/存队列，覆盖 Review、Settings、Proposal、草稿、来源索引及 Merge 回滚；来源重连/移除也已接入原子 Markdown 事务；诊断开关现在只重绘，不重置复习进度。数据格式与版本不变。队列的共享 storage owner 和禁止嵌套获取规则见 [ADR 0022](adr/0022-plugin-state-mutations-share-one-queue.md)。
 - 第二轮 `npm run test:all`、`npm run build`、`npm run check:release -- 1.0.0`、`git diff --check` 均已通过。新增确定性交错测试覆盖共享状态、真实 `saveSettings()` 方法、Merge 回滚、来源写入/回滚冲突。详细证据见 [CODE_REVIEW_2026-09-05.md](CODE_REVIEW_2026-09-05.md)。
-- 下一轮优先处理报告中的 P1 Inbox 写入失败后的持久化恢复/幂等重试，其次是 P2 Card Composer 写入成功但草稿清理失败。共享队列尚不解决跨 Markdown/JSON 的崩溃恢复、外部进程写入或锁外构造的整条记录替换；不要把本轮修复视为这些问题也已解决。
+- 第三轮已修复新发生的 Inbox 中断写入：写前保存仅含路径/固定 ID/哈希的 `writeReceipt`，五类可写提案统一完成来源索引和 written 状态；重建后重试识别已有 Markdown，不分配第二份路径/ID。恢复记录、未完成 approved 提案保留在 Inbox/索引中，旧窗口不能覆盖。完成后去掉 payload，仅保留完成元数据。详见 [ADR 0023](adr/0023-approved-writes-have-durable-recovery-records.md)。这是 schema version 1 上的可选新增字段，Markdown 格式不变。
+- 第三轮也修复 Composer 创建期间输入/异步重绘/关闭交错，并区分创建成功、草稿清理失败、View 刷新失败。最新全量测试、构建、发布检查和 diff 检查已通过；恢复测试包含写入前后故障、重建存储/Writer、并发复习、冲突及索引清理。
+- 下一轮优先处理仍开放的 P2 Manual Card 创建成功但草稿清理持续失败后的跨重启幂等恢复。历史上已发生且没有 receipt 的 Inbox 部分写入不能自动认领；目标被改动/移动、恢复元数据损坏等情况仍需人工协调。新增恢复协议不覆盖外部进程写入、所有锁外整条记录替换或手动 Composer 的持久化恢复。报告里的真实 Vault/平台验收仍待完成。
 - 以下录像/验收摘要描述审查前的 `9cd98ad`，旧 ZIP 与录像未被替换，也不代表本轮修改已完成真实 Vault 或跨平台验收。
 
 ## 审查前验收交接摘要
