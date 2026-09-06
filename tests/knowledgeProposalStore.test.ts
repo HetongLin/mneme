@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import type { KnowledgeProposal } from "../src/models/knowledgeProposal";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
 import { KnowledgeProposalStore } from "../src/services/knowledgeProposalStore";
 import {
@@ -94,12 +95,14 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal((await store.listProposals()).length, 7);
 		assert.deepEqual((await store.listPending()).map((proposal) => proposal.id).sort(), [
 			"proposal-a",
+			"proposal-b",
 			"proposal-c",
 			"proposal-d",
 			"proposal-e",
 		]);
 		assert.deepEqual((await store.listActive()).map((proposal) => proposal.id).sort(), [
 			"proposal-a",
+			"proposal-b",
 			"proposal-c",
 			"proposal-d",
 			"proposal-e",
@@ -109,6 +112,36 @@ async function runAsyncTests(): Promise<void> {
 			"proposal-a",
 			"proposal-b",
 		]);
+	}
+
+	{
+		const receiptProposal = {
+			...createProposal("receipt-proposal", { status: "approved" }),
+			writeReceipt: { targetPaths: ["Mneme/Concepts/Receipt.md"] },
+		} as KnowledgeProposal;
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData({
+			[receiptProposal.id]: receiptProposal,
+		}));
+		const store = new KnowledgeProposalStore(storage);
+		const staleUiCopy = createProposal(receiptProposal.id, {
+			payload: { title: "Edited after receipt" },
+			status: "edited",
+		});
+
+		await assert.rejects(
+			store.upsertProposal(staleUiCopy),
+			/completed or pending Markdown recovery/,
+		);
+		assert.deepEqual((await store.getProposal(receiptProposal.id))?.payload, receiptProposal.payload);
+		await assert.rejects(
+			store.updateProposalStatus(receiptProposal.id, "stale"),
+			/pending write receipt/,
+		);
+		await assert.rejects(
+			store.replaceProposals({}),
+			/completed or pending Markdown recovery/,
+		);
+		assert.deepEqual(await store.getProposal(receiptProposal.id), receiptProposal);
 	}
 
 	{

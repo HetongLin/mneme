@@ -4,6 +4,7 @@ const ACTIVE_STATUSES = new Set<KnowledgeProposalStatus>([
 	"suggested",
 	"opened",
 	"edited",
+	"approved",
 	"stale",
 ]);
 

@@ -1,7 +1,7 @@
 import type { KnowledgeProposal } from "../models/knowledgeProposal";
 import type { ApprovedProposalWriter } from "./approvedProposalWriter";
 import { canTransitionProposalStatus } from "./knowledgeProposalLifecycle";
-import type { KnowledgeProposalStore } from "./knowledgeProposalStore";
+import { hasWriteReceipt, type KnowledgeProposalStore } from "./knowledgeProposalStore";
 import { validateKnowledgeProposalPayload } from "./knowledgeProposalValidation";
 import type { ConceptNameConflict } from "./conceptNameConflict";
 
@@ -33,6 +33,20 @@ export class InboxAcceptanceWorkflow {
 		proposalId: string,
 		options: InboxAcceptanceOptions = {},
 	): Promise<InboxAcceptanceResult> {
+		try {
+			return await this.acceptProposalInternal(proposalId, options);
+		} catch (error) {
+			return {
+				message: error instanceof Error ? error.message : "Proposal acceptance failed.",
+				status: "failed",
+			};
+		}
+	}
+
+	private async acceptProposalInternal(
+		proposalId: string,
+		options: InboxAcceptanceOptions,
+	): Promise<InboxAcceptanceResult> {
 		const proposal = await this.options.proposalStore.getProposal(proposalId);
 
 		if (!proposal) {
@@ -51,7 +65,10 @@ export class InboxAcceptanceWorkflow {
 			};
 		}
 
-		const validation = validateKnowledgeProposalPayload(proposal);
+		const pendingWrite = hasWriteReceipt(proposal);
+		const validation = pendingWrite
+			? { valid: true, errors: [], warnings: [] }
+			: validateKnowledgeProposalPayload(proposal);
 
 		if (!validation.valid) {
 			return {
@@ -62,7 +79,7 @@ export class InboxAcceptanceWorkflow {
 			};
 		}
 
-		if (proposal.kind === "new_concept" && options.nameConflictResolution !== "keep_both") {
+		if (!pendingWrite && proposal.kind === "new_concept" && options.nameConflictResolution !== "keep_both") {
 			try {
 				const conflict = await this.options.writer.findNewConceptNameConflict(proposal.id);
 				if (conflict) {
@@ -82,10 +99,30 @@ export class InboxAcceptanceWorkflow {
 			}
 		}
 
-		let approvedProposal: KnowledgeProposal;
-
 		try {
-			approvedProposal = await this.ensureApproved(proposal);
+			const approvedProposal = pendingWrite && (proposal.status === "approved" || proposal.status === "written")
+				? proposal
+				: await this.ensureApproved(proposal);
+			const writeResult = await this.options.writer.writeApprovedProposal(approvedProposal.id);
+
+			if (writeResult.status === "written") {
+				return {
+					kind,
+					message: `${formatKind(kind)} accepted.`,
+					status: "accepted",
+					targetPaths: writeResult.targetPaths,
+				};
+			}
+
+			if (!pendingWrite) {
+				await this.returnToActionableState(approvedProposal);
+			}
+
+			return {
+				kind,
+				message: writeResult.message,
+				status: writeResult.status === "skipped" ? "unsupported" : "failed",
+			};
 		} catch (error) {
 			return {
 				kind,
@@ -93,28 +130,20 @@ export class InboxAcceptanceWorkflow {
 				status: "failed",
 			};
 		}
-
-		const writeResult = await this.options.writer.writeApprovedProposal(approvedProposal.id);
-
-		if (writeResult.status === "written") {
-			return {
-				kind,
-				message: `${formatKind(kind)} accepted.`,
-				status: "accepted",
-				targetPaths: writeResult.targetPaths,
-			};
-		}
-
-		await this.returnToActionableState(approvedProposal);
-
-		return {
-			kind,
-			message: writeResult.message,
-			status: writeResult.status === "skipped" ? "unsupported" : "failed",
-		};
 	}
 
 	async rejectProposal(proposalId: string): Promise<InboxAcceptanceResult> {
+		try {
+			return await this.rejectProposalInternal(proposalId);
+		} catch (error) {
+			return {
+				message: error instanceof Error ? error.message : "Proposal rejection failed.",
+				status: "failed",
+			};
+		}
+	}
+
+	private async rejectProposalInternal(proposalId: string): Promise<InboxAcceptanceResult> {
 		const proposal = await this.options.proposalStore.getProposal(proposalId);
 
 		if (!proposal) {
@@ -138,7 +167,18 @@ export class InboxAcceptanceWorkflow {
 			};
 		}
 
-		await this.options.proposalStore.updateProposalStatus(proposal.id, "rejected");
+		if (hasWriteReceipt(proposal)) {
+			return { message: "A pending Markdown write must be resumed before it can be rejected.", status: "failed" };
+		}
+
+		try {
+			await this.options.proposalStore.updateProposalStatus(proposal.id, "rejected");
+		} catch (error) {
+			return {
+				message: error instanceof Error ? error.message : "Proposal rejection failed.",
+				status: "failed",
+			};
+		}
 
 		return {
 			message: "Proposal rejected.",
@@ -159,8 +199,10 @@ export class InboxAcceptanceWorkflow {
 	}
 
 	private async returnToActionableState(proposal: KnowledgeProposal): Promise<void> {
-		if (canTransitionProposalStatus(proposal.status, "stale")) {
-			await this.options.proposalStore.updateProposalStatus(proposal.id, "stale");
+		const latest = await this.options.proposalStore.getProposal(proposal.id);
+		if (!latest || hasWriteReceipt(latest) || latest.status === "written") return;
+		if (canTransitionProposalStatus(latest.status, "stale")) {
+			await this.options.proposalStore.updateProposalStatus(latest.id, "stale");
 		}
 	}
 }

@@ -17,10 +17,14 @@ import {
 class MemoryVaultStateAdapter implements VaultStateAdapter {
 	deletedFiles: string[] = [];
 
-	constructor(private readonly existingPaths: Set<string>) {
+	constructor(
+		private readonly existingPaths: Set<string>,
+		private readonly onExists?: (path: string) => Promise<void>,
+	) {
 	}
 
 	async exists(path: string): Promise<boolean> {
+		await this.onExists?.(path);
 		return this.existingPaths.has(path);
 	}
 
@@ -122,16 +126,75 @@ async function runAsyncTests(): Promise<void> {
 		const result = await createReconciler(storage, vault).reconcile();
 		const proposals = storage.savedData?.knowledgeProposals ?? {};
 
-		assert.deepEqual(result.removedProposalIds.sort(), [
-			"approved-proposal",
-			"rejected-proposal",
-			"written-proposal",
-		]);
+		assert.deepEqual(result.removedProposalIds, ["rejected-proposal", "written-proposal"]);
 		assert.equal(typeof proposals["active-proposal"], "object");
+		assert.equal(typeof proposals["approved-proposal"], "object");
 		assert.deepEqual(
 			storage.savedData?.sourceAnalysisRecords["Notes/Existing.md"]?.pendingProposalIds,
-			["active-proposal"],
+			["approved-proposal", "active-proposal"],
 		);
+	}
+
+	{
+		const receiptProposal = createProposal("receipt-proposal", {
+			sourcePath: "Notes/Deleted.md",
+			status: "written",
+			writeReceipt: {
+				version: 1,
+				proposalHash: "proposal-hash",
+				targetPath: "Mneme/Concepts/Recovered/Concept.md",
+				mode: "create",
+				afterHash: "after-hash",
+				createdAt: "2026-01-01T12:00:00.000Z",
+			},
+		});
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData({
+			[receiptProposal.id]: receiptProposal,
+		}));
+		const result = await createReconciler(storage, new MemoryVaultStateAdapter(new Set())).reconcile();
+		const data = await storage.loadData() as ReturnType<typeof createPluginData>;
+
+		assert.deepEqual(result.removedProposalIds, []);
+		assert.deepEqual(data.knowledgeProposals[receiptProposal.id], receiptProposal);
+	}
+
+	{
+		const proposal = createProposal("concurrent-proposal", {
+			sourcePath: "Notes/Deleted.md",
+		});
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData({
+			[proposal.id]: proposal,
+		}));
+		let updated = false;
+		const vault = new MemoryVaultStateAdapter(new Set(), async (path) => {
+			if (path !== proposal.sourcePath || updated) return;
+			updated = true;
+			const data = await storage.loadData() as ReturnType<typeof createPluginData>;
+			await storage.saveData({
+				...data,
+				knowledgeProposals: {
+					...data.knowledgeProposals,
+					[proposal.id]: {
+						...proposal,
+						status: "approved",
+						writeReceipt: {
+							version: 1,
+							proposalHash: "proposal-hash",
+							targetPath: "Mneme/Concepts/Recovered/Concept.md",
+							mode: "create",
+							afterHash: "after-hash",
+							createdAt: "2026-01-01T12:00:00.000Z",
+							},
+						},
+				},
+			});
+		});
+		const result = await createReconciler(storage, vault).reconcile();
+
+		assert.deepEqual(result.removedProposalIds, []);
+		assert.equal(storage.savedData?.knowledgeProposals[proposal.id]?.status, "approved");
+		assert.equal(storage.savedData?.knowledgeProposals[proposal.id]?.writeReceipt?.targetPath,
+			"Mneme/Concepts/Recovered/Concept.md");
 	}
 
 	{

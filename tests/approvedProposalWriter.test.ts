@@ -8,6 +8,7 @@ import { SourceAnalysisStore } from "../src/services/sourceAnalysisStore";
 import { createPluginData, createProposal, createSourceRecord, MemoryKnowledgeProposalStorage } from "./knowledgeProposalTestUtils";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
 import type { ConceptSummary } from "../src/models/conceptLibrary";
+import type { MnemePluginData } from "../src/models/reviewState";
 import { getCardGroupPathFromConceptFrontmatter } from "../src/services/conceptMarkdownIdentity";
 
 class MemoryVaultAdapter implements MnemeVaultAdapter {
@@ -15,12 +16,15 @@ class MemoryVaultAdapter implements MnemeVaultAdapter {
 	files = new Map<string, string>();
 	shouldFailCreate = false;
 	beforeNextWrite?: (current: string) => string;
-	private readBarrier?: { count: number; promise: Promise<void>; release: () => void };
+	private processBarrier?: { entered: () => void; wait: Promise<void> };
 
-	armReadBarrier(): void {
+	pauseNextProcess() {
+		let enter!: () => void;
 		let release!: () => void;
-		const promise = new Promise<void>((resolve) => { release = resolve; });
-		this.readBarrier = { count: 0, promise, release };
+		const entered = new Promise<void>((resolve) => { enter = resolve; });
+		const wait = new Promise<void>((resolve) => { release = resolve; });
+		this.processBarrier = { entered: enter, wait };
+		return { entered, release };
 	}
 
 	constructor(initialFiles: Record<string, string> = {}) {
@@ -59,15 +63,6 @@ class MemoryVaultAdapter implements MnemeVaultAdapter {
 		if (content === undefined) {
 			throw new Error(`Missing file: ${path}`);
 		}
-		const barrier = this.readBarrier;
-		if (barrier) {
-			barrier.count += 1;
-			if (barrier.count >= 2) {
-				this.readBarrier = undefined;
-				barrier.release();
-			}
-			await barrier.promise;
-		}
 
 		return content;
 	}
@@ -84,6 +79,9 @@ class MemoryVaultAdapter implements MnemeVaultAdapter {
 	}
 
 	async process(path: string, transform: (current: string) => string): Promise<void> {
+		const barrier = this.processBarrier;
+		this.processBarrier = undefined;
+		if (barrier) { barrier.entered(); await barrier.wait; }
 		const content = this.files.get(path);
 		if (content === undefined) throw new Error(`Missing file: ${path}`);
 		const latest = this.beforeNextWrite?.(content) ?? content;
@@ -93,9 +91,12 @@ class MemoryVaultAdapter implements MnemeVaultAdapter {
 	}
 }
 
-class FailingConceptSourceLinkStore extends ConceptSourceLinkStore {
-	async upsertLink(): Promise<void> {
-		throw new Error("Concept-source link write failed");
+class FailingCompletionStorage extends MemoryKnowledgeProposalStorage {
+	async saveData(data: MnemePluginData): Promise<void> {
+		if (Object.values(data.knowledgeProposals).some((proposal) => proposal.status === "written")) {
+			throw new Error("Concept-source completion write failed");
+		}
+		await super.saveData(data);
 	}
 }
 
@@ -132,17 +133,15 @@ async function createWriter(
 	const cardIdFactory = createIdSequence("card");
 	const conceptIdFactory = createIdSequence("concept");
 	const writer = new ApprovedProposalWriter({
+		storage,
 		cardIdFactory,
 		conceptIdFactory,
-		conceptSourceLinkStore,
 		conceptScanner: {
 			scanConcepts: async () => [concept],
 		},
 		isCardIdReserved,
 		now: () => "2026-01-02T12:00:00.000Z",
-		proposalStore: store,
 		settingsProvider: () => DEFAULT_SETTINGS,
-		sourceAnalysisStore,
 		vaultAdapter: vault,
 	});
 
@@ -336,11 +335,13 @@ async function runAsyncTests(): Promise<void> {
 		const vault = new MemoryVaultAdapter();
 		const { writer } = await createWriter(proposals, vault);
 		assert.equal((await writer.writeApprovedProposal(original.id)).status, "written");
-		vault.armReadBarrier();
-		await Promise.all([
-			writer.writeApprovedProposal(first.id),
-			writer.writeApprovedProposal(second.id),
-		]);
+		const barrier = vault.pauseNextProcess();
+		const writingFirst = writer.writeApprovedProposal(first.id);
+		await barrier.entered;
+		const writingSecond = writer.writeApprovedProposal(second.id);
+		barrier.release();
+		const results = await Promise.all([writingFirst, writingSecond]);
+		assert.ok(results.every((result) => result.status === "written"));
 		const cards = parseMnemeCards(await vault.read("Mneme/Cards/Encapsulation/Cards.md"));
 		assert.deepEqual(cards.map((card) => card.front), [
 			"What is encapsulation?", "Question A?", "Question B?",
@@ -800,7 +801,11 @@ async function runAsyncTests(): Promise<void> {
 		const result = await writer.writeApprovedProposal(proposal.id);
 
 		assert.equal(result.status, "failed");
-		assert.equal(storage.savedData, undefined);
+		assert.ok(storage.savedData?.knowledgeProposals[proposal.id]?.writeReceipt);
+		assert.equal(storage.savedData?.knowledgeProposals[proposal.id]?.status, "approved");
+		assert.deepEqual(storage.savedData?.conceptSourceLinks, {});
+		assert.deepEqual(storage.savedData?.sourceAnalysisRecords["Notes/Intro.md"]?.linkedConceptIds, []);
+		assert.equal(vault.files.size, 0);
 	}
 
 	{
@@ -822,9 +827,9 @@ async function runAsyncTests(): Promise<void> {
 		const storage = new MemoryKnowledgeProposalStorage(createPluginData({ [proposal.id]: proposal }));
 		const vault = new MemoryVaultAdapter();
 		const writer = new ApprovedProposalWriter({
+		storage,
 			conceptIdFactory: createIdSequence("concept"),
 			isConceptIdReserved: async (conceptId) => conceptId === "concept-22222222",
-			proposalStore: new KnowledgeProposalStore(storage),
 			settingsProvider: () => DEFAULT_SETTINGS,
 			vaultAdapter: vault,
 		});
@@ -849,9 +854,9 @@ async function runAsyncTests(): Promise<void> {
 		const storage = new MemoryKnowledgeProposalStorage(createPluginData({ [proposal.id]: proposal }));
 		const vault = new MemoryVaultAdapter();
 		const writer = new ApprovedProposalWriter({
+		storage,
 			conceptIdFactory: createIdSequence("concept"),
 			isConceptIdReserved: async (conceptId) => conceptId === "concept-22222222",
-			proposalStore: new KnowledgeProposalStore(storage),
 			settingsProvider: () => ({ ...DEFAULT_SETTINGS, suggestEnglishAliases: true }),
 			vaultAdapter: vault,
 		});
@@ -889,17 +894,15 @@ async function runAsyncTests(): Promise<void> {
 			sourcePath: "Notes/Intro.md",
 			status: "approved",
 		});
-		const storage = new MemoryKnowledgeProposalStorage(createPluginData({ [proposal.id]: proposal }, {
+		const storage = new FailingCompletionStorage(createPluginData({ [proposal.id]: proposal }, {
 			"Notes/Intro.md": createSourceRecord("Notes/Intro.md"),
 		}));
 		const store = new KnowledgeProposalStore(storage);
 		const vault = new MemoryVaultAdapter();
 		const writer = new ApprovedProposalWriter({
-			conceptSourceLinkStore: new FailingConceptSourceLinkStore(storage),
+		storage,
 			now: () => "2026-01-02T12:00:00.000Z",
-			proposalStore: store,
 			settingsProvider: () => DEFAULT_SETTINGS,
-			sourceAnalysisStore: new SourceAnalysisStore(storage),
 			vaultAdapter: vault,
 		});
 		const result = await writer.writeApprovedProposal(proposal.id);

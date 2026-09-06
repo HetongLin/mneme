@@ -6,7 +6,7 @@ import {
 	InboxAcceptanceWorkflow,
 } from "../services/inboxAcceptanceWorkflow";
 import { canTransitionProposalStatus } from "../services/knowledgeProposalLifecycle";
-import { KnowledgeProposalStore } from "../services/knowledgeProposalStore";
+import { hasWriteReceipt, KnowledgeProposalStore } from "../services/knowledgeProposalStore";
 import {
 	type ProposalEvidenceDisplayItem,
 	getProposalEvidenceItems,
@@ -86,11 +86,19 @@ export class ProposalDetailModal extends Modal {
 		contentEl.addClass("mneme-proposal-detail-modal");
 
 		this.renderSummary(contentEl);
-		this.renderStructuredEditor(contentEl);
+		if (hasWriteReceipt(this.proposal)) {
+			this.renderReceiptRecoveryStatus(contentEl);
+		} else {
+			this.renderStructuredEditor(contentEl);
+		}
 		this.renderSourceEvidence(contentEl);
-		this.renderValidation(contentEl, validation.errors, validation.warnings);
+		if (!hasWriteReceipt(this.proposal)) {
+			this.renderValidation(contentEl, validation.errors, validation.warnings);
+		}
 
-		this.renderRawJsonEditor(contentEl);
+		if (!hasWriteReceipt(this.proposal)) {
+			this.renderRawJsonEditor(contentEl);
+		}
 
 		const actionsEl = contentEl.createDiv({ cls: "mneme-proposal-detail-modal-actions" });
 		if (getAcceptanceKind(this.proposal)) {
@@ -105,12 +113,23 @@ export class ProposalDetailModal extends Modal {
 			});
 		}
 		actionsEl.createEl("button", { text: "Reject & Next" }, (buttonEl) => {
+			buttonEl.disabled = hasWriteReceipt(this.proposal);
+			buttonEl.title = hasWriteReceipt(this.proposal)
+				? "Resume the pending Markdown write before rejecting this proposal."
+				: "Reject this proposal and continue to the next one.";
 			buttonEl.addEventListener("click", () => {
 				void this.reject();
 			});
 		});
 		actionsEl.createEl("button", { text: "Close" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => this.close());
+		});
+	}
+
+	private renderReceiptRecoveryStatus(parentEl: HTMLElement): void {
+		parentEl.createEl("p", {
+			cls: "mneme-review-status",
+			text: "A Markdown write is pending recovery. Editing and rejection are disabled; choose Accept & Next to resume it.",
 		});
 	}
 
@@ -482,7 +501,9 @@ export class ProposalDetailModal extends Modal {
 
 		this.isActing = true;
 		try {
-			const structuredPayload = this.collectStructuredPayload?.();
+			const structuredPayload = hasWriteReceipt(this.proposal)
+				? undefined
+				: this.collectStructuredPayload?.();
 			if (structuredPayload) {
 				await this.savePayload(structuredPayload, { notify: false, render: false });
 			}
@@ -512,13 +533,27 @@ export class ProposalDetailModal extends Modal {
 			}
 
 			console.error("Mneme: proposal acceptance failed", result);
+			await this.refreshAfterFailedAcceptance();
 			const operation = result.kind === "card" ? "Card write failed" : "Concept write failed";
 			new Notice(`Mneme: ${operation}: ${formatUserFacingMessage(result.message, "Try again.")}`);
 		} catch (error) {
 			console.error("Mneme: proposal acceptance failed", error);
+			await this.refreshAfterFailedAcceptance();
 			new Notice(`Mneme: Proposal acceptance failed: ${formatUserFacingError(error, "Try again.")}`);
 		} finally {
 			this.isActing = false;
+		}
+	}
+
+	private async refreshAfterFailedAcceptance(): Promise<void> {
+		try {
+			const latest = await this.options.store.getProposal(this.proposal.id);
+			if (latest && hasWriteReceipt(latest)) {
+				this.proposal = latest;
+				this.renderContent();
+			}
+		} catch (error) {
+			console.error("Mneme: failed to refresh proposal recovery state", error);
 		}
 	}
 
@@ -592,6 +627,10 @@ export class ProposalDetailModal extends Modal {
 
 	private async reject(): Promise<void> {
 		if (this.isActing) return;
+		if (hasWriteReceipt(this.proposal)) {
+			new Notice("Mneme: Resume the pending Markdown write before rejecting this proposal.");
+			return;
+		}
 		this.isActing = true;
 		try {
 			const workflow = this.options.writer

@@ -94,12 +94,10 @@ async function run(): Promise<void> {
 		timestampProvider: () => now,
 	});
 	const writer = new ApprovedProposalWriter({
+		storage,
 		conceptScanner,
-		conceptSourceLinkStore: new ConceptSourceLinkStore(storage),
 		now: () => now,
-		proposalStore,
 		settingsProvider: () => settings,
-		sourceAnalysisStore,
 		vaultAdapter: vault,
 	});
 	const acceptance = new InboxAcceptanceWorkflow({ proposalStore, writer });

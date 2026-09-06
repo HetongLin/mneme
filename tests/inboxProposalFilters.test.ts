@@ -19,7 +19,7 @@ import { createProposal } from "./knowledgeProposalTestUtils";
 	assert.equal(isActiveInboxProposal(opened), true);
 	assert.equal(isActiveInboxProposal(edited), true);
 	assert.equal(isActiveInboxProposal(stale), true);
-	assert.equal(isActiveInboxProposal(approved), false);
+	assert.equal(isActiveInboxProposal(approved), true);
 	assert.equal(isActiveInboxProposal(rejected), false);
 	assert.equal(isActiveInboxProposal(written), false);
 
@@ -28,6 +28,7 @@ import { createProposal } from "./knowledgeProposalTestUtils";
 		"opened",
 		"edited",
 		"stale",
+		"approved",
 	]);
 }
 

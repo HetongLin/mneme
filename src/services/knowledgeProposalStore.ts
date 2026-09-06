@@ -8,6 +8,7 @@ const PENDING_PROPOSAL_STATUSES = new Set<KnowledgeProposalStatus>([
 	"suggested",
 	"opened",
 	"edited",
+	"approved",
 	"stale",
 ]);
 
@@ -39,7 +40,14 @@ export class KnowledgeProposalStore {
 	async upsertProposals(proposals: KnowledgeProposal[]): Promise<void> {
 		return runPluginDataMutation(this.storage, async () => {
 			const data = await this.loadPluginData();
-			const proposalsById = Object.fromEntries(proposals.map((proposal) => [proposal.id, proposal]));
+			const proposalsById = Object.fromEntries(proposals.map((proposal) => {
+				const current = data.knowledgeProposals[proposal.id];
+				if (!current || (!hasWriteReceipt(current) && current.status !== "written")) {
+					return [proposal.id, proposal];
+				}
+				if (JSON.stringify(current) === JSON.stringify(proposal)) return [proposal.id, current];
+				throw new Error("This proposal has completed or pending Markdown recovery. Reopen it before editing.");
+			}));
 
 			await this.storage.saveData({
 				...data,
@@ -54,6 +62,13 @@ export class KnowledgeProposalStore {
 	async replaceProposals(proposals: Record<string, KnowledgeProposal>): Promise<void> {
 		return runPluginDataMutation(this.storage, async () => {
 			const data = await this.loadPluginData();
+			for (const [id, current] of Object.entries(data.knowledgeProposals)) {
+				if (!hasWriteReceipt(current) && current.status !== "written") continue;
+				const incoming = proposals[id];
+				if (!incoming || JSON.stringify(incoming) !== JSON.stringify(current)) {
+					throw new Error("Cannot replace a proposal with completed or pending Markdown recovery.");
+				}
+			}
 
 			await this.storage.saveData({
 				...data,
@@ -71,6 +86,10 @@ export class KnowledgeProposalStore {
 			const data = await this.loadPluginData();
 			const proposal = data.knowledgeProposals[id];
 			if (!proposal) throw new Error(`Knowledge proposal not found: ${id}`);
+			if (proposal.status === status) return proposal;
+			if (hasWriteReceipt(proposal) && status !== "written") {
+				throw new Error("A proposal with a pending write receipt can only be completed as written.");
+			}
 			const updatedProposal = applyProposalStatus(proposal, status, now);
 			await this.storage.saveData({
 				...data,
@@ -106,6 +125,24 @@ export class KnowledgeProposalStore {
 		return proposals.filter((proposal) => proposal.sourcePath === sourcePath);
 	}
 
+	async removeProposalsIfUnchanged(proposals: KnowledgeProposal[]): Promise<string[]> {
+		return runPluginDataMutation(this.storage, async () => {
+			const data = await this.loadPluginData();
+			const nextProposals = { ...data.knowledgeProposals };
+			const removedIds: string[] = [];
+			for (const expected of proposals) {
+				const current = nextProposals[expected.id];
+				if (!current || JSON.stringify(current) !== JSON.stringify(expected)) continue;
+				if (hasWriteReceipt(current) || current.status === "approved") continue;
+				delete nextProposals[expected.id];
+				removedIds.push(expected.id);
+			}
+			if (removedIds.length === 0) return removedIds;
+			await this.storage.saveData({ ...data, knowledgeProposals: nextProposals });
+			return removedIds;
+		});
+	}
+
 	async clearProposals(): Promise<void> {
 		return runPluginDataMutation(this.storage, async () => {
 			const data = await this.loadPluginData();
@@ -120,4 +157,8 @@ export class KnowledgeProposalStore {
 	private async loadPluginData(): Promise<MnemePluginData> {
 		return normalizePluginData(await this.storage.loadData());
 	}
+}
+
+export function hasWriteReceipt(proposal: KnowledgeProposal): boolean {
+	return proposal.writeReceipt !== undefined;
 }

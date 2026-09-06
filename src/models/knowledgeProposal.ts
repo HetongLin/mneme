@@ -1,4 +1,5 @@
 import type { ConceptSourceRelationType, SourceEvidence } from "./conceptSource";
+import type { ApprovedWriteReceipt } from "./markdownWrite";
 
 export const KNOWLEDGE_PROPOSAL_KINDS = [
 	"new_concept",
@@ -162,6 +163,7 @@ export type KnowledgeProposalPayload =
 	| RetireCardProposalPayload;
 
 export interface KnowledgeProposalBase {
+	writeReceipt?: ApprovedWriteReceipt;
 	ai?: {
 		confidence?: number;
 		normalizedAt: string;

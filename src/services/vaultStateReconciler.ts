@@ -4,7 +4,7 @@ import type { KnowledgeProposal, KnowledgeProposalStatus } from "../models/knowl
 import type { ConceptSourceLinkStore } from "./conceptSourceLinkStore";
 import type { ConceptSummaryScanner } from "./preAiAcceptanceFixtureService";
 import type { SourceAnalysisStore } from "./sourceAnalysisStore";
-import type { KnowledgeProposalStore } from "./knowledgeProposalStore";
+import { hasWriteReceipt, type KnowledgeProposalStore } from "./knowledgeProposalStore";
 
 export interface VaultStateFile {
 	path: string;
@@ -62,28 +62,24 @@ export class VaultStateReconciler {
 		removedProposalIds: string[];
 	}> {
 		const proposals = await this.options.knowledgeProposalStore.loadProposals();
-		const activeProposals: Record<string, KnowledgeProposal> = {};
-		const removedProposalIds: string[] = [];
+		const removalCandidates: KnowledgeProposal[] = [];
 
-		for (const [id, proposal] of Object.entries(proposals)) {
-			if (await this.shouldKeepProposal(proposal)) {
-				activeProposals[id] = proposal;
-			} else {
-				removedProposalIds.push(id);
-			}
+		for (const proposal of Object.values(proposals)) {
+			if (!await this.shouldKeepProposal(proposal)) removalCandidates.push(proposal);
 		}
 
-		if (removedProposalIds.length > 0) {
-			await this.options.knowledgeProposalStore.replaceProposals(activeProposals);
-		}
+		const removedProposalIds = await this.options.knowledgeProposalStore
+			.removeProposalsIfUnchanged(removalCandidates);
+		const currentProposals = await this.options.knowledgeProposalStore.loadProposals();
 
 		return {
-			activeProposalIds: new Set(Object.keys(activeProposals)),
+			activeProposalIds: new Set(Object.keys(currentProposals)),
 			removedProposalIds,
 		};
 	}
 
 	private async shouldKeepProposal(proposal: KnowledgeProposal): Promise<boolean> {
+		if (hasWriteReceipt(proposal) || proposal.status === "approved") return true;
 		if (!isActionableProposalStatus(proposal.status)) {
 			return false;
 		}
@@ -186,5 +182,6 @@ function isActionableProposalStatus(status: KnowledgeProposalStatus): boolean {
 	return status === "suggested"
 		|| status === "opened"
 		|| status === "edited"
+		|| status === "approved"
 		|| status === "stale";
 }

@@ -146,13 +146,11 @@ export default class MnemePlugin extends Plugin {
 			this,
 		);
 		this.approvedProposalWriter = new ApprovedProposalWriter({
-			conceptSourceLinkStore: this.conceptSourceLinkStore,
+			storage: this,
 			conceptScanner: this.createConceptScanner(),
 			isCardIdReserved: (cardId) => this.isCardIdReserved(cardId),
 			isConceptIdReserved: (conceptId) => this.isConceptIdReserved(conceptId),
-			proposalStore: this.knowledgeProposalStore,
 			settingsProvider: () => this.settings,
-			sourceAnalysisStore: this.sourceAnalysisStore,
 			vaultAdapter: new ObsidianVaultAdapter(this.app.vault),
 		});
 		await this.reviewStateStore.load();

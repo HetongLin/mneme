@@ -4,8 +4,6 @@ import { ApprovedProposalWriter } from "../src/services/approvedProposalWriter";
 import { InboxAcceptanceWorkflow, formatAcceptActionLabel } from "../src/services/inboxAcceptanceWorkflow";
 import { filterActiveInboxProposals } from "../src/services/inboxProposalFilters";
 import { KnowledgeProposalStore } from "../src/services/knowledgeProposalStore";
-import { ConceptSourceLinkStore } from "../src/services/conceptSourceLinkStore";
-import { SourceAnalysisStore } from "../src/services/sourceAnalysisStore";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
 import { createPluginData, createProposal, MemoryKnowledgeProposalStorage } from "./knowledgeProposalTestUtils";
 
@@ -71,7 +69,7 @@ function createWorkflow(proposals = {}, vault = new MemoryVaultAdapter()): {
 	const storage = new MemoryKnowledgeProposalStorage(createPluginData(proposals));
 	const store = new KnowledgeProposalStore(storage);
 	const writer = new ApprovedProposalWriter({
-		conceptSourceLinkStore: new ConceptSourceLinkStore(storage),
+		storage,
 		conceptScanner: {
 			scanConcepts: async () => [{
 				conceptId: "concept-encapsulation",
@@ -81,9 +79,7 @@ function createWorkflow(proposals = {}, vault = new MemoryVaultAdapter()): {
 		},
 		isConceptIdReserved: async (conceptId) => conceptId === "concept-encapsulation",
 		now: () => "2026-01-02T12:00:00.000Z",
-		proposalStore: store,
 		settingsProvider: () => DEFAULT_SETTINGS,
-		sourceAnalysisStore: new SourceAnalysisStore(storage),
 		vaultAdapter: vault,
 	});
 
@@ -253,7 +249,32 @@ async function runAsyncTests(): Promise<void> {
 		const result = await workflow.acceptProposal(proposal.id);
 
 		assert.equal(result.status, "failed");
-		assert.equal((await store.getProposal(proposal.id))?.status, "stale");
+		assert.equal((await store.getProposal(proposal.id))?.status, "approved");
+	}
+
+	{
+		const proposal = {
+			...createProposal("receipt-retry", { status: "approved" }),
+			writeReceipt: { targetPaths: ["Mneme/Concepts/Receipt.md"] },
+		};
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData({ [proposal.id]: proposal }));
+		let calls = 0;
+		const writer = {
+			findNewConceptNameConflict: async () => { throw new Error("name conflict lookup must be skipped"); },
+			writeApprovedProposal: async () => {
+				calls += 1;
+				return { message: "Markdown written.", proposalId: proposal.id, status: "written" as const, targetPaths: ["Receipt.md"] };
+			},
+		};
+		const workflow = new InboxAcceptanceWorkflow({
+			proposalStore: new KnowledgeProposalStore(storage),
+			writer: writer as never,
+		});
+
+		const result = await workflow.acceptProposal(proposal.id);
+		assert.equal(result.status, "accepted");
+		assert.equal(calls, 1);
+		assert.equal((await new KnowledgeProposalStore(storage).getProposal(proposal.id))?.status, "approved");
 	}
 
 	{

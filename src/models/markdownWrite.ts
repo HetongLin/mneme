@@ -12,3 +12,15 @@ export interface MarkdownWriteResult {
 	status: "written" | "skipped" | "failed";
 	targetPaths: string[];
 }
+
+/** Durable write intent only; learning content remains in the proposal/Markdown. */
+export interface ApprovedWriteReceipt {
+	version: 1;
+	proposalHash: string;
+	targetPath: string;
+	mode: "create" | "upsert_card_group" | "modify";
+	entityId?: string;
+	beforeHash?: string;
+	afterHash: string;
+	createdAt: string;
+}
