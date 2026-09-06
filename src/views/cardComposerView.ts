@@ -40,6 +40,7 @@ export class MnemeCardComposerView extends ItemView {
 	private rubricEl!: HTMLTextAreaElement;
 	private saveQueue: Promise<void> = Promise.resolve();
 	private saveTimer?: number;
+	private createCompletion?: Promise<void>;
 
 	constructor(leaf: WorkspaceLeaf, private readonly options: CardComposerOptions) {
 		super(leaf);
@@ -74,7 +75,14 @@ export class MnemeCardComposerView extends ItemView {
 	}
 
 	protected async onClose(): Promise<void> {
-		if (this.isReady) {
+		if (this.saveTimer !== undefined) {
+			window.clearTimeout(this.saveTimer);
+			this.saveTimer = undefined;
+		}
+		const shouldFlushDraft = this.isReady && !this.createCompletion;
+		this.isReady = false;
+		if (this.createCompletion) await this.createCompletion;
+		if (shouldFlushDraft) {
 			try {
 				await this.flushDraft();
 			} catch (error) {
@@ -83,14 +91,18 @@ export class MnemeCardComposerView extends ItemView {
 		}
 		this.markdownComponent.unload();
 		this.contentEl.empty();
-		this.isReady = false;
 		this.hasRendered = false;
+		if (this.saveTimer !== undefined) {
+			window.clearTimeout(this.saveTimer);
+			this.saveTimer = undefined;
+		}
 	}
 
 	async prepare(defaultConceptId?: string): Promise<void> {
 		this.pendingConceptId = defaultConceptId;
-		if (!this.isReady) return;
+		if (!this.isReady || this.isSaving) return;
 		this.concepts = await this.options.listConcepts();
+		if (!this.isReady || this.isSaving) return;
 		if (defaultConceptId && !isMeaningfulManualCardDraft(this.readDraft())) {
 			this.draft = { ...this.readDraft(), conceptId: defaultConceptId };
 		}
@@ -245,7 +257,7 @@ export class MnemeCardComposerView extends ItemView {
 	}
 
 	private async createCard(): Promise<void> {
-		if (this.isSaving) return;
+		if (this.isSaving || !this.isReady) return;
 		const draft = this.readDraft();
 		const concept = this.concepts.find((candidate) => candidate.conceptId === draft.conceptId);
 		if (!concept) {
@@ -258,8 +270,10 @@ export class MnemeCardComposerView extends ItemView {
 		}
 
 		this.isSaving = true;
-		this.createButtonEl.disabled = true;
+		this.setComposerDisabled(true);
 		this.createButtonEl.setText("Creating...");
+		let resolveCompletion!: () => void;
+		this.createCompletion = new Promise<void>((resolve) => { resolveCompletion = resolve; });
 		try {
 			await this.flushDraft();
 			const result = await this.options.create({
@@ -269,22 +283,40 @@ export class MnemeCardComposerView extends ItemView {
 				front: draft.front,
 				rubric: draft.rubric,
 			});
-			this.resetAfterCreate(concept.conceptId);
-			await this.persistCurrentDraft();
-			this.showCreatedResult(result, concept);
+			const isClosed = !this.isReady;
+			if (isClosed) this.draft = createEmptyManualCardDraft(concept.conceptId);
+			else this.resetAfterCreate(concept.conceptId);
+			try {
+				if (isClosed) await this.options.draftStore.clearDraft();
+				else await this.persistCurrentDraft();
+			} catch (error) {
+				console.error("Mneme: Card created but draft cleanup failed", error);
+				new Notice("Mneme: Card created, but the Composer draft could not be cleared. Check the existing Card before creating it again.");
+			}
+			if (this.isReady) this.showCreatedResult(result, concept);
 			new Notice(`Mneme: Card created (${result.cardId}).`);
-			await this.options.onCreated(result);
+			try {
+				await this.options.onCreated(result);
+			} catch (error) {
+				console.error("Mneme: Card created but views could not be refreshed", error);
+				new Notice("Mneme: Card created, but open views could not be refreshed.");
+			}
 		} catch (error) {
 			console.error("Mneme: manual Card creation failed", error);
 			new Notice(`Mneme: ${error instanceof Error ? error.message : "Card could not be created."}`);
 		} finally {
 			this.isSaving = false;
-			this.createButtonEl.disabled = false;
-			this.createButtonEl.setText("Create Card");
+			if (this.isReady) {
+				this.setComposerDisabled(false);
+				this.createButtonEl.setText("Create Card");
+			}
+			resolveCompletion();
+			this.createCompletion = undefined;
 		}
 	}
 
 	private resetAfterCreate(conceptId: string): void {
+		this.draft = createEmptyManualCardDraft(conceptId);
 		this.conceptEl.value = conceptId;
 		this.cardTypeEl.value = "definition";
 		this.frontEl.value = "";
@@ -292,6 +324,12 @@ export class MnemeCardComposerView extends ItemView {
 		this.rubricEl.value = "";
 		for (const field of [this.frontEl, this.backEl, this.rubricEl]) field.dispatchEvent(new Event("input"));
 		this.updateCardTypeDescription();
+	}
+
+	private setComposerDisabled(disabled: boolean): void {
+		for (const element of [this.conceptEl, this.cardTypeEl, this.frontEl, this.backEl, this.rubricEl, this.createButtonEl]) {
+			element.disabled = disabled;
+		}
 	}
 
 	private showCreatedResult(result: ManualCardResult, concept: ConceptSummary): void {

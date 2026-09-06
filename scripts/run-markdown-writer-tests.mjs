@@ -1,38 +1,28 @@
-import { spawnSync } from "node:child_process";
+import { unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
+import esbuild from "esbuild";
 
-const tests = [
-	"tests/markdownPath.test.ts",
-	"tests/entityId.test.ts",
-	"tests/conceptNaming.test.ts",
-	"tests/conceptMarkdownIdentity.test.ts",
-	"tests/markdownProposalRenderer.test.ts",
-	"tests/approvedProposalWriter.test.ts",
-	"tests/manualConceptService.test.ts",
-	"tests/manualCardService.test.ts",
-	"tests/ankiTsvExporter.test.ts",
-];
+const tests = ["markdownPath", "entityId", "conceptNaming", "conceptMarkdownIdentity", "markdownProposalRenderer", "approvedProposalWriter", "manualConceptService", "manualCardService", "ankiTsvExporter", "approvedWriteRecovery", "cardComposerView"];
 
 for (const test of tests) {
-	const outfile = path.join(tmpdir(), `mneme-${path.basename(test, ".ts")}-${Date.now()}.mjs`);
-	const build = spawnSync("npx", [
-		"esbuild",
-		test,
-		"--bundle",
-		"--platform=node",
-		"--format=esm",
-		`--outfile=${outfile}`,
-	], { stdio: "inherit" });
-
-	if (build.status !== 0) {
-		process.exit(build.status ?? 1);
-	}
-
-	const run = spawnSync("node", [outfile], { stdio: "inherit" });
-
-	if (run.status !== 0) {
-		process.exit(run.status ?? 1);
+	const outfile = path.join(tmpdir(), `mneme-${test}-tests-${Date.now()}.mjs`);
+	try {
+		await esbuild.build({
+			bundle: true,
+			entryPoints: [`tests/${test}.test.ts`],
+			...(test === "cardComposerView" ? { alias: { obsidian: "./tests/helpers/obsidianCardComposerStub.ts" } } : {}),
+			format: "esm",
+			logLevel: "silent",
+			outfile,
+			platform: "node",
+		});
+		const testModule = await import(pathToFileURL(outfile).href);
+		await testModule.done;
+		console.log(`${test} tests passed.`);
+	} finally {
+		await unlink(outfile).catch(() => undefined);
 	}
 }
 
