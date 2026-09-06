@@ -1,13 +1,16 @@
 import type { ConceptStaleSourceIssue } from "../models/conceptLibrary";
 import type { MnemePluginData } from "../models/reviewState";
 import { normalizeVaultPath } from "../utils/markdownPath";
+import {
+	executeMarkdownWriteTransaction,
+	MarkdownWriteConflict,
+	type TransactionalMarkdownVault,
+} from "./markdownWriteTransaction";
+import { runPluginDataMutation } from "./pluginDataMutation";
 import { removeConceptSourceEntry } from "./conceptSourceRemover";
 import { normalizePluginData } from "./reviewStateStore";
 
-export interface SourceProvenanceRemovalVault {
-	modify(path: string, content: string): Promise<void>;
-	read(path: string): Promise<string>;
-}
+export interface SourceProvenanceRemovalVault extends TransactionalMarkdownVault {}
 
 export interface SourceProvenanceRemovalStorage {
 	loadData(): Promise<unknown>;
@@ -84,39 +87,31 @@ export class SourceProvenanceRemovalService {
 	}
 
 	async execute(plan: SourceProvenanceRemovalPlan): Promise<{ status: "removed" } | { message: string; status: "conflict" | "failed" }> {
-		try {
-			if (await this.vault.read(plan.issue.conceptPath) !== plan.conceptBefore) {
-				return { message: "Concept.md changed after preview.", status: "conflict" };
-			}
-			const latestData = normalizePluginData(await this.storage.loadData());
-			if (JSON.stringify(latestData) !== plan.dataSnapshot) {
-				return { message: "Mneme state changed after preview.", status: "conflict" };
-			}
-			let markdownWritten = false;
-			let dataWriteAttempted = false;
+		return runPluginDataMutation(this.storage, async () => {
 			try {
-				if (plan.conceptAfter !== plan.conceptBefore) {
-					await this.vault.modify(plan.issue.conceptPath, plan.conceptAfter);
-					markdownWritten = true;
+				if (await this.vault.read(plan.issue.conceptPath) !== plan.conceptBefore) {
+					return { message: "Concept.md changed after preview.", status: "conflict" };
 				}
-				dataWriteAttempted = true;
-				await this.storage.saveData(plan.nextData);
+				const latestData = normalizePluginData(await this.storage.loadData());
+				if (JSON.stringify(latestData) !== plan.dataSnapshot) {
+					return { message: "Mneme state changed after preview.", status: "conflict" };
+				}
+				await executeMarkdownWriteTransaction(this.vault, [{
+					after: plan.conceptAfter,
+					before: plan.conceptBefore,
+					path: plan.issue.conceptPath,
+				}], {
+					commit: () => this.storage.saveData(plan.nextData),
+					rollback: () => this.storage.saveData(latestData),
+				});
+				return { status: "removed" };
 			} catch (error) {
-				const rollbackErrors: string[] = [];
-				if (markdownWritten) {
-					try { await this.vault.modify(plan.issue.conceptPath, plan.conceptBefore); }
-					catch (rollbackError) { rollbackErrors.push(`Concept.md: ${formatError(rollbackError)}`); }
-				}
-				if (dataWriteAttempted) {
-					try { await this.storage.saveData(latestData); }
-					catch (rollbackError) { rollbackErrors.push(`plugin data: ${formatError(rollbackError)}`); }
-				}
-				throw new Error(`${formatError(error)}${rollbackErrors.length ? ` Rollback also failed: ${rollbackErrors.join("; ")}` : ""}`);
+				return {
+					message: formatError(error),
+					status: error instanceof MarkdownWriteConflict ? "conflict" : "failed",
+				};
 			}
-			return { status: "removed" };
-		} catch (error) {
-			return { message: formatError(error), status: "failed" };
-		}
+		});
 	}
 }
 

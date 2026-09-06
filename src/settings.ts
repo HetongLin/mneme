@@ -29,6 +29,7 @@ export interface MnemeSettingsHost extends Plugin {
 	settings: MnemeSettings;
 	saveSettings(): Promise<void>;
 	refreshReviewViews?(): Promise<void>;
+	refreshReviewPresentation?(): void;
 	updateFsrsSchedulerConfig?(): void;
 }
 
@@ -183,7 +184,7 @@ export class MnemeSettingTab extends PluginSettingTab {
 				toggle.onChange(async (value) => {
 					this.plugin.settings.showAdvancedDiagnostics = value;
 					await this.persistSettings();
-					await this.plugin.refreshReviewViews?.();
+					this.plugin.refreshReviewPresentation?.();
 				});
 			});
 

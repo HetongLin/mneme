@@ -41,6 +41,7 @@ class MemoryVault implements SourceProvenanceRelinkVault {
 		[newPath, { content: "# New source\n", mtime: 20, path: newPath, size: 13 }],
 	]);
 	failModifyOnce = false;
+	beforeProcess?: () => void;
 
 	async read(path: string): Promise<string> {
 		const file = this.files.get(path);
@@ -54,13 +55,16 @@ class MemoryVault implements SourceProvenanceRelinkVault {
 		return { ...file };
 	}
 
-	async modify(path: string, content: string): Promise<void> {
+	async process(path: string, transform: (current: string) => string): Promise<void> {
+		this.beforeProcess?.();
+		this.beforeProcess = undefined;
 		if (this.failModifyOnce) {
 			this.failModifyOnce = false;
 			throw new Error("modify failed");
 		}
 		const file = this.files.get(path);
 		if (!file) throw new Error(`Missing ${path}`);
+		const content = transform(file.content);
 		this.files.set(path, { ...file, content, size: content.length });
 	}
 }
@@ -68,6 +72,7 @@ class MemoryVault implements SourceProvenanceRelinkVault {
 class MemoryStorage {
 	saveCalls = 0;
 	failAfterWriteOnce = false;
+	onFailure?: () => void;
 	constructor(public data: MnemePluginData) {}
 	async loadData(): Promise<unknown> { return this.data; }
 	async saveData(data: MnemePluginData): Promise<void> {
@@ -75,6 +80,7 @@ class MemoryStorage {
 		this.data = data;
 		if (this.failAfterWriteOnce) {
 			this.failAfterWriteOnce = false;
+			this.onFailure?.();
 			throw new Error("save failed after write");
 		}
 	}
@@ -125,6 +131,18 @@ async function run(): Promise<void> {
 	}
 
 	{
+		const prepared = await readyPlan();
+		const current = prepared.vault.files.get(conceptPath)!;
+		prepared.vault.beforeProcess = () => {
+			prepared.vault.files.set(conceptPath, { ...current, content: `${current.content}\nchanged before process` });
+		};
+		const result = await prepared.service.execute(prepared.plan);
+		assert.equal(result.status, "conflict");
+		assert.match(await prepared.vault.read(conceptPath), /changed before process/);
+		assert.equal(prepared.storage.saveCalls, 0);
+	}
+
+	{
 		const { plan, service, vault } = await readyPlan();
 		const current = vault.files.get(newPath)!;
 		vault.files.set(newPath, { ...current, mtime: current.mtime + 1 });
@@ -148,6 +166,20 @@ async function run(): Promise<void> {
 		prepared.storage.failAfterWriteOnce = true;
 		assert.equal((await prepared.service.execute(prepared.plan)).status, "failed");
 		assert.equal(await prepared.vault.read(conceptPath), conceptMarkdown);
+		assert.ok(prepared.storage.data.conceptSourceLinks[staleLink.id]);
+	}
+
+	{
+		const prepared = await readyPlan();
+		prepared.storage.failAfterWriteOnce = true;
+		prepared.storage.onFailure = () => {
+			const current = prepared.vault.files.get(conceptPath)!;
+			prepared.vault.files.set(conceptPath, { ...current, content: `${current.content}\nuser edit during rollback` });
+		};
+		const result = await prepared.service.execute(prepared.plan);
+		assert.equal(result.status, "failed");
+		assert.match(result.message, /Rollback also failed/);
+		assert.match(await prepared.vault.read(conceptPath), /user edit during rollback/);
 		assert.ok(prepared.storage.data.conceptSourceLinks[staleLink.id]);
 	}
 

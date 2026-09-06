@@ -19,6 +19,7 @@ import {
 import { createConceptSourceLinkId } from "./conceptSourceLinking";
 import { appendConceptView } from "./conceptViewAppender";
 import { normalizePluginData } from "./reviewStateStore";
+import { runPluginDataMutation } from "./pluginDataMutation";
 import {
 	executeMarkdownWriteTransaction,
 	MarkdownWriteConflict,
@@ -216,43 +217,45 @@ export class ConceptMergeService {
 	}
 
 	async execute(plan: ConceptMergePlan, finalSurvivorMarkdown: string): Promise<ExecuteConceptMergeResult> {
-		const plannedSurvivorMarkdown = plan.writes.find((write) => write.path === plan.survivor.path)?.after;
-		const validationMessage = validateFinalSurvivorMarkdown(
-			finalSurvivorMarkdown,
-			plan.survivor,
-			plan.targetCardsPath,
-			plannedSurvivorMarkdown,
-		);
-		if (validationMessage) {
-			return { message: validationMessage, status: "invalid" };
-		}
+		return runPluginDataMutation(this.storage, async () => {
+			const plannedSurvivorMarkdown = plan.writes.find((write) => write.path === plan.survivor.path)?.after;
+			const validationMessage = validateFinalSurvivorMarkdown(
+				finalSurvivorMarkdown,
+				plan.survivor,
+				plan.targetCardsPath,
+				plannedSurvivorMarkdown,
+			);
+			if (validationMessage) {
+				return { message: validationMessage, status: "invalid" };
+			}
 
-		const writes = plan.writes.map((write) => write.path === plan.survivor.path
-			? { ...write, after: finalSurvivorMarkdown }
-			: write);
-		try {
-			for (const write of writes) {
-				if (await this.vault.read(write.path) !== write.before) {
-					return { message: `${write.path} changed after preview.`, status: "conflict" };
+			const writes = plan.writes.map((write) => write.path === plan.survivor.path
+				? { ...write, after: finalSurvivorMarkdown }
+				: write);
+			try {
+				for (const write of writes) {
+					if (await this.vault.read(write.path) !== write.before) {
+						return { message: `${write.path} changed after preview.`, status: "conflict" };
+					}
 				}
-			}
-			const latestData = normalizePluginData(await this.storage.loadData());
-			if (JSON.stringify(latestData) !== plan.dataSnapshot) {
-				return { message: "Mneme state changed after preview. Rebuild the merge preview.", status: "conflict" };
-			}
+				const latestData = normalizePluginData(await this.storage.loadData());
+				if (JSON.stringify(latestData) !== plan.dataSnapshot) {
+					return { message: "Mneme state changed after preview. Rebuild the merge preview.", status: "conflict" };
+				}
 
-			await executeMarkdownWriteTransaction(this.vault, writes, {
-				commit: () => this.storage.saveData(plan.nextData),
-				rollback: () => this.storage.saveData(latestData),
-			});
+				await executeMarkdownWriteTransaction(this.vault, writes, {
+					commit: () => this.storage.saveData(plan.nextData),
+					rollback: () => this.storage.saveData(latestData),
+				});
 
-			return { status: "merged" };
-		} catch (error) {
-			return {
-				message: error instanceof Error ? error.message : "Guided Merge failed.",
-				status: error instanceof MarkdownWriteConflict ? "conflict" : "failed",
-			};
-		}
+				return { status: "merged" };
+			} catch (error) {
+				return {
+					message: error instanceof Error ? error.message : "Guided Merge failed.",
+					status: error instanceof MarkdownWriteConflict ? "conflict" : "failed",
+				};
+			}
+		});
 	}
 
 	private async prepareCards(

@@ -30,6 +30,7 @@ import {
 	KnowledgeProposalStatus,
 } from "../models/knowledgeProposal";
 import { createConceptDuplicatePairKey } from "./conceptDuplicateDetector";
+import { runPluginDataMutation } from "./pluginDataMutation";
 import type { ConceptConflictMergeDraftRecord } from "../models/conceptConflictMergeDraft";
 
 const CURRENT_SCHEMA_VERSION = 1;
@@ -64,44 +65,46 @@ export class ReviewStateStore {
 		rating: ReviewRating,
 		options: { requestRetention?: number } = {},
 	): Promise<CardReviewState> {
-		await this.ensureLoaded();
-		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
-		if (latestData.cardTombstones[cardId]) {
-			throw new Error("Deleted Card IDs cannot receive reviews.");
-		}
-		const reviewedAt = new Date().toISOString();
-		const scheduleResult = this.scheduler.schedule({
-			cardId,
-			previousState: latestData.reviewStates[cardId],
-			rating,
-			requestRetention: options.requestRetention,
-			reviewedAt,
+		return runPluginDataMutation(this.storage, async () => {
+			await this.ensureLoaded();
+			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			if (latestData.cardTombstones[cardId]) {
+				throw new Error("Deleted Card IDs cannot receive reviews.");
+			}
+			const reviewedAt = new Date().toISOString();
+			const scheduleResult = this.scheduler.schedule({
+				cardId,
+				previousState: latestData.reviewStates[cardId],
+				rating,
+				requestRetention: options.requestRetention,
+				reviewedAt,
+			});
+			const reviewEvent: CardReviewEvent = {
+				cardId,
+				eventId: createReviewEventId(cardId, reviewedAt, scheduleResult.nextState.reviewCount),
+				rating,
+				reviewedAt,
+			};
+			const nextData = {
+				...latestData,
+				reviewEvents: {
+					...latestData.reviewEvents,
+					[reviewEvent.eventId]: reviewEvent,
+				},
+				reviewDeferrals: omitKey(latestData.reviewDeferrals, cardId),
+				suspendedCards: omitKey(latestData.suspendedCards, cardId),
+				reviewStates: {
+					...latestData.reviewStates,
+					[cardId]: scheduleResult.nextState,
+				},
+			};
+
+			await this.storage.saveData(nextData);
+			this.data = nextData;
+			this.pendingSettings = undefined;
+
+			return scheduleResult.nextState;
 		});
-		const reviewEvent: CardReviewEvent = {
-			cardId,
-			eventId: createReviewEventId(cardId, reviewedAt, scheduleResult.nextState.reviewCount),
-			rating,
-			reviewedAt,
-		};
-		const nextData = {
-			...latestData,
-			reviewEvents: {
-				...latestData.reviewEvents,
-				[reviewEvent.eventId]: reviewEvent,
-			},
-			reviewDeferrals: omitKey(latestData.reviewDeferrals, cardId),
-			suspendedCards: omitKey(latestData.suspendedCards, cardId),
-			reviewStates: {
-				...latestData.reviewStates,
-				[cardId]: scheduleResult.nextState,
-			},
-		};
-
-		await this.storage.saveData(nextData);
-		this.data = nextData;
-		this.pendingSettings = undefined;
-
-		return scheduleResult.nextState;
 	}
 
 	getAllStates(): Record<string, CardReviewState> {
@@ -143,149 +146,159 @@ export class ReviewStateStore {
 		secondConceptId: string,
 		now = new Date(),
 	): Promise<ConceptDuplicateDismissal> {
-		await this.ensureLoaded();
-		const pairKey = createConceptDuplicatePairKey(firstConceptId, secondConceptId);
-		if (!firstConceptId.trim() || !secondConceptId.trim() || firstConceptId === secondConceptId || Number.isNaN(now.getTime())) {
-			throw new Error("Duplicate dismissal requires two different Concept IDs and a valid time.");
-		}
-		const dismissal: ConceptDuplicateDismissal = {
-			conceptIds: [firstConceptId, secondConceptId].sort() as [string, string],
-			dismissedAt: now.toISOString(),
-			pairKey,
-		};
-		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
-		const nextData = {
-			...latestData,
-			conceptDuplicateDismissals: {
-				...latestData.conceptDuplicateDismissals,
-				[pairKey]: dismissal,
-			},
-		};
-		await this.storage.saveData(nextData);
-		this.data = nextData;
-		this.pendingSettings = undefined;
-		return dismissal;
+		return runPluginDataMutation(this.storage, async () => {
+			await this.ensureLoaded();
+			const pairKey = createConceptDuplicatePairKey(firstConceptId, secondConceptId);
+			if (!firstConceptId.trim() || !secondConceptId.trim() || firstConceptId === secondConceptId || Number.isNaN(now.getTime())) {
+				throw new Error("Duplicate dismissal requires two different Concept IDs and a valid time.");
+			}
+			const dismissal: ConceptDuplicateDismissal = {
+				conceptIds: [firstConceptId, secondConceptId].sort() as [string, string],
+				dismissedAt: now.toISOString(),
+				pairKey,
+			};
+			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			const nextData = {
+				...latestData,
+				conceptDuplicateDismissals: {
+					...latestData.conceptDuplicateDismissals,
+					[pairKey]: dismissal,
+				},
+			};
+			await this.storage.saveData(nextData);
+			this.data = nextData;
+			this.pendingSettings = undefined;
+			return dismissal;
+		});
 	}
 
 	async reconsiderConceptDuplicate(pairKey: string): Promise<void> {
-		await this.ensureLoaded();
-		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
-		const nextData = {
-			...latestData,
-			conceptDuplicateDismissals: omitKey(latestData.conceptDuplicateDismissals, pairKey),
-		};
-		await this.storage.saveData(nextData);
-		this.data = nextData;
-		this.pendingSettings = undefined;
+		return runPluginDataMutation(this.storage, async () => {
+			await this.ensureLoaded();
+			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			const nextData = {
+				...latestData,
+				conceptDuplicateDismissals: omitKey(latestData.conceptDuplicateDismissals, pairKey),
+			};
+			await this.storage.saveData(nextData);
+			this.data = nextData;
+			this.pendingSettings = undefined;
+		});
 	}
 
 	async deleteCard(cardId: string, now = new Date()): Promise<CardTombstone> {
-		await this.ensureLoaded();
-		if (!cardId.trim() || Number.isNaN(now.getTime())) {
-			throw new Error("Card deletion requires a Card id and valid time.");
-		}
+		return runPluginDataMutation(this.storage, async () => {
+			await this.ensureLoaded();
+			if (!cardId.trim() || Number.isNaN(now.getTime())) {
+				throw new Error("Card deletion requires a Card id and valid time.");
+			}
 
-		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
-		if (latestData.cardTombstones[cardId]) {
-			throw new Error("This Card ID is already deleted.");
-		}
+			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			if (latestData.cardTombstones[cardId]) {
+				throw new Error("This Card ID is already deleted.");
+			}
 
-		const reviewState = latestData.reviewStates[cardId];
-		const tombstone: CardTombstone = {
-			cardId,
-			deletedAt: now.toISOString(),
-			lapseCount: reviewState?.lapseCount ?? 0,
-			reviewCount: reviewState?.reviewCount ?? 0,
-		};
-		const nextData = {
-			...latestData,
-			cardTombstones: {
-				...latestData.cardTombstones,
-				[cardId]: tombstone,
-			},
-			retiredCards: omitKey(latestData.retiredCards, cardId),
-			reviewDeferrals: omitKey(latestData.reviewDeferrals, cardId),
-			reviewStates: omitKey(latestData.reviewStates, cardId),
-			suspendedCards: omitKey(latestData.suspendedCards, cardId),
-		};
-
-		await this.storage.saveData(nextData);
-		this.data = nextData;
-		this.pendingSettings = undefined;
-		return tombstone;
-	}
-
-	async deleteConcept(conceptId: string, cardIds: string[], now = new Date()): Promise<CardTombstone[]> {
-		await this.ensureLoaded();
-		if (!conceptId.trim() || Number.isNaN(now.getTime())) {
-			throw new Error("Concept deletion requires a Concept id and valid time.");
-		}
-
-		const uniqueCardIds = [...new Set(cardIds.map((cardId) => cardId.trim()).filter(Boolean))];
-		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
-		const deletedAt = now.toISOString();
-		const tombstones = uniqueCardIds.map((cardId): CardTombstone => {
-			const existing = latestData.cardTombstones[cardId];
-			if (existing) return existing;
 			const reviewState = latestData.reviewStates[cardId];
-			return {
+			const tombstone: CardTombstone = {
 				cardId,
-				deletedAt,
+				deletedAt: now.toISOString(),
 				lapseCount: reviewState?.lapseCount ?? 0,
 				reviewCount: reviewState?.reviewCount ?? 0,
 			};
-		});
-		const deletedCardIds = new Set(uniqueCardIds);
-		const omitDeletedCards = <T>(records: Record<string, T>): Record<string, T> => (
-			Object.fromEntries(Object.entries(records).filter(([cardId]) => !deletedCardIds.has(cardId)))
-		);
-		const nextData = {
-			...latestData,
-			cardTombstones: {
-				...latestData.cardTombstones,
-				...Object.fromEntries(tombstones.map((tombstone) => [tombstone.cardId, tombstone])),
-			},
-			conceptDuplicateDismissals: Object.fromEntries(
-				Object.entries(latestData.conceptDuplicateDismissals)
-					.filter(([, dismissal]) => !dismissal.conceptIds.includes(conceptId)),
-			),
-			conceptMergeRecords: Object.fromEntries(
-				Object.entries(latestData.conceptMergeRecords)
-					.filter(([, record]) => (
-						record.mergedConceptId !== conceptId && record.survivorConceptId !== conceptId
-					)),
-			),
-			pausedConcepts: omitKey(latestData.pausedConcepts, conceptId),
-			retiredCards: omitDeletedCards(latestData.retiredCards),
-			reviewDeferrals: omitDeletedCards(latestData.reviewDeferrals),
-			reviewStates: omitDeletedCards(latestData.reviewStates),
-			suspendedCards: omitDeletedCards(latestData.suspendedCards),
-		};
+			const nextData = {
+				...latestData,
+				cardTombstones: {
+					...latestData.cardTombstones,
+					[cardId]: tombstone,
+				},
+				retiredCards: omitKey(latestData.retiredCards, cardId),
+				reviewDeferrals: omitKey(latestData.reviewDeferrals, cardId),
+				reviewStates: omitKey(latestData.reviewStates, cardId),
+				suspendedCards: omitKey(latestData.suspendedCards, cardId),
+			};
 
-		await this.storage.saveData(nextData);
-		this.data = nextData;
-		this.pendingSettings = undefined;
-		return tombstones;
+			await this.storage.saveData(nextData);
+			this.data = nextData;
+			this.pendingSettings = undefined;
+			return tombstone;
+		});
+	}
+
+	async deleteConcept(conceptId: string, cardIds: string[], now = new Date()): Promise<CardTombstone[]> {
+		return runPluginDataMutation(this.storage, async () => {
+			await this.ensureLoaded();
+			if (!conceptId.trim() || Number.isNaN(now.getTime())) {
+				throw new Error("Concept deletion requires a Concept id and valid time.");
+			}
+
+			const uniqueCardIds = [...new Set(cardIds.map((cardId) => cardId.trim()).filter(Boolean))];
+			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			const deletedAt = now.toISOString();
+			const tombstones = uniqueCardIds.map((cardId): CardTombstone => {
+				const existing = latestData.cardTombstones[cardId];
+				if (existing) return existing;
+				const reviewState = latestData.reviewStates[cardId];
+				return {
+					cardId,
+					deletedAt,
+					lapseCount: reviewState?.lapseCount ?? 0,
+					reviewCount: reviewState?.reviewCount ?? 0,
+				};
+			});
+			const deletedCardIds = new Set(uniqueCardIds);
+			const omitDeletedCards = <T>(records: Record<string, T>): Record<string, T> => (
+				Object.fromEntries(Object.entries(records).filter(([cardId]) => !deletedCardIds.has(cardId)))
+			);
+			const nextData = {
+				...latestData,
+				cardTombstones: {
+					...latestData.cardTombstones,
+					...Object.fromEntries(tombstones.map((tombstone) => [tombstone.cardId, tombstone])),
+				},
+				conceptDuplicateDismissals: Object.fromEntries(
+					Object.entries(latestData.conceptDuplicateDismissals)
+						.filter(([, dismissal]) => !dismissal.conceptIds.includes(conceptId)),
+				),
+				conceptMergeRecords: Object.fromEntries(
+					Object.entries(latestData.conceptMergeRecords)
+						.filter(([, record]) => (
+							record.mergedConceptId !== conceptId && record.survivorConceptId !== conceptId
+						)),
+				),
+				pausedConcepts: omitKey(latestData.pausedConcepts, conceptId),
+				retiredCards: omitDeletedCards(latestData.retiredCards),
+				reviewDeferrals: omitDeletedCards(latestData.reviewDeferrals),
+				reviewStates: omitDeletedCards(latestData.reviewStates),
+				suspendedCards: omitDeletedCards(latestData.suspendedCards),
+			};
+
+			await this.storage.saveData(nextData);
+			this.data = nextData;
+			this.pendingSettings = undefined;
+			return tombstones;
+		});
 	}
 
 	async eraseDeletedCardHistory(cardId: string): Promise<void> {
-		await this.ensureLoaded();
-		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
-		if (!latestData.cardTombstones[cardId]) {
-			throw new Error("Card tombstone not found.");
-		}
+		return runPluginDataMutation(this.storage, async () => {
+			await this.ensureLoaded();
+			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			if (!latestData.cardTombstones[cardId]) {
+				throw new Error("Card tombstone not found.");
+			}
 
-		const nextData = {
-			...latestData,
-			cardTombstones: omitKey(latestData.cardTombstones, cardId),
-			reviewEvents: Object.fromEntries(
-				Object.entries(latestData.reviewEvents).filter(([, event]) => event.cardId !== cardId),
-			),
-		};
+			const nextData = {
+				...latestData,
+				cardTombstones: omitKey(latestData.cardTombstones, cardId),
+				reviewEvents: Object.fromEntries(
+					Object.entries(latestData.reviewEvents).filter(([, event]) => event.cardId !== cardId),
+				),
+			};
 
-		await this.storage.saveData(nextData);
-		this.data = nextData;
-		this.pendingSettings = undefined;
+			await this.storage.saveData(nextData);
+			this.data = nextData;
+			this.pendingSettings = undefined;
+		});
 	}
 
 	getReviewStateCount(): number {
@@ -335,252 +348,272 @@ export class ReviewStateStore {
 	}
 
 	async retireCard(cardId: string, now = new Date()): Promise<CardRetirement> {
-		await this.ensureLoaded();
+		return runPluginDataMutation(this.storage, async () => {
+			await this.ensureLoaded();
 
-		if (!cardId.trim() || Number.isNaN(now.getTime())) {
-			throw new Error("Card retirement requires a Card id and valid time.");
-		}
+			if (!cardId.trim() || Number.isNaN(now.getTime())) {
+				throw new Error("Card retirement requires a Card id and valid time.");
+			}
 
-		const retirement: CardRetirement = {
-			cardId,
-			retiredAt: now.toISOString(),
-		};
-		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
-		const nextData = {
-			...latestData,
-			retiredCards: {
-				...latestData.retiredCards,
-				[cardId]: retirement,
-			},
-			reviewDeferrals: omitKey(latestData.reviewDeferrals, cardId),
-			suspendedCards: omitKey(latestData.suspendedCards, cardId),
-		};
+			const retirement: CardRetirement = {
+				cardId,
+				retiredAt: now.toISOString(),
+			};
+			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			const nextData = {
+				...latestData,
+				retiredCards: {
+					...latestData.retiredCards,
+					[cardId]: retirement,
+				},
+				reviewDeferrals: omitKey(latestData.reviewDeferrals, cardId),
+				suspendedCards: omitKey(latestData.suspendedCards, cardId),
+			};
 
-		await this.storage.saveData(nextData);
-		this.data = nextData;
-		this.pendingSettings = undefined;
+			await this.storage.saveData(nextData);
+			this.data = nextData;
+			this.pendingSettings = undefined;
 
-		return retirement;
+			return retirement;
+		});
 	}
 
 	async restoreRetiredCard(cardId: string): Promise<void> {
-		await this.ensureLoaded();
-		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
-		const nextData = {
-			...latestData,
-			retiredCards: omitKey(latestData.retiredCards, cardId),
-		};
+		return runPluginDataMutation(this.storage, async () => {
+			await this.ensureLoaded();
+			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			const nextData = {
+				...latestData,
+				retiredCards: omitKey(latestData.retiredCards, cardId),
+			};
 
-		await this.storage.saveData(nextData);
-		this.data = nextData;
-		this.pendingSettings = undefined;
+			await this.storage.saveData(nextData);
+			this.data = nextData;
+			this.pendingSettings = undefined;
+		});
 	}
 
 	async suspendCard(cardId: string, now = new Date()): Promise<CardReviewSuspension> {
-		await this.ensureLoaded();
+		return runPluginDataMutation(this.storage, async () => {
+			await this.ensureLoaded();
 
-		if (!cardId.trim() || Number.isNaN(now.getTime())) {
-			throw new Error("Card suspension requires a Card id and valid time.");
-		}
+			if (!cardId.trim() || Number.isNaN(now.getTime())) {
+				throw new Error("Card suspension requires a Card id and valid time.");
+			}
 
-		const suspension: CardReviewSuspension = {
-			cardId,
-			suspendedAt: now.toISOString(),
-		};
-		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
-		const nextData = {
-			...latestData,
-			reviewDeferrals: omitKey(latestData.reviewDeferrals, cardId),
-			suspendedCards: {
-				...latestData.suspendedCards,
-				[cardId]: suspension,
-			},
-		};
+			const suspension: CardReviewSuspension = {
+				cardId,
+				suspendedAt: now.toISOString(),
+			};
+			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			const nextData = {
+				...latestData,
+				reviewDeferrals: omitKey(latestData.reviewDeferrals, cardId),
+				suspendedCards: {
+					...latestData.suspendedCards,
+					[cardId]: suspension,
+				},
+			};
 
-		await this.storage.saveData(nextData);
-		this.data = nextData;
-		this.pendingSettings = undefined;
+			await this.storage.saveData(nextData);
+			this.data = nextData;
+			this.pendingSettings = undefined;
 
-		return suspension;
+			return suspension;
+		});
 	}
 
 	async resumeCard(cardId: string): Promise<void> {
-		await this.ensureLoaded();
-		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
-		const nextData = {
-			...latestData,
-			suspendedCards: omitKey(latestData.suspendedCards, cardId),
-		};
+		return runPluginDataMutation(this.storage, async () => {
+			await this.ensureLoaded();
+			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			const nextData = {
+				...latestData,
+				suspendedCards: omitKey(latestData.suspendedCards, cardId),
+			};
 
-		await this.storage.saveData(nextData);
-		this.data = nextData;
-		this.pendingSettings = undefined;
+			await this.storage.saveData(nextData);
+			this.data = nextData;
+			this.pendingSettings = undefined;
+		});
 	}
 
 	async rekeyCard(oldCardId: string, newCardId: string): Promise<void> {
-		await this.ensureLoaded();
+		return runPluginDataMutation(this.storage, async () => {
+			await this.ensureLoaded();
 
-		if (!oldCardId.trim() || !newCardId.trim() || oldCardId === newCardId) {
-			throw new Error("Card ID migration requires two different non-empty IDs.");
-		}
+			if (!oldCardId.trim() || !newCardId.trim() || oldCardId === newCardId) {
+				throw new Error("Card ID migration requires two different non-empty IDs.");
+			}
 
-		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
-		if (
-			latestData.cardTombstones[newCardId]
-			|| latestData.reviewStates[newCardId]
-			|| latestData.reviewDeferrals[newCardId]
-			|| latestData.retiredCards[newCardId]
-			|| latestData.suspendedCards[newCardId]
-		) {
-			throw new Error("The new Card ID already has review state.");
-		}
+			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			if (
+				latestData.cardTombstones[newCardId]
+				|| latestData.reviewStates[newCardId]
+				|| latestData.reviewDeferrals[newCardId]
+				|| latestData.retiredCards[newCardId]
+				|| latestData.suspendedCards[newCardId]
+			) {
+				throw new Error("The new Card ID already has review state.");
+			}
 
-		const reviewState = latestData.reviewStates[oldCardId];
-		const deferral = latestData.reviewDeferrals[oldCardId];
-		const retirement = latestData.retiredCards[oldCardId];
-		const suspension = latestData.suspendedCards[oldCardId];
-		const nextData = {
-			...latestData,
-			reviewEvents: Object.fromEntries(Object.entries(latestData.reviewEvents).map(([eventId, event]) => [
-				eventId,
-				event.cardId === oldCardId ? { ...event, cardId: newCardId } : event,
-			])),
-			reviewDeferrals: {
-				...omitKey(latestData.reviewDeferrals, oldCardId),
-				...(deferral ? { [newCardId]: { ...deferral, cardId: newCardId } } : {}),
-			},
-			reviewStates: {
-				...omitKey(latestData.reviewStates, oldCardId),
-				...(reviewState ? { [newCardId]: { ...reviewState, cardId: newCardId } } : {}),
-			},
-			retiredCards: {
-				...omitKey(latestData.retiredCards, oldCardId),
-				...(retirement ? { [newCardId]: { ...retirement, cardId: newCardId } } : {}),
-			},
-			suspendedCards: {
-				...omitKey(latestData.suspendedCards, oldCardId),
-				...(suspension ? { [newCardId]: { ...suspension, cardId: newCardId } } : {}),
-			},
-		};
+			const reviewState = latestData.reviewStates[oldCardId];
+			const deferral = latestData.reviewDeferrals[oldCardId];
+			const retirement = latestData.retiredCards[oldCardId];
+			const suspension = latestData.suspendedCards[oldCardId];
+			const nextData = {
+				...latestData,
+				reviewEvents: Object.fromEntries(Object.entries(latestData.reviewEvents).map(([eventId, event]) => [
+					eventId,
+					event.cardId === oldCardId ? { ...event, cardId: newCardId } : event,
+				])),
+				reviewDeferrals: {
+					...omitKey(latestData.reviewDeferrals, oldCardId),
+					...(deferral ? { [newCardId]: { ...deferral, cardId: newCardId } } : {}),
+				},
+				reviewStates: {
+					...omitKey(latestData.reviewStates, oldCardId),
+					...(reviewState ? { [newCardId]: { ...reviewState, cardId: newCardId } } : {}),
+				},
+				retiredCards: {
+					...omitKey(latestData.retiredCards, oldCardId),
+					...(retirement ? { [newCardId]: { ...retirement, cardId: newCardId } } : {}),
+				},
+				suspendedCards: {
+					...omitKey(latestData.suspendedCards, oldCardId),
+					...(suspension ? { [newCardId]: { ...suspension, cardId: newCardId } } : {}),
+				},
+			};
 
-		await this.storage.saveData(nextData);
-		this.data = nextData;
-		this.pendingSettings = undefined;
+			await this.storage.saveData(nextData);
+			this.data = nextData;
+			this.pendingSettings = undefined;
+		});
 	}
 
 	async pauseConcept(conceptId: string, now = new Date()): Promise<ConceptReviewPause> {
-		await this.ensureLoaded();
+		return runPluginDataMutation(this.storage, async () => {
+			await this.ensureLoaded();
 
-		if (!conceptId.trim() || Number.isNaN(now.getTime())) {
-			throw new Error("Concept pause requires a Concept id and valid time.");
-		}
+			if (!conceptId.trim() || Number.isNaN(now.getTime())) {
+				throw new Error("Concept pause requires a Concept id and valid time.");
+			}
 
-		const pause: ConceptReviewPause = {
-			conceptId,
-			pausedAt: now.toISOString(),
-		};
-		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
-		const nextData = {
-			...latestData,
-			pausedConcepts: {
-				...latestData.pausedConcepts,
-				[conceptId]: pause,
-			},
-		};
+			const pause: ConceptReviewPause = {
+				conceptId,
+				pausedAt: now.toISOString(),
+			};
+			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			const nextData = {
+				...latestData,
+				pausedConcepts: {
+					...latestData.pausedConcepts,
+					[conceptId]: pause,
+				},
+			};
 
-		await this.storage.saveData(nextData);
-		this.data = nextData;
-		this.pendingSettings = undefined;
+			await this.storage.saveData(nextData);
+			this.data = nextData;
+			this.pendingSettings = undefined;
 
-		return pause;
+			return pause;
+		});
 	}
 
 	async rekeyConcept(oldConceptId: string, newConceptId: string): Promise<void> {
-		await this.ensureLoaded();
+		return runPluginDataMutation(this.storage, async () => {
+			await this.ensureLoaded();
 
-		if (!oldConceptId.trim() || !newConceptId.trim() || oldConceptId === newConceptId) {
-			throw new Error("Concept ID migration requires two different non-empty IDs.");
-		}
+			if (!oldConceptId.trim() || !newConceptId.trim() || oldConceptId === newConceptId) {
+				throw new Error("Concept ID migration requires two different non-empty IDs.");
+			}
 
-		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
-		if (latestData.pausedConcepts[newConceptId]) {
-			throw new Error("The new Concept ID already has review state.");
-		}
+			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			if (latestData.pausedConcepts[newConceptId]) {
+				throw new Error("The new Concept ID already has review state.");
+			}
 
-		const pause = latestData.pausedConcepts[oldConceptId];
-		const nextData = {
-			...latestData,
-			pausedConcepts: {
-				...omitKey(latestData.pausedConcepts, oldConceptId),
-				...(pause ? { [newConceptId]: { ...pause, conceptId: newConceptId } } : {}),
-			},
-		};
+			const pause = latestData.pausedConcepts[oldConceptId];
+			const nextData = {
+				...latestData,
+				pausedConcepts: {
+					...omitKey(latestData.pausedConcepts, oldConceptId),
+					...(pause ? { [newConceptId]: { ...pause, conceptId: newConceptId } } : {}),
+				},
+			};
 
-		await this.storage.saveData(nextData);
-		this.data = nextData;
-		this.pendingSettings = undefined;
+			await this.storage.saveData(nextData);
+			this.data = nextData;
+			this.pendingSettings = undefined;
+		});
 	}
 
 	async resumeConcept(conceptId: string): Promise<void> {
-		await this.ensureLoaded();
-		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
-		const nextData = {
-			...latestData,
-			pausedConcepts: omitKey(latestData.pausedConcepts, conceptId),
-		};
+		return runPluginDataMutation(this.storage, async () => {
+			await this.ensureLoaded();
+			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			const nextData = {
+				...latestData,
+				pausedConcepts: omitKey(latestData.pausedConcepts, conceptId),
+			};
 
-		await this.storage.saveData(nextData);
-		this.data = nextData;
-		this.pendingSettings = undefined;
+			await this.storage.saveData(nextData);
+			this.data = nextData;
+			this.pendingSettings = undefined;
+		});
 	}
 
 	async clearConceptPauses(): Promise<number> {
-		await this.ensureLoaded();
-		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
-		const pausedCount = Object.keys(latestData.pausedConcepts).length;
+		return runPluginDataMutation(this.storage, async () => {
+			await this.ensureLoaded();
+			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			const pausedCount = Object.keys(latestData.pausedConcepts).length;
 
-		if (pausedCount === 0) {
-			return 0;
-		}
+			if (pausedCount === 0) {
+				return 0;
+			}
 
-		const nextData = {
-			...latestData,
-			pausedConcepts: {},
-		};
+			const nextData = {
+				...latestData,
+				pausedConcepts: {},
+			};
 
-		await this.storage.saveData(nextData);
-		this.data = nextData;
-		this.pendingSettings = undefined;
+			await this.storage.saveData(nextData);
+			this.data = nextData;
+			this.pendingSettings = undefined;
 
-		return pausedCount;
+			return pausedCount;
+		});
 	}
 
 	async deferReviewUntil(cardId: string, resumeAt: Date, now = new Date()): Promise<ReviewDeferral> {
-		await this.ensureLoaded();
+		return runPluginDataMutation(this.storage, async () => {
+			await this.ensureLoaded();
 
-		if (!cardId.trim() || Number.isNaN(resumeAt.getTime()) || resumeAt.getTime() <= now.getTime()) {
-			throw new Error("Review deferral requires a Card id and a future resume time.");
-		}
+			if (!cardId.trim() || Number.isNaN(resumeAt.getTime()) || resumeAt.getTime() <= now.getTime()) {
+				throw new Error("Review deferral requires a Card id and a future resume time.");
+			}
 
-		const deferral: ReviewDeferral = {
-			cardId,
-			deferredAt: now.toISOString(),
-			resumeAt: resumeAt.toISOString(),
-		};
-		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
-		const nextData = {
-			...latestData,
-			reviewDeferrals: {
-				...latestData.reviewDeferrals,
-				[cardId]: deferral,
-			},
-		};
+			const deferral: ReviewDeferral = {
+				cardId,
+				deferredAt: now.toISOString(),
+				resumeAt: resumeAt.toISOString(),
+			};
+			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			const nextData = {
+				...latestData,
+				reviewDeferrals: {
+					...latestData.reviewDeferrals,
+					[cardId]: deferral,
+				},
+			};
 
-		await this.storage.saveData(nextData);
-		this.data = nextData;
-		this.pendingSettings = undefined;
+			await this.storage.saveData(nextData);
+			this.data = nextData;
+			this.pendingSettings = undefined;
 
-		return deferral;
+			return deferral;
+		});
 	}
 
 	setSettings(settings: MnemeSettings): void {
@@ -594,23 +627,25 @@ export class ReviewStateStore {
 	}
 
 	async clearReviewStates(): Promise<void> {
-		await this.ensureLoaded();
-		const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
-		const nextData = {
-			...latestData,
-			cardTombstones: Object.fromEntries(Object.entries(latestData.cardTombstones).map(([cardId, tombstone]) => [
-				cardId,
-				{ ...tombstone, lapseCount: 0, reviewCount: 0 },
-			])),
-			reviewDeferrals: {},
-			reviewEvents: {},
-			reviewStates: {},
-			schemaVersion: latestData.schemaVersion,
-		};
+		return runPluginDataMutation(this.storage, async () => {
+			await this.ensureLoaded();
+			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			const nextData = {
+				...latestData,
+				cardTombstones: Object.fromEntries(Object.entries(latestData.cardTombstones).map(([cardId, tombstone]) => [
+					cardId,
+					{ ...tombstone, lapseCount: 0, reviewCount: 0 },
+				])),
+				reviewDeferrals: {},
+				reviewEvents: {},
+				reviewStates: {},
+				schemaVersion: latestData.schemaVersion,
+			};
 
-		await this.storage.saveData(nextData);
-		this.data = nextData;
-		this.pendingSettings = undefined;
+			await this.storage.saveData(nextData);
+			this.data = nextData;
+			this.pendingSettings = undefined;
+		});
 	}
 
 	private async ensureLoaded(): Promise<void> {

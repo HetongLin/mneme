@@ -3,6 +3,7 @@ import type {
 	ConceptSourceRelationType,
 } from "../models/conceptSource";
 import type { MnemePluginData } from "../models/reviewState";
+import { runPluginDataMutation } from "./pluginDataMutation";
 import { normalizePluginData } from "./reviewStateStore";
 
 export interface ConceptSourceLinkStorage {
@@ -27,23 +28,27 @@ export class ConceptSourceLinkStore {
 	}
 
 	async upsertLink(link: ConceptSourceLink): Promise<void> {
-		const data = await this.loadPluginData();
+		return runPluginDataMutation(this.storage, async () => {
+			const data = await this.loadPluginData();
 
-		await this.storage.saveData({
-			...data,
-			conceptSourceLinks: {
-				...data.conceptSourceLinks,
-				[link.id]: link,
-			},
+			await this.storage.saveData({
+				...data,
+				conceptSourceLinks: {
+					...data.conceptSourceLinks,
+					[link.id]: link,
+				},
+			});
 		});
 	}
 
 	async replaceLinks(links: Record<string, ConceptSourceLink>): Promise<void> {
-		const data = await this.loadPluginData();
+		return runPluginDataMutation(this.storage, async () => {
+			const data = await this.loadPluginData();
 
-		await this.storage.saveData({
-			...data,
-			conceptSourceLinks: { ...links },
+			await this.storage.saveData({
+				...data,
+				conceptSourceLinks: { ...links },
+			});
 		});
 	}
 
@@ -76,11 +81,13 @@ export class ConceptSourceLinkStore {
 	}
 
 	async clearLinks(): Promise<void> {
-		const data = await this.loadPluginData();
+		return runPluginDataMutation(this.storage, async () => {
+			const data = await this.loadPluginData();
 
-		await this.storage.saveData({
-			...data,
-			conceptSourceLinks: {},
+			await this.storage.saveData({
+				...data,
+				conceptSourceLinks: {},
+			});
 		});
 	}
 

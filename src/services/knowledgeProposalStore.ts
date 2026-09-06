@@ -1,6 +1,7 @@
 import type { KnowledgeProposal, KnowledgeProposalStatus } from "../models/knowledgeProposal";
 import type { MnemePluginData } from "../models/reviewState";
 import { applyProposalStatus } from "./knowledgeProposalLifecycle";
+import { runPluginDataMutation } from "./pluginDataMutation";
 import { normalizePluginData } from "./reviewStateStore";
 
 const PENDING_PROPOSAL_STATUSES = new Set<KnowledgeProposalStatus>([
@@ -36,24 +37,28 @@ export class KnowledgeProposalStore {
 	}
 
 	async upsertProposals(proposals: KnowledgeProposal[]): Promise<void> {
-		const data = await this.loadPluginData();
-		const proposalsById = Object.fromEntries(proposals.map((proposal) => [proposal.id, proposal]));
+		return runPluginDataMutation(this.storage, async () => {
+			const data = await this.loadPluginData();
+			const proposalsById = Object.fromEntries(proposals.map((proposal) => [proposal.id, proposal]));
 
-		await this.storage.saveData({
-			...data,
-			knowledgeProposals: {
-				...data.knowledgeProposals,
-				...proposalsById,
-			},
+			await this.storage.saveData({
+				...data,
+				knowledgeProposals: {
+					...data.knowledgeProposals,
+					...proposalsById,
+				},
+			});
 		});
 	}
 
 	async replaceProposals(proposals: Record<string, KnowledgeProposal>): Promise<void> {
-		const data = await this.loadPluginData();
+		return runPluginDataMutation(this.storage, async () => {
+			const data = await this.loadPluginData();
 
-		await this.storage.saveData({
-			...data,
-			knowledgeProposals: { ...proposals },
+			await this.storage.saveData({
+				...data,
+				knowledgeProposals: { ...proposals },
+			});
 		});
 	}
 
@@ -62,17 +67,17 @@ export class KnowledgeProposalStore {
 		status: KnowledgeProposalStatus,
 		now: string = new Date().toISOString(),
 	): Promise<KnowledgeProposal> {
-		const proposal = await this.getProposal(id);
-
-		if (!proposal) {
-			throw new Error(`Knowledge proposal not found: ${id}`);
-		}
-
-		const updatedProposal = applyProposalStatus(proposal, status, now);
-
-		await this.upsertProposal(updatedProposal);
-
-		return updatedProposal;
+		return runPluginDataMutation(this.storage, async () => {
+			const data = await this.loadPluginData();
+			const proposal = data.knowledgeProposals[id];
+			if (!proposal) throw new Error(`Knowledge proposal not found: ${id}`);
+			const updatedProposal = applyProposalStatus(proposal, status, now);
+			await this.storage.saveData({
+				...data,
+				knowledgeProposals: { ...data.knowledgeProposals, [id]: updatedProposal },
+			});
+			return updatedProposal;
+		});
 	}
 
 	async listProposals(): Promise<KnowledgeProposal[]> {
@@ -102,11 +107,13 @@ export class KnowledgeProposalStore {
 	}
 
 	async clearProposals(): Promise<void> {
-		const data = await this.loadPluginData();
+		return runPluginDataMutation(this.storage, async () => {
+			const data = await this.loadPluginData();
 
-		await this.storage.saveData({
-			...data,
-			knowledgeProposals: {},
+			await this.storage.saveData({
+				...data,
+				knowledgeProposals: {},
+			});
 		});
 	}
 

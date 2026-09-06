@@ -11,19 +11,25 @@ const issue = { conceptId: "concept-a", conceptPath, conceptTitle: "A", link };
 
 class Vault {
 	content = markdown;
+	beforeProcess?: () => void;
 	async read() { return this.content; }
-	async modify(_path: string, content: string) { this.content = content; }
+	async process(_path: string, transform: (current: string) => string) {
+		this.beforeProcess?.();
+		this.beforeProcess = undefined;
+		this.content = transform(this.content);
+	}
 }
 
 class Storage {
 	saves = 0;
 	failOnce = false;
+	onFailure?: () => void;
 	constructor(public data: MnemePluginData) {}
 	async loadData() { return this.data; }
 	async saveData(data: MnemePluginData) {
 		this.saves += 1;
 		this.data = data;
-		if (this.failOnce) { this.failOnce = false; throw new Error("save failed"); }
+		if (this.failOnce) { this.failOnce = false; this.onFailure?.(); throw new Error("save failed"); }
 	}
 }
 
@@ -73,9 +79,37 @@ async function run() {
 		const service = new SourceProvenanceRemovalService(vault, storage);
 		const prepared = await service.prepare(issue);
 		assert.equal(prepared.status, "ready");
+		vault.beforeProcess = () => { vault.content += "changed before process"; };
+		const result = await service.execute(prepared.plan);
+		assert.equal(result.status, "conflict");
+		assert.match(vault.content, /changed before process/);
+		assert.equal(storage.saves, 0);
+	}
+
+	{
+		const vault = new Vault();
+		const storage = new Storage(data());
+		const service = new SourceProvenanceRemovalService(vault, storage);
+		const prepared = await service.prepare(issue);
+		assert.equal(prepared.status, "ready");
 		storage.failOnce = true;
 		assert.equal((await service.execute(prepared.plan)).status, "failed");
 		assert.equal(vault.content, markdown);
+		assert.ok(storage.data.conceptSourceLinks[link.id]);
+	}
+
+	{
+		const vault = new Vault();
+		const storage = new Storage(data());
+		const service = new SourceProvenanceRemovalService(vault, storage);
+		const prepared = await service.prepare(issue);
+		assert.equal(prepared.status, "ready");
+		storage.failOnce = true;
+		storage.onFailure = () => { vault.content += "user edit during rollback"; };
+		const result = await service.execute(prepared.plan);
+		assert.equal(result.status, "failed");
+		assert.match(result.message, /Rollback also failed/);
+		assert.match(vault.content, /user edit during rollback/);
 		assert.ok(storage.data.conceptSourceLinks[link.id]);
 	}
 }

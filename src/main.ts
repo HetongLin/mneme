@@ -54,6 +54,7 @@ import {
 } from "./services/conceptMarkdownIdentity";
 import { parseConceptTitle } from "./services/conceptMarkdownParser";
 import { KnowledgeProposalStore } from "./services/knowledgeProposalStore";
+import { runPluginDataMutation } from "./services/pluginDataMutation";
 import { createKnowledgeContextPack } from "./services/knowledgeContextPackExporter";
 import { ManualConceptDraftStore } from "./services/manualConceptDraftStore";
 import { IncomingConceptMergeService } from "./services/incomingConceptMergeService";
@@ -523,8 +524,10 @@ export default class MnemePlugin extends Plugin {
 	}
 
 	async saveSettings() {
-		await this.saveData(mergeSettingsIntoPluginData(await this.loadData(), this.settings));
-		this.reviewStateStore?.setSettings(this.settings);
+		await runPluginDataMutation(this, async () => {
+			await this.saveData(mergeSettingsIntoPluginData(await this.loadData(), this.settings));
+			this.reviewStateStore?.setSettings(this.settings);
+		});
 	}
 
 	updateFsrsSchedulerConfig(): void {
@@ -1191,6 +1194,12 @@ export default class MnemePlugin extends Plugin {
 			.map((view) => view.refreshCards());
 
 		await Promise.all(refreshes);
+	}
+
+	refreshReviewPresentation(): void {
+		for (const leaf of this.app.workspace.getLeavesOfType(REVIEW_VIEW_TYPE)) {
+			if (leaf.view instanceof MnemeReviewView) leaf.view.refreshPresentation();
+		}
 	}
 
 	private async refreshOpenInboxViews(): Promise<void> {

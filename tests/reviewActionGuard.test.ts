@@ -12,6 +12,8 @@ interface ReviewHarness {
 	selectedConcept: unknown;
 	skippedCardCount: number;
 	statusMessage: string;
+	isAnswerShown: boolean;
+	refreshPresentation(): void;
 	rateCurrentCard(rating: "good"): Promise<void>;
 	deferCurrentCard(): Promise<void>;
 	suspendCurrentCard(): Promise<void>;
@@ -113,6 +115,19 @@ async function run(): Promise<void> {
 		assert.equal(view.selectedCardIndex, 0);
 		assert.equal(view.selectedCards[0]?.cardId, "card-new-session");
 		assert.ok(buttons().every((button) => !button.disabled));
+	}
+
+	{
+		const write = deferred();
+		const { view, calls, concept } = createHarness(write);
+		view.isAnswerShown = true;
+		view.selectedCardIndex = 1;
+		view.selectedConcept = concept;
+		view.refreshPresentation();
+		assert.equal(view.selectedCardIndex, 1, "presentation refresh preserves card position");
+		assert.equal(view.isAnswerShown, true, "presentation refresh preserves answer state");
+		assert.equal(view.selectedConcept, concept, "presentation refresh preserves selected concept");
+		assert.deepEqual(calls, [], "presentation refresh does not persist FSRS state");
 	}
 
 	{

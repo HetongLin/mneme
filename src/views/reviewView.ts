@@ -203,6 +203,11 @@ export class MnemeReviewView extends ItemView {
 		}
 	}
 
+	/** Re-render the current review presentation without rebuilding session state. */
+	refreshPresentation(): void {
+		this.render();
+	}
+
 	async startConceptReview(conceptId: string): Promise<"started" | "not_found" | "no_reviewable_cards"> {
 		await this.refreshCards();
 		const concept = this.reviewQueue.concepts.find((queueConcept) => queueConcept.conceptId === conceptId);

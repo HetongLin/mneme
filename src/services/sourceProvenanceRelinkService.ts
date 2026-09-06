@@ -7,6 +7,12 @@ import { computeContentHash } from "../utils/sourceHash";
 import { appendConceptSourceNote } from "./conceptSourceNoteAppender";
 import { relinkConceptSourcePath } from "./conceptSourceRelinker";
 import { createConceptSourceLinkId } from "./conceptSourceLinking";
+import {
+	executeMarkdownWriteTransaction,
+	MarkdownWriteConflict,
+	type TransactionalMarkdownVault,
+} from "./markdownWriteTransaction";
+import { runPluginDataMutation } from "./pluginDataMutation";
 import { normalizePluginData } from "./reviewStateStore";
 
 export interface SourceRelinkFileSnapshot {
@@ -16,9 +22,7 @@ export interface SourceRelinkFileSnapshot {
 	size: number;
 }
 
-export interface SourceProvenanceRelinkVault {
-	modify(path: string, content: string): Promise<void>;
-	read(path: string): Promise<string>;
+export interface SourceProvenanceRelinkVault extends TransactionalMarkdownVault {
 	readSnapshot(path: string): Promise<SourceRelinkFileSnapshot>;
 }
 
@@ -140,53 +144,39 @@ export class SourceProvenanceRelinkService {
 	}
 
 	async execute(plan: SourceProvenanceRelinkPlan): Promise<ExecuteSourceRelinkResult> {
-		try {
-			if (await this.vault.read(plan.issue.conceptPath) !== plan.conceptBefore) {
-				return { message: "Concept.md changed after preview.", status: "conflict" };
-			}
-			const currentSource = await this.vault.readSnapshot(plan.newSource.path);
-			if (currentSource.content !== plan.newSource.content
-				|| currentSource.mtime !== plan.newSource.mtime
-				|| currentSource.size !== plan.newSource.size) {
-				return { message: "The replacement Source Note changed after preview.", status: "conflict" };
-			}
-			const latestData = normalizePluginData(await this.storage.loadData());
-			if (JSON.stringify(latestData) !== plan.dataSnapshot) {
-				return { message: "Mneme state changed after preview.", status: "conflict" };
-			}
-
-			let markdownWritten = false;
-			let dataWriteAttempted = false;
+		return runPluginDataMutation(this.storage, async () => {
 			try {
-				if (plan.conceptAfter !== plan.conceptBefore) {
-					await this.vault.modify(plan.issue.conceptPath, plan.conceptAfter);
-					markdownWritten = true;
+				if (await this.vault.read(plan.issue.conceptPath) !== plan.conceptBefore) {
+					return { message: "Concept.md changed after preview.", status: "conflict" };
 				}
-				dataWriteAttempted = true;
-				await this.storage.saveData(plan.nextData);
-			} catch (error) {
-				const rollbackErrors: string[] = [];
-				if (markdownWritten) {
-					try {
-						await this.vault.modify(plan.issue.conceptPath, plan.conceptBefore);
-					} catch (rollbackError) {
-						rollbackErrors.push(`Concept.md: ${formatError(rollbackError)}`);
-					}
+				const currentSource = await this.vault.readSnapshot(plan.newSource.path);
+				if (currentSource.content !== plan.newSource.content
+					|| currentSource.mtime !== plan.newSource.mtime
+					|| currentSource.size !== plan.newSource.size) {
+					return { message: "The replacement Source Note changed after preview.", status: "conflict" };
 				}
-				if (dataWriteAttempted) {
-					try {
-						await this.storage.saveData(latestData);
-					} catch (rollbackError) {
-						rollbackErrors.push(`plugin data: ${formatError(rollbackError)}`);
-					}
+				const latestData = normalizePluginData(await this.storage.loadData());
+				if (JSON.stringify(latestData) !== plan.dataSnapshot) {
+					return { message: "Mneme state changed after preview.", status: "conflict" };
 				}
-				throw new Error(`${formatError(error)}${rollbackErrors.length ? ` Rollback also failed: ${rollbackErrors.join("; ")}` : ""}`);
-			}
 
-			return { status: "relinked" };
-		} catch (error) {
-			return { message: formatError(error), status: "failed" };
-		}
+				await executeMarkdownWriteTransaction(this.vault, [{
+					after: plan.conceptAfter,
+					before: plan.conceptBefore,
+					path: plan.issue.conceptPath,
+				}], {
+					commit: () => this.storage.saveData(plan.nextData),
+					rollback: () => this.storage.saveData(latestData),
+				});
+
+				return { status: "relinked" };
+			} catch (error) {
+				return {
+					message: formatError(error),
+					status: error instanceof MarkdownWriteConflict ? "conflict" : "failed",
+				};
+			}
+		});
 	}
 }
 

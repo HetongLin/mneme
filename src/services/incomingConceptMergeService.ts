@@ -17,6 +17,7 @@ import {
 } from "./conceptMergeDraft";
 import { applyProposalStatus } from "./knowledgeProposalLifecycle";
 import { normalizePluginData } from "./reviewStateStore";
+import { runPluginDataMutation } from "./pluginDataMutation";
 import {
 	executeMarkdownWriteTransaction,
 	MarkdownWriteConflict,
@@ -168,37 +169,39 @@ export class IncomingConceptMergeService {
 	}
 
 	async execute(plan: IncomingConceptMergePlan): Promise<ExecuteIncomingConceptMergeResult> {
-		try {
-			if (await this.vault.read(plan.existing.path) !== plan.before) {
+		return runPluginDataMutation(this.storage, async () => {
+			try {
+				if (await this.vault.read(plan.existing.path) !== plan.before) {
+					return {
+						message: `${plan.existing.path} changed after preview. Return to editing and rebuild the preview.`,
+						status: "conflict",
+					};
+				}
+				const latestData = normalizePluginData(await this.storage.loadData());
+				if (JSON.stringify(latestData) !== plan.dataSnapshot) {
+					return {
+						message: "Mneme state changed after preview. Return to editing and rebuild the preview.",
+						status: "conflict",
+					};
+				}
+
+				await executeMarkdownWriteTransaction(this.vault, [{
+					after: plan.after,
+					before: plan.before,
+					path: plan.existing.path,
+				}], {
+					commit: () => this.storage.saveData(plan.nextData),
+					rollback: () => this.storage.saveData(latestData),
+				});
+
+				return { status: "merged" };
+			} catch (error) {
 				return {
-					message: `${plan.existing.path} changed after preview. Return to editing and rebuild the preview.`,
-					status: "conflict",
+					message: error instanceof Error ? error.message : "Incoming Concept Merge failed.",
+					status: error instanceof MarkdownWriteConflict ? "conflict" : "failed",
 				};
 			}
-			const latestData = normalizePluginData(await this.storage.loadData());
-			if (JSON.stringify(latestData) !== plan.dataSnapshot) {
-				return {
-					message: "Mneme state changed after preview. Return to editing and rebuild the preview.",
-					status: "conflict",
-				};
-			}
-
-			await executeMarkdownWriteTransaction(this.vault, [{
-				after: plan.after,
-				before: plan.before,
-				path: plan.existing.path,
-			}], {
-				commit: () => this.storage.saveData(plan.nextData),
-				rollback: () => this.storage.saveData(latestData),
-			});
-
-			return { status: "merged" };
-		} catch (error) {
-			return {
-				message: error instanceof Error ? error.message : "Incoming Concept Merge failed.",
-				status: error instanceof MarkdownWriteConflict ? "conflict" : "failed",
-			};
-		}
+		});
 	}
 }
 

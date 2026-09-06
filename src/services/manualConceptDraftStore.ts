@@ -1,5 +1,6 @@
 import type { ManualConceptDraft } from "../models/manualConceptDraft";
 import type { MnemePluginData } from "../models/reviewState";
+import { runPluginDataMutation } from "./pluginDataMutation";
 import { normalizePluginData } from "./reviewStateStore";
 
 export interface ManualConceptDraftStorage {
@@ -18,19 +19,23 @@ export class ManualConceptDraftStore {
 	}
 
 	async saveDraft(draft: ManualConceptDraft): Promise<void> {
-		const data = await this.loadPluginData();
+		return runPluginDataMutation(this.storage, async () => {
+			const data = await this.loadPluginData();
 
-		await this.storage.saveData({
-			...data,
-			manualConceptDraft: cloneDraft(draft),
+			await this.storage.saveData({
+				...data,
+				manualConceptDraft: cloneDraft(draft),
+			});
 		});
 	}
 
 	async clearDraft(): Promise<void> {
-		const data = await this.loadPluginData();
-		const nextData = { ...data };
-		delete nextData.manualConceptDraft;
-		await this.storage.saveData(nextData);
+		return runPluginDataMutation(this.storage, async () => {
+			const data = await this.loadPluginData();
+			const nextData = { ...data };
+			delete nextData.manualConceptDraft;
+			await this.storage.saveData(nextData);
+		});
 	}
 
 	private async loadPluginData(): Promise<MnemePluginData> {

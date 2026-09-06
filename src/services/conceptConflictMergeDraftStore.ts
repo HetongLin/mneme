@@ -1,5 +1,6 @@
 import type { ConceptConflictMergeDraftRecord } from "../models/conceptConflictMergeDraft";
 import type { MnemePluginData } from "../models/reviewState";
+import { runPluginDataMutation } from "./pluginDataMutation";
 import { normalizePluginData } from "./reviewStateStore";
 
 export interface ConceptConflictMergeDraftStorage {
@@ -19,25 +20,29 @@ export class ConceptConflictMergeDraftStore {
 	}
 
 	async saveDraft(record: ConceptConflictMergeDraftRecord): Promise<void> {
-		const data = normalizePluginData(await this.storage.loadData());
+		return runPluginDataMutation(this.storage, async () => {
+			const data = normalizePluginData(await this.storage.loadData());
 
-		await this.storage.saveData({
-			...data,
-			conceptConflictMergeDrafts: {
-				...data.conceptConflictMergeDrafts,
-				[record.key]: cloneRecord(record),
-			},
+			await this.storage.saveData({
+				...data,
+				conceptConflictMergeDrafts: {
+					...data.conceptConflictMergeDrafts,
+					[record.key]: cloneRecord(record),
+				},
+			});
 		});
 	}
 
 	async clearDraft(key: string): Promise<void> {
-		const data = normalizePluginData(await this.storage.loadData());
-		const conceptConflictMergeDrafts = { ...data.conceptConflictMergeDrafts };
-		delete conceptConflictMergeDrafts[key];
+		return runPluginDataMutation(this.storage, async () => {
+			const data = normalizePluginData(await this.storage.loadData());
+			const conceptConflictMergeDrafts = { ...data.conceptConflictMergeDrafts };
+			delete conceptConflictMergeDrafts[key];
 
-		await this.storage.saveData({
-			...data,
-			conceptConflictMergeDrafts,
+			await this.storage.saveData({
+				...data,
+				conceptConflictMergeDrafts,
+			});
 		});
 	}
 }

@@ -1,5 +1,6 @@
 import type { MnemePluginData } from "../models/reviewState";
 import type { SourceAnalysisRecord } from "../models/sourceAnalysis";
+import { runPluginDataMutation } from "./pluginDataMutation";
 import { normalizePluginData } from "./reviewStateStore";
 
 export interface SourceAnalysisStorage {
@@ -24,52 +25,60 @@ export class SourceAnalysisStore {
 	}
 
 	async upsertRecord(record: SourceAnalysisRecord): Promise<void> {
-		const data = await this.loadPluginData();
-		const nextData = {
-			...data,
-			sourceAnalysisRecords: {
-				...data.sourceAnalysisRecords,
-				[record.sourcePath]: record,
-			},
-		};
+		return runPluginDataMutation(this.storage, async () => {
+			const data = await this.loadPluginData();
+			const nextData = {
+				...data,
+				sourceAnalysisRecords: {
+					...data.sourceAnalysisRecords,
+					[record.sourcePath]: record,
+				},
+			};
 
-		await this.storage.saveData(nextData);
+			await this.storage.saveData(nextData);
+		});
 	}
 
 	async moveRecord(previousPath: string, record: SourceAnalysisRecord): Promise<void> {
-		const data = await this.loadPluginData();
-		const sourceAnalysisRecords = { ...data.sourceAnalysisRecords };
+		return runPluginDataMutation(this.storage, async () => {
+			const data = await this.loadPluginData();
+			const sourceAnalysisRecords = { ...data.sourceAnalysisRecords };
 
-		if (previousPath !== record.sourcePath) {
-			delete sourceAnalysisRecords[previousPath];
-		}
-		sourceAnalysisRecords[record.sourcePath] = record;
+			if (previousPath !== record.sourcePath) {
+				delete sourceAnalysisRecords[previousPath];
+			}
+			sourceAnalysisRecords[record.sourcePath] = record;
 
-		await this.storage.saveData({
-			...data,
-			sourceAnalysisRecords,
+			await this.storage.saveData({
+				...data,
+				sourceAnalysisRecords,
+			});
 		});
 	}
 
 	async removeRecord(sourcePath: string): Promise<void> {
-		const data = await this.loadPluginData();
-		if (!(sourcePath in data.sourceAnalysisRecords)) return;
+		return runPluginDataMutation(this.storage, async () => {
+			const data = await this.loadPluginData();
+			if (!(sourcePath in data.sourceAnalysisRecords)) return;
 
-		const sourceAnalysisRecords = { ...data.sourceAnalysisRecords };
-		delete sourceAnalysisRecords[sourcePath];
+			const sourceAnalysisRecords = { ...data.sourceAnalysisRecords };
+			delete sourceAnalysisRecords[sourcePath];
 
-		await this.storage.saveData({
-			...data,
-			sourceAnalysisRecords,
+			await this.storage.saveData({
+				...data,
+				sourceAnalysisRecords,
+			});
 		});
 	}
 
 	async replaceRecords(records: Record<string, SourceAnalysisRecord>): Promise<void> {
-		const data = await this.loadPluginData();
+		return runPluginDataMutation(this.storage, async () => {
+			const data = await this.loadPluginData();
 
-		await this.storage.saveData({
-			...data,
-			sourceAnalysisRecords: { ...records },
+			await this.storage.saveData({
+				...data,
+				sourceAnalysisRecords: { ...records },
+			});
 		});
 	}
 
@@ -78,11 +87,13 @@ export class SourceAnalysisStore {
 	}
 
 	async clearRecords(): Promise<void> {
-		const data = await this.loadPluginData();
+		return runPluginDataMutation(this.storage, async () => {
+			const data = await this.loadPluginData();
 
-		await this.storage.saveData({
-			...data,
-			sourceAnalysisRecords: {},
+			await this.storage.saveData({
+				...data,
+				sourceAnalysisRecords: {},
+			});
 		});
 	}
 
