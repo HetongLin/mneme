@@ -1,10 +1,14 @@
 # Mneme code review and refactoring — 2026-09-05
 
+Updated: 2026-09-06 (second pass)
+
 ## Scope and checkpoint
 
 Reviewed the handoff, repository instructions, product contracts, and relevant ADRs before editing. The existing handoff was committed as `83deb3f` (`docs: checkpoint acceptance handoff before code review`) after a successful build. Its parent `9cd98ad` contains the pre-review product code.
 
 Work continued on `refactor/review-transaction-safety`. This audit focused on reviewed Markdown writes, Card append operations, Inbox acceptance, and asynchronous Review View actions. It was not an exhaustive review of every provider, parser, UI surface, or platform.
+
+A second pass on `refactor/state-persistence`, based on documentation checkpoint `0377c60`, addresses shared plugin-state persistence and presentation refresh. It also applies the atomic Markdown contract introduced in the first pass to Source provenance writes.
 
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication, version change, or live Vault update was performed.
 
@@ -13,6 +17,7 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `04bc46f` — preserve concurrent edits in reviewed Markdown transactions.
 - `4e16141` — append Cards atomically across authoring flows.
 - `95cf030` — guard Review actions against duplicate and stale completion.
+- `37d3533` — serialize plugin-data mutations, protect Source relink/removal writes, and preserve Review state on diagnostics refresh.
 
 ## Confirmed and fixed
 
@@ -44,6 +49,28 @@ Rating, Review Tomorrow, Suspend, and Archive could run concurrently against the
 
 Evidence: `tests/reviewActionGuard.test.ts` invokes the actual Review View methods with deferred persistence promises and a minimal rendering harness. It verifies one write and one transition for duplicate/competing operations, immediate button disabling and recovery, explicit retry after failure, and session/close invalidation. The pre-review View submits three operations for the same Card in this fixture and fails. The harness does not claim visual or live Obsidian acceptance.
 
+### P1 — Independent stores could overwrite concurrent changes to data.json
+
+Review, proposals, settings, drafts, provenance, and Merge independently read a complete plugin-data snapshot and later saved a complete replacement. Two operations could read the same snapshot before either saved, and the second save could erase the first update. A deterministic pre-fix test confirmed that concurrent ratings of two Cards retained only the second Card.
+
+All current plugin-data writers now use `runPluginDataMutation()` with the shared plugin instance as storage owner. The queue surrounds the entire read/validate/modify/save operation. Merge and provenance operations retain it through Markdown writes and compensating rollback. Proposal lifecycle validation happens after entering the queue; it no longer reads outside the queue and calls a separately queued upsert. Failures propagate to their callers without blocking later operations.
+
+Evidence: `tests/pluginDataMutation.test.ts` covers concurrent ratings, independent Review store instances, Review alongside proposals/settings/drafts/source records/source links, competing proposal transitions, failed-save recovery, and Merge commit/rollback interleaved with Review. `tests/pluginSettingsConcurrency.test.ts` invokes the actual `MnemePlugin.saveSettings()` with a shared storage owner and deferred saves in both orders; later reviews preserve the new settings as well. No timers or live Vault are required.
+
+The existing schema is unchanged. This queue coordinates one plugin instance, not external writers or restart recovery. Caller-provided whole-record/map replacement and multi-step authoring workflows retain their existing semantics. See [ADR 0022](adr/0022-plugin-state-mutations-share-one-queue.md) for the ownership and non-reentrancy contract.
+
+### P1 — Source relink/removal could overwrite concurrent Concept edits
+
+Source provenance relink and removal had the same snapshot-check/overwrite gap as the first-pass Merge paths, including unconditional Markdown rollback after a state-save failure. They now use `executeMarkdownWriteTransaction()` with the same atomic `process()` contract. A pre-write conflict leaves plugin data untouched; a rollback conflict preserves newer Markdown, reports incomplete compensation, and still attempts state recovery. The plugin-data queue remains held through the operation.
+
+Evidence: both service suites inject edits immediately before the atomic write and between failed persistence and rollback. The new tests verify conflict status, preserved edits, and state behavior. Re-running the write-race assertions against the original service code via a temporary build returned `relinked`/`removed` instead of `conflict`; both failed as expected. Existing success, source/state snapshot conflict, and ordinary rollback tests are retained.
+
+### P2 — Changing advanced diagnostics reset an active review session
+
+The diagnostics toggle called the full Review refresh, which rebuilt the queue and reset the current Card and revealed answer. It now uses a presentation refresh routed through the plugin to each open Review View. The scheduling toggle keeps its existing full refresh.
+
+Evidence: the Review View method harness verifies that presentation refresh preserves the selected Concept, Card index, and answer state without submitting an FSRS write. This is method-level regression coverage; live rendering remains a manual check.
+
 ## Open findings
 
 ### P1 — Inbox write retries are not durable or idempotent after persistence failure
@@ -54,14 +81,6 @@ If Markdown succeeds but a later source-index/status write fails, the file remai
 
 The new atomic Card append prevents content loss, but intentionally does not claim to repair this separate failure-recovery contract. A complete repair needs one approved-write coordinator that controls Markdown plus all affected state, with retry/reload evidence and a recovery policy when rollback itself fails. Adding a local in-memory flag would not survive reload.
 
-### P1 — Independent stores can overwrite concurrent changes to data.json
-
-Location: `src/services/reviewStateStore.ts:recordReview`, `src/services/knowledgeProposalStore.ts:upsertProposals`, the other load/modify/save stores, and Merge persistence callbacks.
-
-These operations independently read a complete plugin-data snapshot and later save a complete replacement. Two operations can read the same snapshot before either saves, and the second save can erase the first update. The View action guard prevents common repeated actions in one View; it does not serialize all stores, multiple View instances, settings saves, or Merge versus another state change.
-
-This is an inspection-confirmed concurrency gap; the current suite does not establish a coordinated global transaction boundary. A follow-up should introduce a shared state-update coordinator across all writers, with deterministic interleaving tests for review + proposal, review + settings, and merge + state updates. Serializing only `saveData()` would still permit stale read/modify snapshots.
-
 ### P2 — Manual Card creation and Composer draft cleanup can diverge
 
 Location: `src/views/cardComposerView.ts:createCard` and `persistCurrentDraft`.
@@ -70,15 +89,9 @@ The Card is written before draft cleanup is persisted. If cleanup and subsequent
 
 A follow-up should coordinate draft completion with Card creation and distinguish a failed Card write from a failed cleanup/refresh. The acceptance test should inject cleanup failure, reload the draft store, and retry.
 
-### P2 — Changing advanced diagnostics resets an active review session
-
-Location: `src/settings.ts` (`Show advanced diagnostics`) → `src/main.ts:refreshReviewViews` → `src/views/reviewView.ts:refreshCards`/`resetReviewState`.
-
-A presentation toggle performs a full review reload and loses the current position and revealed answer. Preserve the session for presentation-only refreshes while keeping the existing scheduled-review policy for `Show Today’s Focus`. This behavior was identified by tracing the code and was not changed in this patch.
-
 ## Validation
 
-Final commands and results are recorded after the implementation review:
+First-pass commands and results:
 
 - `npm run test:all` — passed.
 - `npm run build` — passed.
@@ -87,11 +100,16 @@ Final commands and results are recorded after the implementation review:
 
 No existing test expectation was weakened to conceal a failure. Added test doubles implement the new atomic process contract. Baseline tests passed before refactoring.
 
+Second-pass final validation (2026-09-06): `npm run test:all`, `npm run build`, `npm run check:release -- 1.0.0`, and `git diff --check` all passed. The full suite includes the new plugin-data/settings concurrency tests and Source provenance regressions. Import-time Obsidian test stubs do not run plugin startup, rendering, network requests, or real filesystem writes.
+
 Focused manual checks still to run in a disposable Vault:
 
 1. Reveal a Card and rapidly repeat a rating; only one review should be stored and only one Card advanced. Repeat with Review Tomorrow, Suspend, and Archive; verify the next Card's buttons work.
 2. Trigger a rating, then leave/close the Review View while persistence is delayed; an old completion must not advance a new session.
 3. Build a Merge preview, edit an involved Concept/Card Group, then confirm; expect a conflict and preserved edited Markdown. Also check successful Merge and Related add/remove.
 4. Append Cards from separate authoring/Inbox entry points to the same existing group; confirm both Cards and any unrelated Markdown survive.
+5. Rate Cards in separate Review Views while changing settings or saving a Composer draft. Reload the plugin and confirm that all states remain saved.
+6. Reveal an answer, move to a later Card, then toggle `Show advanced diagnostics`; confirm the Card and answer remain visible. Check that `Show Today’s Focus` still applies its scheduling policy.
+7. Preview a stale Source relink/removal, edit the Concept, then confirm; expect a conflict and preserved Markdown. Check a normal confirmation and its Source index update as well.
 
 These checks do not replace the handoff's outstanding real-provider, restart, Windows, and mobile publication evidence. The old `9cd98ad` ZIP and recordings remain evidence for their original source revision only.

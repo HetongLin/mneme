@@ -1,13 +1,15 @@
 # Mneme Next-Session Hand-off
 
-Updated: 2026-09-05
+Updated: 2026-09-06
 
-## 2026-09-05 代码审查后续
+## 2026-09-05 至 09-06 代码审查后续
 
 - 已先构建并提交审查前备份：`83deb3f`，其父提交 `9cd98ad` 是原产品代码。
-- 当前审查/重构分支：`refactor/review-transaction-safety`；本轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，之后另有审查文档提交。
-- 本轮修复合并/Related 的并发覆盖、Card 并发追加丢失、Review 重复动作跳卡，并提取共用 Markdown 事务与 Review 动作保护。
-- `npm run test:all`、`npm run build`、`npm run check:release -- 1.0.0` 均已通过。详细证据、最终验证和仍未修复的持久化/重试问题见 [CODE_REVIEW_2026-09-05.md](CODE_REVIEW_2026-09-05.md)。下一轮优先处理报告中的 P1 状态事务问题。
+- 当前审查/重构分支：`refactor/state-persistence`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，之后另有交接/审查文档提交。
+- 第一轮修复合并/Related 的并发覆盖、Card 并发追加丢失、Review 重复动作跳卡，并提取共用 Markdown 事务与 Review 动作保护。
+- 第二轮让所有当前 `data.json` 写入共用完整读/检查/改/存队列，覆盖 Review、Settings、Proposal、草稿、来源索引及 Merge 回滚；来源重连/移除也已接入原子 Markdown 事务；诊断开关现在只重绘，不重置复习进度。数据格式与版本不变。队列的共享 storage owner 和禁止嵌套获取规则见 [ADR 0022](adr/0022-plugin-state-mutations-share-one-queue.md)。
+- 第二轮 `npm run test:all`、`npm run build`、`npm run check:release -- 1.0.0`、`git diff --check` 均已通过。新增确定性交错测试覆盖共享状态、真实 `saveSettings()` 方法、Merge 回滚、来源写入/回滚冲突。详细证据见 [CODE_REVIEW_2026-09-05.md](CODE_REVIEW_2026-09-05.md)。
+- 下一轮优先处理报告中的 P1 Inbox 写入失败后的持久化恢复/幂等重试，其次是 P2 Card Composer 写入成功但草稿清理失败。共享队列尚不解决跨 Markdown/JSON 的崩溃恢复、外部进程写入或锁外构造的整条记录替换；不要把本轮修复视为这些问题也已解决。
 - 以下录像/验收摘要描述审查前的 `9cd98ad`，旧 ZIP 与录像未被替换，也不代表本轮修改已完成真实 Vault 或跨平台验收。
 
 ## 审查前验收交接摘要
