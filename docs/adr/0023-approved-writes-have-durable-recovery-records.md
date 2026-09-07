@@ -63,5 +63,5 @@ proposals only if they still match the inspected snapshot.
   automatic conflict dismissal or content rollback.
 - Explicit developer data clearing and downgrading to a writer that ignores
   receipts are outside this recovery contract.
-- Manual Composer creation does not yet use this receipt protocol. Its durable
-  draft-cleanup failure remains a separate recovery issue.
+- Manual Card Composer uses a separate direct-authorship coordinator and draft
+  identity, described in [ADR 0024](0024-manual-card-creation-resumes-a-durable-draft.md).

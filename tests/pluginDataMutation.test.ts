@@ -73,13 +73,14 @@ async function run(): Promise<void> {
 		const storage = new MemoryStorage();
 		const reviews = new ReviewStateStore(storage, new FsrsReviewScheduler());
 		await reviews.load();
+		const cardDraft = await new ManualCardDraftStore(storage).getDraft();
 		await Promise.all([
 			reviews.recordReview("card-a", "good"),
 			runPluginDataMutation(storage, async () => {
 				const data = await storage.loadData() as MnemePluginData;
 				await storage.saveData({ ...data, settings: { ...DEFAULT_SETTINGS, fsrsEnabled: false } });
 			}),
-			new ManualCardDraftStore(storage).saveDraft({ front: "Front", back: "Back", rubric: "", cardType: "definition", updatedAt: proposal.createdAt }),
+			new ManualCardDraftStore(storage).saveDraft({ draftId: cardDraft.draftId, front: "Front", back: "Back", rubric: "", cardType: "definition", updatedAt: proposal.createdAt }),
 			new ManualConceptDraftStore(storage).saveDraft({ title: "Draft", englishName: "", coreMeaning: "Meaning", whyItMatters: "", importance: "normal", learningMode: "reviewable", tags: [], updatedAt: proposal.createdAt }),
 			new SourceAnalysisStore(storage).upsertRecord({ sourcePath: "Source.md", contentHash: "hash", mtime: 1, size: 10, lastAnalyzedAt: proposal.createdAt, status: "clean", linkedConceptIds: [], pendingProposalIds: [] }),
 			new ConceptSourceLinkStore(storage).upsertLink({ id: "link-a", conceptId: "concept-a", sourcePath: "Source.md", sourceHash: "hash", relationType: "origin", status: "approved", evidence: [], addedAt: proposal.createdAt, lastSeenAt: proposal.createdAt }),
@@ -93,7 +94,7 @@ async function run(): Promise<void> {
 		assert.ok(storage.data.conceptSourceLinks["link-a"]);
 		assert.ok(storage.data.conceptConflictMergeDrafts.manual);
 		await Promise.all([
-			new ManualCardDraftStore(storage).clearDraft(),
+			new ManualCardDraftStore(storage).clearDraft(cardDraft.draftId!),
 			new ManualConceptDraftStore(storage).clearDraft(),
 			new ConceptConflictMergeDraftStore(storage).clearDraft("manual"),
 		]);

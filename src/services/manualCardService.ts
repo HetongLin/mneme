@@ -29,6 +29,11 @@ export interface ManualCardVault {
 	read(path: string): Promise<string>;
 }
 
+export interface PreparedManualCard extends ManualCardResult {
+	markdown: string;
+	targetExisted: boolean;
+}
+
 export async function createManualCard(
 	input: ManualCardInput,
 	settings: MnemeSettings,
@@ -36,6 +41,18 @@ export async function createManualCard(
 	historicalCardIds: ReadonlySet<string> = new Set(),
 	createId: () => string = createRandomCardId,
 ): Promise<ManualCardResult> {
+	const prepared = await prepareManualCard(input, settings, vault, historicalCardIds, createId);
+	await applyManualCard(prepared, vault);
+	return { cardId: prepared.cardId, cardsPath: prepared.cardsPath, conceptId: prepared.conceptId };
+}
+
+export async function prepareManualCard(
+	input: ManualCardInput,
+	settings: MnemeSettings,
+	vault: ManualCardVault,
+	historicalCardIds: ReadonlySet<string>,
+	createId: () => string = createRandomCardId,
+): Promise<PreparedManualCard> {
 	const front = input.front.trim();
 	const back = input.back.trim();
 	const rubric = input.rubric?.trim();
@@ -57,29 +74,41 @@ export async function createManualCard(
 		}
 		cardId = createId();
 	}
-	const draft = renderCardGroupMarkdown({
-		back,
+	const markdown = renderManualCard({ ...input, front, back, rubric }, cardId);
+	if (existing !== undefined) {
+		const validation = appendCardGroupDraft(existing, markdown);
+		if (validation.status === "invalid") throw new Error(validation.message);
+	}
+	return { cardId, cardsPath, conceptId: input.concept.conceptId, markdown, targetExisted: existing !== undefined };
+}
+
+export function renderManualCard(input: ManualCardInput, cardId: string): string {
+	return renderCardGroupMarkdown({
+		back: input.back.trim(),
 		cardId,
 		cardType: input.cardType,
 		conceptId: input.concept.conceptId,
 		conceptLabel: input.concept.title,
 		conceptLink: toObsidianInternalLink(input.concept.path, input.concept.title),
-		front,
-		rubric,
+		front: input.front.trim(),
+		rubric: input.rubric?.trim(),
 	});
+}
 
+export async function applyManualCard(prepared: PreparedManualCard, vault: ManualCardVault): Promise<void> {
+	const { cardsPath, markdown, targetExisted } = prepared;
+	const exists = await vault.exists(cardsPath);
+	if (!exists && targetExisted) throw new Error("The Card Group was moved or removed. Restore it before resuming creation.");
 	await ensureParentFolders(cardsPath, vault);
-	if (existing === undefined) {
-		await vault.create(cardsPath, draft);
+	if (!exists) {
+		await vault.create(cardsPath, markdown);
 	} else {
 		await vault.process(cardsPath, (current) => {
-			const appendResult = appendCardGroupDraft(current, draft);
+			const appendResult = appendCardGroupDraft(current, markdown);
 			if (appendResult.status === "invalid") throw new Error(appendResult.message);
 			return appendResult.markdown;
 		});
 	}
-
-	return { cardId, cardsPath, conceptId: input.concept.conceptId };
 }
 
 function resolveCardGroupPath(concept: ConceptSummary, settings: MnemeSettings): string {

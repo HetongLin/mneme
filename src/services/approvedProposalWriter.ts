@@ -33,6 +33,7 @@ import {
 	type ConceptNameConflict,
 } from "./conceptNameConflict";
 import { createRandomCardId, createRandomConceptId } from "./entityId";
+import { readManualCardWriteReceipt } from "./manualCardWriteRecovery";
 
 export interface MnemeVaultAdapter {
 	append(path: string, content: string): Promise<void>;
@@ -119,9 +120,13 @@ export class ApprovedProposalWriter {
 				}
 
 				if (!receipt || !(await this.isWriteApplied(receipt))) {
+					const manualCardWrite = !receipt && data.manualCardWrite !== undefined
+						? readManualCardWriteReceipt(data.manualCardWrite)
+						: undefined;
 					const reservedIds = new Set(Object.values(data.knowledgeProposals)
 						.filter((other) => other.id !== proposalId && other.writeReceipt?.mode === expectedMode)
 						.flatMap((other) => typeof other.writeReceipt?.entityId === "string" ? [other.writeReceipt.entityId] : []));
+					if (manualCardWrite) reservedIds.add(manualCardWrite.cardId);
 					const reservedPaths = new Set(Object.values(data.knowledgeProposals)
 						.filter((other) => other.id !== proposalId && other.writeReceipt?.mode === "create")
 						.flatMap((other) => typeof other.writeReceipt?.targetPath === "string" ? [other.writeReceipt.targetPath] : []));

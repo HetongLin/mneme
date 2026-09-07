@@ -59,7 +59,8 @@ import { createKnowledgeContextPack } from "./services/knowledgeContextPackExpor
 import { ManualConceptDraftStore } from "./services/manualConceptDraftStore";
 import { IncomingConceptMergeService } from "./services/incomingConceptMergeService";
 import { ManualCardDraftStore } from "./services/manualCardDraftStore";
-import { createManualCard, type ManualCardInput, type ManualCardResult } from "./services/manualCardService";
+import type { ManualCardDraft } from "./models/manualCardDraft";
+import { createManualCardWithRecovery, type ManualCardCreationResult } from "./services/manualCardWriteService";
 import { ManualConceptProvenanceCommitter, type ManualConceptSourceSnapshot } from "./services/manualConceptProvenanceService";
 import { ObsidianConceptVaultAdapter } from "./services/obsidianConceptVaultAdapter";
 import { ObsidianAiHttpClient } from "./services/obsidianAiHttpClient";
@@ -290,7 +291,7 @@ export default class MnemePlugin extends Plugin {
 			viewConcept: (result) => this.viewManualConcept(result),
 		}));
 		this.registerView(CARD_COMPOSER_VIEW_TYPE, (leaf) => new MnemeCardComposerView(leaf, {
-			create: (input) => this.createManualCardFromComposer(input),
+			create: (draft, concept) => this.createManualCardFromComposer(draft, concept),
 			draftStore: this.manualCardDraftStore,
 			listConcepts: () => this.createConceptScanner().scanConcepts(),
 			onCreated: async () => {
@@ -1447,7 +1448,7 @@ export default class MnemePlugin extends Plugin {
 		await this.app.workspace.revealLeaf(leaf);
 	}
 
-	private async createManualCardFromComposer(input: ManualCardInput): Promise<ManualCardResult> {
+	private async createManualCardFromComposer(draft: ManualCardDraft, concept?: ConceptSummary): Promise<ManualCardCreationResult> {
 		const reservedCardIds = this.getHistoricalCardIds();
 		for (const card of await new CardFileLoader(this.app).loadCardFiles()) {
 			if (card.hasExplicitCardId) {
@@ -1455,10 +1456,12 @@ export default class MnemePlugin extends Plugin {
 			}
 		}
 
-		return createManualCard(
-			input,
+		return createManualCardWithRecovery(
+			draft,
+			concept,
 			this.settings,
 			new ObsidianVaultAdapter(this.app.vault),
+			this,
 			reservedCardIds,
 		);
 	}

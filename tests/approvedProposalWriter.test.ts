@@ -181,6 +181,24 @@ function createApprovedCardProposal(id = "proposal-card") {
 	});
 }
 
+function createManualCardWriteReceipt(overrides: Record<string, unknown> = {}) {
+	return {
+		version: 1,
+		draftId: "draft-card-reservation",
+		inputHash: "a".repeat(64),
+		conceptId: "concept-encapsulation",
+		conceptTitle: "Encapsulation",
+		conceptPath: "Mneme/Concepts/Encapsulation/Concept.md",
+		cardId: "card-22222222",
+		cardsPath: "Mneme/Cards/Encapsulation/Cards.md",
+		targetExisted: false,
+		afterHash: "b".repeat(64),
+		createdAt: "2026-01-02T12:00:00.000Z",
+		status: "pending" as const,
+		...overrides,
+	};
+}
+
 async function runAsyncTests(): Promise<void> {
 	{
 		const proposal = createProposal("proposal-a", {
@@ -241,6 +259,37 @@ async function runAsyncTests(): Promise<void> {
 		assert.match(content, /MNEME:CARD:start id="card-22222222" type="definition"/);
 		assert.equal((content.match(/\bid=/g) ?? []).length, 1);
 		assert.equal((await store.getProposal(proposal.id))?.status, "written");
+	}
+
+	{
+		const proposal = createApprovedCardProposal("proposal-card-manual-reservation");
+		const storage = new MemoryKnowledgeProposalStorage({
+			...createPluginData({ [proposal.id]: proposal }),
+			manualCardWrite: createManualCardWriteReceipt(),
+		});
+		const { vault, writer } = await createWriter({ [proposal.id]: proposal }, new MemoryVaultAdapter(), storage);
+		const result = await writer.writeApprovedProposal(proposal.id);
+
+		assert.equal(result.status, "written");
+		assert.match(
+			await vault.read("Mneme/Cards/Encapsulation/Cards.md"),
+			/MNEME:CARD:start id="card-22222223" type="definition"/,
+		);
+	}
+
+	{
+		const proposal = createApprovedCardProposal("proposal-card-invalid-manual-receipt");
+		const storage = new MemoryKnowledgeProposalStorage({
+			...createPluginData({ [proposal.id]: proposal }),
+			manualCardWrite: { version: 1, cardId: "invalid" },
+		});
+		const { vault, writer } = await createWriter({ [proposal.id]: proposal }, new MemoryVaultAdapter(), storage);
+		const result = await writer.writeApprovedProposal(proposal.id);
+
+		assert.equal(result.status, "failed");
+		assert.match(result.message, /saved Card creation record is invalid/);
+		assert.equal(vault.files.size, 0);
+		assert.equal((await new KnowledgeProposalStore(storage).getProposal(proposal.id))?.status, "approved");
 	}
 
 	{

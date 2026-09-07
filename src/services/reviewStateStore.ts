@@ -819,6 +819,8 @@ function normalizeManualCardDraft(value: unknown): ManualCardDraft | undefined {
 	}
 
 	return {
+		// Keep invalid identity metadata visible so Composer can block unsafe recovery.
+		...(value.draftId !== undefined ? { draftId: value.draftId as string } : {}),
 		back: value.back,
 		cardType: value.cardType as ManualCardDraft["cardType"],
 		...(value.conceptId ? { conceptId: value.conceptId } : {}),

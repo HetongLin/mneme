@@ -4,7 +4,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import esbuild from "esbuild";
 
-const tests = ["markdownPath", "entityId", "conceptNaming", "conceptMarkdownIdentity", "markdownProposalRenderer", "approvedProposalWriter", "manualConceptService", "manualCardService", "ankiTsvExporter", "approvedWriteRecovery", "cardComposerView"];
+const tests = ["markdownPath", "entityId", "conceptNaming", "conceptMarkdownIdentity", "markdownProposalRenderer", "approvedProposalWriter", "manualConceptService", "manualCardService", "manualCardWriteRecovery", "ankiTsvExporter", "approvedWriteRecovery", "cardComposerView"];
 
 for (const test of tests) {
 	const outfile = path.join(tmpdir(), `mneme-${test}-tests-${Date.now()}.mjs`);

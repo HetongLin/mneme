@@ -4,6 +4,7 @@ import type { KnowledgeProposal } from "./knowledgeProposal";
 import type { ConceptSourceLink } from "./conceptSource";
 import type { ManualConceptDraft } from "./manualConceptDraft";
 import type { ManualCardDraft } from "./manualCardDraft";
+import type { ManualCardWriteReceipt } from "./manualCardWrite";
 import type { ConceptConflictMergeDraftRecord } from "./conceptConflictMergeDraft";
 
 export type ReviewRating = "again" | "hard" | "good" | "easy";
@@ -95,5 +96,7 @@ export interface MnemePluginData {
 	knowledgeProposals: Record<string, KnowledgeProposal>;
 	conceptSourceLinks: Record<string, ConceptSourceLink>;
 	manualCardDraft?: ManualCardDraft;
+	manualCardDraftId?: string;
+	manualCardWrite?: ManualCardWriteReceipt;
 	manualConceptDraft?: ManualConceptDraft;
 }
