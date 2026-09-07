@@ -5,7 +5,7 @@ Updated: 2026-09-07
 ## 2026-09-05 至 09-07 代码审查后续
 
 - 已先构建并提交审查前备份：`83deb3f`，其父提交 `9cd98ad` 是原产品代码。
-- 当前审查/重构分支：`refactor/manual-card-write-recovery`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，之后另有本交接/审查文档提交。
+- 当前审查/重构分支：`refactor/manual-concept-write-recovery`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，之后另有本交接/审查文档提交。
 - 第一轮修复合并/Related 的并发覆盖、Card 并发追加丢失、Review 重复动作跳卡，并提取共用 Markdown 事务与 Review 动作保护。
 - 第二轮让所有当前 `data.json` 写入共用完整读/检查/改/存队列，覆盖 Review、Settings、Proposal、草稿、来源索引及 Merge 回滚；来源重连/移除也已接入原子 Markdown 事务；诊断开关现在只重绘，不重置复习进度。数据格式与版本不变。队列的共享 storage owner 和禁止嵌套获取规则见 [ADR 0022](adr/0022-plugin-state-mutations-share-one-queue.md)。
 - 第二轮 `npm run test:all`、`npm run build`、`npm run check:release -- 1.0.0`、`git diff --check` 均已通过。新增确定性交错测试覆盖共享状态、真实 `saveSettings()` 方法、Merge 回滚、来源写入/回滚冲突。详细证据见 [CODE_REVIEW_2026-09-05.md](CODE_REVIEW_2026-09-05.md)。
@@ -14,7 +14,10 @@ Updated: 2026-09-07
 - 第四轮已修复 P2 Manual Card 创建成功但草稿清理失败后的持久化恢复：`manualCardWriteService` 在 Markdown 前保存固定 ID/路径/哈希，完成状态、删除草稿正文、轮换 `manualCardDraftId` 在一次状态保存中完成。重试核验已有 Card，不重复追加；旧窗口不能恢复已完成草稿。作者刻意新建同正文 Card 仍允许，且不经过 Inbox。旧草稿在 `getState()` 中获得持久化身份；服务要求调用者先加载并保存该身份，不自行认领无身份草稿。见 [ADR 0024](adr/0024-manual-card-creation-resumes-a-durable-draft.md)。
 - 第四轮同时修复 Composer 恢复后的控件锁定、加载失败/关闭交错、`prepare()` 丢失尚未自动保存的输入，以及缺失 Concept 被静默替换的问题；Inbox 和手动写入也会避开彼此预留的 Card ID。成功后 View 使用服务返回的新草稿，不再额外执行独立清理保存。
 - 2026-09-07 最终 `npm run test:all`、`npm run build`、`npm run check:release -- 1.0.0`、`git diff --check` 全部通过。手动恢复测试对新建/追加各注入六类写入前后故障，每次重建存储和 Vault，断言完整 Card ID 列表及不重放已完成的 Markdown；还覆盖旧草稿迁移、无关追加、冲突、陈旧保存、同正文新草稿和并发 Review。Composer 使用真实方法与渲染替身测试，未做真实 Obsidian 重启/平台验收。
-- 当前专项确认的问题均已落实代码修复，但不代表全库审查结束。若继续审查，可转向直接创建 Concept 与来源提交/Composer 保存之间的失败恢复；该流程尚未完成同等专项审查。历史上已发生且没有 receipt 的部分写入不能自动认领；目标被改动/移动、恢复元数据损坏等情况仍需人工协调。恢复协议不覆盖外部进程写入、所有锁外整条记录替换、显式开发者数据清除或降级到忽略新字段的旧版本。报告里的真实 Vault/平台验收仍待完成。
+- 第五轮已完成直接创建 Concept 的失败恢复审查：原流程在来源状态保存失败时无条件删除新建 Markdown，可能删掉保存等待期间的用户编辑。现在通过 `manualConceptWriteService` 先保存固定 ID/路径/哈希/别名设置/Source 快照，再创建或核验 Markdown，最后一次保存完成来源索引、written 状态与草稿身份轮换；新草稿清除已完成正文，但保留 Source 选择。失败后保留 Markdown，通过 Resume Creation 显式恢复。见 [ADR 0025](adr/0025-manual-concept-creation-resumes-a-durable-draft.md)。这是 schema version 1 的可选新增元数据，Markdown 格式不变。
+- 第五轮也保护了 pending/陈旧草稿的保存和清理、手动重名 Merge 的草稿身份，以及 Inbox/手动 Concept 的路径和 ID 预留。Concept Composer 统一普通创建与恢复完成流程，锁定输入、取消过时别名结果，关闭时等待创建；延迟重名检查/标签刷新/旧 Merge 回调不能再改写已关闭或更新后的表单。成功后采用服务返回的新草稿，无额外清理保存。
+- 第五轮自动验证通过：`npm run test:all`、`npm run build`、`npm run check:release -- 1.0.0`、`git diff --check`。恢复矩阵包含 Source 有/无 × 六类落盘前后故障，每次重建存储/Vault 并使用原始 draftId 重试，核验一个固定 ID/路径、已有 Markdown 不重放、草稿轮换与来源记录保留；另有真实 View 方法的生命周期/控件测试、显式屏障下的 Review 并发测试。完整日志在 `/private/tmp/mneme-manual-concept-recovery-all.log`。这些测试未替代真实 Obsidian 重启/平台验收。
+- 当前专项确认的问题均已落实代码修复，但不代表全库审查结束。若继续审查，可选择 Concept 删除/合并后的索引协调等尚未专项验证的路径，或补齐真实 Obsidian 验收；先检查当前代码和证据再确定下一轮范围。历史上已发生且没有 receipt 的部分写入不能自动认领；目标被改动/移动、恢复元数据损坏等情况仍需人工协调。恢复协议不覆盖外部进程写入、所有锁外整条记录替换、显式开发者数据清除或降级到忽略新字段的旧版本。报告里的真实 Vault/平台验收仍待完成。
 - 以下录像/验收摘要描述审查前的 `9cd98ad`，旧 ZIP 与录像未被替换，也不代表本轮修改已完成真实 Vault 或跨平台验收。
 
 ## 审查前验收交接摘要

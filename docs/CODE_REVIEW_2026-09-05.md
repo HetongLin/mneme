@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-07 (fourth pass)
+Updated: 2026-09-07 (fifth pass)
 
 ## Scope and checkpoint
 
@@ -14,6 +14,8 @@ The third pass on `refactor/approved-write-recovery` starts from committed check
 
 The fourth pass on `refactor/manual-card-write-recovery` starts from committed checkpoint `4e57766`. It coordinates durable Manual Card creation with draft completion and reviews the Composer's recovery state transitions.
 
+The fifth pass on `refactor/manual-concept-write-recovery` starts from committed checkpoint `59ddfd2`. It covers direct Concept creation, Source provenance completion, persistent draft identity, and Concept Composer/Merge lifecycle boundaries.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication, version change, or live Vault update was performed.
 
 ## Local implementation commits
@@ -25,6 +27,7 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `3100b9b` — durable Inbox write recovery, atomic completion, and protected reconciliation.
 - `5617b23` — Card Composer input/close lifecycle and truthful completion warnings.
 - `f2dbec4` — durable Manual Card recovery, protected draft identities, and Composer recovery controls.
+- `ecd462c` — durable Manual Concept recovery, atomic provenance/draft completion, and Composer/Merge lifecycle protection.
 
 ## Confirmed and fixed
 
@@ -106,6 +109,26 @@ Composer retains pending drafts as read-only with an explicit Resume action. Loa
 
 Evidence: `tests/manualCardWriteRecovery.test.ts` exercises new and existing groups across six fault stages: before/after intent save, before/after Markdown write, and before/after completion save. Each case recreates both storage and Vault, reuses the original draft identity, asserts the complete Card ID list, and checks that applied Markdown is not replayed. Other cases cover legacy migration, pending/stale autosaves, duplicate completion, intentional same-text new drafts, unrelated appends, conflicting targets, malformed records, missing Concepts, changed settings, and deterministic Review interleaving. Composer tests invoke real lifecycle/control methods; final review also fixed `prepare()` losing input typed before its autosave timer.
 
+### P1 — Manual Concept rollback could delete learner edits after an uncertain state save
+
+The low-level creator deleted the new note whenever its provenance committer threw. A state save can throw after persisting, and the learner can edit the note while the save is pending. Unconditional deletion could therefore remove valid authored content. Creation now preserves Markdown on any uncertain completion outcome. The production coordinator uses a persisted intent and forward recovery instead of deletion.
+
+Evidence: the low-level service regression injects learner edits inside the failing committer and verifies the edited bytes survive with zero remove calls. Recovery tests reject edited targets and confirm their bytes remain unchanged.
+
+### P2 — Manual Concept creation, provenance, and Composer completion could diverge
+
+`manualConceptWriteService.ts` persists a fixed Concept ID, paths, expected hash, alias flag, and optional Source snapshot before note creation. One queued state save completes provenance, retires the old draft identity, records completion, and installs a blank next draft that keeps the Source selection. Resume verifies the original file and never allocates a second destination for that operation. No final prose is retained in the receipt. See [ADR 0025](adr/0025-manual-concept-creation-resumes-a-durable-draft.md).
+
+Pending writes block draft saves/clears and manual name-conflict Merge. Merge completion rotates the draft identity inside its existing transaction, so late Composer saves cannot restore completed content. Inbox and manual creation reserve each other's Concept IDs and new-note paths. The production entry point delegates to the coordinator without nesting queued stores.
+
+Evidence: `tests/manualConceptWriteRecovery.test.ts` covers Source present/absent across six failure stages: before/after intent persistence, before/after Markdown creation, and before/after completion persistence. Every case reconstructs storage and Vault, retries the original draft, and asserts one file, fixed ID/path, matching bytes, no replay of an existing file, identity rotation, and Source provenance/fingerprint preservation. Additional cases cover legacy migration, stale/pending saves and clears, intentional same-text new drafts, malformed receipts, changed alias/folder settings before missing-file recovery, edited targets, and Review queued behind an explicit creation barrier. Writer and Merge tests cover reserved destinations, pending direct creation, changed preview state, and identity retirement. A nested legacy-title fixture also verifies that planning and recovery apply name normalization identically.
+
+### P2 — Concept Composer asynchronous actions could outlive their draft
+
+Concept creation now locks all editing, invalidates alias requests, and waits on close. Pending recovery bypasses fresh Source/name/duplicate checks and preserves its original alias input. Failed reloads lock the form; successful creation uses the coordinator's next draft without another save. Fresh and resumed creation share completion handling. Delayed tag-catalog refreshes preserve the creation lock and ignore closed lifecycles. Late preflight checks cannot create or open dialogs after closing; Merge callbacks compare draft identity, and title refinement focuses only after controls unlock.
+
+Composer regressions use actual lifecycle/control methods with a rendering substitute. They do not exercise live Obsidian rendering or process crashes.
+
 ## Remaining boundaries
 
 The confirmed findings above have implementation fixes. This is still a focused audit, not proof that every workflow is correct. Historical partial writes without recovery metadata, corrupted external state, conflicting target edits, and external writers remain outside automatic recovery. Real Obsidian restart, UI rendering, and platform acceptance remain outstanding.
@@ -127,6 +150,8 @@ Third-pass final validation (2026-09-06): `npm run test:all`, `npm run build`, `
 
 Fourth-pass final validation (2026-09-07): `npm run test:all`, `npm run build`, `npm run check:release -- 1.0.0`, and `git diff --check` all passed. The full suite includes the manual recovery fault matrix, writer ID reservations, updated shared-state tests, and Composer lifecycle/control regressions. These use in-memory Vaults and a View rendering harness, not live Obsidian crash/restart testing.
 
+Fifth-pass final validation (2026-09-07): `npm run test:all`, `npm run build`, `npm run check:release -- 1.0.0`, and `git diff --check` all passed. The Markdown runner includes the manual Concept recovery matrix and Concept Composer lifecycle tests, and awaits their exported promises. Full output: `/private/tmp/mneme-manual-concept-recovery-all.log`.
+
 Focused manual checks still to run in a disposable Vault:
 
 1. Reveal a Card and rapidly repeat a rating; only one review should be stored and only one Card advanced. Repeat with Review Tomorrow, Suspend, and Archive; verify the next Card's buttons work.
@@ -139,5 +164,8 @@ Focused manual checks still to run in a disposable Vault:
 8. In a disposable test environment, inject completion-save failure after accepting a Concept/Card. Reload Mneme, resume the Inbox item, and verify one Concept path/Card ID plus complete provenance. Editing the target before retry should preserve the edit and report a conflict.
 9. Start creating a Manual Card and close its Composer while the write is delayed. After completion, reopening should show an empty draft. Inject a completion-state save failure, reload, and use Resume Creation: the same Card ID should occur once and the draft should then clear. Repeat after appending an unrelated Card; both should remain.
 10. Fail a Composer state load or its post-error reload: editing and submit must stay disabled, including after closing/reopening attempts. Interrupt a write, then remove its Concept from the visible library: Resume must retain the original target and never select another Concept. Verify that a new draft with the same text can intentionally create a distinct Card.
+
+11. Create a Manual Concept with a Source Note and English Alias. Inject a completion-state failure, reload, and Resume Creation: verify one Concept ID/path, complete Source provenance, and a blank next draft retaining Source selection. Repeat with the Source moved or alias/folder settings changed after intent persistence. Edit the Concept before retry and verify recovery stops without removing the edits.
+12. Close Concept Composer during creation/name checking or alias generation. Reopen and verify saved content and control availability. Complete a manual name-conflict Merge, then trigger an old autosave/callback: it must not restore or overwrite the new draft.
 
 These checks do not replace the handoff's outstanding real-provider, restart, Windows, and mobile publication evidence. The old `9cd98ad` ZIP and recordings remain evidence for their original source revision only.
