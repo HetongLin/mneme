@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-06 (third pass)
+Updated: 2026-09-07 (fourth pass)
 
 ## Scope and checkpoint
 
@@ -12,6 +12,8 @@ A second pass on `refactor/state-persistence`, based on documentation checkpoint
 
 The third pass on `refactor/approved-write-recovery` starts from committed checkpoint `30bcce7`. It addresses interrupted Inbox writes, receipt retention during reconciliation, and Card Composer lifecycle errors.
 
+The fourth pass on `refactor/manual-card-write-recovery` starts from committed checkpoint `4e57766`. It coordinates durable Manual Card creation with draft completion and reviews the Composer's recovery state transitions.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication, version change, or live Vault update was performed.
 
 ## Local implementation commits
@@ -22,6 +24,7 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `37d3533` — serialize plugin-data mutations, protect Source relink/removal writes, and preserve Review state on diagnostics refresh.
 - `3100b9b` — durable Inbox write recovery, atomic completion, and protected reconciliation.
 - `5617b23` — Card Composer input/close lifecycle and truthful completion warnings.
+- `f2dbec4` — durable Manual Card recovery, protected draft identities, and Composer recovery controls.
 
 ## Confirmed and fixed
 
@@ -43,7 +46,7 @@ Both existing-group paths now calculate `appendCardGroupDraft()` inside `process
 
 Evidence: two pending appends are released together from a deterministic read barrier; original Card IDs and both new IDs remain exactly once. Separate fixtures inject a user edit immediately before writing. The old manual/Inbox implementations overwrite that edit and fail the regression assertions; the current implementations preserve it.
 
-This protects Card Markdown. It does not make the accompanying proposal-state writes one transaction; see the open findings below.
+This protects Card Markdown. The third and fourth passes below add durable recovery for the accompanying proposal/draft-state writes.
 
 ### P1 — Repeated Review actions could submit multiple writes and skip Cards
 
@@ -91,17 +94,21 @@ This repair applies to writes that have a recovery record. Historical partial wr
 
 Creation disabled only its submit button, while a successful completion cleared all fields. The Composer now locks inputs during creation and prevents a pending `prepare()` lookup from rebuilding the form after creation starts or the View closes. Closing waits for creation; a completed Card clears the draft independently of the closed DOM. Save timers are cleared on close.
 
-Creation success, draft cleanup, and View refresh have separate outcomes. Cleanup/refresh failures now report that the Card exists rather than claiming its creation failed. The actual View method harness covers input locking, deferred preparation, close during creation, cleanup/refresh errors, and preservation after a failed Card write. Rendering is stubbed, so live Obsidian validation remains outstanding.
+The third pass separated creation, draft-cleanup, and View-refresh outcomes. The fourth pass replaces the separate cleanup save with the durable coordinator below. View-refresh errors remain independent of a successfully persisted Card. The actual View method harness covers input locking, deferred preparation, close during creation, and preservation after a failed Card write. Rendering is stubbed, so live Obsidian validation remains outstanding.
 
-## Open findings
+### P2 — Manual Card creation and Composer draft cleanup could diverge
 
-### P2 — Manual Card creation and Composer draft cleanup can diverge
+The Card was written before draft cleanup was persisted. If cleanup failed, the saved draft could return after reload and allocate a second Card ID. `manualCardWriteService.ts` now persists a fixed-ID intent before Markdown, verifies that Card on retry, and saves completion, draft removal, and a new draft identity together. Pending records contain only hashes and locator metadata; completed drafts do not retain learning prose.
 
-Location: `src/views/cardComposerView.ts:createCard` and `persistCurrentDraft`.
+`ManualCardDraftStore` compares draft identities inside the shared state queue and rejects saves/clears for pending writes or stale windows. A new draft may intentionally contain the same text. Inbox and manual allocation reserve each other's Card IDs even before Markdown exists; Card Group paths remain shared destinations.
 
-The Card is still written before draft cleanup is persisted. If cleanup and subsequent retrying autosaves fail, the Card remains but the saved draft can return after reload, allowing duplicate creation. The third pass fixes misleading creation errors and close-time lifecycle handling, but does not give Manual Card creation a durable receipt. A later successful cleanup can still clear the draft.
+Composer retains pending drafts as read-only with an explicit Resume action. Loading failures cannot expose an empty editable fallback or clear saved content on close; late opening callbacks cannot render after close. A missing Concept no longer silently redirects a meaningful draft to the first library entry. See [ADR 0024](adr/0024-manual-card-creation-resumes-a-durable-draft.md).
 
-A follow-up should coordinate draft completion with Card creation and distinguish a failed Card write from a failed cleanup/refresh. The acceptance test should inject cleanup failure, reload the draft store, and retry.
+Evidence: `tests/manualCardWriteRecovery.test.ts` exercises new and existing groups across six fault stages: before/after intent save, before/after Markdown write, and before/after completion save. Each case recreates both storage and Vault, reuses the original draft identity, asserts the complete Card ID list, and checks that applied Markdown is not replayed. Other cases cover legacy migration, pending/stale autosaves, duplicate completion, intentional same-text new drafts, unrelated appends, conflicting targets, malformed records, missing Concepts, changed settings, and deterministic Review interleaving. Composer tests invoke real lifecycle/control methods; final review also fixed `prepare()` losing input typed before its autosave timer.
+
+## Remaining boundaries
+
+The confirmed findings above have implementation fixes. This is still a focused audit, not proof that every workflow is correct. Historical partial writes without recovery metadata, corrupted external state, conflicting target edits, and external writers remain outside automatic recovery. Real Obsidian restart, UI rendering, and platform acceptance remain outstanding.
 
 ## Validation
 
@@ -118,6 +125,8 @@ Second-pass final validation (2026-09-06): `npm run test:all`, `npm run build`, 
 
 Third-pass final validation (2026-09-06): `npm run test:all`, `npm run build`, `npm run check:release -- 1.0.0`, and `git diff --check` all passed. The Markdown test runner now awaits each exported test promise, including receipt recovery and Composer lifecycle tests, rather than allowing unresolved asynchronous tests to exit successfully.
 
+Fourth-pass final validation (2026-09-07): `npm run test:all`, `npm run build`, `npm run check:release -- 1.0.0`, and `git diff --check` all passed. The full suite includes the manual recovery fault matrix, writer ID reservations, updated shared-state tests, and Composer lifecycle/control regressions. These use in-memory Vaults and a View rendering harness, not live Obsidian crash/restart testing.
+
 Focused manual checks still to run in a disposable Vault:
 
 1. Reveal a Card and rapidly repeat a rating; only one review should be stored and only one Card advanced. Repeat with Review Tomorrow, Suspend, and Archive; verify the next Card's buttons work.
@@ -128,6 +137,7 @@ Focused manual checks still to run in a disposable Vault:
 6. Reveal an answer, move to a later Card, then toggle `Show advanced diagnostics`; confirm the Card and answer remain visible. Check that `Show Today’s Focus` still applies its scheduling policy.
 7. Preview a stale Source relink/removal, edit the Concept, then confirm; expect a conflict and preserved Markdown. Check a normal confirmation and its Source index update as well.
 8. In a disposable test environment, inject completion-save failure after accepting a Concept/Card. Reload Mneme, resume the Inbox item, and verify one Concept path/Card ID plus complete provenance. Editing the target before retry should preserve the edit and report a conflict.
-9. Start creating a Manual Card and close its Composer while the write is delayed. After success, reopening should show an empty draft when cleanup succeeds. Verify that a cleanup failure warns about the existing Card.
+9. Start creating a Manual Card and close its Composer while the write is delayed. After completion, reopening should show an empty draft. Inject a completion-state save failure, reload, and use Resume Creation: the same Card ID should occur once and the draft should then clear. Repeat after appending an unrelated Card; both should remain.
+10. Fail a Composer state load or its post-error reload: editing and submit must stay disabled, including after closing/reopening attempts. Interrupt a write, then remove its Concept from the visible library: Resume must retain the original target and never select another Concept. Verify that a new draft with the same text can intentionally create a distinct Card.
 
 These checks do not replace the handoff's outstanding real-provider, restart, Windows, and mobile publication evidence. The old `9cd98ad` ZIP and recordings remain evidence for their original source revision only.
