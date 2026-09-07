@@ -5,6 +5,7 @@ import type { ConceptSourceLink } from "./conceptSource";
 import type { ManualConceptDraft } from "./manualConceptDraft";
 import type { ManualCardDraft } from "./manualCardDraft";
 import type { ManualCardWriteReceipt } from "./manualCardWrite";
+import type { ManualConceptWriteReceipt } from "./manualConceptWrite";
 import type { ConceptConflictMergeDraftRecord } from "./conceptConflictMergeDraft";
 
 export type ReviewRating = "again" | "hard" | "good" | "easy";
@@ -99,4 +100,6 @@ export interface MnemePluginData {
 	manualCardDraftId?: string;
 	manualCardWrite?: ManualCardWriteReceipt;
 	manualConceptDraft?: ManualConceptDraft;
+	manualConceptDraftId?: string;
+	manualConceptWrite?: ManualConceptWriteReceipt;
 }

@@ -6,6 +6,7 @@ import {
 	type IncomingConceptMergeStorage,
 	type IncomingConceptMergeVault,
 } from "../src/services/incomingConceptMergeService";
+import { ManualConceptDraftStore } from "../src/services/manualConceptDraftStore";
 import { createDefaultPluginData } from "../src/services/reviewStateStore";
 
 const now = "2026-07-25T10:00:00.000Z";
@@ -19,6 +20,21 @@ const existing: ConceptSummary = {
 	title: "Shared title",
 	whyItMatters: "Existing value.",
 };
+
+function manualWriteReceipt(draftId: string, status: "pending" | "written" = "pending") {
+	return {
+		version: 1 as const,
+		draftId,
+		inputHash: "a".repeat(64),
+		conceptId: "concept-incoming",
+		path: "Mneme/Concepts/Incoming.md",
+		cardsPath: "Mneme/Cards/Incoming/Cards.md",
+		afterHash: "b".repeat(64),
+		englishAliasesEnabled: true,
+		createdAt: now,
+		status,
+	};
+}
 
 async function runAsyncTests(): Promise<void> {
 	const proposal = {
@@ -148,6 +164,102 @@ async function runAsyncTests(): Promise<void> {
 	}
 
 	{
+		const previewData = createDefaultPluginData();
+		previewData.knowledgeProposals[proposal.id] = proposal;
+		const previewVault = new MemoryIncomingMergeVault({ [existing.path]: conceptMarkdown(existing) });
+		const previewStorage = new MemoryIncomingMergeStorage(previewData);
+		const previewService = new IncomingConceptMergeService(previewVault, previewStorage, () => now);
+		const prepared = await previewService.prepare({
+			draft: { coreMeaning: "Merged.", englishName: "", importance: "normal", learningMode: "reviewable", tags: [], title: "Shared title", whyItMatters: "" },
+			existing,
+			origin: { kind: "inbox", proposalId: proposal.id, proposalUpdatedAt: proposal.updatedAt },
+		});
+		assert.equal(prepared.status, "ready");
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		previewStorage.data.manualConceptWrite = manualWriteReceipt("draft-pending");
+		const result = await previewService.execute(prepared.plan);
+		assert.equal(result.status, "conflict");
+		assert.equal(previewVault.modifyCount, 0);
+	}
+
+	{
+		const oldDraft = {
+			coreMeaning: "Manual incoming meaning.",
+			draftId: "manual-draft-old",
+			englishName: "",
+			importance: "high" as const,
+			learningMode: "reviewable" as const,
+			tags: ["manual"],
+			title: "Shared title",
+			updatedAt: "2026-07-25T09:45:00.000Z",
+			whyItMatters: "Manual incoming value.",
+		};
+		const manualData = createDefaultPluginData();
+		manualData.manualConceptDraft = oldDraft;
+		manualData.manualConceptDraftId = oldDraft.draftId;
+		const manualStorage = new MemoryIncomingMergeStorage(manualData);
+		const manualService = new IncomingConceptMergeService(
+			new MemoryIncomingMergeVault({ [existing.path]: conceptMarkdown(existing) }),
+			manualStorage,
+			() => now,
+		);
+		const prepared = await manualService.prepare({
+			draft: { coreMeaning: "Existing meaning.", englishName: "", importance: "high", learningMode: "reviewable", tags: ["manual"], title: "Shared title", whyItMatters: "Existing value." },
+			existing,
+			origin: { input: oldDraft, kind: "manual" },
+		});
+		assert.equal(prepared.status, "ready");
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		assert.deepEqual(await manualService.execute(prepared.plan), { status: "merged" });
+		const store = new ManualConceptDraftStore(manualStorage);
+		await assert.rejects(store.saveDraft(oldDraft), /out of date/);
+		await assert.rejects(store.clearDraft(oldDraft.draftId), /out of date/);
+		assert.equal(manualStorage.data.manualConceptDraft?.title, "");
+		assert.notEqual(manualStorage.data.manualConceptDraftId, oldDraft.draftId);
+	}
+
+	{
+		const storedDraft = {
+			coreMeaning: "Same text.", draftId: "draft-a", englishName: "", importance: "normal" as const,
+			learningMode: "reviewable" as const, tags: [], title: "Same title", updatedAt: now, whyItMatters: "",
+		};
+		const data = createDefaultPluginData();
+		data.manualConceptDraft = storedDraft;
+		data.manualConceptDraftId = storedDraft.draftId;
+		const service = new IncomingConceptMergeService(
+			new MemoryIncomingMergeVault({ [existing.path]: conceptMarkdown(existing) }),
+			new MemoryIncomingMergeStorage(data),
+			() => now,
+		);
+		const result = await service.prepare({
+			draft: { coreMeaning: "Existing meaning.", englishName: "", importance: "normal", learningMode: "reviewable", tags: [], title: "Shared title", whyItMatters: "" },
+			existing,
+			origin: { input: { ...storedDraft, draftId: "draft-b" }, kind: "manual" },
+		});
+		assert.equal(result.status, "blocked");
+		assert.match(result.message, /draft changed/);
+	}
+
+	{
+		const data = createDefaultPluginData();
+		data.manualConceptDraft = { coreMeaning: "Meaning", englishName: "", importance: "normal", learningMode: "reviewable", tags: [], title: "Shared title", updatedAt: now, whyItMatters: "", draftId: "draft-pending" };
+		data.manualConceptDraftId = "draft-pending";
+		data.manualConceptWrite = manualWriteReceipt("draft-pending");
+		const service = new IncomingConceptMergeService(
+			new MemoryIncomingMergeVault({ [existing.path]: conceptMarkdown(existing) }),
+			new MemoryIncomingMergeStorage(data),
+			() => now,
+		);
+		const result = await service.prepare({
+			draft: { coreMeaning: "Existing meaning.", englishName: "", importance: "normal", learningMode: "reviewable", tags: [], title: "Shared title", whyItMatters: "" },
+			existing,
+			origin: { input: { ...data.manualConceptDraft }, kind: "manual" },
+		});
+		assert.equal(result.status, "blocked");
+		assert.match(result.message, /pending Concept creation/);
+	}
+
+	{
 		const manualDraft = {
 			coreMeaning: "Manual incoming meaning.",
 			englishName: "",
@@ -196,7 +308,8 @@ async function runAsyncTests(): Promise<void> {
 		if (manualPrepared.status !== "ready") throw new Error(manualPrepared.message);
 
 		assert.deepEqual(await manualService.execute(manualPrepared.plan), { status: "merged" });
-		assert.equal(manualStorage.data.manualConceptDraft, undefined);
+		assert.equal(manualStorage.data.manualConceptDraft?.title, "");
+		assert.notEqual(manualStorage.data.manualConceptDraftId, undefined);
 		assert.equal(
 			Object.values(manualStorage.data.conceptSourceLinks)[0]?.conceptId,
 			existing.conceptId,

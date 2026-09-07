@@ -1,6 +1,8 @@
 import type { ConceptImportance, ConceptLearningMode } from "./conceptLibrary";
 
 export interface ManualConceptDraft {
+	/** Optional only for drafts persisted before durable creation. */
+	draftId?: string;
 	coreMeaning: string;
 	englishName: string;
 	importance: ConceptImportance;
@@ -15,8 +17,10 @@ export interface ManualConceptDraft {
 export function createEmptyManualConceptDraft(
 	sourcePath?: string,
 	updatedAt = new Date().toISOString(),
+	draftId = globalThis.crypto.randomUUID(),
 ): ManualConceptDraft {
 	return {
+		draftId,
 		coreMeaning: "",
 		englishName: "",
 		importance: "normal",

@@ -61,12 +61,13 @@ import { IncomingConceptMergeService } from "./services/incomingConceptMergeServ
 import { ManualCardDraftStore } from "./services/manualCardDraftStore";
 import type { ManualCardDraft } from "./models/manualCardDraft";
 import { createManualCardWithRecovery, type ManualCardCreationResult } from "./services/manualCardWriteService";
-import { ManualConceptProvenanceCommitter, type ManualConceptSourceSnapshot } from "./services/manualConceptProvenanceService";
+import type { ManualConceptSourceSnapshot } from "./services/manualConceptProvenanceService";
+import { createManualConceptWithRecovery, type ManualConceptCreationResult } from "./services/manualConceptWriteService";
 import { ObsidianConceptVaultAdapter } from "./services/obsidianConceptVaultAdapter";
 import { ObsidianAiHttpClient } from "./services/obsidianAiHttpClient";
 import { ObsidianVaultAdapter } from "./services/obsidianVaultAdapter";
 import { PreAiAcceptanceFixtureService } from "./services/preAiAcceptanceFixtureService";
-import { createManualConcept, type ManualConceptInput, type ManualConceptResult } from "./services/manualConceptService";
+import type { ManualConceptResult } from "./services/manualConceptService";
 import { ReviewStateStore } from "./services/reviewStateStore";
 import { RelatedConceptService } from "./services/relatedConceptService";
 import { SourceAnalysisService } from "./services/sourceAnalysisService";
@@ -1219,21 +1220,16 @@ export default class MnemePlugin extends Plugin {
 		await Promise.all(refreshes);
 	}
 
-	private async createManualConceptFromComposer(input: ManualConceptInput): Promise<ManualConceptResult> {
-		const source = input.sourcePath
-			? await this.readManualConceptSourceSnapshot(input.sourcePath)
-			: undefined;
-		const committer = source
-			? new ManualConceptProvenanceCommitter(this, source)
-			: undefined;
-
-		return createManualConcept(
-			input,
+	private async createManualConceptFromComposer(draft: ManualConceptDraft): Promise<ManualConceptCreationResult> {
+		return createManualConceptWithRecovery(
+			draft,
 			this.settings,
 			new ObsidianVaultAdapter(this.app.vault),
-			undefined,
-			committer,
-			(conceptId) => this.isConceptIdReserved(conceptId),
+			this,
+			{
+				isConceptIdReserved: (conceptId) => this.isConceptIdReserved(conceptId),
+				readSourceSnapshot: (path) => this.readManualConceptSourceSnapshot(path),
+			},
 		);
 	}
 
@@ -1715,6 +1711,9 @@ export default class MnemePlugin extends Plugin {
 		draft: ManualConceptDraft,
 		onReturn: () => Promise<void>,
 	): Promise<void> {
+		const state = await this.manualConceptDraftStore.getState();
+		if (state.pendingWrite) throw new Error("Resume the pending Concept creation before opening Merge.");
+		if (state.draft.draftId !== draft.draftId) throw new Error("This Composer draft is out of date. Reopen Concept Composer before opening Merge.");
 		const source = draft.sourcePath
 			? await this.readManualConceptSourceSnapshot(draft.sourcePath)
 			: undefined;
@@ -1780,7 +1779,7 @@ export default class MnemePlugin extends Plugin {
 		if (session.origin.kind === "manual") {
 			for (const leaf of this.app.workspace.getLeavesOfType(CONCEPT_COMPOSER_VIEW_TYPE)) {
 				if (leaf.view instanceof MnemeConceptComposerView) {
-					await leaf.view.completeConflictMerge();
+					await leaf.view.completeConflictMerge(session.origin.input.draftId);
 				}
 			}
 		}

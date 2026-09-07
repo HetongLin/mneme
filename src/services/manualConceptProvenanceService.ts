@@ -1,15 +1,11 @@
 import type { MnemePluginData } from "../models/reviewState";
+import type { ManualConceptSourceSnapshot } from "../models/manualConceptWrite";
 import type { ManualConceptCommitter, ManualConceptInput, ManualConceptResult } from "./manualConceptService";
 import { createConceptSourceLinkId } from "./conceptSourceLinking";
 import { runPluginDataMutation } from "./pluginDataMutation";
 import { normalizePluginData } from "./reviewStateStore";
 
-export interface ManualConceptSourceSnapshot {
-	contentHash: string;
-	mtime: number;
-	path: string;
-	size: number;
-}
+export type { ManualConceptSourceSnapshot } from "../models/manualConceptWrite";
 
 export interface ManualConceptProvenanceStorage {
 	loadData(): Promise<unknown>;
@@ -32,51 +28,60 @@ export class ManualConceptProvenanceCommitter implements ManualConceptCommitter 
 		return runPluginDataMutation(this.storage, async () => {
 			const data = normalizePluginData(await this.storage.loadData());
 			const now = this.timestampProvider();
-			const linkId = createConceptSourceLinkId(result.conceptId, this.source.path, "origin");
-			const previous = data.sourceAnalysisRecords[this.source.path];
-			const sourceRecord = previous
-				? {
-					...previous,
-					contentHash: this.source.contentHash,
-					linkedConceptIds: unique([...previous.linkedConceptIds, result.conceptId]),
-					mtime: this.source.mtime,
-					size: this.source.size,
-					status: previous.contentHash === this.source.contentHash ? previous.status : "stale" as const,
-				}
-				: {
-					contentHash: this.source.contentHash,
-					lastAnalyzedAt: now,
-					linkedConceptIds: [result.conceptId],
-					mtime: this.source.mtime,
-					pendingProposalIds: [],
-					size: this.source.size,
-					sourcePath: this.source.path,
-					status: "clean" as const,
-				};
-
-			await this.storage.saveData({
-				...data,
-				conceptSourceLinks: {
-					...data.conceptSourceLinks,
-					[linkId]: {
-						addedAt: now,
-						conceptId: result.conceptId,
-						evidence: [],
-						id: linkId,
-						lastSeenAt: now,
-						relationType: "origin",
-						sourceHash: this.source.contentHash,
-						sourcePath: this.source.path,
-						status: "approved",
-					},
-				},
-				sourceAnalysisRecords: {
-					...data.sourceAnalysisRecords,
-					[this.source.path]: sourceRecord,
-				},
-			});
+			await this.storage.saveData(withManualConceptProvenance(data, result, this.source, now));
 		});
 	}
+}
+
+export function withManualConceptProvenance(
+	data: MnemePluginData,
+	result: ManualConceptResult,
+	source: ManualConceptSourceSnapshot,
+	now: string,
+): MnemePluginData {
+	const linkId = createConceptSourceLinkId(result.conceptId, source.path, "origin");
+	const previous = data.sourceAnalysisRecords[source.path];
+	const sourceRecord = previous
+		? {
+			...previous,
+			contentHash: source.contentHash,
+			linkedConceptIds: unique([...previous.linkedConceptIds, result.conceptId]),
+			mtime: source.mtime,
+			size: source.size,
+			status: previous.contentHash === source.contentHash ? previous.status : "stale" as const,
+		}
+		: {
+			contentHash: source.contentHash,
+			lastAnalyzedAt: now,
+			linkedConceptIds: [result.conceptId],
+			mtime: source.mtime,
+			pendingProposalIds: [],
+			size: source.size,
+			sourcePath: source.path,
+			status: "clean" as const,
+		};
+
+	return {
+		...data,
+		conceptSourceLinks: {
+			...data.conceptSourceLinks,
+			[linkId]: {
+				addedAt: now,
+				conceptId: result.conceptId,
+				evidence: [],
+				id: linkId,
+				lastSeenAt: now,
+				relationType: "origin",
+				sourceHash: source.contentHash,
+				sourcePath: source.path,
+				status: "approved",
+			},
+		},
+		sourceAnalysisRecords: {
+			...data.sourceAnalysisRecords,
+			[source.path]: sourceRecord,
+		},
+	};
 }
 
 function unique(values: string[]): string[] {

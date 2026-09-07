@@ -7,6 +7,8 @@ import {
 } from "../models/manualConceptDraft";
 import type { ManualConceptDraftStore } from "../services/manualConceptDraftStore";
 import type { ManualConceptInput, ManualConceptResult } from "../services/manualConceptService";
+import type { ManualConceptCreationResult } from "../services/manualConceptWriteService";
+import type { ManualConceptWriteReceipt } from "../models/manualConceptWrite";
 import { assessManualConceptDuplicates, type ManualConceptDuplicateAssessment } from "../services/manualConceptDuplicateCheck";
 import { buildConceptTagCatalog, type ConceptTagCatalogEntry } from "../services/conceptTagCatalog";
 import { createConceptTagPicker, type ConceptTagPicker } from "../ui/conceptTagPicker";
@@ -23,14 +25,14 @@ let sourceListId = 0;
 
 export interface ConceptComposerOptions {
 	canSuggestEnglishName(): boolean;
-	create(input: ManualConceptInput): Promise<ManualConceptResult>;
+	create(draft: ManualConceptDraft): Promise<ManualConceptCreationResult>;
 	discardMergeDraft(key: string): Promise<void> | void;
 	draftStore: ManualConceptDraftStore;
 	englishAliasesEnabled(): boolean;
 	findNameConflict(input: Pick<ManualConceptInput, "coreMeaning" | "englishName" | "title">): Promise<ConceptNameConflict | undefined>;
 	getCurrentSourcePath(): string | undefined;
 	listSourcePaths(): string[];
-	onCreated(result: ManualConceptResult): Promise<void> | void;
+	onCreated(result: ManualConceptCreationResult): Promise<void> | void;
 	openMerge(
 		existing: ConceptSummary,
 		draft: ManualConceptDraft,
@@ -64,12 +66,17 @@ export class MnemeConceptComposerView extends ItemView {
 	private pendingDefaultSourcePath?: string;
 	private saveQueue: Promise<void> = Promise.resolve();
 	private saveTimer?: number;
+	private createCompletion?: Promise<void>;
+	private createCompletionResolve?: () => void;
 	private sourcePathEl!: HTMLInputElement;
 	private statusEl!: HTMLElement;
 	private tagCatalog: ConceptTagCatalogEntry[] = [];
 	private tagPicker!: ConceptTagPicker;
 	private titleEl!: HTMLInputElement;
 	private whyItMattersEl!: HTMLTextAreaElement;
+	private loadError?: string;
+	private pendingWrite?: ManualConceptWriteReceipt;
+	private lifecycleToken = 0;
 
 	constructor(leaf: WorkspaceLeaf, private readonly options: ConceptComposerOptions) {
 		super(leaf);
@@ -88,25 +95,38 @@ export class MnemeConceptComposerView extends ItemView {
 	}
 
 	protected async onOpen(): Promise<void> {
+		const token = ++this.lifecycleToken;
+		this.isReady = false;
+		this.loadError = undefined;
 		this.contentEl.addClass("mneme-review-view", "mneme-concept-composer-view");
 		this.markdownComponent.load();
 
 		try {
-			const stored = await this.options.draftStore.getDraft();
-			this.draft = stored ?? createEmptyManualConceptDraft(this.pendingDefaultSourcePath);
+			const state = await this.options.draftStore.getState();
+			if (token !== this.lifecycleToken) return;
+			this.draft = state.draft;
+			this.pendingWrite = state.pendingWrite;
 		} catch (error) {
 			console.error("Mneme: failed to load Concept Composer draft", error);
+			if (token !== this.lifecycleToken) return;
+			this.loadError = "Concept Composer could not load its saved draft. Close and reopen to try again.";
 			this.draft = createEmptyManualConceptDraft(this.pendingDefaultSourcePath);
 		}
 		await this.refreshTagCatalog();
+		if (token !== this.lifecycleToken) return;
 
 		this.render();
 		this.isReady = true;
 	}
 
 	protected async onClose(): Promise<void> {
+		this.lifecycleToken += 1;
 		this.englishNameRequest += 1;
-		if (this.isReady) {
+		if (this.saveTimer !== undefined) { window.clearTimeout(this.saveTimer); this.saveTimer = undefined; }
+		const shouldFlushDraft = this.isReady && !this.loadError && !this.pendingWrite && !this.isSaving;
+		this.isReady = false;
+		if (this.createCompletion) await this.createCompletion;
+		if (shouldFlushDraft) {
 			try {
 				await this.flushDraft();
 			} catch (error) {
@@ -117,22 +137,32 @@ export class MnemeConceptComposerView extends ItemView {
 		this.contentEl.empty();
 		this.isReady = false;
 		this.hasRendered = false;
+		if (this.saveTimer !== undefined) { window.clearTimeout(this.saveTimer); this.saveTimer = undefined; }
 	}
 
 	async prepare(defaultSourcePath?: string): Promise<void> {
 		this.pendingDefaultSourcePath = defaultSourcePath;
-		if (!this.isReady) return;
+		if (!this.isReady || this.isSaving || this.pendingWrite || this.loadError) return;
 		await this.refreshTagCatalog();
+		if (!this.isReady || this.isSaving || this.pendingWrite || this.loadError) return;
 		if (!defaultSourcePath || isMeaningfulManualConceptDraft(this.readDraft())) return;
 
 		this.sourcePathEl.value = defaultSourcePath;
-		await this.persistCurrentDraft();
+		if (this.isReady && !this.isSaving && !this.pendingWrite) await this.persistCurrentDraft();
 	}
 
-	async completeConflictMerge(): Promise<void> {
-		const sourcePath = this.readDraft().sourcePath?.trim();
-		this.resetAfterCreate(sourcePath);
-		await this.persistCurrentDraft();
+	async completeConflictMerge(completedDraftId?: string): Promise<void> {
+		if (!this.isReady || this.isSaving || this.pendingWrite) return;
+		if (completedDraftId && completedDraftId !== this.draft.draftId) return;
+		const draftId = this.draft.draftId;
+		const state = await this.options.draftStore.getState();
+		if (!this.isReady || this.isSaving || this.pendingWrite || this.draft.draftId !== draftId) return;
+		if (this.saveTimer !== undefined) { window.clearTimeout(this.saveTimer); this.saveTimer = undefined; }
+		this.englishNameRequest += 1;
+		this.acknowledgedDuplicateSignature = undefined;
+		this.draft = state.draft;
+		this.pendingWrite = state.pendingWrite;
+		this.render();
 		this.statusEl.setText("Merged into the existing Concept. Ready to create another Concept.");
 	}
 
@@ -145,6 +175,14 @@ export class MnemeConceptComposerView extends ItemView {
 			text: "Write the durable idea while keeping the Source Note visible.",
 		});
 		this.createdResultEl = this.contentEl.createDiv({ cls: "mneme-concept-composer-created-result" });
+		if (this.loadError) this.contentEl.createEl("p", { cls: "mneme-review-status", text: this.loadError });
+		if (this.pendingWrite) {
+			const pendingEl = this.contentEl.createDiv({ cls: "mneme-review-status" });
+			pendingEl.setText("A Concept creation is pending. Resume it to finish writing the Concept before editing this draft.");
+			pendingEl.createEl("button", { text: "Open Concept Markdown" }, (buttonEl) => {
+				buttonEl.addEventListener("click", () => void this.options.openConceptMarkdown(this.pendingWrite!.path));
+			});
+		}
 
 		const formEl = this.contentEl.createDiv({ cls: "mneme-concept-composer-form" });
 		this.renderSourceField(formEl);
@@ -226,6 +264,7 @@ export class MnemeConceptComposerView extends ItemView {
 		this.hasRendered = true;
 		this.lastObservedTitle = this.titleEl.value.trim();
 		this.updateEnglishNameUi();
+		this.updateControls();
 	}
 
 	private renderEnglishNameField(parentEl: HTMLElement): void {
@@ -242,7 +281,7 @@ export class MnemeConceptComposerView extends ItemView {
 				type: "text",
 			},
 		});
-		this.englishNameEl.value = this.options.englishAliasesEnabled() && shouldOfferEnglishAlias(this.draft.title)
+		this.englishNameEl.value = this.pendingWrite || (this.options.englishAliasesEnabled() && shouldOfferEnglishAlias(this.draft.title))
 			? this.draft.englishName
 			: "";
 		this.englishNameButtonEl = rowEl.createEl("button", {
@@ -276,6 +315,7 @@ export class MnemeConceptComposerView extends ItemView {
 		const buttonsEl = fieldEl.createDiv({ cls: "mneme-concept-composer-source-actions" });
 		buttonsEl.createEl("button", { text: "Use Current Note" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
+				if (!this.canEditDraft()) return;
 				const current = this.options.getCurrentSourcePath();
 				if (!current) {
 					new Notice("Mneme: Current file cannot be used as a Source Note.");
@@ -287,6 +327,7 @@ export class MnemeConceptComposerView extends ItemView {
 		});
 		buttonsEl.createEl("button", { text: "Clear" }, (buttonEl) => {
 			buttonEl.addEventListener("click", () => {
+				if (!this.canEditDraft()) return;
 				this.sourcePathEl.value = "";
 				this.onDraftChanged();
 			});
@@ -317,7 +358,12 @@ export class MnemeConceptComposerView extends ItemView {
 		return selectEl;
 	}
 
+	private canEditDraft(): boolean {
+		return this.isReady && !this.isSaving && !this.pendingWrite && !this.loadError;
+	}
+
 	private onDraftChanged(): void {
+		if (!this.canEditDraft()) return;
 		this.createdResultEl.empty();
 		this.acknowledgedDuplicateSignature = undefined;
 		this.duplicateEl.empty();
@@ -327,6 +373,7 @@ export class MnemeConceptComposerView extends ItemView {
 	}
 
 	private onTitleChanged(): void {
+		if (!this.canEditDraft()) return;
 		const title = this.titleEl.value.trim();
 		if (title === this.lastObservedTitle) {
 			this.updateEnglishNameUi();
@@ -336,11 +383,13 @@ export class MnemeConceptComposerView extends ItemView {
 		// An alias describes the current Title, so clear it when that Title changes.
 		this.englishNameEl.value = "";
 		this.englishNameRequest += 1;
+		this.englishNameButtonEl.setText("Generate with AI");
 		this.updateEnglishNameUi();
 		this.onDraftChanged();
 	}
 
 	private async generateEnglishName(): Promise<void> {
+		if (!this.canEditDraft()) return;
 		const title = this.titleEl.value.trim();
 		const coreMeaning = this.coreMeaningEl.value.trim();
 		if (!title || !coreMeaning) {
@@ -359,7 +408,7 @@ export class MnemeConceptComposerView extends ItemView {
 		try {
 			const suggestion = await this.options.suggestEnglishName(title, coreMeaning);
 			if (
-				request !== this.englishNameRequest
+				!this.canEditDraft() || request !== this.englishNameRequest
 				|| title !== this.titleEl.value.trim()
 				|| coreMeaning !== this.coreMeaningEl.value.trim()
 			) return;
@@ -386,13 +435,13 @@ export class MnemeConceptComposerView extends ItemView {
 
 	private updateEnglishNameUi(resetHelp = true): void {
 		const title = this.titleEl.value.trim();
-		const shouldShow = this.options.englishAliasesEnabled()
-			&& !!title
-			&& shouldOfferEnglishAlias(title);
+		const shouldShow = !!this.pendingWrite && !!this.draft.englishName
+			|| (this.options.englishAliasesEnabled() && !!title && shouldOfferEnglishAlias(title));
 		this.englishNameFieldEl.toggleClass("is-hidden", !shouldShow);
 		if (!shouldShow) return;
 		const canGenerate = !!this.coreMeaningEl.value.trim() && this.options.canSuggestEnglishName();
-		this.englishNameButtonEl.disabled = !canGenerate || this.englishNameButtonEl.textContent === "Generating...";
+		this.englishNameButtonEl.disabled = this.isSaving || !!this.pendingWrite || !!this.loadError
+			|| !canGenerate || this.englishNameButtonEl.textContent === "Generating...";
 		if (!resetHelp) return;
 		if (!this.options.canSuggestEnglishName()) {
 			this.englishNameAssistEl.setText(
@@ -410,6 +459,7 @@ export class MnemeConceptComposerView extends ItemView {
 	}
 
 	private scheduleDraftSave(): void {
+		if (!this.canEditDraft()) return;
 		if (this.saveTimer !== undefined) window.clearTimeout(this.saveTimer);
 		this.saveTimer = window.setTimeout(() => {
 			this.saveTimer = undefined;
@@ -428,21 +478,23 @@ export class MnemeConceptComposerView extends ItemView {
 	}
 
 	private persistCurrentDraft(): Promise<void> {
+		if (this.pendingWrite || this.loadError) return Promise.resolve();
 		const draft = this.readDraft();
 		this.draft = draft;
 		this.saveQueue = this.saveQueue
 			.catch(() => undefined)
 			.then(() => isMeaningfulManualConceptDraft(draft)
 				? this.options.draftStore.saveDraft(draft)
-				: this.options.draftStore.clearDraft());
+				: this.options.draftStore.clearDraft(draft.draftId!));
 		return this.saveQueue;
 	}
 
 	private readDraft(): ManualConceptDraft {
-		if (!this.hasRendered) return this.draft;
+		if (!this.hasRendered || this.pendingWrite) return this.draft;
 		const sourcePath = this.sourcePathEl.value.trim();
 		const title = this.titleEl.value;
 		return {
+			draftId: this.draft.draftId,
 			coreMeaning: this.coreMeaningEl.value,
 			englishName: this.options.englishAliasesEnabled() && shouldOfferEnglishAlias(title)
 				? this.englishNameEl.value
@@ -457,97 +509,92 @@ export class MnemeConceptComposerView extends ItemView {
 		};
 	}
 
+	private updateControls(): void {
+		const disabled = this.isSaving || !!this.pendingWrite || !!this.loadError;
+		const controls = this.contentEl.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | HTMLButtonElement>("input, textarea, select, button");
+		for (const control of Array.from(controls)) {
+			const keepOpen = !!this.pendingWrite && control.textContent === "Open Concept Markdown";
+			const keepResume = !!this.pendingWrite && control === this.createButtonEl;
+			control.disabled = disabled && !keepOpen && !keepResume;
+		}
+		this.createButtonEl.disabled = this.isSaving || !!this.loadError;
+		this.createButtonEl.setText(this.isSaving ? "Creating..." : this.pendingWrite ? "Resume Creation" : this.acknowledgedDuplicateSignature ? "Create Anyway" : "Create Concept");
+		if (!disabled) this.updateEnglishNameUi(false);
+	}
+
 	private async createConcept(
 		resolvedConflict?: {
 			conflict: ConceptNameConflict;
 			resolution: ConceptNameConflictResolution;
 		},
 	): Promise<void> {
-		if (this.isSaving) return;
+		if (this.isSaving || !this.isReady || this.loadError) return;
 		let draft = this.readDraft();
-		if (!draft.title.trim() || !draft.coreMeaning.trim()) {
+		const isPending = !!this.pendingWrite;
+		if (!isPending && (!draft.title.trim() || !draft.coreMeaning.trim())) {
 			new Notice("Mneme: Title and Core Meaning are required.");
 			return;
 		}
-
 		const sourcePath = draft.sourcePath?.trim();
-		if (sourcePath && !this.options.listSourcePaths().includes(sourcePath)) {
+		if (!isPending && sourcePath && !this.options.listSourcePaths().includes(sourcePath)) {
 			new Notice("Mneme: Select an existing Source Note or clear the Source Note field.");
 			return;
 		}
 
+		let refineTitle = false;
 		this.isSaving = true;
-		this.createButtonEl.disabled = true;
-		this.createButtonEl.setText("Checking...");
+		this.englishNameRequest += 1;
+		this.englishNameButtonEl.setText("Generate with AI");
+		this.createCompletion = new Promise<void>((resolve) => { this.createCompletionResolve = resolve; });
+		this.updateControls();
 		try {
-			await this.flushDraft();
-			draft = this.draft;
-			const nameConflict = resolvedConflict?.conflict ?? await this.options.findNameConflict({
-					coreMeaning: draft.coreMeaning,
-					englishName: draft.englishName,
-					title: draft.title,
-				});
-			let conflictResolution = resolvedConflict?.resolution;
-			if (nameConflict) {
-				conflictResolution ??= await chooseConceptNameConflictResolution(this.app, nameConflict);
-				if (conflictResolution === "refine_name") {
+			// A pending write already has a saved input and target. Only fresh writes run preflight.
+			if (!isPending) {
+				await this.flushDraft();
+				draft = this.draft;
+				if (!this.isReady) return;
+				const nameConflict = resolvedConflict?.conflict ?? await this.options.findNameConflict(draft);
+				if (!this.isReady) return;
+				if (nameConflict) {
+					const resolution = resolvedConflict?.resolution ?? await chooseConceptNameConflictResolution(this.app, nameConflict);
+					if (!this.isReady) return;
+					if (resolution === "cancel") return;
+					if (resolution === "refine_name") {
+						await this.options.discardMergeDraft("manual");
+						refineTitle = true;
+						return;
+					}
+					if (resolution === "merge") {
+						await this.options.openMerge(nameConflict.existing, draft,
+							() => this.returnToConflictOptions(nameConflict, draft.draftId));
+						new Notice("Mneme: Review the Merge draft. Your Create Concept draft remains saved.");
+						return;
+					}
 					await this.options.discardMergeDraft("manual");
-					this.focusTitleForRefinement();
+					if (!this.isReady) return;
+				}
+				const concepts = await this.options.scanConcepts();
+				if (!this.isReady) return;
+				const assessment = assessManualConceptDuplicates(draft.title, draft.coreMeaning, concepts);
+				const duplicateSignature = JSON.stringify([draft.title.trim(), draft.coreMeaning.trim()]);
+				if (!nameConflict && assessment.possible.length > 0
+					&& this.acknowledgedDuplicateSignature !== duplicateSignature) {
+					this.acknowledgedDuplicateSignature = duplicateSignature;
+					this.renderDuplicates(assessment, true);
+					new Notice("Mneme: Review the possible duplicate before creating another Concept.");
 					return;
 				}
-				if (conflictResolution === "cancel") {
-					return;
-				}
-				if (conflictResolution === "merge") {
-					await this.options.openMerge(
-						nameConflict.existing,
-						draft,
-						() => this.returnToConflictOptions(nameConflict),
-					);
-					new Notice("Mneme: Review the Merge draft. Your Create Concept draft remains saved.");
-					return;
-				}
-				await this.options.discardMergeDraft("manual");
-			}
-			const assessment = assessManualConceptDuplicates(
-				draft.title,
-				draft.coreMeaning,
-				await this.options.scanConcepts(),
-			);
-			const duplicateSignature = JSON.stringify([draft.title.trim(), draft.coreMeaning.trim()]);
-
-			if (
-				!nameConflict
-				&& assessment.possible.length > 0
-				&& this.acknowledgedDuplicateSignature !== duplicateSignature
-			) {
-				this.acknowledgedDuplicateSignature = duplicateSignature;
-				this.renderDuplicates(assessment, true);
-				this.createButtonEl.setText("Create Anyway");
-				new Notice("Mneme: Review the possible duplicate before creating another Concept.");
-				return;
 			}
 
-			this.createButtonEl.setText("Creating...");
-			const result = await this.options.create({
-				coreMeaning: draft.coreMeaning,
-				englishName: draft.englishName,
-				importance: draft.importance,
-				learningMode: draft.learningMode,
-				...(sourcePath ? { sourcePath } : {}),
-				tags: draft.tags,
-				title: draft.title,
-				whyItMatters: draft.whyItMatters,
-			});
-			this.resetAfterCreate(sourcePath);
-			await this.refreshTagCatalog();
-			try {
-				await this.persistCurrentDraft();
-			} catch (error) {
-				console.error("Mneme: Concept created but Composer draft reset could not be saved", error);
-				new Notice("Mneme: Concept created, but the Composer draft could not be reset in plugin data.");
+			const result = await this.options.create(draft);
+			this.draft = result.nextDraft;
+			this.pendingWrite = undefined;
+			this.acknowledgedDuplicateSignature = undefined;
+			if (this.isReady) await this.refreshTagCatalog();
+			if (this.isReady) {
+				this.render();
+				this.showCreatedResult(result, draft.title.trim());
 			}
-			this.showCreatedResult(result, draft.title.trim());
 			new Notice("Mneme: Concept created.");
 			try {
 				await this.options.onCreated(result);
@@ -558,37 +605,38 @@ export class MnemeConceptComposerView extends ItemView {
 		} catch (error) {
 			console.error("Mneme: manual Concept creation failed", error);
 			new Notice(`Mneme: ${error instanceof Error ? error.message : "Concept could not be created."}`);
+			try {
+				const state = await this.options.draftStore.getState();
+				if (state.pendingWrite || state.draft.draftId !== draft.draftId) {
+					this.draft = state.draft;
+					this.pendingWrite = state.pendingWrite;
+				}
+				this.loadError = undefined;
+				if (this.isReady) this.render();
+			} catch (reloadError) {
+				console.error("Mneme: failed to reload Concept Composer recovery state", reloadError);
+				this.loadError = "Concept creation status could not be checked. Close and reopen Concept Composer before editing.";
+				if (this.isReady) this.render();
+			}
 		} finally {
 			this.isSaving = false;
-			this.createButtonEl.disabled = false;
-			if (
-				this.createButtonEl.textContent === "Checking..."
-				|| this.createButtonEl.textContent === "Creating..."
-			) {
-				this.createButtonEl.setText(this.acknowledgedDuplicateSignature ? "Create Anyway" : "Create Concept");
+			if (this.isReady) {
+				this.updateControls();
+				if (refineTitle) this.focusTitleForRefinement();
 			}
+			this.createCompletionResolve?.();
+			this.createCompletionResolve = undefined;
+			this.createCompletion = undefined;
 		}
 	}
 
-	private async returnToConflictOptions(conflict: ConceptNameConflict): Promise<void> {
+	private async returnToConflictOptions(conflict: ConceptNameConflict, draftId?: string): Promise<void> {
+		const isCurrent = () => this.canEditDraft() && this.draft.draftId === draftId;
+		if (!isCurrent()) return;
 		await this.app.workspace.revealLeaf(this.leaf);
+		if (!isCurrent()) return;
 		const resolution = await chooseConceptNameConflictResolution(this.app, conflict);
-		if (resolution === "refine_name") {
-			await this.options.discardMergeDraft("manual");
-			this.focusTitleForRefinement();
-			return;
-		}
-		if (resolution === "cancel") return;
-		if (resolution === "merge") {
-			await this.flushDraft();
-			await this.options.openMerge(
-				conflict.existing,
-				this.draft,
-				() => this.returnToConflictOptions(conflict),
-			);
-			return;
-		}
-		await this.options.discardMergeDraft("manual");
+		if (!isCurrent()) return;
 		await this.createConcept({ conflict, resolution });
 	}
 
@@ -621,25 +669,6 @@ export class MnemeConceptComposerView extends ItemView {
 			: "Open the existing Concept instead of creating a duplicate.");
 	}
 
-	private resetAfterCreate(sourcePath?: string): void {
-		this.titleEl.value = "";
-		this.lastObservedTitle = "";
-		this.englishNameEl.value = "";
-		this.englishNameRequest += 1;
-		this.coreMeaningEl.value = "";
-		this.whyItMattersEl.value = "";
-		this.coreMeaningEl.dispatchEvent(new Event("input"));
-		this.whyItMattersEl.dispatchEvent(new Event("input"));
-		this.tagPicker.setTags([], false);
-		this.learningModeEl.value = "reviewable";
-		this.importanceEl.value = "normal";
-		this.sourcePathEl.value = sourcePath ?? "";
-		this.updateEnglishNameUi();
-		this.duplicateEl.empty();
-		this.acknowledgedDuplicateSignature = undefined;
-		this.createButtonEl.setText("Create Concept");
-	}
-
 	private showCreatedResult(result: ManualConceptResult, title: string): void {
 		this.createdResultEl.empty();
 		const rowEl = this.createdResultEl.createDiv({ cls: "mneme-concept-composer-created" });
@@ -657,12 +686,18 @@ export class MnemeConceptComposerView extends ItemView {
 	}
 
 	private async refreshTagCatalog(): Promise<void> {
+		const token = this.lifecycleToken;
 		try {
-			this.tagCatalog = buildConceptTagCatalog(await this.options.scanConcepts());
-			if (this.hasRendered) this.tagPicker.setCatalog(this.tagCatalog);
+			const concepts = await this.options.scanConcepts();
+			if (token !== this.lifecycleToken) return;
+			this.tagCatalog = buildConceptTagCatalog(concepts);
+			if (this.isReady && this.hasRendered) {
+				this.tagPicker.setCatalog(this.tagCatalog);
+				this.updateControls();
+			}
 		} catch (error) {
 			console.error("Mneme: failed to load existing Concept tags", error);
-			if (!this.hasRendered) this.tagCatalog = [];
+			if (token === this.lifecycleToken && !this.hasRendered) this.tagCatalog = [];
 		}
 	}
 }

@@ -199,6 +199,22 @@ function createManualCardWriteReceipt(overrides: Record<string, unknown> = {}) {
 	};
 }
 
+function createManualConceptWriteReceipt(overrides: Record<string, unknown> = {}) {
+	return {
+		version: 1,
+		draftId: "draft-concept-reservation",
+		inputHash: "a".repeat(64),
+		conceptId: "concept-22222222",
+		path: "Mneme/Concepts/Encapsulation.md",
+		cardsPath: "Mneme/Cards/Encapsulation/Cards.md",
+		afterHash: "b".repeat(64),
+		englishAliasesEnabled: true,
+		createdAt: "2026-01-02T12:00:00.000Z",
+		status: "pending" as const,
+		...overrides,
+	};
+}
+
 async function runAsyncTests(): Promise<void> {
 	{
 		const proposal = createProposal("proposal-a", {
@@ -244,6 +260,35 @@ async function runAsyncTests(): Promise<void> {
 		assert.equal(content.includes("sourceHash"), false);
 		assert.equal(content.includes("fsrsState"), false);
 		assert.equal((await store.getProposal(proposal.id))?.status, "written");
+	}
+
+	{
+		const proposal = createApprovedConceptProposal("proposal-concept-manual-reservation");
+		const storage = new MemoryKnowledgeProposalStorage({
+			...createPluginData({ [proposal.id]: proposal }),
+			manualConceptWrite: createManualConceptWriteReceipt(),
+		});
+		const { vault, writer } = await createWriter({ [proposal.id]: proposal }, new MemoryVaultAdapter(), storage);
+		const result = await writer.writeApprovedProposal(proposal.id);
+
+		assert.equal(result.status, "written");
+		assert.equal(vault.files.has("Mneme/Concepts/Encapsulation.md"), false);
+		assert.equal(vault.files.has("Mneme/Concepts/Encapsulation-2.md"), true);
+		assert.match(await vault.read("Mneme/Concepts/Encapsulation-2.md"), /mneme_id: concept-22222223/);
+	}
+
+	{
+		const proposal = createApprovedConceptProposal("proposal-concept-invalid-manual-receipt");
+		const storage = new MemoryKnowledgeProposalStorage({
+			...createPluginData({ [proposal.id]: proposal }),
+			manualConceptWrite: { version: 1 },
+		});
+		const { vault, writer } = await createWriter({ [proposal.id]: proposal }, new MemoryVaultAdapter(), storage);
+		const result = await writer.writeApprovedProposal(proposal.id);
+
+		assert.equal(result.status, "failed");
+		assert.match(result.message, /saved Concept creation record is invalid/);
+		assert.equal(vault.files.size, 0);
 	}
 
 	{

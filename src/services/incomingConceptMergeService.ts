@@ -4,6 +4,7 @@ import type { KnowledgeProposal } from "../models/knowledgeProposal";
 import type { MnemePluginData } from "../models/reviewState";
 import type { ManualConceptSourceSnapshot } from "./manualConceptProvenanceService";
 import type { ManualConceptInput } from "./manualConceptService";
+import { createEmptyManualConceptDraft } from "../models/manualConceptDraft";
 import { appendConceptSourceNote } from "./conceptSourceNoteAppender";
 import {
 	buildConceptSourceLinksFromNewConceptProposal,
@@ -18,6 +19,7 @@ import {
 import { applyProposalStatus } from "./knowledgeProposalLifecycle";
 import { normalizePluginData } from "./reviewStateStore";
 import { runPluginDataMutation } from "./pluginDataMutation";
+import { readManualConceptWriteReceipt } from "./manualConceptWriteRecovery";
 import {
 	executeMarkdownWriteTransaction,
 	MarkdownWriteConflict,
@@ -117,6 +119,15 @@ export class IncomingConceptMergeService {
 					now,
 				);
 			} else {
+				const manualWrite = data.manualConceptWrite === undefined
+					? undefined
+					: readManualConceptWriteReceipt(data.manualConceptWrite);
+				if (manualWrite?.status === "pending") {
+					return {
+						message: "Resume the pending Concept creation before starting Merge.",
+						status: "blocked",
+					};
+				}
 				if (!manualDraftMatches(data, input.origin.input)) {
 					return {
 						message: "The Create Concept draft changed. Return to the Composer and start Merge again.",
@@ -294,6 +305,12 @@ function manualDraftMatches(
 ): boolean {
 	const stored = data.manualConceptDraft;
 	if (!stored) return false;
+	const inputDraftId = input.draftId;
+	const storedDraftId = stored.draftId;
+	if (inputDraftId !== undefined || storedDraftId !== undefined || data.manualConceptDraftId !== undefined) {
+		if (!inputDraftId || !storedDraftId || !data.manualConceptDraftId
+			|| inputDraftId !== storedDraftId || storedDraftId !== data.manualConceptDraftId) return false;
+	}
 
 	return stored.title === input.title
 		&& stored.englishName === (input.englishName ?? "")
@@ -320,8 +337,10 @@ function mergeManualConceptState(
 		conceptSourceLinks: { ...data.conceptSourceLinks },
 		sourceAnalysisRecords: { ...data.sourceAnalysisRecords },
 	};
+	const nextDraft = createEmptyManualConceptDraft(input.sourcePath?.trim() || undefined, now);
 	delete nextData.conceptConflictMergeDrafts.manual;
-	delete nextData.manualConceptDraft;
+	nextData.manualConceptDraft = nextDraft;
+	nextData.manualConceptDraftId = nextDraft.draftId;
 
 	for (const link of sourceLinks) {
 		nextData.conceptSourceLinks[link.id] = link;

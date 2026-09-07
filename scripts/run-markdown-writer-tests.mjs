@@ -4,7 +4,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import esbuild from "esbuild";
 
-const tests = ["markdownPath", "entityId", "conceptNaming", "conceptMarkdownIdentity", "markdownProposalRenderer", "approvedProposalWriter", "manualConceptService", "manualCardService", "manualCardWriteRecovery", "ankiTsvExporter", "approvedWriteRecovery", "cardComposerView"];
+const tests = ["markdownPath", "entityId", "conceptNaming", "conceptMarkdownIdentity", "markdownProposalRenderer", "approvedProposalWriter", "manualConceptService", "manualConceptWriteRecovery", "manualCardService", "manualCardWriteRecovery", "ankiTsvExporter", "approvedWriteRecovery", "cardComposerView", "conceptComposerView"];
 
 for (const test of tests) {
 	const outfile = path.join(tmpdir(), `mneme-${test}-tests-${Date.now()}.mjs`);
@@ -12,7 +12,7 @@ for (const test of tests) {
 		await esbuild.build({
 			bundle: true,
 			entryPoints: [`tests/${test}.test.ts`],
-			...(test === "cardComposerView" ? { alias: { obsidian: "./tests/helpers/obsidianCardComposerStub.ts" } } : {}),
+			...(test.endsWith("ComposerView") ? { alias: { obsidian: `./tests/helpers/obsidian${test[0].toUpperCase()}${test.slice(1, -4)}Stub.ts` } } : {}),
 			format: "esm",
 			logLevel: "silent",
 			outfile,

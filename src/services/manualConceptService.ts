@@ -9,6 +9,7 @@ import {
 import { createRandomConceptId } from "./entityId";
 
 export interface ManualConceptInput {
+	draftId?: string;
 	coreMeaning: string;
 	englishName?: string;
 	importance?: ConceptImportance;
@@ -28,7 +29,11 @@ export interface ManualConceptVault {
 	create(path: string, content: string): Promise<void>;
 	createFolder(path: string): Promise<void>;
 	exists(path: string): Promise<boolean>;
-	remove(path: string): Promise<void>;
+}
+
+export interface PreparedManualConcept extends ManualConceptResult {
+	cardsPath: string;
+	markdown: string;
 }
 
 export interface ManualConceptCommitter {
@@ -43,6 +48,23 @@ export async function createManualConcept(
 	committer?: ManualConceptCommitter,
 	isConceptIdReserved?: (conceptId: string) => Promise<boolean>,
 ): Promise<ManualConceptResult> {
+	const prepared = await prepareManualConcept(input, settings, vault, createId, isConceptIdReserved);
+	await writePreparedManualConcept(prepared, vault);
+	const result = { conceptId: prepared.conceptId, path: prepared.path };
+	// Never delete an authored note after an uncertain state save. Production callers
+	// use the durable coordinator to finish state and draft completion on retry.
+	await committer?.commit(input, result);
+	return result;
+}
+
+export async function prepareManualConcept(
+	input: ManualConceptInput,
+	settings: MnemeSettings,
+	vault: ManualConceptVault,
+	createId: () => string = createRandomConceptId,
+	isConceptIdReserved?: (conceptId: string) => Promise<boolean>,
+	reservedPaths: ReadonlySet<string> = new Set(),
+): Promise<PreparedManualConcept> {
 	const enteredTitle = input.title.trim();
 	const coreMeaning = input.coreMeaning.trim();
 	if (!enteredTitle) {
@@ -60,60 +82,48 @@ export async function createManualConcept(
 	if (names.englishName && !isCanonicalEnglishName(names.englishName)) {
 		throw new Error("English Alias must contain only Latin-script letters.");
 	}
-	const title = names.title;
-	const englishName = names.englishName;
 	const baseDisplayTitle = names.displayTitle;
 	const desiredPath = buildConceptPath(settings.conceptsFolder, baseDisplayTitle);
-	const nextConceptId = createId ?? createRandomConceptId;
-	let conceptId = nextConceptId();
+	let conceptId = createId();
 	for (let attempt = 0; await isConceptIdReserved?.(conceptId) === true; attempt += 1) {
 		if (attempt >= 127) {
 			throw new Error("No available random Concept ID could be allocated.");
 		}
-		conceptId = nextConceptId();
+		conceptId = createId();
 	}
 	let path = desiredPath;
 	let suffix = 1;
-	while (await vault.exists(path)) {
+	while (reservedPaths.has(path) || await vault.exists(path)) {
 		suffix += 1;
 		path = appendPathSuffix(desiredPath, suffix);
 		if (suffix >= 10_000) {
 			throw new Error("No available Concept path could be allocated.");
 		}
 	}
-	await ensureParentFolders(path, vault);
-
 	const cardGroupPath = buildCardGroupPath(settings.cardsFolder, getMarkdownFileStem(path));
-	const markdown = renderConceptMarkdown({
-		cardGroupLink: toObsidianInternalLink(cardGroupPath, `${baseDisplayTitle} Cards`),
+	const markdown = renderManualConcept(input, conceptId, cardGroupPath, settings.suggestEnglishAliases);
+	return { conceptId, path, cardsPath: cardGroupPath, markdown };
+}
+
+export function renderManualConcept(input: ManualConceptInput, conceptId: string, cardsPath: string, englishAliasesEnabled: boolean): string {
+	const names = normalizeConceptNames(input.title.trim(), input.englishName, englishAliasesEnabled);
+	return renderConceptMarkdown({
+		cardGroupLink: toObsidianInternalLink(cardsPath, `${names.displayTitle} Cards`),
 		conceptId,
-		coreMeaning,
-		englishName,
+		coreMeaning: input.coreMeaning.trim(),
+		englishName: names.englishName,
 		importance: input.importance,
 		learningMode: input.learningMode ?? "reviewable",
 		sourcePath: input.sourcePath?.trim() || undefined,
 		tags: input.tags,
-		title,
+		title: names.title,
 		whyItMatters: input.whyItMatters,
 	});
-	await vault.create(path, markdown);
-	const result = { conceptId, path };
+}
 
-	try {
-		await committer?.commit(input, result);
-	} catch (error) {
-		try {
-			await vault.remove(path);
-		} catch (rollbackError) {
-			throw new Error([
-				error instanceof Error ? error.message : String(error),
-				`Rollback also failed: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`,
-			].join(" "));
-		}
-		throw error;
-	}
-
-	return result;
+export async function writePreparedManualConcept(prepared: PreparedManualConcept, vault: ManualConceptVault): Promise<void> {
+	await ensureParentFolders(prepared.path, vault);
+	await vault.create(prepared.path, prepared.markdown);
 }
 
 function appendPathSuffix(path: string, suffix: number): string {

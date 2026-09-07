@@ -34,6 +34,7 @@ import {
 } from "./conceptNameConflict";
 import { createRandomCardId, createRandomConceptId } from "./entityId";
 import { readManualCardWriteReceipt } from "./manualCardWriteRecovery";
+import { readManualConceptWriteReceipt } from "./manualConceptWriteRecovery";
 
 export interface MnemeVaultAdapter {
 	append(path: string, content: string): Promise<void>;
@@ -123,13 +124,18 @@ export class ApprovedProposalWriter {
 					const manualCardWrite = !receipt && data.manualCardWrite !== undefined
 						? readManualCardWriteReceipt(data.manualCardWrite)
 						: undefined;
+					const manualConceptWrite = !receipt && data.manualConceptWrite !== undefined
+						? readManualConceptWriteReceipt(data.manualConceptWrite)
+						: undefined;
 					const reservedIds = new Set(Object.values(data.knowledgeProposals)
 						.filter((other) => other.id !== proposalId && other.writeReceipt?.mode === expectedMode)
 						.flatMap((other) => typeof other.writeReceipt?.entityId === "string" ? [other.writeReceipt.entityId] : []));
 					if (manualCardWrite) reservedIds.add(manualCardWrite.cardId);
+					if (manualConceptWrite && expectedMode === "create") reservedIds.add(manualConceptWrite.conceptId);
 					const reservedPaths = new Set(Object.values(data.knowledgeProposals)
 						.filter((other) => other.id !== proposalId && other.writeReceipt?.mode === "create")
 						.flatMap((other) => typeof other.writeReceipt?.targetPath === "string" ? [other.writeReceipt.targetPath] : []));
+					if (manualConceptWrite && expectedMode === "create") reservedPaths.add(manualConceptWrite.path);
 					const plan = await this.prepareWrite(proposal, receipt, reservedIds, reservedPaths);
 					const afterHash = await writtenContentHash(plan.draft.mode as ApprovedWriteReceipt["mode"], plan.draft.content, plan.entityId);
 					if (!afterHash) throw new Error("The planned Card has no valid identity.");

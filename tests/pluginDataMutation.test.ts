@@ -74,6 +74,7 @@ async function run(): Promise<void> {
 		const reviews = new ReviewStateStore(storage, new FsrsReviewScheduler());
 		await reviews.load();
 		const cardDraft = await new ManualCardDraftStore(storage).getDraft();
+		const conceptDraft = await new ManualConceptDraftStore(storage).getDraft();
 		await Promise.all([
 			reviews.recordReview("card-a", "good"),
 			runPluginDataMutation(storage, async () => {
@@ -81,7 +82,7 @@ async function run(): Promise<void> {
 				await storage.saveData({ ...data, settings: { ...DEFAULT_SETTINGS, fsrsEnabled: false } });
 			}),
 			new ManualCardDraftStore(storage).saveDraft({ draftId: cardDraft.draftId, front: "Front", back: "Back", rubric: "", cardType: "definition", updatedAt: proposal.createdAt }),
-			new ManualConceptDraftStore(storage).saveDraft({ title: "Draft", englishName: "", coreMeaning: "Meaning", whyItMatters: "", importance: "normal", learningMode: "reviewable", tags: [], updatedAt: proposal.createdAt }),
+			new ManualConceptDraftStore(storage).saveDraft({ ...conceptDraft, title: "Draft", englishName: "", coreMeaning: "Meaning", whyItMatters: "", importance: "normal", learningMode: "reviewable", tags: [], updatedAt: proposal.createdAt }),
 			new SourceAnalysisStore(storage).upsertRecord({ sourcePath: "Source.md", contentHash: "hash", mtime: 1, size: 10, lastAnalyzedAt: proposal.createdAt, status: "clean", linkedConceptIds: [], pendingProposalIds: [] }),
 			new ConceptSourceLinkStore(storage).upsertLink({ id: "link-a", conceptId: "concept-a", sourcePath: "Source.md", sourceHash: "hash", relationType: "origin", status: "approved", evidence: [], addedAt: proposal.createdAt, lastSeenAt: proposal.createdAt }),
 			new ConceptConflictMergeDraftStore(storage).saveDraft({ key: "manual", existingConceptId: "concept-a", incomingFingerprint: "fingerprint", updatedAt: proposal.createdAt, draft: { title: "Merge", englishName: "", coreMeaning: "Meaning", whyItMatters: "", importance: "normal", learningMode: "reviewable", tags: [] } }),
@@ -95,7 +96,7 @@ async function run(): Promise<void> {
 		assert.ok(storage.data.conceptConflictMergeDrafts.manual);
 		await Promise.all([
 			new ManualCardDraftStore(storage).clearDraft(cardDraft.draftId!),
-			new ManualConceptDraftStore(storage).clearDraft(),
+			new ManualConceptDraftStore(storage).clearDraft(conceptDraft.draftId!),
 			new ConceptConflictMergeDraftStore(storage).clearDraft("manual"),
 		]);
 		assert.equal(storage.data.manualCardDraft, undefined);

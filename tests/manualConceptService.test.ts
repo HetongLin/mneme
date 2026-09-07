@@ -11,7 +11,7 @@ import { ManualConceptProvenanceCommitter } from "../src/services/manualConceptP
 class MemoryVault {
 	files = new Map<string, string>();
 	folders = new Set<string>();
-	removeError?: Error;
+	removeCalls = 0;
 
 	async create(path: string, content: string): Promise<void> {
 		if (this.files.has(path)) throw new Error("exists");
@@ -27,7 +27,7 @@ class MemoryVault {
 	}
 
 	async remove(path: string): Promise<void> {
-		if (this.removeError) throw this.removeError;
+		this.removeCalls += 1;
 		this.files.delete(path);
 	}
 }
@@ -161,22 +161,23 @@ async function run(): Promise<void> {
 		}),
 		/State write failed/,
 	);
-	assert.equal(vault.files.has("Mneme/Concepts/Rollback.md"), false);
+	assert.equal(vault.files.has("Mneme/Concepts/Rollback.md"), true);
 
-	vault.removeError = new Error("Vault rollback failed.");
+	const editedMarkdown = "# Learner edits during the state save\n";
 	await assert.rejects(
 		createManualConcept({
 			coreMeaning: "Rollback reporting test.",
 			title: "Rollback Reporting",
 		}, DEFAULT_SETTINGS, vault, () => "concept_manual_rollback_reporting", {
-			commit: async () => {
+			commit: async (_input, result) => {
+				vault.files.set(result.path, editedMarkdown);
 				throw new Error("State write failed again.");
 			},
 		}),
-		/State write failed again\. Rollback also failed: Vault rollback failed/,
+		/State write failed again\./,
 	);
-	assert.equal(vault.files.has("Mneme/Concepts/Rollback-Reporting.md"), true);
-	vault.removeError = undefined;
+	assert.equal(vault.files.get("Mneme/Concepts/Rollback-Reporting.md"), editedMarkdown);
+	assert.equal(vault.removeCalls, 0);
 
 	await assert.rejects(
 		createManualConcept({ coreMeaning: "", title: "Empty" }, DEFAULT_SETTINGS, vault),
@@ -199,7 +200,9 @@ async function run(): Promise<void> {
 	assert.equal(possible.possible[0]?.concept.conceptId, "concept-information-gain");
 
 	const draftStore = new ManualConceptDraftStore(storage);
+	const initialDraft = await draftStore.getDraft();
 	await draftStore.saveDraft({
+		draftId: initialDraft.draftId,
 		coreMeaning: "Draft meaning",
 		englishName: "Draft",
 		importance: "high",
@@ -211,13 +214,10 @@ async function run(): Promise<void> {
 		whyItMatters: "Draft value",
 	});
 	const loadedDraft = await draftStore.getDraft();
-	assert.equal(loadedDraft?.sourcePath, "Notes/Draft.md");
+	assert.equal(loadedDraft.sourcePath, "Notes/Draft.md");
 	assert.deepEqual(loadedDraft?.tags, ["draft"]);
-	await draftStore.clearDraft();
-	assert.equal(await draftStore.getDraft(), undefined);
+	await draftStore.clearDraft(loadedDraft.draftId!);
+	assert.equal((await draftStore.getDraft()).title, "");
 }
 
-void run().catch((error) => {
-	console.error(error);
-	process.exit(1);
-});
+export const done = run();

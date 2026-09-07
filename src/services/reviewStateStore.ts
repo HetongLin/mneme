@@ -849,6 +849,7 @@ function normalizeManualConceptDraft(value: unknown): ManualConceptDraft | undef
 	}
 
 	return {
+		...(value.draftId !== undefined ? { draftId: value.draftId as string } : {}),
 		coreMeaning: value.coreMeaning,
 		englishName: typeof value.englishName === "string" ? value.englishName : "",
 		importance: value.importance,
