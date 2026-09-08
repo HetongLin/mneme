@@ -1,3 +1,4 @@
+import { assertCardDeletionAllowsPath, readCardDeletion } from "./cardDeletionReceipt";
 import { assertConceptNotDeleting } from "./conceptDeletionReceipt";
 import type { ConceptSummary } from "../models/conceptLibrary";
 import { createEmptyManualCardDraft, type ManualCardDraft } from "../models/manualCardDraft";
@@ -37,13 +38,16 @@ export function createManualCardWithRecovery(
 			throw new Error("Resume the pending Card creation before creating another Card.");
 		}
 		assertConceptNotDeleting(data.conceptDeletions, draft.conceptId ?? "");
+		const cardDeletion = readCardDeletion(data.cardDeletion);
+		if (receipt?.status === "pending") assertCardDeletionAllowsPath(data.cardDeletion, receipt.cardsPath);
 		if (draft.draftId !== currentDraft.draftId || inputHash !== await manualCardDraftHash(currentDraft)) {
 			throw new Error("This Composer draft is out of date. Reopen Card Composer before creating a Card.");
 		}
 
 		if (receipt?.draftId !== draft.draftId) {
 			if (!concept || concept.conceptId !== draft.conceptId) throw new Error("Select an approved Concept first.");
-			const reservedIds = new Set(historicalCardIds);
+			const reservedIds = new Set([...historicalCardIds, ...Object.keys(data.cardTombstones)]);
+			if (cardDeletion) reservedIds.add(cardDeletion.cardId);
 			if (receipt) reservedIds.add(receipt.cardId);
 			for (const proposal of Object.values(data.knowledgeProposals)) {
 				if (proposal.writeReceipt === undefined) continue;
@@ -51,6 +55,7 @@ export function createManualCardWithRecovery(
 				if (write.entityId) reservedIds.add(write.entityId);
 			}
 			const prepared = await prepareManualCard({ ...draft, concept }, settings, vault, reservedIds, createId);
+			assertCardDeletionAllowsPath(data.cardDeletion, prepared.cardsPath);
 			const afterHash = await writtenContentHash("upsert_card_group", prepared.markdown, prepared.cardId);
 			if (!afterHash) throw new Error("The Card could not be rendered with a valid identity.");
 			receipt = {

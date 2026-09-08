@@ -99,6 +99,18 @@ async function run(): Promise<void> {
 	{
 		const storage = new Storage(createDefaultPluginData());
 		const draft = await saveNewDraft(storage);
+		storage.data.cardDeletion = { version: 1, cardId: "card-deleting", path: cardsPath,
+			beforeHash: "a".repeat(64), afterHash: "b".repeat(64), createdAt: "2026-09-08T00:00:00.000Z" };
+		const vault = new Vault();
+		await assert.rejects(write(draft, storage, vault), /deletion is pending/);
+		assert.equal(vault.creates + vault.processes, 0);
+		assert.equal(storage.data.manualCardWrite, undefined);
+		assert.deepEqual(storage.data.manualCardDraft, draft);
+	}
+
+	{
+		const storage = new Storage(createDefaultPluginData());
+		const draft = await saveNewDraft(storage);
 		storage.data.conceptDeletions = { [concept.conceptId]: {
 			version: 1, status: "deleted", operationId: "delete-test", conceptId: concept.conceptId,
 			createdAt: "2026-09-08T00:00:00.000Z", completedAt: "2026-09-08T00:00:00.000Z", conceptPath: concept.path,

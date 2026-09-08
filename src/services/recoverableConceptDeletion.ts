@@ -1,3 +1,4 @@
+import { assertCardDeletionAllowsPath } from "./cardDeletionReceipt";
 import type { MnemePluginData } from "../models/reviewState";
 import { computeContentHash } from "../utils/sourceHash";
 import type { ConceptDeletionPlan } from "./conceptDeletionService";
@@ -149,6 +150,7 @@ export class RecoverableConceptDeletion {
 	}
 	private assertNoPendingWrites(data: MnemePluginData, plan: ConceptDeletionPlan): void {
 		const paths = new Set([plan.conceptFile.path, plan.concept.cardsPath, ...plan.relatedWrites.map((w) => w.path)]);
+		for (const path of paths) if (path) assertCardDeletionAllowsPath(data.cardDeletion, path);
 		const card = data.manualCardWrite === undefined ? undefined : readManualCardWriteReceipt(data.manualCardWrite);
 		const concept = data.manualConceptWrite === undefined ? undefined : readManualConceptWriteReceipt(data.manualConceptWrite);
 		if ((card?.status === "pending" && (card.conceptId === plan.concept.conceptId || paths.has(card.cardsPath)))

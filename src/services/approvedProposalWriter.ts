@@ -1,3 +1,4 @@
+import { assertCardDeletionAllowsPath, readCardDeletion } from "./cardDeletionReceipt";
 import { assertConceptNotDeleting, readConceptDeletions } from "./conceptDeletionReceipt";
 import type { ConceptSummary } from "../models/conceptLibrary";
 import type { KnowledgeProposal } from "../models/knowledgeProposal";
@@ -118,6 +119,8 @@ export class ApprovedProposalWriter {
 					: proposal.payload && "conceptId" in proposal.payload ? proposal.payload.conceptId : undefined;
 				if (targetConceptId) assertConceptNotDeleting(data.conceptDeletions, targetConceptId);
 				if (receipt?.mode === "create" && receipt.entityId) assertConceptNotDeleting(data.conceptDeletions, receipt.entityId);
+				const cardDeletion = readCardDeletion(data.cardDeletion);
+				if (receipt) assertCardDeletionAllowsPath(data.cardDeletion, receipt.targetPath);
 				const validation = validateKnowledgeProposalPayload(proposal);
 				if (!validation.valid) return this.failedResult(proposalId, validation.errors.join(" "));
 				const proposalHash = await proposalWriteHash(proposal);
@@ -139,6 +142,10 @@ export class ApprovedProposalWriter {
 					if (expectedMode === "create") {
 						for (const id of Object.keys(readConceptDeletions(data.conceptDeletions))) reservedIds.add(id);
 					}
+					if (expectedMode === "upsert_card_group") {
+						for (const id of Object.keys(data.cardTombstones)) reservedIds.add(id);
+						if (cardDeletion) reservedIds.add(cardDeletion.cardId);
+					}
 					if (manualCardWrite) reservedIds.add(manualCardWrite.cardId);
 					if (manualConceptWrite && expectedMode === "create") reservedIds.add(manualConceptWrite.conceptId);
 					const reservedPaths = new Set(Object.values(data.knowledgeProposals)
@@ -151,6 +158,7 @@ export class ApprovedProposalWriter {
 						}
 					}
 					const plan = await this.prepareWrite(proposal, receipt, reservedIds, reservedPaths);
+					assertCardDeletionAllowsPath(data.cardDeletion, plan.draft.targetPath);
 					const afterHash = await writtenContentHash(plan.draft.mode as ApprovedWriteReceipt["mode"], plan.draft.content, plan.entityId);
 					if (!afterHash) throw new Error("The planned Card has no valid identity.");
 					if (receipt) {

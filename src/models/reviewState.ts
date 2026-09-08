@@ -1,3 +1,4 @@
+import type { CardDeletionReceipt } from "../services/cardDeletionReceipt";
 import type { ConceptDeletionReceipt } from "../services/conceptDeletionReceipt";
 import type { MnemeSettings } from "./settings";
 import type { SourceAnalysisRecord } from "./sourceAnalysis";
@@ -99,6 +100,7 @@ export interface MnemePluginData {
 	conceptSourceLinks: Record<string, ConceptSourceLink>;
 	manualCardDraft?: ManualCardDraft;
 	manualCardDraftId?: string;
+	cardDeletion?: CardDeletionReceipt;
 	conceptDeletions?: Record<string, ConceptDeletionReceipt>;
 	manualCardWrite?: ManualCardWriteReceipt;
 	manualConceptDraft?: ManualConceptDraft;

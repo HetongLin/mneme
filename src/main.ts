@@ -1,3 +1,4 @@
+import { readCardDeletion } from "./services/cardDeletionReceipt";
 import { Notice, Plugin, TAbstractFile, TFile, TFolder, WorkspaceLeaf } from "obsidian";
 import {
 	ACCEPTANCE_CARD_PROPOSAL_ID,
@@ -161,12 +162,15 @@ export default class MnemePlugin extends Plugin {
 		await this.reviewStateStore.load();
 		try {
 			const data = await this.loadData();
+			if (readCardDeletion(data?.cardDeletion)) {
+				new Notice("Mneme: A Card deletion is pending. Run Resume Card Deletion to finish it.");
+			}
 			if (Object.values(readConceptDeletions(data?.conceptDeletions)).some((r) => r.status === "pending")) {
 				new Notice("Mneme: A Concept deletion is pending. Run Resume Concept Deletion to finish it.");
 			}
 		} catch (error) {
-			console.error("Mneme: could not read Concept deletion journal", error);
-			new Notice("Mneme: Could not read the Concept deletion journal. Check data.json before deleting Concepts.");
+			console.error("Mneme: could not read deletion records", error);
+			new Notice("Mneme: Could not read deletion records. Check data.json before deleting Cards or Concepts.");
 		}
 		const conceptMergeService = new ConceptMergeService(
 			new ObsidianVaultAdapter(this.app.vault),
@@ -421,6 +425,12 @@ export default class MnemePlugin extends Plugin {
 			callback: () => {
 				void this.openConceptMergeView();
 			},
+		});
+
+		this.addCommand({
+			id: "mneme-resume-card-deletion",
+			name: "Resume Card Deletion",
+			callback: () => { void this.resumeCardDeletion(); },
 		});
 
 		this.addCommand({
@@ -1394,6 +1404,24 @@ export default class MnemePlugin extends Plugin {
 
 	private createConceptDeletion(): RecoverableConceptDeletion {
 		return new RecoverableConceptDeletion(new ObsidianConceptDeletionVault(this.app.vault), this);
+	}
+
+	private async resumeCardDeletion(): Promise<void> {
+		try {
+			const resumed = await this.reviewStateStore.resumeCardDeletion(new ObsidianVaultAdapter(this.app.vault));
+			new Notice(resumed ? "Mneme: Card deletion completed." : "Mneme: No pending Card deletion.");
+		} catch (error) {
+			console.error("Mneme: failed to resume Card deletion", error);
+			new Notice(`Mneme: ${formatUserFacingError(error, "Could not resume Card deletion.")}`);
+			return;
+		}
+		try {
+			await this.reviewStateStore.load();
+			await Promise.all([this.refreshReviewViews(), this.refreshOpenConceptLibraryViews()]);
+		} catch (error) {
+			console.error("Mneme: Card deletion finished but views could not refresh", error);
+			new Notice("Mneme: Reopen Mneme views to refresh them.");
+		}
 	}
 
 	private async resumeConceptDeletion(): Promise<void> {

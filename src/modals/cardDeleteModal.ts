@@ -1,10 +1,10 @@
-import { App, Modal, Notice, TFile } from "obsidian";
+import { App, Modal, Notice } from "obsidian";
 import type { LoadedMnemeCard } from "../models/card";
-import { deleteCardBlock } from "../services/cardDeletionEditor";
 import { formatUserFacingError } from "../utils/userFacingError";
 
 export interface CardDeleteModalOptions {
 	card: LoadedMnemeCard;
+	onConfirmed(): Promise<void> | void;
 	onDeleted(cardId: string): Promise<void> | void;
 }
 
@@ -19,7 +19,7 @@ export class CardDeleteModal extends Modal {
 		this.titleEl.setText("Delete Card");
 		this.contentEl.createEl("p", { text: `Card: ${this.options.card.cardId}` });
 		this.contentEl.createEl("p", {
-			text: "This removes the exact Card block from Markdown and active review. A content-free tombstone and review events are preserved.",
+			text: "This removes the exact Card block from Markdown and active review. A content-free tombstone and review events are preserved. If interrupted, run Resume Card Deletion.",
 		});
 		const actionsEl = this.contentEl.createDiv({ cls: "mneme-proposal-detail-modal-actions" });
 		const cancelButton = actionsEl.createEl("button", { text: "Cancel" });
@@ -40,42 +40,18 @@ export class CardDeleteModal extends Modal {
 		deleteButton.disabled = true;
 
 		try {
-			const { card } = this.options;
-			const file = this.app.vault.getAbstractFileByPath(card.path);
-			if (!(file instanceof TFile)) {
-				new Notice("Mneme: Card Markdown was not found.");
-				return;
-			}
-			const before = await this.app.vault.cachedRead(file);
-			const result = deleteCardBlock(before, {
-				cardId: card.cardId,
-				expectedBack: card.back,
-				expectedFront: card.front,
-			});
-			if (result.status !== "deleted") {
-				new Notice(`Mneme: ${result.message}`);
-				return;
-			}
-
-			await this.app.vault.modify(file, result.markdown);
-			try {
-				await this.options.onDeleted(card.cardId);
-			} catch (error) {
-				try {
-					await this.app.vault.modify(file, before);
-				} catch (rollbackError) {
-					throw new Error(
-						`${formatUserFacingError(error, "Review state update failed.")} Rollback also failed: ${formatUserFacingError(rollbackError, "Card Markdown could not be restored.")}`,
-					);
-				}
-				throw error;
-			}
-
+			await this.options.onConfirmed();
 			new Notice("Mneme: Card deleted. History tombstone preserved.");
 			this.close();
+			try {
+				await this.options.onDeleted(this.options.card.cardId);
+			} catch (error) {
+				console.error("Mneme: Card deleted but views could not refresh", error);
+				new Notice("Mneme: Card deleted. Reopen the Review View to refresh it.");
+			}
 		} catch (error) {
 			console.error("Mneme: failed to delete Card", { cardId: this.options.card.cardId, error });
-			new Notice(`Mneme: Card could not be deleted: ${formatUserFacingError(error, "Try again.")}`);
+			new Notice(`Mneme: Card could not be deleted: ${formatUserFacingError(error, "Try again.")} Run Resume Card Deletion if a deletion record was saved.`);
 		} finally {
 			this.isDeleting = false;
 			deleteButton.disabled = false;

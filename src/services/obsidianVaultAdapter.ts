@@ -31,6 +31,10 @@ export class ObsidianVaultAdapter implements MnemeVaultAdapter, VaultStateAdapte
 		await this.vault.append(file, content);
 	}
 
+	async readFresh(path: string): Promise<string> {
+		return this.vault.read(this.getFile(path));
+	}
+
 	async read(path: string): Promise<string> {
 		const file = this.getFile(path);
 

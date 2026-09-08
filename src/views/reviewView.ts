@@ -1,3 +1,4 @@
+import { ObsidianVaultAdapter } from "../services/obsidianVaultAdapter";
 import { ItemView, MarkdownRenderer, Menu, Notice, setIcon, WorkspaceLeaf } from "obsidian";
 import { ConceptMemorySummary } from "../models/conceptMemory";
 import { LoadedMnemeCard } from "../models/card";
@@ -1318,8 +1319,9 @@ export class MnemeReviewView extends ItemView {
 	private openCardDelete(card: LoadedMnemeCard, preserveReviewSession = false): void {
 		new CardDeleteModal(this.app, {
 			card,
+			onConfirmed: () => this.reviewStateStore.deleteCardFromMarkdown(card, new ObsidianVaultAdapter(this.app.vault)),
 			onDeleted: async (cardId) => {
-				await this.reviewStateStore.deleteCard(cardId);
+				await this.reviewStateStore.load();
 				if (preserveReviewSession) {
 					await this.removeDeletedCardFromReview(cardId);
 					return;

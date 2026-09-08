@@ -183,6 +183,21 @@ function receiptOf(storage: RecoveryStorage, proposalId: string): Record<string,
 }
 
 async function run(): Promise<void> {
+	{
+		const proposal = cardProposal("pending-card-deletion");
+		const storage = new RecoveryStorage({ knowledgeProposals: { [proposal.id]: proposal } });
+		storage.data.cardDeletion = { version: 1, cardId: "card-deleting", path: "Mneme/Cards/Encapsulation/Cards.md",
+			beforeHash: "a".repeat(64), afterHash: "b".repeat(64), createdAt: "2026-09-08T00:00:00.000Z" };
+		const vault = new RecoveryVault();
+		const { writer } = makeWriter(storage, vault, {});
+		const result = await writer.writeApprovedProposal(proposal.id);
+		assert.equal(result.status, "failed");
+		assert.match(result.message, /deletion is pending/);
+		assert.equal(vault.createCount + vault.modifyCount + vault.processCount, 0);
+		assert.equal(storage.data.knowledgeProposals[proposal.id].writeReceipt, undefined);
+		assert.deepEqual(storage.data.knowledgeProposals[proposal.id].payload, proposal.payload);
+	}
+
 	for (const status of ["pending", "deleted"] as const) {
 		for (const proposal of [cardProposal("deleted-card"), linkProposal("deleted-link"), viewProposal("deleted-view"), updateProposal("deleted-update")]) {
 			// The payload is authoritative even when optional top-level metadata is absent.

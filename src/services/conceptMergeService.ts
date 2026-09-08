@@ -1,3 +1,4 @@
+import { assertCardDeletionAllowsPath } from "./cardDeletionReceipt";
 import { assertConceptNotDeleting } from "./conceptDeletionReceipt";
 import type { ConceptSummary } from "../models/conceptLibrary";
 import type { ConceptSourceLink, SourceEvidence } from "../models/conceptSource";
@@ -183,6 +184,7 @@ export class ConceptMergeService {
 				path: input.merged.path,
 			});
 
+			for (const write of writes) assertCardDeletionAllowsPath(data.cardDeletion, write.path);
 			return {
 				plan: {
 					cardsMoved: cardPlanResult.cardsMoved,
