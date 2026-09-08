@@ -5,12 +5,13 @@ import {
 	getConceptIdFromFrontmatter,
 } from "./conceptMarkdownIdentity";
 import { removeRelatedConceptLink } from "./conceptRelatedLinks";
+import { executeMarkdownWriteTransaction, MarkdownWriteConflict } from "./markdownWriteTransaction";
 import { parseSimpleFrontmatter } from "./simpleFrontmatter";
 
 export interface ConceptDeletionVaultAdapter {
 	create(path: string, content: string): Promise<void>;
 	exists(path: string): Promise<boolean>;
-	modify(path: string, content: string): Promise<void>;
+	process(path: string, transform: (current: string) => string): Promise<void>;
 	read(path: string): Promise<string>;
 	remove(path: string): Promise<void>;
 }
@@ -65,9 +66,9 @@ export class ConceptDeletionService {
 			if (concept.cardsPath && await this.vault.exists(concept.cardsPath)) {
 				const cardsMarkdown = await this.vault.read(concept.cardsPath);
 				const cardGroupConceptId = getCardGroupConceptIdFromFrontmatter(parseSimpleFrontmatter(cardsMarkdown));
-				if (cardGroupConceptId && cardGroupConceptId !== concept.conceptId) {
+				if (cardGroupConceptId !== concept.conceptId) {
 					return {
-						message: "Cards Markdown belongs to a different Concept. Delete was stopped.",
+						message: "Cards Markdown has a missing or different Concept owner. Delete was stopped.",
 						status: "blocked",
 					};
 				}
@@ -124,13 +125,15 @@ export class ConceptDeletionService {
 			}
 
 			for (const write of plan.relatedWrites) {
-				await this.vault.modify(write.path, write.after);
+				await executeMarkdownWriteTransaction(this.vault, [write]);
 				completedWrites.push(write);
 			}
 			if (plan.cardsFile) {
+				await this.assertFileUnchanged(plan.cardsFile);
 				await this.vault.remove(plan.cardsFile.path);
 				deletedFiles.push(plan.cardsFile);
 			}
+			await this.assertFileUnchanged(plan.conceptFile);
 			await this.vault.remove(plan.conceptFile.path);
 			deletedFiles.push(plan.conceptFile);
 			await onFilesDeleted?.(plan.cardIds);
@@ -142,6 +145,8 @@ export class ConceptDeletionService {
 				try {
 					if (!await this.vault.exists(file.path)) {
 						await this.vault.create(file.path, file.content);
+					} else if (await this.vault.read(file.path) !== file.content) {
+						throw new Error("path is occupied; rollback preserved the existing content");
 					}
 				} catch (rollbackError) {
 					rollbackErrors.push(`${file.path}: ${formatError(rollbackError)}`);
@@ -149,9 +154,9 @@ export class ConceptDeletionService {
 			}
 			for (const write of [...completedWrites].reverse()) {
 				try {
-					if (await this.vault.exists(write.path) && await this.vault.read(write.path) === write.after) {
-						await this.vault.modify(write.path, write.before);
-					}
+					await executeMarkdownWriteTransaction(this.vault, [{
+						path: write.path, before: write.after, after: write.before,
+					}]);
 				} catch (rollbackError) {
 					rollbackErrors.push(`${write.path}: ${formatError(rollbackError)}`);
 				}
@@ -160,8 +165,15 @@ export class ConceptDeletionService {
 			const rollback = rollbackErrors.length > 0
 				? ` Rollback also failed: ${rollbackErrors.join("; ")}`
 				: "";
-			return { message: `${formatError(error)}${rollback}`, status: "failed" };
+			return {
+				message: `${formatError(error)}${rollback}`,
+				status: error instanceof MarkdownWriteConflict && rollbackErrors.length === 0 ? "conflict" : "failed",
+			};
 		}
+	}
+
+	private async assertFileUnchanged(file: ConceptDeletionFile): Promise<void> {
+		if (await this.vault.read(file.path) !== file.content) throw new MarkdownWriteConflict(file.path);
 	}
 }
 
