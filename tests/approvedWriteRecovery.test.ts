@@ -183,6 +183,28 @@ function receiptOf(storage: RecoveryStorage, proposalId: string): Record<string,
 }
 
 async function run(): Promise<void> {
+	for (const status of ["pending", "deleted"] as const) {
+		for (const proposal of [cardProposal("deleted-card"), linkProposal("deleted-link"), viewProposal("deleted-view"), updateProposal("deleted-update")]) {
+			// The payload is authoritative even when optional top-level metadata is absent.
+			delete proposal.conceptId;
+			const storage = new RecoveryStorage({ knowledgeProposals: { [proposal.id]: proposal } });
+			storage.data.conceptDeletions = { [concept.conceptId]: {
+				version: 1, status, operationId: "delete-test", conceptId: concept.conceptId,
+				createdAt: "2026-09-08T00:00:00.000Z", conceptPath: concept.path,
+				...(status === "deleted" ? { completedAt: "2026-09-08T00:00:00.000Z" } : {
+					cardIds: [], related: [], files: [{ path: concept.path, stagePath: `${concept.path}.mneme-delete-delete-test`, hash: "a".repeat(64), phase: "planned" }],
+				}),
+			} };
+			const vault = new RecoveryVault();
+			const { writer } = makeWriter(storage, vault, {});
+			const result = await writer.writeApprovedProposal(proposal.id);
+			assert.equal(result.status, "failed");
+			assert.match(result.message, /deletion/);
+			assert.equal(vault.createCount + vault.modifyCount + vault.processCount, 0);
+			assert.deepEqual(storage.data.knowledgeProposals[proposal.id].payload, proposal.payload);
+		}
+	}
+
 	// Every supported first-class Inbox kind is exercised by this recovery suite.
 	for (const proposal of [
 		conceptProposal("kind-concept"),

@@ -25,10 +25,6 @@ export class ObsidianVaultAdapter implements MnemeVaultAdapter, VaultStateAdapte
 		await this.vault.create(normalizePath(path), content);
 	}
 
-	async remove(path: string): Promise<void> {
-		await this.vault.delete(this.getFile(path));
-	}
-
 	async append(path: string, content: string): Promise<void> {
 		const file = this.getFile(path);
 

@@ -72,6 +72,20 @@ async function prepare(storage: Storage, value: ManualConceptDraft): Promise<Man
 async function run(): Promise<void> {
 	{
 		const storage = new Storage(baseData());
+		const actual = await prepare(storage, draft("draft-deleted-id"));
+		storage.data.conceptDeletions = { "concept-deleted": {
+			version: 1, status: "deleted", operationId: "delete-test", conceptId: "concept-deleted",
+			createdAt: "2026-09-08T00:00:00.000Z", completedAt: "2026-09-08T00:00:00.000Z", conceptPath: "Old.md",
+		} };
+		const vault = new Vault();
+		let attempt = 0;
+		const result = await createManualConceptWithRecovery(actual, settings, vault, storage,
+			{ createId: () => ++attempt === 1 ? "concept-deleted" : "concept-new" });
+		assert.equal(result.conceptId, "concept-new", "deleted IDs remain reserved even without an app callback");
+	}
+
+	{
+		const storage = new Storage(baseData());
 		const actual = await prepare(storage, { ...draft("draft-names"), title: "概念 (First) (Second)" });
 		const vault = new Vault();
 		const result = await createManualConceptWithRecovery(actual, { ...settings, suggestEnglishAliases: true }, vault, storage,

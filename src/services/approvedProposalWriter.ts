@@ -1,3 +1,4 @@
+import { assertConceptNotDeleting, readConceptDeletions } from "./conceptDeletionReceipt";
 import type { ConceptSummary } from "../models/conceptLibrary";
 import type { KnowledgeProposal } from "../models/knowledgeProposal";
 import type { ApprovedWriteReceipt, MarkdownWriteDraft, MarkdownWriteResult } from "../models/markdownWrite";
@@ -112,6 +113,11 @@ export class ApprovedProposalWriter {
 				if (!["new_concept", "new_card", "update_concept", "link_existing_concept", "add_view"].includes(proposal.kind)) {
 					return { message: `Proposal kind is not supported for Markdown writing yet: ${proposal.kind}`, proposalId, status: "skipped", targetPaths };
 				}
+				assertConceptNotDeleting(data.conceptDeletions, proposal.conceptId ?? "");
+				const targetConceptId = proposal.kind === "link_existing_concept" ? proposal.payload?.targetConceptId
+					: proposal.payload && "conceptId" in proposal.payload ? proposal.payload.conceptId : undefined;
+				if (targetConceptId) assertConceptNotDeleting(data.conceptDeletions, targetConceptId);
+				if (receipt?.mode === "create" && receipt.entityId) assertConceptNotDeleting(data.conceptDeletions, receipt.entityId);
 				const validation = validateKnowledgeProposalPayload(proposal);
 				if (!validation.valid) return this.failedResult(proposalId, validation.errors.join(" "));
 				const proposalHash = await proposalWriteHash(proposal);
@@ -130,12 +136,20 @@ export class ApprovedProposalWriter {
 					const reservedIds = new Set(Object.values(data.knowledgeProposals)
 						.filter((other) => other.id !== proposalId && other.writeReceipt?.mode === expectedMode)
 						.flatMap((other) => typeof other.writeReceipt?.entityId === "string" ? [other.writeReceipt.entityId] : []));
+					if (expectedMode === "create") {
+						for (const id of Object.keys(readConceptDeletions(data.conceptDeletions))) reservedIds.add(id);
+					}
 					if (manualCardWrite) reservedIds.add(manualCardWrite.cardId);
 					if (manualConceptWrite && expectedMode === "create") reservedIds.add(manualConceptWrite.conceptId);
 					const reservedPaths = new Set(Object.values(data.knowledgeProposals)
 						.filter((other) => other.id !== proposalId && other.writeReceipt?.mode === "create")
 						.flatMap((other) => typeof other.writeReceipt?.targetPath === "string" ? [other.writeReceipt.targetPath] : []));
 					if (manualConceptWrite && expectedMode === "create") reservedPaths.add(manualConceptWrite.path);
+					if (expectedMode === "create") {
+						for (const deletion of Object.values(readConceptDeletions(data.conceptDeletions))) {
+							if (deletion.status === "pending") for (const file of deletion.files) reservedPaths.add(file.path);
+						}
+					}
 					const plan = await this.prepareWrite(proposal, receipt, reservedIds, reservedPaths);
 					const afterHash = await writtenContentHash(plan.draft.mode as ApprovedWriteReceipt["mode"], plan.draft.content, plan.entityId);
 					if (!afterHash) throw new Error("The planned Card has no valid identity.");

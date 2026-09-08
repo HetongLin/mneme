@@ -18,6 +18,7 @@ const tests = [
 	"tests/conceptMergeAiService.test.ts",
 	"tests/conceptEnglishNameAiService.test.ts",
 	"tests/conceptDeletionService.test.ts",
+	"tests/recoverableConceptDeletion.test.ts",
 	"tests/conceptRelatedLinks.test.ts",
 	"tests/relatedConceptService.test.ts",
 	"tests/simpleFrontmatter.test.ts",

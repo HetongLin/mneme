@@ -1,3 +1,4 @@
+import { assertConceptNotDeleting } from "./conceptDeletionReceipt";
 import type { ConceptSummary } from "../models/conceptLibrary";
 import type { ConceptSourceLink } from "../models/conceptSource";
 import type { KnowledgeProposal } from "../models/knowledgeProposal";
@@ -78,6 +79,7 @@ export class IncomingConceptMergeService {
 	async prepare(input: PrepareIncomingConceptMergeInput): Promise<PrepareIncomingConceptMergeResult> {
 		try {
 			const data = normalizePluginData(await this.storage.loadData());
+			assertConceptNotDeleting(data.conceptDeletions, input.existing.conceptId);
 			const before = await this.vault.read(input.existing.path);
 			if (!hasConceptIdentity(before, input.existing.conceptId)) {
 				return {

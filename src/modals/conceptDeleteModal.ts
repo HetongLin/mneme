@@ -25,7 +25,7 @@ export class ConceptDeleteModal extends Modal {
 		});
 		this.contentEl.createEl("p", {
 			cls: "mneme-review-error",
-			text: "This action cannot be undone from Mneme.",
+			text: "Files are moved to the local Vault trash. This action cannot be undone from Mneme. If interrupted, run Resume Concept Deletion.",
 		});
 
 		const actionsEl = this.contentEl.createDiv({ cls: "mneme-proposal-detail-modal-actions" });

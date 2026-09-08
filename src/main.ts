@@ -46,6 +46,9 @@ import { ConceptMergeAiService } from "./services/conceptMergeAiService";
 import { ConceptConflictMergeDraftStore } from "./services/conceptConflictMergeDraftStore";
 import { ConceptEnglishNameAiService } from "./services/conceptEnglishNameAiService";
 import { ConceptDeletionService } from "./services/conceptDeletionService";
+import { RecoverableConceptDeletion } from "./services/recoverableConceptDeletion";
+import { ObsidianConceptDeletionVault } from "./services/obsidianConceptDeletionVault";
+import { readConceptDeletions } from "./services/conceptDeletionReceipt";
 import { findConceptNameConflict } from "./services/conceptNameConflict";
 import { normalizeConceptNames } from "./services/conceptNaming";
 import {
@@ -156,6 +159,15 @@ export default class MnemePlugin extends Plugin {
 			vaultAdapter: new ObsidianVaultAdapter(this.app.vault),
 		});
 		await this.reviewStateStore.load();
+		try {
+			const data = await this.loadData();
+			if (Object.values(readConceptDeletions(data?.conceptDeletions)).some((r) => r.status === "pending")) {
+				new Notice("Mneme: A Concept deletion is pending. Run Resume Concept Deletion to finish it.");
+			}
+		} catch (error) {
+			console.error("Mneme: could not read Concept deletion journal", error);
+			new Notice("Mneme: Could not read the Concept deletion journal. Check data.json before deleting Concepts.");
+		}
 		const conceptMergeService = new ConceptMergeService(
 			new ObsidianVaultAdapter(this.app.vault),
 			this,
@@ -409,6 +421,12 @@ export default class MnemePlugin extends Plugin {
 			callback: () => {
 				void this.openConceptMergeView();
 			},
+		});
+
+		this.addCommand({
+			id: "mneme-resume-concept-deletion",
+			name: "Resume Concept Deletion",
+			callback: () => { void this.resumeConceptDeletion(); },
 		});
 
 		this.addCommand({
@@ -1234,6 +1252,7 @@ export default class MnemePlugin extends Plugin {
 	}
 
 	private async isConceptIdReserved(conceptId: string): Promise<boolean> {
+		if (readConceptDeletions((await this.loadData())?.conceptDeletions)[conceptId]) return true;
 		if (this.reviewStateStore.getConceptMergeRecords()[conceptId]) {
 			return true;
 		}
@@ -1359,17 +1378,41 @@ export default class MnemePlugin extends Plugin {
 			throw new Error("Concept was not found. Refresh the view and try again.");
 		}
 
-		const service = new ConceptDeletionService(new ObsidianVaultAdapter(this.app.vault));
+		const service = new ConceptDeletionService(new ObsidianConceptDeletionVault(this.app.vault));
 		const prepared = await service.prepare(current, concepts);
 		if (prepared.status === "blocked") {
 			throw new Error(prepared.message);
 		}
 
-		const result = await service.execute(prepared.plan, async (cardIds) => {
-			await this.reviewStateStore.deleteConcept(current.conceptId, cardIds);
-		});
-		if (result.status !== "deleted") {
-			throw new Error(result.message);
+		try {
+			await this.createConceptDeletion().delete(prepared.plan);
+		} catch (error) {
+			throw new Error(`${formatUserFacingError(error, "Deletion stopped.")} Run Resume Concept Deletion if a deletion record was saved.`);
+		}
+		await this.refreshAfterConceptDeletion();
+	}
+
+	private createConceptDeletion(): RecoverableConceptDeletion {
+		return new RecoverableConceptDeletion(new ObsidianConceptDeletionVault(this.app.vault), this);
+	}
+
+	private async resumeConceptDeletion(): Promise<void> {
+		try {
+			const resumed = await this.createConceptDeletion().resume();
+			await this.refreshAfterConceptDeletion();
+			new Notice(resumed ? "Mneme: Concept deletion completed." : "Mneme: No pending Concept deletion.");
+		} catch (error) {
+			console.error("Mneme: failed to resume Concept deletion", error);
+			new Notice(`Mneme: ${formatUserFacingError(error, "Could not resume Concept deletion.")}`);
+		}
+	}
+
+	private async refreshAfterConceptDeletion(): Promise<void> {
+		try {
+			await this.reviewStateStore.load();
+		} catch (error) {
+			console.error("Mneme: could not reload state after Concept deletion", error);
+			new Notice("Mneme: Concept deleted. Reload Mneme to refresh review state.");
 		}
 
 		try {

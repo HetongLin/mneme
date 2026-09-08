@@ -96,6 +96,19 @@ const originalGroup = renderManualCard({ ...prose, front: "Existing question", b
 type Fault = "intent-before" | "intent-after" | "markdown-before" | "markdown-after" | "completion-before" | "completion-after";
 
 async function run(): Promise<void> {
+	{
+		const storage = new Storage(createDefaultPluginData());
+		const draft = await saveNewDraft(storage);
+		storage.data.conceptDeletions = { [concept.conceptId]: {
+			version: 1, status: "deleted", operationId: "delete-test", conceptId: concept.conceptId,
+			createdAt: "2026-09-08T00:00:00.000Z", completedAt: "2026-09-08T00:00:00.000Z", conceptPath: concept.path,
+		} };
+		const vault = new Vault();
+		await assert.rejects(write(draft, storage, vault), /deletion/);
+		assert.equal(vault.creates + vault.processes, 0);
+		assert.deepEqual(storage.data.manualCardDraft, draft);
+	}
+
 	// Exercise the actual coordinator, recreating both storage and Vault after every fault.
 	for (const existing of [false, true]) {
 		for (const fault of ["intent-before", "intent-after", "markdown-before", "markdown-after", "completion-before", "completion-after"] as Fault[]) {

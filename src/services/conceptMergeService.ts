@@ -1,3 +1,4 @@
+import { assertConceptNotDeleting } from "./conceptDeletionReceipt";
 import type { ConceptSummary } from "../models/conceptLibrary";
 import type { ConceptSourceLink, SourceEvidence } from "../models/conceptSource";
 import type { KnowledgeProposal } from "../models/knowledgeProposal";
@@ -96,6 +97,8 @@ export class ConceptMergeService {
 
 		try {
 			const data = normalizePluginData(await this.storage.loadData());
+			assertConceptNotDeleting(data.conceptDeletions, input.survivor.conceptId);
+			assertConceptNotDeleting(data.conceptDeletions, input.merged.conceptId);
 			if (data.conceptMergeRecords[input.survivor.conceptId] || data.conceptMergeRecords[input.merged.conceptId]) {
 				return { message: "A selected Concept ID is already reserved by an earlier merge.", status: "blocked" };
 			}

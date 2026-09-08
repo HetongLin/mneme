@@ -1,3 +1,4 @@
+import { assertConceptNotDeleting } from "./conceptDeletionReceipt";
 import type { ConceptSummary } from "../models/conceptLibrary";
 import { createEmptyManualCardDraft, type ManualCardDraft } from "../models/manualCardDraft";
 import type { ManualCardWriteReceipt } from "../models/manualCardWrite";
@@ -35,6 +36,7 @@ export function createManualCardWithRecovery(
 		} else if (receipt?.status === "pending") {
 			throw new Error("Resume the pending Card creation before creating another Card.");
 		}
+		assertConceptNotDeleting(data.conceptDeletions, draft.conceptId ?? "");
 		if (draft.draftId !== currentDraft.draftId || inputHash !== await manualCardDraftHash(currentDraft)) {
 			throw new Error("This Composer draft is out of date. Reopen Card Composer before creating a Card.");
 		}

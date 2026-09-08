@@ -1,3 +1,4 @@
+import { assertCardNotDeleting } from "./conceptDeletionReceipt";
 import { ReviewScheduler } from "../models/reviewScheduler";
 import {
 	CardReviewState,
@@ -30,6 +31,7 @@ import {
 	KnowledgeProposalStatus,
 } from "../models/knowledgeProposal";
 import { createConceptDuplicatePairKey } from "./conceptDuplicateDetector";
+import { withDeletedConceptState } from "./conceptDeletionState";
 import { runPluginDataMutation } from "./pluginDataMutation";
 import type { ConceptConflictMergeDraftRecord } from "../models/conceptConflictMergeDraft";
 
@@ -68,6 +70,7 @@ export class ReviewStateStore {
 		return runPluginDataMutation(this.storage, async () => {
 			await this.ensureLoaded();
 			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			assertCardNotDeleting(latestData.conceptDeletions, cardId);
 			if (latestData.cardTombstones[cardId]) {
 				throw new Error("Deleted Card IDs cannot receive reviews.");
 			}
@@ -234,48 +237,14 @@ export class ReviewStateStore {
 			const uniqueCardIds = [...new Set(cardIds.map((cardId) => cardId.trim()).filter(Boolean))];
 			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
 			const deletedAt = now.toISOString();
-			const tombstones = uniqueCardIds.map((cardId): CardTombstone => {
-				const existing = latestData.cardTombstones[cardId];
-				if (existing) return existing;
-				const reviewState = latestData.reviewStates[cardId];
-				return {
-					cardId,
-					deletedAt,
-					lapseCount: reviewState?.lapseCount ?? 0,
-					reviewCount: reviewState?.reviewCount ?? 0,
-				};
-			});
-			const deletedCardIds = new Set(uniqueCardIds);
-			const omitDeletedCards = <T>(records: Record<string, T>): Record<string, T> => (
-				Object.fromEntries(Object.entries(records).filter(([cardId]) => !deletedCardIds.has(cardId)))
-			);
-			const nextData = {
-				...latestData,
-				cardTombstones: {
-					...latestData.cardTombstones,
-					...Object.fromEntries(tombstones.map((tombstone) => [tombstone.cardId, tombstone])),
-				},
-				conceptDuplicateDismissals: Object.fromEntries(
-					Object.entries(latestData.conceptDuplicateDismissals)
-						.filter(([, dismissal]) => !dismissal.conceptIds.includes(conceptId)),
-				),
-				conceptMergeRecords: Object.fromEntries(
-					Object.entries(latestData.conceptMergeRecords)
-						.filter(([, record]) => (
-							record.mergedConceptId !== conceptId && record.survivorConceptId !== conceptId
-						)),
-				),
-				pausedConcepts: omitKey(latestData.pausedConcepts, conceptId),
-				retiredCards: omitDeletedCards(latestData.retiredCards),
-				reviewDeferrals: omitDeletedCards(latestData.reviewDeferrals),
-				reviewStates: omitDeletedCards(latestData.reviewStates),
-				suspendedCards: omitDeletedCards(latestData.suspendedCards),
-			};
+			const nextData = withDeletedConceptState(latestData, conceptId, cardIds, deletedAt);
 
 			await this.storage.saveData(nextData);
 			this.data = nextData;
 			this.pendingSettings = undefined;
-			return tombstones;
+			return uniqueCardIds
+				.map((cardId) => nextData.cardTombstones[cardId])
+				.filter((tombstone): tombstone is CardTombstone => tombstone !== undefined);
 		});
 	}
 

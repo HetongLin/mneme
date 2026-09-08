@@ -1,3 +1,4 @@
+import { assertConceptNotDeleting, readConceptDeletions } from "./conceptDeletionReceipt";
 import { createEmptyManualConceptDraft, type ManualConceptDraft } from "../models/manualConceptDraft";
 import type { ManualConceptWriteReceipt } from "../models/manualConceptWrite";
 import type { MnemeSettings } from "../models/settings";
@@ -47,8 +48,11 @@ export function createManualConceptWithRecovery(
 			const sourcePath = draft.sourcePath?.trim();
 			const source = sourcePath ? await options.readSourceSnapshot?.(sourcePath) : undefined;
 			if (sourcePath && (!source || source.path !== sourcePath)) throw new Error("Select an existing Source Note or clear the Source Note field.");
-			const reservedIds = new Set([...Object.keys(data.conceptMergeRecords), ...(receipt ? [receipt.conceptId] : [])]);
+			const reservedIds = new Set([...Object.keys(readConceptDeletions(data.conceptDeletions)), ...Object.keys(data.conceptMergeRecords), ...(receipt ? [receipt.conceptId] : [])]);
 			const reservedPaths = new Set(receipt ? [receipt.path] : []);
+			for (const deletion of Object.values(readConceptDeletions(data.conceptDeletions))) {
+				if (deletion.status === "pending") for (const file of deletion.files) reservedPaths.add(file.path);
+			}
 			for (const proposal of Object.values(data.knowledgeProposals)) {
 				if (proposal.writeReceipt === undefined) continue;
 				const write = readApprovedWriteReceipt(proposal.writeReceipt);
@@ -68,6 +72,7 @@ export function createManualConceptWithRecovery(
 			await storage.saveData(data);
 		}
 
+		assertConceptNotDeleting(data.conceptDeletions, receipt.conceptId);
 		if ((receipt.source?.path ?? "") !== (draft.sourcePath?.trim() ?? "")) throw new Error("The saved Concept source has changed. Existing Markdown was preserved.");
 		if (await vault.exists(receipt.path)) {
 			if (await computeContentHash(await vault.read(receipt.path)) !== receipt.afterHash) {
