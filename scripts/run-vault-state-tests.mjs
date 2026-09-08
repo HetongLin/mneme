@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 const tests = [
 	"tests/vaultStateReconciler.test.ts",
@@ -21,7 +22,9 @@ for (const test of tests) {
 		process.exit(build.status ?? 1);
 	}
 
-	const run = spawnSync("node", [outfile], { stdio: "inherit" });
+	const run = spawnSync("node", ["--input-type=module", "--eval",
+		`const suite = await import(${JSON.stringify(pathToFileURL(outfile).href)}); await suite.done;`,
+	], { stdio: "inherit" });
 
 	if (run.status !== 0) {
 		process.exit(run.status ?? 1);

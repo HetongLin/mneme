@@ -1,4 +1,5 @@
 import type { ConceptSummary } from "../models/conceptLibrary";
+import type { SourceAnalysisRecord } from "../models/sourceAnalysis";
 import type { ConceptSourceLink } from "../models/conceptSource";
 import type { KnowledgeProposal, KnowledgeProposalStatus } from "../models/knowledgeProposal";
 import type { ConceptSourceLinkStore } from "./conceptSourceLinkStore";
@@ -38,7 +39,7 @@ export class VaultStateReconciler {
 
 	async reconcile(): Promise<VaultStateReconciliationResult> {
 		const proposalResult = await this.reconcileProposals();
-		const sourceResult = await this.reconcileSourceAnalysisRecords(proposalResult.activeProposalIds);
+		const sourceResult = await this.reconcileSourceAnalysisRecords();
 		const linkResult = await this.reconcileConceptSourceLinks();
 		const removedCount = proposalResult.removedProposalIds.length
 			+ sourceResult.removedSourcePaths.length
@@ -58,7 +59,6 @@ export class VaultStateReconciler {
 	}
 
 	private async reconcileProposals(): Promise<{
-		activeProposalIds: Set<string>;
 		removedProposalIds: string[];
 	}> {
 		const proposals = await this.options.knowledgeProposalStore.loadProposals();
@@ -70,10 +70,8 @@ export class VaultStateReconciler {
 
 		const removedProposalIds = await this.options.knowledgeProposalStore
 			.removeProposalsIfUnchanged(removalCandidates);
-		const currentProposals = await this.options.knowledgeProposalStore.loadProposals();
 
 		return {
-			activeProposalIds: new Set(Object.keys(currentProposals)),
 			removedProposalIds,
 		};
 	}
@@ -91,35 +89,13 @@ export class VaultStateReconciler {
 		return this.options.vault.exists(proposal.sourcePath);
 	}
 
-	private async reconcileSourceAnalysisRecords(
-		activeProposalIds: Set<string>,
-	): Promise<{ removedSourcePaths: string[] }> {
+	private async reconcileSourceAnalysisRecords(): Promise<{ removedSourcePaths: string[] }> {
 		const records = await this.options.sourceAnalysisStore.loadRecords();
-		const activeRecords = { ...records };
-		const removedSourcePaths: string[] = [];
-		let pendingProposalIdsChanged = false;
-
-		for (const [sourcePath, record] of Object.entries(records)) {
-			if (await this.options.vault.exists(record.sourcePath)) {
-				const pendingProposalIds = record.pendingProposalIds.filter((proposalId) => (
-					activeProposalIds.has(proposalId)
-				));
-
-				if (pendingProposalIds.length !== record.pendingProposalIds.length) {
-					activeRecords[sourcePath] = { ...record, pendingProposalIds };
-					pendingProposalIdsChanged = true;
-				}
-				continue;
-			}
-
-			delete activeRecords[sourcePath];
-			removedSourcePaths.push(sourcePath);
+		const observations: Array<{ record: SourceAnalysisRecord; sourceExists: boolean }> = [];
+		for (const record of Object.values(records)) {
+			observations.push({ record, sourceExists: await this.options.vault.exists(record.sourcePath) });
 		}
-
-		if (removedSourcePaths.length > 0 || pendingProposalIdsChanged) {
-			await this.options.sourceAnalysisStore.replaceRecords(activeRecords);
-		}
-
+		const removedSourcePaths = await this.options.sourceAnalysisStore.reconcileRecordsIfUnchanged(observations);
 		return { removedSourcePaths };
 	}
 
@@ -131,41 +107,31 @@ export class VaultStateReconciler {
 		const links = await this.options.conceptSourceLinkStore.loadLinks();
 		const concepts = await this.scanConceptsSafely();
 		const knownConceptIds = concepts ? new Set(concepts.map((concept) => concept.conceptId)) : undefined;
-		const activeLinks: Record<string, ConceptSourceLink> = {};
-		const removedConceptSourceLinkIds: string[] = [];
-		const staleConceptSourceLinkIds: string[] = [];
-		const missingConceptIds = new Set<string>();
+		const changes: Array<{ expected: ConceptSourceLink; action: "remove" | "mark_stale" }> = [];
 
-		for (const [id, link] of Object.entries(links)) {
+		for (const link of Object.values(links)) {
 			const sourceExists = await this.options.vault.exists(link.sourcePath);
 			const conceptExists = !knownConceptIds || knownConceptIds.has(link.conceptId);
 
 			if (conceptExists && (sourceExists || link.status === "stale")) {
-				activeLinks[id] = link;
 				continue;
 			}
 
 			if (conceptExists && link.status === "approved") {
-				activeLinks[id] = { ...link, status: "stale" };
-				staleConceptSourceLinkIds.push(id);
+				changes.push({ expected: link, action: "mark_stale" });
 				continue;
 			}
 
-			removedConceptSourceLinkIds.push(id);
-
-			if (!conceptExists) {
-				missingConceptIds.add(link.conceptId);
-			}
+			changes.push({ expected: link, action: "remove" });
 		}
 
-		if (removedConceptSourceLinkIds.length > 0 || staleConceptSourceLinkIds.length > 0) {
-			await this.options.conceptSourceLinkStore.replaceLinks(activeLinks);
-		}
-
+		const result = await this.options.conceptSourceLinkStore.reconcileLinksIfUnchanged(changes);
 		return {
-			missingConceptIds: [...missingConceptIds],
-			removedConceptSourceLinkIds,
-			staleConceptSourceLinkIds,
+			missingConceptIds: [...new Set(result.removedLinks
+				.filter((link) => knownConceptIds && !knownConceptIds.has(link.conceptId))
+				.map((link) => link.conceptId))],
+			removedConceptSourceLinkIds: result.removedLinks.map((link) => link.id),
+			staleConceptSourceLinkIds: result.staleLinkIds,
 		};
 	}
 

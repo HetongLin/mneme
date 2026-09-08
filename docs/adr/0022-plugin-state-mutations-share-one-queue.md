@@ -33,6 +33,24 @@ for it. It must not wait for user input or provider calls.
 The caller receives any failure. A failed mutation does not prevent later
 queued work from running. Different storage owners have independent queues.
 
+## Index reconciliation (2026-09-07)
+
+Index scans remain read-only and outside the mutation queue. They submit observed
+records and proposed removals/stale transitions, not replacement maps. Each store
+loads current state inside the queue and applies a change only if that individual
+record still matches the observed snapshot. Changed or removed candidates are
+skipped; unobserved additions remain intact. Reported removals and stale IDs come
+from the changes actually committed.
+
+Source pending-proposal cleanup reads membership from the current
+`knowledgeProposals` in that same queue entry, rather than an earlier scan's ID
+set. The unused whole-map replacement APIs for Source records and provenance
+links are removed. No persisted format changes are needed.
+
+This check protects against concurrent in-process state mutations. It does not
+make the earlier filesystem observation atomic with the later state save; an
+external filesystem change may require a subsequent reconciliation.
+
 ## Consequences and Boundaries
 
 - Independent in-process state mutations preserve one another's changes.

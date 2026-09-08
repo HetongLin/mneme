@@ -41,14 +41,30 @@ export class ConceptSourceLinkStore {
 		});
 	}
 
-	async replaceLinks(links: Record<string, ConceptSourceLink>): Promise<void> {
+	/** A stale scan must not undo relinking, explicit removal, or newly saved provenance. */
+	async reconcileLinksIfUnchanged(
+		changes: Array<{ expected: ConceptSourceLink; action: "remove" | "mark_stale" }>,
+	): Promise<{ removedLinks: ConceptSourceLink[]; staleLinkIds: string[] }> {
 		return runPluginDataMutation(this.storage, async () => {
 			const data = await this.loadPluginData();
-
-			await this.storage.saveData({
-				...data,
-				conceptSourceLinks: { ...links },
-			});
+			const links = { ...data.conceptSourceLinks };
+			const removedLinks: ConceptSourceLink[] = [];
+			const staleLinkIds: string[] = [];
+			for (const { expected, action } of changes) {
+				const current = links[expected.id];
+				if (!current || JSON.stringify(current) !== JSON.stringify(expected)) continue;
+				if (action === "remove") {
+					delete links[current.id];
+					removedLinks.push(current);
+				} else if (current.status === "approved") {
+					links[current.id] = { ...current, status: "stale" };
+					staleLinkIds.push(current.id);
+				}
+			}
+			if (removedLinks.length > 0 || staleLinkIds.length > 0) {
+				await this.storage.saveData({ ...data, conceptSourceLinks: links });
+			}
+			return { removedLinks, staleLinkIds };
 		});
 	}
 

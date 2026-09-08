@@ -71,14 +71,33 @@ export class SourceAnalysisStore {
 		});
 	}
 
-	async replaceRecords(records: Record<string, SourceAnalysisRecord>): Promise<void> {
+	/** Apply scan observations only while each observed record is still current. */
+	async reconcileRecordsIfUnchanged(
+		observations: Array<{ record: SourceAnalysisRecord; sourceExists: boolean }>,
+	): Promise<string[]> {
 		return runPluginDataMutation(this.storage, async () => {
 			const data = await this.loadPluginData();
-
-			await this.storage.saveData({
-				...data,
-				sourceAnalysisRecords: { ...records },
-			});
+			const records = { ...data.sourceAnalysisRecords };
+			const removedPaths: string[] = [];
+			let changed = false;
+			for (const { record: expected, sourceExists } of observations) {
+				const current = records[expected.sourcePath];
+				if (!current || JSON.stringify(current) !== JSON.stringify(expected)) continue;
+				if (!sourceExists) {
+					delete records[current.sourcePath];
+					removedPaths.push(current.sourcePath);
+					changed = true;
+					continue;
+				}
+				// Proposal membership may have changed since the scan began.
+				const pendingProposalIds = current.pendingProposalIds.filter((id) => Object.prototype.hasOwnProperty.call(data.knowledgeProposals, id));
+				if (pendingProposalIds.length !== current.pendingProposalIds.length) {
+					records[current.sourcePath] = { ...current, pendingProposalIds };
+					changed = true;
+				}
+			}
+			if (changed) await this.storage.saveData({ ...data, sourceAnalysisRecords: records });
+			return removedPaths;
 		});
 	}
 

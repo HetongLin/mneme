@@ -258,6 +258,162 @@ async function runAsyncTests(): Promise<void> {
 	}
 
 	{
+		const keepProposal = createProposal("keep-proposal", { status: "suggested" });
+		const missingDelete = createSourceRecord("Notes/Missing-Delete.md");
+		const missingUpdated = createSourceRecord("Notes/Missing-Updated.md");
+		const existingRecord = createSourceRecord("Notes/Existing-Updated.md");
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData({
+			[keepProposal.id]: keepProposal,
+		}, {
+			[missingDelete.sourcePath]: missingDelete,
+			[missingUpdated.sourcePath]: missingUpdated,
+			[existingRecord.sourcePath]: existingRecord,
+		}));
+		const sourceStore = new SourceAnalysisStore(storage);
+		let interleaved = false;
+		const vault = new MemoryVaultStateAdapter(new Set([existingRecord.sourcePath]), async (path) => {
+			if (path !== missingUpdated.sourcePath || interleaved) return;
+			interleaved = true;
+			await sourceStore.upsertRecord({ ...missingUpdated, contentHash: "updated-hash", lastAiCaptureFingerprint: "updated-fingerprint", pendingProposalIds: [keepProposal.id] });
+			await sourceStore.upsertRecord({ ...existingRecord, contentHash: "existing-updated-hash", pendingProposalIds: [keepProposal.id] });
+			await sourceStore.upsertRecord({ ...createSourceRecord("Notes/New-During-Reconcile.md"), pendingProposalIds: [keepProposal.id] });
+		});
+		const result = await createReconciler(storage, vault).reconcile();
+		const data = await storage.loadData() as ReturnType<typeof createPluginData>;
+
+		assert.deepEqual(result.removedSourcePaths, [missingDelete.sourcePath]);
+		assert.equal(data.sourceAnalysisRecords[missingDelete.sourcePath], undefined);
+		assert.equal(data.sourceAnalysisRecords[missingUpdated.sourcePath]?.contentHash, "updated-hash");
+		assert.equal(data.sourceAnalysisRecords[missingUpdated.sourcePath]?.lastAiCaptureFingerprint, "updated-fingerprint");
+		assert.deepEqual(data.sourceAnalysisRecords[missingUpdated.sourcePath]?.pendingProposalIds, [keepProposal.id]);
+		assert.equal(data.sourceAnalysisRecords[existingRecord.sourcePath]?.contentHash, "existing-updated-hash");
+		assert.equal(data.sourceAnalysisRecords["Notes/New-During-Reconcile.md"]?.contentHash, "source-hash");
+	}
+
+	{
+		const candidate = createSourceRecord("Notes/Updated-Candidate.md");
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData({}, {
+			[candidate.sourcePath]: candidate,
+		}));
+		const sourceStore = new SourceAnalysisStore(storage);
+		let updated = false;
+		const vault = new MemoryVaultStateAdapter(new Set(), async (path) => {
+			if (path !== candidate.sourcePath || updated) return;
+			updated = true;
+			await sourceStore.upsertRecord({ ...candidate, contentHash: "relinked-hash" });
+		});
+		const result = await createReconciler(storage, vault).reconcile();
+
+		assert.deepEqual(result.removedSourcePaths, []);
+		assert.equal((await storage.loadData() as ReturnType<typeof createPluginData>).sourceAnalysisRecords[candidate.sourcePath]?.contentHash, "relinked-hash");
+	}
+
+	{
+		const deleted = createSourceRecord("Notes/Deleted-During-Check.md");
+		const stale = createSourceRecord("Notes/Absent.md");
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData({}, {
+			[deleted.sourcePath]: deleted, [stale.sourcePath]: stale,
+		}));
+		const sourceStore = new SourceAnalysisStore(storage);
+		const vault = new MemoryVaultStateAdapter(new Set([deleted.sourcePath]), async (path) => {
+			if (path === deleted.sourcePath) await sourceStore.removeRecord(deleted.sourcePath);
+		});
+		const result = await createReconciler(storage, vault).reconcile();
+		assert.deepEqual(await sourceStore.loadRecords(), {});
+		assert.deepEqual(result.removedSourcePaths, [stale.sourcePath]);
+	}
+
+	{
+		const record = createSourceRecord("Notes/Pending-Late.md");
+		record.pendingProposalIds = ["late-proposal"];
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData({}, {
+			[record.sourcePath]: record,
+		}));
+		const proposalStore = new KnowledgeProposalStore(storage);
+		let added = false;
+		const vault = new MemoryVaultStateAdapter(new Set([record.sourcePath]), async (path) => {
+			if (path !== record.sourcePath || added) return;
+			added = true;
+			await proposalStore.upsertProposal(createProposal("late-proposal", { status: "suggested" }));
+		});
+		const result = await createReconciler(storage, vault).reconcile();
+		const data = await storage.loadData() as ReturnType<typeof createPluginData>;
+
+		assert.deepEqual(result.removedSourcePaths, []);
+		assert.deepEqual(data.sourceAnalysisRecords[record.sourcePath]?.pendingProposalIds, ["late-proposal"]);
+		assert.equal(data.knowledgeProposals["late-proposal"]?.status, "suggested");
+	}
+
+	{
+		const staleLink = createConceptSourceLink("stale-during-reconcile", {
+			conceptId: "concept-existing",
+			sourcePath: "Notes/Missing-Stale.md",
+		});
+		const removedLink = createConceptSourceLink("removed-during-reconcile", {
+			conceptId: "concept-missing",
+			sourcePath: "Notes/Missing-Removed.md",
+		});
+		const updatedLink = createConceptSourceLink("updated-during-reconcile", {
+			conceptId: "concept-missing",
+			sourcePath: "Notes/Missing-Updated-Link.md",
+		});
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData({}, {}, {
+			[staleLink.id]: staleLink,
+			[removedLink.id]: removedLink,
+			[updatedLink.id]: updatedLink,
+		}));
+		const linkStore = new ConceptSourceLinkStore(storage);
+		let interleaved = false;
+		const vault = new MemoryVaultStateAdapter(new Set(), async (path) => {
+			if (path !== updatedLink.sourcePath || interleaved) return;
+			interleaved = true;
+			await linkStore.upsertLink({ ...updatedLink, conceptId: "concept-existing", sourcePath: "Notes/Existing.md" });
+			await linkStore.upsertLink(createConceptSourceLink("new-during-link-reconcile", {
+				conceptId: "concept-existing",
+				sourcePath: "Notes/Existing.md",
+			}));
+		});
+		const result = await createReconciler(storage, vault, [{
+			conceptId: "concept-existing",
+			path: "Mneme/Concepts/Existing/Concept.md",
+			title: "Existing",
+		}]).reconcile();
+		const data = await storage.loadData() as ReturnType<typeof createPluginData>;
+
+		assert.deepEqual(result.removedConceptSourceLinkIds, [removedLink.id]);
+		assert.deepEqual(result.staleConceptSourceLinkIds, [staleLink.id]);
+		assert.equal(data.conceptSourceLinks[updatedLink.id]?.conceptId, "concept-existing");
+		assert.equal(data.conceptSourceLinks["new-during-link-reconcile"]?.status, "approved");
+	}
+
+	{
+		const candidate = createConceptSourceLink("explicitly-removed-link", {
+			conceptId: "concept-existing",
+			sourcePath: "Notes/Missing-Explicitly-Removed.md",
+		});
+		const storage = new MemoryKnowledgeProposalStorage(createPluginData({}, {}, {
+			[candidate.id]: candidate,
+		}));
+		const linkStore = new ConceptSourceLinkStore(storage);
+		let removed = false;
+		const vault = new MemoryVaultStateAdapter(new Set(), async (path) => {
+			if (path !== candidate.sourcePath || removed) return;
+			removed = true;
+			await linkStore.clearLinks();
+		});
+		const result = await createReconciler(storage, vault, [{
+			conceptId: "concept-existing",
+			path: "Mneme/Concepts/Existing/Concept.md",
+			title: "Existing",
+		}]).reconcile();
+		const data = await storage.loadData() as ReturnType<typeof createPluginData>;
+
+		assert.deepEqual(result.removedConceptSourceLinkIds, []);
+		assert.deepEqual(result.staleConceptSourceLinkIds, []);
+		assert.equal(data.conceptSourceLinks[candidate.id], undefined);
+	}
+
+	{
 		const proposal = createProposal("proposal-a", {
 			sourcePath: "Notes/Missing.md",
 		});
