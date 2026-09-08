@@ -4,8 +4,13 @@ Updated: 2026-09-08
 
 ## 2026-09-05 至 09-08 代码审查后续
 
+- 第七轮从安全检查点 `d9b7874` 继续，代码/ADR 提交为 `daa70e1`：删除已改为持久化记录 → 非 Markdown 临时路径核对 → 本地 Vault 回收站 → 单次状态完成。新增 **Resume Concept Deletion** 命令，可在原 Concept 文件已消失时恢复；启动只提示，不自动执行。详见 [ADR 0026](adr/0026-concept-deletion-resumes-from-durable-staging.md)。
+- 第七轮验证：`npm run test:all`、`npm run build`、`npm run check:release -- 1.0.0`、`git diff --check` 全部通过。全量日志：`/private/tmp/mneme-concept-deletion-recovery-all.log`。尚未运行真实 Obsidian 中断/重启和跨平台回收站验收。
+- 第七轮数据变化：schema version 1 的可选 `conceptDeletions` 字段，仅存路径、ID、哈希和阶段，不复制 Markdown；完成记录移除 Card IDs。完成时同时保存 tombstone、清理来源链接和 Source 索引。现存 Proposal、草稿和匿名复习历史保留。
+- 继续时重点关注真实 Obsidian 的中断/重启/本地回收站验收，以及删除后残留提案的显式整理策略。外部改动冲突、旧的无记录部分删除不会自动修复；不要直接删除 journal 或把手动恢复文件当作撤销 tombstone。
+
 - 已先构建并提交审查前备份：`83deb3f`，其父提交 `9cd98ad` 是原产品代码。
-- 当前审查/重构分支：`refactor/index-reconciliation-safety`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，文档检查点为 `d125577`；第六轮代码提交为 `f66bd16`（索引同步）和 `3a9f321`（删除校验），之后另有本交接/审查文档提交。
+- 当前审查/重构分支：`refactor/concept-deletion-recovery`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，文档检查点为 `d125577`；第六轮代码提交为 `f66bd16`（索引同步）和 `3a9f321`（删除校验），之后另有本交接/审查文档提交。
 - 第一轮修复合并/Related 的并发覆盖、Card 并发追加丢失、Review 重复动作跳卡，并提取共用 Markdown 事务与 Review 动作保护。
 - 第二轮让所有当前 `data.json` 写入共用完整读/检查/改/存队列，覆盖 Review、Settings、Proposal、草稿、来源索引及 Merge 回滚；来源重连/移除也已接入原子 Markdown 事务；诊断开关现在只重绘，不重置复习进度。数据格式与版本不变。队列的共享 storage owner 和禁止嵌套获取规则见 [ADR 0022](adr/0022-plugin-state-mutations-share-one-queue.md)。
 - 第二轮 `npm run test:all`、`npm run build`、`npm run check:release -- 1.0.0`、`git diff --check` 均已通过。新增确定性交错测试覆盖共享状态、真实 `saveSettings()` 方法、Merge 回滚、来源写入/回滚冲突。详细证据见 [CODE_REVIEW_2026-09-05.md](CODE_REVIEW_2026-09-05.md)。
@@ -20,7 +25,7 @@ Updated: 2026-09-08
 - 第六轮修复索引同步的整表旧快照覆盖：Source records 和 Concept Source links 改为逐条条件更新，在共享队列中核对当前记录；并发新增、更新、重连或明确移除的内容会保留。pending proposal IDs 按提交时的实际提案表清理，结果只报告真正应用的删除/stale 变更。无其他调用者的整表替换接口已移除，数据格式不变。规则补充在 [ADR 0022](adr/0022-plugin-state-mutations-share-one-queue.md)。
 - 第六轮也修复 Concept 删除中的 Related Markdown 并发覆盖/回滚覆盖，并要求 Cards 文件有可识别类型与匹配的 Concept owner；缺失身份的普通笔记不会进入删除计划。删除前再次检查目标快照，恢复路径被占用时保留现有内容并报告回滚失败。这些修复不等于完整的持久化删除事务。
 - 第六轮 `npm run test:all`、`npm run build`、`npm run check:release -- 1.0.0`、`git diff --check` 已通过；全量日志在 `/private/tmp/mneme-index-deletion-safety-all.log`。新增索引测试使用真实 stores 在文件检查期间交错写入。旧删除实现的临时构建在并发编辑用例中返回 deleted 而非 conflict，修复后测试通过；还覆盖所有者校验、正常/冲突回滚、并发重复执行、删除前新增内容和恢复路径占用。Concept Library/Vault-state runner 已显式等待导出的测试 Promise。
-- 下一轮优先处理已确认的 Concept 删除完成风险：文件删除后才调用独立排队的 `ReviewStateStore.deleteConcept()`，没有持久化删除 receipt；进程中断或状态已落盘后抛错再恢复文件，可能导致 Markdown 与 FSRS/tombstone 不一致。`read()` 后调用 `Vault.delete()` 也不是原子 compare-and-delete。需要单独设计删除恢复协议并补故障矩阵；不要把本轮 Related 原子写入当成解决了这些问题。针对已删除 Concept 的活动提案/合并草稿处理还需明确保留策略，不能为清理索引而静默丢弃正文。
+- 第六轮遗留的持久化删除风险已在第七轮修复，见顶部说明；历史上无记录的部分删除仍需人工核查。针对已删除 Concept 的活动提案/合并草稿，当前保留正文并阻止继续写入该 Concept，后续可审查显式整理入口。
 - 上述已完成修复不代表全库审查或真实 Obsidian 验收结束。历史上已发生且没有 receipt 的部分写入不能自动认领；目标被改动/移动、恢复元数据损坏等情况仍需人工协调。恢复协议不覆盖外部进程写入、所有锁外整条记录替换、显式开发者数据清除或降级到忽略新字段的旧版本。报告里的真实 Vault/平台验收仍待完成。
 - 以下录像/验收摘要描述审查前的 `9cd98ad`，旧 ZIP 与录像未被替换，也不代表本轮修改已完成真实 Vault 或跨平台验收。
 
@@ -293,7 +298,7 @@ Lightweight organization may be reconsidered only if Tags, search, Related Conce
 - docs/ROADMAP.md
 - docs/V1_RELEASE_CHECKLIST.md
 
-注意：当前版本 1.0.0，审查重构分支为 `refactor/review-transaction-safety`，审查前备份提交为 `83deb3f`；最新提交请以 git log 为准。请先读 docs/CODE_REVIEW_2026-09-05.md 的已修复与未修复事项。另有长期存在的未跟踪 `mneme` 自链接和 `release-artifacts/`。先只读检查 git status，保留所有现有修改、验收 Vault 与录像。
+注意：当前版本 1.0.0，审查重构分支为 `refactor/concept-deletion-recovery`，审查前备份提交为 `83deb3f`；最新提交请以 git log 为准。请先读 docs/CODE_REVIEW_2026-09-05.md 的已修复与未修复事项。另有长期存在的未跟踪 `mneme` 自链接和 `release-artifacts/`。先只读检查 git status，保留所有现有修改、验收 Vault 与录像。
 
 v1.0 功能已经完成。产品定位已调整为面向自我导向终生学习者的个人知识记忆插件，核心闭环是 Source Note → Concept → Card → Review → Concept Library。
 

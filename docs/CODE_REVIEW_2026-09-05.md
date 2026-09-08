@@ -149,11 +149,21 @@ Evidence: the old implementation returned `ready` for an ordinary note pointed t
 
 These changes protect the reviewed Related writes and owner checks. They do **not** make file removal and plugin-state completion a durable deletion transaction.
 
+### P1 — Concept deletion could diverge from persisted Card state after interruption
+
+Seventh-pass code/ADR commit: `daa70e1` on `refactor/concept-deletion-recovery`, starting from checkpoint `d9b7874`.
+
+Seventh pass adds a dedicated coordinator under the shared plugin-data queue. It saves a strict hash/path receipt, removes Related links with an atomic transform, stages each owned file under a non-Markdown suffix, verifies its bytes, and moves it to local Vault trash. Card tombstones, active-control cleanup, Source provenance cleanup, and the compact completion receipt are saved together. The old in-memory execute/rollback path and permanent `Vault.delete` adapter method have been removed.
+
+`Resume Concept Deletion` explicitly finishes pending work, including when the original Concept is already absent. Startup reports pending work without deleting files. Ratings reject pending Card IDs; Inbox/Composer writes and merge preparation reject pending/deleted Concept targets. Concept allocation reserves deleted IDs and pending paths. Proposal and draft prose remains available. See [ADR 0026](adr/0026-concept-deletion-resumes-from-durable-staging.md).
+
+The recovery matrix injects failures both before and after each of six state saves, and before/after Related processing and both file rename/trash operations. Storage doubles clone persisted data so failed saves cannot appear successful through shared object references. Assertions cover resumed completion, exactly-once trash effects, tombstone counts, preserved history/settings/proposals/drafts, and selective provenance cleanup. Additional cases cover staged edits, recreated paths, write-time Related edits, malformed/path-traversal records before Vault I/O, duplicate calls and queued reviews/settings. Writer regressions cover payload-only Concept references and deleted ID allocation.
+
 ## Remaining boundaries
 
 The confirmed findings above have implementation fixes. This is still a focused audit, not proof that every workflow is correct. Historical partial writes without recovery metadata, corrupted external state, conflicting target edits, and external writers remain outside automatic recovery. Real Obsidian restart, UI rendering, and platform acceptance remain outstanding.
 
-The next confirmed risk is Concept deletion completion: `ConceptDeletionService` removes files before invoking the independently queued `ReviewStateStore.deleteConcept()`. There is no durable deletion receipt. A process interruption after removal, or a state save that persists and then throws followed by file compensation, can leave Markdown and active state/tombstones inconsistent. The last read before `Vault.delete()` is also not an atomic compare-and-delete operation. These require a dedicated deletion recovery design and fault matrix. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; do not silently discard their content as part of this fix.
+New Concept deletions now have durable recovery metadata. Historical partial deletions without receipts still require manual inspection. External edits/moves or changed Related files deliberately stop recovery; there is no automatic conflict resolution or undo. Obsidian rename does not guarantee an atomic compare-and-rename, and local-trash semantics still need real-platform acceptance. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; their prose is preserved rather than silently discarded.
 
 ## Validation
 
@@ -176,6 +186,8 @@ Fifth-pass final validation (2026-09-07): `npm run test:all`, `npm run build`, `
 
 Sixth-pass final validation (2026-09-07): `npm run test:all`, `npm run build`, `npm run check:release -- 1.0.0`, and `git diff --check` passed. Concept Library and Vault-state runners now explicitly await exported suite promises. Full output: `/private/tmp/mneme-index-deletion-safety-all.log`.
 
+Seventh-pass final validation (2026-09-08): `npm run test:all`, `npm run build`, `npm run check:release -- 1.0.0`, and `git diff --check` passed. Full output: `/private/tmp/mneme-concept-deletion-recovery-all.log`. These are deterministic in-memory tests, not real Obsidian crash/restart or local-trash acceptance.
+
 Focused manual checks still to run in a disposable Vault:
 
 1. Reveal a Card and rapidly repeat a rating; only one review should be stored and only one Card advanced. Repeat with Review Tomorrow, Suspend, and Archive; verify the next Card's buttons work.
@@ -193,6 +205,14 @@ Focused manual checks still to run in a disposable Vault:
 12. Close Concept Composer during creation/name checking or alias generation. Reopen and verify saved content and control availability. Complete a manual name-conflict Merge, then trigger an old autosave/callback: it must not restore or overwrite the new draft.
 
 13. While resync checks a disposable Vault, complete a capture or Source relink and verify the new record/provenance remains. A later resync can process candidates skipped because they changed.
-14. Point a disposable Concept at an ordinary Markdown file as its Cards path: Delete must stop and preserve both files. Edit a related Concept during deletion or its rollback: the new text must survive with a conflict/failure message. These checks do not cover the still-pending durable deletion protocol.
+14. Point a disposable Concept at an ordinary Markdown file as its Cards path: Delete must stop and preserve both files. Edit a related Concept during deletion or its rollback: the new text must survive with a conflict/failure message. The durable protocol is covered by in-memory fault tests and still requires live acceptance.
 
 These checks do not replace the handoff's outstanding real-provider, restart, Windows, and mobile publication evidence. The old `9cd98ad` ZIP and recordings remain evidence for their original source revision only.
+
+
+Seventh-pass manual checks in a disposable Vault:
+
+1. Delete a Concept with Cards and Related links. Confirm the Concept/Card files appear in local `.trash` under staging-suffixed names, Related links disappear, and review state no longer offers those Cards.
+2. Interrupt deletion after staging or trashing a file. Reload Mneme: expect a pending notice and no automatic file removal. Run **Resume Concept Deletion** and confirm complete cleanup without duplicate trash effects.
+3. Edit a staged file or recreate its original path before resuming. Expect a conflict and preserved content. Inspect local trash and the saved receipt before manual recovery; restoring files does not undo tombstones.
+4. With a deletion pending, attempt a rating or an Inbox/Composer write for that Concept. Expect a clear error and retained proposal/draft text. Verify unrelated review/settings changes still persist.
