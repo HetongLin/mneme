@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-07 (fifth pass)
+Updated: 2026-09-08 (sixth pass)
 
 ## Scope and checkpoint
 
@@ -16,6 +16,8 @@ The fourth pass on `refactor/manual-card-write-recovery` starts from committed c
 
 The fifth pass on `refactor/manual-concept-write-recovery` starts from committed checkpoint `59ddfd2`. It covers direct Concept creation, Source provenance completion, persistent draft identity, and Concept Composer/Merge lifecycle boundaries.
 
+The sixth pass on `refactor/index-reconciliation-safety` starts from committed checkpoint `d125577`. It addresses index scan/save races and the reviewed Markdown/owner checks used during Concept deletion.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication, version change, or live Vault update was performed.
 
 ## Local implementation commits
@@ -28,6 +30,8 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `5617b23` — Card Composer input/close lifecycle and truthful completion warnings.
 - `f2dbec4` — durable Manual Card recovery, protected draft identities, and Composer recovery controls.
 - `ecd462c` — durable Manual Concept recovery, atomic provenance/draft completion, and Composer/Merge lifecycle protection.
+- `f66bd16` — reconcile Source indexes with conditional per-record changes.
+- `3a9f321` — protect deletion Related writes/rollback and require Card ownership.
 
 ## Confirmed and fixed
 
@@ -129,9 +133,27 @@ Concept creation now locks all editing, invalidates alias requests, and waits on
 
 Composer regressions use actual lifecycle/control methods with a rendering substitute. They do not exercise live Obsidian rendering or process crashes.
 
+### P1 — Index reconciliation could overwrite newly saved Source provenance
+
+Resync loaded Source records and links, awaited filesystem checks, then replaced each entire map. A concurrent capture, Concept completion, relink, or explicit removal could be overwritten even though the final store save used the shared mutation queue. Pending-proposal cleanup also used an earlier proposal-ID snapshot.
+
+Reconciliation now submits per-record observations and changes. Source and link stores compare each expected record inside the shared queue and preserve concurrent additions, updates, moves, and removals. Source pending IDs are checked against current proposals at commit time. Result IDs describe only applied changes. The old replacement APIs had no other callers and were removed. See the index-reconciliation addendum in [ADR 0022](adr/0022-plugin-state-mutations-share-one-queue.md).
+
+Evidence: the original implementation failed the added integration test by removing `Missing-Updated.md` after another real store updated it during the filesystem check. `tests/vaultStateReconciler.test.ts` now covers added/updated Source records and fingerprints, updated deletion candidates, explicit removals, a proposal created after the proposal scan, new links, relinked candidates, and removed links that must not be resurrected. Existing no-race cleanup and approved stale-provenance behavior remain covered.
+
+### P1 — Concept deletion could overwrite Related Markdown or delete an unowned file
+
+Deletion previously checked Related snapshots and later used unconditional `modify()`. Rollback repeated that read/write gap. Each forward and compensating Related write now uses the existing atomic Markdown transaction helper. Cards targets must have a recognized Card Group type (including the supported legacy type) and the expected Concept owner. Missing ownership or a wrong type blocks preparation. Concept and Cards snapshots are checked again immediately before removal; rollback reports occupied paths while preserving their contents.
+
+Evidence: the old implementation returned `ready` for an ordinary note pointed to by `cardsPath`, and returned `deleted` after an injected edit immediately before the Related write. The current deletion suite verifies blocking of unowned/wrong-owner targets, preserved write-time and rollback-time edits, restoration after ordinary deletion/callback failure, duplicate execution with Related writes, Cards edited during Related cleanup, and occupied rollback paths. The original service was rebuilt in a temporary bundle for the failing race check; repository history was not changed.
+
+These changes protect the reviewed Related writes and owner checks. They do **not** make file removal and plugin-state completion a durable deletion transaction.
+
 ## Remaining boundaries
 
 The confirmed findings above have implementation fixes. This is still a focused audit, not proof that every workflow is correct. Historical partial writes without recovery metadata, corrupted external state, conflicting target edits, and external writers remain outside automatic recovery. Real Obsidian restart, UI rendering, and platform acceptance remain outstanding.
+
+The next confirmed risk is Concept deletion completion: `ConceptDeletionService` removes files before invoking the independently queued `ReviewStateStore.deleteConcept()`. There is no durable deletion receipt. A process interruption after removal, or a state save that persists and then throws followed by file compensation, can leave Markdown and active state/tombstones inconsistent. The last read before `Vault.delete()` is also not an atomic compare-and-delete operation. These require a dedicated deletion recovery design and fault matrix. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; do not silently discard their content as part of this fix.
 
 ## Validation
 
@@ -152,6 +174,8 @@ Fourth-pass final validation (2026-09-07): `npm run test:all`, `npm run build`, 
 
 Fifth-pass final validation (2026-09-07): `npm run test:all`, `npm run build`, `npm run check:release -- 1.0.0`, and `git diff --check` all passed. The Markdown runner includes the manual Concept recovery matrix and Concept Composer lifecycle tests, and awaits their exported promises. Full output: `/private/tmp/mneme-manual-concept-recovery-all.log`.
 
+Sixth-pass final validation (2026-09-07): `npm run test:all`, `npm run build`, `npm run check:release -- 1.0.0`, and `git diff --check` passed. Concept Library and Vault-state runners now explicitly await exported suite promises. Full output: `/private/tmp/mneme-index-deletion-safety-all.log`.
+
 Focused manual checks still to run in a disposable Vault:
 
 1. Reveal a Card and rapidly repeat a rating; only one review should be stored and only one Card advanced. Repeat with Review Tomorrow, Suspend, and Archive; verify the next Card's buttons work.
@@ -167,5 +191,8 @@ Focused manual checks still to run in a disposable Vault:
 
 11. Create a Manual Concept with a Source Note and English Alias. Inject a completion-state failure, reload, and Resume Creation: verify one Concept ID/path, complete Source provenance, and a blank next draft retaining Source selection. Repeat with the Source moved or alias/folder settings changed after intent persistence. Edit the Concept before retry and verify recovery stops without removing the edits.
 12. Close Concept Composer during creation/name checking or alias generation. Reopen and verify saved content and control availability. Complete a manual name-conflict Merge, then trigger an old autosave/callback: it must not restore or overwrite the new draft.
+
+13. While resync checks a disposable Vault, complete a capture or Source relink and verify the new record/provenance remains. A later resync can process candidates skipped because they changed.
+14. Point a disposable Concept at an ordinary Markdown file as its Cards path: Delete must stop and preserve both files. Edit a related Concept during deletion or its rollback: the new text must survive with a conflict/failure message. These checks do not cover the still-pending durable deletion protocol.
 
 These checks do not replace the handoff's outstanding real-provider, restart, Windows, and mobile publication evidence. The old `9cd98ad` ZIP and recordings remain evidence for their original source revision only.
