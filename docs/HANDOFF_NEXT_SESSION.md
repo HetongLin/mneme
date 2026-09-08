@@ -4,13 +4,18 @@ Updated: 2026-09-08
 
 ## 2026-09-05 至 09-08 代码审查后续
 
+- 第八轮从检查点 `347caa7` 继续，代码/ADR 提交为 `fc87e06`，分支为 `fix/card-deletion-recovery`：修复单张 Card 删除的整文件并发覆盖、状态保存后报错回滚，以及刷新失败恢复已删除 Card 的问题。删除改为持久化 intent → `Vault.process` 核对移除 → 单次保存 tombstone/清理控制/移除 intent。新增 **Resume Card Deletion**；启动只提示。详见 [ADR 0027](adr/0027-card-deletion-persists-intent-before-markdown.md)。
+- 第八轮验证：全量测试、构建、`check:release -- 1.0.0` 和 diff 检查全部通过；日志 `/private/tmp/mneme-card-deletion-recovery-all.log`。新增持久化故障矩阵、并发删除、评分交错、旧控制状态、Modal 双击/刷新失败及写入冲突测试。
+- 第八轮新增可选 schema-version-1 `cardDeletion`，仅含 ID、路径、前后哈希和时间。完成后移除记录；保留提案、草稿、历史事件及其他 Card。删除中和删除后的旧评分/暂停/归档/延后动作会被阻止；同一路径的创建与合并须先完成删除恢复。
+- 下一步可审查 Card/Concept ID 修复 modal 的 Markdown 写入、状态迁移及失败回滚；本轮没有修改这套 UI 流程。真实 Obsidian 中断/重启及跨平台验收仍未完成。
+
 - 第七轮从安全检查点 `d9b7874` 继续，代码/ADR 提交为 `daa70e1`：删除已改为持久化记录 → 非 Markdown 临时路径核对 → 本地 Vault 回收站 → 单次状态完成。新增 **Resume Concept Deletion** 命令，可在原 Concept 文件已消失时恢复；启动只提示，不自动执行。详见 [ADR 0026](adr/0026-concept-deletion-resumes-from-durable-staging.md)。
 - 第七轮验证：`npm run test:all`、`npm run build`、`npm run check:release -- 1.0.0`、`git diff --check` 全部通过。全量日志：`/private/tmp/mneme-concept-deletion-recovery-all.log`。尚未运行真实 Obsidian 中断/重启和跨平台回收站验收。
 - 第七轮数据变化：schema version 1 的可选 `conceptDeletions` 字段，仅存路径、ID、哈希和阶段，不复制 Markdown；完成记录移除 Card IDs。完成时同时保存 tombstone、清理来源链接和 Source 索引。现存 Proposal、草稿和匿名复习历史保留。
 - 继续时重点关注真实 Obsidian 的中断/重启/本地回收站验收，以及删除后残留提案的显式整理策略。外部改动冲突、旧的无记录部分删除不会自动修复；不要直接删除 journal 或把手动恢复文件当作撤销 tombstone。
 
 - 已先构建并提交审查前备份：`83deb3f`，其父提交 `9cd98ad` 是原产品代码。
-- 当前审查/重构分支：`refactor/concept-deletion-recovery`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，文档检查点为 `d125577`；第六轮代码提交为 `f66bd16`（索引同步）和 `3a9f321`（删除校验），之后另有本交接/审查文档提交。
+- 当前审查/重构分支：`fix/card-deletion-recovery`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，文档检查点为 `d125577`；第六轮代码提交为 `f66bd16`（索引同步）和 `3a9f321`（删除校验），之后另有本交接/审查文档提交。
 - 第一轮修复合并/Related 的并发覆盖、Card 并发追加丢失、Review 重复动作跳卡，并提取共用 Markdown 事务与 Review 动作保护。
 - 第二轮让所有当前 `data.json` 写入共用完整读/检查/改/存队列，覆盖 Review、Settings、Proposal、草稿、来源索引及 Merge 回滚；来源重连/移除也已接入原子 Markdown 事务；诊断开关现在只重绘，不重置复习进度。数据格式与版本不变。队列的共享 storage owner 和禁止嵌套获取规则见 [ADR 0022](adr/0022-plugin-state-mutations-share-one-queue.md)。
 - 第二轮 `npm run test:all`、`npm run build`、`npm run check:release -- 1.0.0`、`git diff --check` 均已通过。新增确定性交错测试覆盖共享状态、真实 `saveSettings()` 方法、Merge 回滚、来源写入/回滚冲突。详细证据见 [CODE_REVIEW_2026-09-05.md](CODE_REVIEW_2026-09-05.md)。
@@ -298,7 +303,7 @@ Lightweight organization may be reconsidered only if Tags, search, Related Conce
 - docs/ROADMAP.md
 - docs/V1_RELEASE_CHECKLIST.md
 
-注意：当前版本 1.0.0，审查重构分支为 `refactor/concept-deletion-recovery`，审查前备份提交为 `83deb3f`；最新提交请以 git log 为准。请先读 docs/CODE_REVIEW_2026-09-05.md 的已修复与未修复事项。另有长期存在的未跟踪 `mneme` 自链接和 `release-artifacts/`。先只读检查 git status，保留所有现有修改、验收 Vault 与录像。
+注意：当前版本 1.0.0，审查重构分支为 `fix/card-deletion-recovery`，审查前备份提交为 `83deb3f`；最新提交请以 git log 为准。请先读 docs/CODE_REVIEW_2026-09-05.md 的已修复与未修复事项。另有长期存在的未跟踪 `mneme` 自链接和 `release-artifacts/`。先只读检查 git status，保留所有现有修改、验收 Vault 与录像。
 
 v1.0 功能已经完成。产品定位已调整为面向自我导向终生学习者的个人知识记忆插件，核心闭环是 Source Note → Concept → Card → Review → Concept Library。
 

@@ -159,11 +159,19 @@ Seventh pass adds a dedicated coordinator under the shared plugin-data queue. It
 
 The recovery matrix injects failures both before and after each of six state saves, and before/after Related processing and both file rename/trash operations. Storage doubles clone persisted data so failed saves cannot appear successful through shared object references. Assertions cover resumed completion, exactly-once trash effects, tombstone counts, preserved history/settings/proposals/drafts, and selective provenance cleanup. Additional cases cover staged edits, recreated paths, write-time Related edits, malformed/path-traversal records before Vault I/O, duplicate calls and queued reviews/settings. Writer regressions cover payload-only Concept references and deleted ID allocation.
 
+### P1 — Single-Card deletion could overwrite edits or restore a tombstoned Card
+
+Eighth-pass code/ADR commit: `fc87e06`, starting from checkpoint `347caa7` on `fix/card-deletion-recovery`. The old `CardDeleteModal` used cached read/whole-file modify, then unconditionally restored that snapshot when either state persistence or view refresh failed. Two delete windows or a save that persisted then rejected could therefore restore a Card with an already-saved tombstone. A normal post-delete refresh failure also triggered this compensation.
+
+`RecoverableCardDeletion` now saves a content-free `cardDeletion` intent under the shared queue, compares the loaded whole-file snapshot against a fresh read, performs the transformation with `Vault.process`, and atomically completes tombstone/control cleanup while removing the receipt. **Resume Card Deletion** handles interruption without requiring a visible Card. Modal confirmation delegates persistence; state reload and view refresh happen afterward and cannot roll back content. See [ADR 0027](adr/0027-card-deletion-persists-intent-before-markdown.md).
+
+Tests cover both saves and Markdown processing before/after effects, duplicate concurrent deletes, loaded-snapshot/write-time/resume conflicts, malformed paths before Vault I/O, history/draft/proposal preservation, explicit history erasure, and queued reviews/settings. UI tests cover double confirmation and refresh failure. Pending deletion also blocks overlapping creation/merge/Concept-deletion work; stale review controls and source-ID migration cannot recreate deleted Card state. Completed deletion detection uses own tombstone keys, so a legacy ID matching a JavaScript prototype property is not mistaken for prior deletion.
+
 ## Remaining boundaries
 
 The confirmed findings above have implementation fixes. This is still a focused audit, not proof that every workflow is correct. Historical partial writes without recovery metadata, corrupted external state, conflicting target edits, and external writers remain outside automatic recovery. Real Obsidian restart, UI rendering, and platform acceptance remain outstanding.
 
-New Concept deletions now have durable recovery metadata. Historical partial deletions without receipts still require manual inspection. External edits/moves or changed Related files deliberately stop recovery; there is no automatic conflict resolution or undo. Obsidian rename does not guarantee an atomic compare-and-rename, and local-trash semantics still need real-platform acceptance. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; their prose is preserved rather than silently discarded.
+New Concept and single-Card deletions now have durable recovery metadata. Historical partial deletions without receipts still require manual inspection. External edits/moves or changed Related files deliberately stop recovery; there is no automatic conflict resolution or undo. Obsidian rename does not guarantee an atomic compare-and-rename, and local-trash semantics still need real-platform acceptance. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; their prose is preserved rather than silently discarded.
 
 ## Validation
 
@@ -187,6 +195,8 @@ Fifth-pass final validation (2026-09-07): `npm run test:all`, `npm run build`, `
 Sixth-pass final validation (2026-09-07): `npm run test:all`, `npm run build`, `npm run check:release -- 1.0.0`, and `git diff --check` passed. Concept Library and Vault-state runners now explicitly await exported suite promises. Full output: `/private/tmp/mneme-index-deletion-safety-all.log`.
 
 Seventh-pass final validation (2026-09-08): `npm run test:all`, `npm run build`, `npm run check:release -- 1.0.0`, and `git diff --check` passed. Full output: `/private/tmp/mneme-concept-deletion-recovery-all.log`. These are deterministic in-memory tests, not real Obsidian crash/restart or local-trash acceptance.
+
+Eighth-pass final validation (2026-09-08): `npm run test:all`, `npm run build`, `npm run check:release -- 1.0.0`, and `git diff --check` passed. Full output: `/private/tmp/mneme-card-deletion-recovery-all.log`. The Card-editor runner now waits for each exported async suite and includes a lightweight Modal harness. It does not run live Obsidian startup or filesystem crash/restart tests.
 
 Focused manual checks still to run in a disposable Vault:
 
@@ -216,3 +226,13 @@ Seventh-pass manual checks in a disposable Vault:
 2. Interrupt deletion after staging or trashing a file. Reload Mneme: expect a pending notice and no automatic file removal. Run **Resume Concept Deletion** and confirm complete cleanup without duplicate trash effects.
 3. Edit a staged file or recreate its original path before resuming. Expect a conflict and preserved content. Inspect local trash and the saved receipt before manual recovery; restoring files does not undo tombstones.
 4. With a deletion pending, attempt a rating or an Inbox/Composer write for that Concept. Expect a clear error and retained proposal/draft text. Verify unrelated review/settings changes still persist.
+
+
+Eighth-pass manual checks in a disposable Vault:
+
+1. Open Delete Card from two views for the same Card. Confirm both: the block should be removed once, with one tombstone and retained review events.
+2. Change Rubric, owner metadata or surrounding Markdown after opening Delete Card. Confirmation must preserve that change and request a refresh.
+3. Inject a failure after Markdown processing but before completion state saves. Reload Mneme and run **Resume Card Deletion**: the same Card remains absent and its state completes without another Markdown removal.
+4. Fail the state-cache or view refresh after successful deletion. The UI should report a refresh problem without restoring the Card. Check another Card's review controls still work.
+
+Potential follow-up audit: Card/Concept ID repair modals still combine Markdown writes and state migration callbacks. Their broader rollback/lifecycle behavior was not changed or validated in this pass. Real Obsidian restart/provider/platform gates remain open.
