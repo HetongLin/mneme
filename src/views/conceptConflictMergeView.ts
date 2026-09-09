@@ -122,15 +122,13 @@ export class MnemeConceptConflictMergeView extends ItemView {
 		this.returnHandled = false;
 		this.plan = undefined;
 		const stored = await this.actions.draftStore.getDraft(session.key);
-		if (
-			stored
-			&& stored.existingConceptId === session.existing.conceptId
-			&& stored.incomingFingerprint === session.incomingFingerprint
-		) {
+		if (stored) {
 			this.draft = cloneDraft(stored.draft);
-			this.statusMessage = "Saved Merge draft restored. No vault content has changed.";
+			this.statusMessage = stored.existingConceptId === session.existing.conceptId
+				&& stored.incomingFingerprint === session.incomingFingerprint
+				? "Saved Merge draft restored. No vault content has changed."
+				: "Saved Merge draft came from a different Concept or incoming revision. Its text was kept. Review every field against the current Concepts before confirming.";
 		} else {
-			if (stored) await this.actions.draftStore.clearDraft(session.key);
 			this.draft = createManualConceptMergeDraft(
 				session.existing,
 				session.incoming,

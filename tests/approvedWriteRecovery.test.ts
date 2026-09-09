@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { MnemeVaultAdapter } from "../src/services/approvedProposalWriter";
+import type { ApprovedProposalWriterOptions, MnemeVaultAdapter } from "../src/services/approvedProposalWriter";
 import { ApprovedProposalWriter } from "../src/services/approvedProposalWriter";
 import type { PluginDataStorage } from "../src/services/pluginDataMutation";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
@@ -120,6 +120,17 @@ const concept = {
 	conceptId: "concept-encapsulation",
 	path: "Mneme/Concepts/Encapsulation/Concept.md",
 	title: "Encapsulation",
+	cardsPath: "Mneme/Cards/Encapsulation/Cards.md",
+};
+
+const completedDuplicateConceptRepair = {
+	version: 1 as const,
+	status: "completed" as const,
+	oldConceptId: concept.conceptId,
+	newConceptId: "repaired-concept-id",
+	concept: { path: "Mneme/Concepts/Repaired/Concept.md", beforeHash: "a".repeat(64), afterHash: "b".repeat(64) },
+	migrateState: false,
+	createdAt: "2026-01-02T12:00:00.000Z",
 };
 
 function conceptProposal(id: string, overrides: Record<string, unknown> = {}) {
@@ -163,7 +174,7 @@ function updateProposal(id: string): KnowledgeProposal {
 }
 
 function makeWriter(storage: RecoveryStorage, vault: RecoveryVault, proposalIds: Record<string, unknown>) {
-	const options = {
+	const options: ApprovedProposalWriterOptions = {
 		storage,
 		conceptScanner: { scanConcepts: async () => [concept] },
 		cardIdFactory: (() => { let n = 0; return () => `card-recovery-${++n}`; })(),
@@ -275,7 +286,8 @@ async function run(): Promise<void> {
 		}
 		assert.equal("front" in receipt, false, "receipt stores hashes and identity, never card front content");
 		assert.equal("back" in receipt, false, "receipt stores hashes and identity, never card back content");
-		assert.equal((await writer.writeApprovedProposal(proposal.id)).status, "written");
+		const firstResult = await writer.writeApprovedProposal(proposal.id);
+		assert.equal(firstResult.status, "written", `${proposal.id}: ${firstResult.message}`);
 		assert.equal(vault.createCount, 2);
 	}
 
@@ -488,6 +500,126 @@ async function run(): Promise<void> {
 		assert.deepEqual(result.targetPaths, [reservedPath]);
 		assert.equal(await vault.read(reservedPath), "# Someone else's Concept\n");
 		assert.equal(vault.createCount, 1, "recovery must not allocate a second path or overwrite another user's file");
+	}
+
+	// A completed duplicate repair leaves the old Concept active at the scanned path.
+	// Non-card writes still need an explicit repair decision; a new Card may target B only.
+	for (const proposalFactory of [linkProposal, viewProposal, updateProposal]) for (const sourcePath of [undefined, concept.path]) {
+		const proposal = proposalFactory(`repaired-${proposalFactory.name}`);
+		proposal.sourcePath = sourcePath;
+		const data = createPluginData({ [proposal.id]: proposal });
+		if (proposal.kind === "link_existing_concept") data.sourceAnalysisRecords["Notes/Intro.md"] = createSourceRecord("Notes/Intro.md");
+		data.conceptIdRepairs = { [completedDuplicateConceptRepair.newConceptId]: completedDuplicateConceptRepair };
+		const vault = new RecoveryVault({ [concept.path]: "---\nmneme_type: concept\nmneme_id: concept-encapsulation\n---\n# Encapsulation\n" });
+		const storage = new RecoveryStorage(data);
+		const { writer } = makeWriter(storage, vault, {});
+		const proposalBefore = structuredClone(storage.data.knowledgeProposals[proposal.id]);
+		const filesBefore = [...vault.files.entries()];
+		const result = await writer.writeApprovedProposal(proposal.id);
+		assert.equal(result.status, "failed");
+		assert.match(result.message, /duplicated and repaired/i);
+		assert.equal(vault.createCount + vault.modifyCount + vault.processCount, 0);
+		assert.deepEqual(storage.data.knowledgeProposals[proposal.id], proposalBefore);
+		assert.deepEqual([...vault.files.entries()], filesBefore);
+	}
+
+	for (const sourcePath of [undefined, "Mneme/Concepts/Repaired/Concept.md", "Mneme/Concepts/Other/Concept.md", concept.path]) {
+		const proposal = cardProposal(`repaired-card-${sourcePath ?? "missing"}`);
+		proposal.sourcePath = sourcePath;
+		const data = createPluginData({ [proposal.id]: proposal });
+		data.conceptIdRepairs = { [completedDuplicateConceptRepair.newConceptId]: completedDuplicateConceptRepair };
+		const cardPath = concept.cardsPath!;
+		const vault = new RecoveryVault({ [cardPath]: "---\nmneme_type: card_group\nmneme_concept_id: concept-encapsulation\n---\n# Encapsulation Cards\n" });
+		const storage = new RecoveryStorage(data);
+		const { writer } = makeWriter(storage, vault, {});
+		const proposalBefore = structuredClone(storage.data.knowledgeProposals[proposal.id]);
+		const filesBefore = [...vault.files.entries()];
+		const result = await writer.writeApprovedProposal(proposal.id);
+		if (sourcePath === concept.path) {
+			assert.equal(result.status, "written");
+			assert.match(await vault.read(cardPath), /mneme_concept_id: concept-encapsulation/);
+		} else {
+			assert.equal(result.status, "failed");
+			assert.match(result.message, /duplicated and repaired/i);
+			assert.equal(vault.createCount + vault.modifyCount + vault.processCount, 0);
+			assert.deepEqual(storage.data.knowledgeProposals[proposal.id], proposalBefore);
+			assert.deepEqual([...vault.files.entries()], filesBefore);
+		}
+	}
+
+	{
+		const proposal = cardProposal("repaired-card-stale-scanner");
+		proposal.sourcePath = completedDuplicateConceptRepair.concept.path;
+		const data = createPluginData({ [proposal.id]: proposal });
+		data.conceptIdRepairs = { [completedDuplicateConceptRepair.newConceptId]: completedDuplicateConceptRepair };
+		const storage = new RecoveryStorage(data);
+		const vault = new RecoveryVault();
+		const { writer, options } = makeWriter(storage, vault, {});
+		options.conceptScanner = { scanConcepts: async () => [{ ...concept, path: completedDuplicateConceptRepair.concept.path }] };
+		const proposalBefore = structuredClone(storage.data.knowledgeProposals[proposal.id]);
+		const filesBefore = [...vault.files.entries()];
+		const result = await writer.writeApprovedProposal(proposal.id);
+		assert.equal(result.status, "failed");
+		assert.match(result.message, /duplicated and repaired/i);
+		assert.deepEqual(storage.data.knowledgeProposals[proposal.id], proposalBefore);
+		assert.deepEqual([...vault.files.entries()], filesBefore);
+	}
+
+	{
+		const proposal = cardProposal("repaired-card-no-scanner");
+		proposal.sourcePath = concept.path;
+		const data = createPluginData({ [proposal.id]: proposal });
+		data.conceptIdRepairs = { [completedDuplicateConceptRepair.newConceptId]: completedDuplicateConceptRepair };
+		const storage = new RecoveryStorage(data);
+		const vault = new RecoveryVault();
+		const { writer, options } = makeWriter(storage, vault, {});
+		options.conceptScanner = undefined;
+		const proposalBefore = structuredClone(storage.data.knowledgeProposals[proposal.id]);
+		const filesBefore = [...vault.files.entries()];
+		const result = await writer.writeApprovedProposal(proposal.id);
+		assert.equal(result.status, "failed");
+		assert.match(result.message, /duplicated and repaired/i);
+		assert.deepEqual(storage.data.knowledgeProposals[proposal.id], proposalBefore);
+		assert.deepEqual([...vault.files.entries()], filesBefore);
+	}
+
+	{
+		const proposal = cardProposal("unrelated-repair-card");
+		const unrelatedRepair = { ...completedDuplicateConceptRepair, oldConceptId: "other-concept-id", newConceptId: "other-repaired-id", concept: { ...completedDuplicateConceptRepair.concept, path: "Mneme/Concepts/Other/Concept.md" } };
+		const data = createPluginData({ [proposal.id]: proposal });
+		data.conceptIdRepairs = { [unrelatedRepair.newConceptId]: unrelatedRepair };
+		const storage = new RecoveryStorage(data);
+		const vault = new RecoveryVault({ [concept.cardsPath!]: "---\nmneme_type: card_group\nmneme_concept_id: concept-encapsulation\n---\n# Encapsulation Cards\n" });
+		const { writer } = makeWriter(storage, vault, {});
+		const result = await writer.writeApprovedProposal(proposal.id);
+		assert.equal(result.status, "written", result.message);
+	}
+
+	// A valid receipt can finish after a completion-save failure even if a duplicate repair
+	// is recorded between attempts. The applied Markdown must remain untouched on retry.
+	for (const proposal of [linkProposal("receipt-repair-link"), viewProposal("receipt-repair-view"), updateProposal("receipt-repair-update"), cardProposal("receipt-repair-card")]) {
+		const data = createPluginData({ [proposal.id]: proposal });
+		if (proposal.kind === "link_existing_concept") data.sourceAnalysisRecords["Notes/Intro.md"] = createSourceRecord("Notes/Intro.md");
+		const initialFiles = proposal.kind === "new_card" ? { [concept.cardsPath!]: "---\nmneme_type: card_group\nmneme_concept_id: concept-encapsulation\n---\n# Encapsulation Cards\n" } : { [concept.path]: "---\nmneme_type: concept\nmneme_id: concept-encapsulation\n---\n# Encapsulation\n" };
+		const storage = new RecoveryStorage(data);
+		const vault = new RecoveryVault(initialFiles);
+		storage.failSaveOnceWhen = (candidate) => candidate.knowledgeProposals[proposal.id]?.status === "written";
+		const { writer } = makeWriter(storage, vault, {});
+		const firstResult = await writer.writeApprovedProposal(proposal.id);
+		assert.equal(firstResult.status, "failed", `${proposal.id}: ${firstResult.message}`);
+		const firstFiles = [...vault.files.entries()];
+		assert.equal(storage.data.knowledgeProposals[proposal.id]?.status, "approved");
+		assert.ok(storage.data.knowledgeProposals[proposal.id]?.writeReceipt);
+		const retryStorage = new RecoveryStorage(storage.data);
+		retryStorage.data.conceptIdRepairs = { [completedDuplicateConceptRepair.newConceptId]: completedDuplicateConceptRepair };
+		const retryVault = new RecoveryVault(Object.fromEntries(firstFiles));
+		const retry = makeWriter(retryStorage, retryVault, {}).writer;
+		const retryResult = await retry.writeApprovedProposal(proposal.id);
+		assert.equal(retryResult.status, "written", `${proposal.id}: ${retryResult.message}`);
+		assert.deepEqual([...retryVault.files.entries()], firstFiles);
+		assert.equal(retryVault.createCount + retryVault.processCount + retryVault.modifyCount, 0);
+		assert.equal(retryStorage.data.knowledgeProposals[proposal.id]?.status, "written");
+		assert.ok(retryStorage.data.knowledgeProposals[proposal.id]?.writeReceipt);
 	}
 }
 

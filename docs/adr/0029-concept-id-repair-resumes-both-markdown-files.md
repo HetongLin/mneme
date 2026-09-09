@@ -86,3 +86,31 @@ remains future work. No additional persisted fields or schema version changes.
 
 Real Obsidian YAML/UI/restart and platform acceptance remain outstanding;
 deterministic fault tests use in-memory Vaults and cloned storage.
+
+### Proposal targets and Merge drafts addendum — 2026-09-10
+
+After duplicate-ID repair, the old ID can uniquely identify a different Concept
+from the one that supplied an earlier proposal. Uniqueness after repair is not
+proof of the proposal's intended target. Before starting a write without an
+approved-write receipt, reject Concept updates, added Views, and Source links
+whose target is a completed duplicate repair's old Concept ID. Keep the proposal
+and its text intact. Source paths on these proposal kinds refer to evidence notes
+and cannot establish the destination Concept.
+
+Generated Card proposals already record the generating Concept as `sourcePath`.
+For a repaired duplicate ID, require that path to match the unique scanned Concept
+and differ from every repaired file associated with that old ID. An unavailable
+scanner, missing path, or mismatch blocks the write. Do not retarget to the new
+ID. Existing approved-write receipts retain their fixed path/hash recovery checks;
+pending repair and migrated orphan-ID guards remain in force. Ordinary proposals
+whose IDs have no duplicate-repair record retain existing behavior.
+
+Restore saved conflict-Merge text even when its recorded Concept ID or incoming
+fingerprint differs from the reopened session. Display a review warning instead
+of clearing the draft and replacing learner edits with generated defaults. The
+current session determines the selected Concepts; existing preview/confirmation
+and identity/content checks still govern any Markdown write.
+
+This adds no persisted fields. Explicit target rebinding for ambiguous legacy
+proposals remains future work. Regenerating Cards from their intended Concept is
+supported; merely reopening an ambiguous legacy proposal does not resolve it.

@@ -1,6 +1,6 @@
 import { assertCardDeletionAllowsPath, readCardDeletion } from "./cardDeletionReceipt";
 import { assertCardIdRepairAllowsCard, assertCardIdRepairAllowsPath, getReservedCardRepairIds } from "./cardIdRepairReceipt";
-import { assertConceptIdRepairAllowsConcept, assertConceptIdRepairAllowsPath, getReservedConceptRepairIds } from "./conceptIdRepairReceipt";
+import { assertConceptIdRepairAllowsConcept, assertConceptIdRepairAllowsPath, getReservedConceptRepairIds, readConceptIdRepairs } from "./conceptIdRepairReceipt";
 import { assertConceptNotDeleting, readConceptDeletions } from "./conceptDeletionReceipt";
 import type { ConceptSummary } from "../models/conceptLibrary";
 import type { KnowledgeProposal } from "../models/knowledgeProposal";
@@ -122,6 +122,11 @@ export class ApprovedProposalWriter {
 					: proposal.payload && "conceptId" in proposal.payload ? proposal.payload.conceptId : undefined;
 				if (targetConceptId) assertConceptNotDeleting(data.conceptDeletions, targetConceptId);
 				if (targetConceptId) assertConceptIdRepairAllowsConcept(data.conceptIdRepairs, targetConceptId);
+				// A shared old ID becoming unique does not establish an older proposal's target.
+				// Existing write receipts already bind a path and hashes; leave their recovery checks intact.
+				const requiredConceptPath = receipt ? undefined : this.requireRepairedProposalTarget(
+					proposal, targetConceptId, data.conceptIdRepairs,
+				);
 				if (receipt?.mode === "create" && receipt.entityId) assertConceptNotDeleting(data.conceptDeletions, receipt.entityId);
 				const cardDeletion = readCardDeletion(data.cardDeletion);
 				if (receipt) assertCardDeletionAllowsPath(data.cardDeletion, receipt.targetPath);
@@ -166,7 +171,7 @@ export class ApprovedProposalWriter {
 							if (deletion.status === "pending") for (const file of deletion.files) reservedPaths.add(file.path);
 						}
 					}
-					const plan = await this.prepareWrite(proposal, receipt, reservedIds, reservedPaths);
+					const plan = await this.prepareWrite(proposal, receipt, reservedIds, reservedPaths, requiredConceptPath);
 					assertCardDeletionAllowsPath(data.cardDeletion, plan.draft.targetPath);
 					assertCardIdRepairAllowsPath(data.cardIdRepairs, plan.draft.targetPath);
 					assertConceptIdRepairAllowsPath(data.conceptIdRepairs, plan.draft.targetPath);
@@ -240,7 +245,22 @@ export class ApprovedProposalWriter {
 		throw new Error(`${receipt.targetPath} changed after the write started. Existing content was preserved; resolve the conflict before retrying completion.`);
 	}
 
-	private async prepareWrite(proposal: KnowledgeProposal, receipt: ApprovedWriteReceipt | undefined, reservedIds: ReadonlySet<string>, reservedPaths: ReadonlySet<string>): Promise<PreparedApprovedWrite> {
+	private requireRepairedProposalTarget(proposal: KnowledgeProposal, conceptId: string | undefined, repairs: unknown): string | undefined {
+		if (!conceptId) return undefined;
+		const duplicateRepairs = Object.values(readConceptIdRepairs(repairs))
+			.filter((repair) => repair.status === "completed" && repair.oldConceptId === conceptId);
+		if (duplicateRepairs.length === 0) return undefined;
+		// For generated Cards, sourcePath is the Concept that supplied the learning content.
+		// Other proposal kinds use Source Notes here, so their paths cannot prove target identity.
+		const sourcePath = proposal.kind === "new_card" && proposal.sourcePath
+			? normalizeVaultPath(proposal.sourcePath) : undefined;
+		if (!sourcePath || duplicateRepairs.some((repair) => normalizeVaultPath(repair.concept.path) === sourcePath)) {
+			throw new Error("The target Concept ID was duplicated and repaired. This proposal's target is ambiguous. Its text was preserved; recreate it from the intended Concept.");
+		}
+		return sourcePath;
+	}
+
+	private async prepareWrite(proposal: KnowledgeProposal, receipt: ApprovedWriteReceipt | undefined, reservedIds: ReadonlySet<string>, reservedPaths: ReadonlySet<string>, requiredConceptPath?: string): Promise<PreparedApprovedWrite> {
 		if (proposal.kind !== "new_concept" && proposal.kind !== "new_card") return this.prepareConceptChange(proposal, receipt);
 		const renderResult = renderMarkdownProposal(proposal, this.options.settingsProvider(), {
 			createCardId: receipt?.entityId ? () => receipt.entityId! : this.options.cardIdFactory,
@@ -248,7 +268,7 @@ export class ApprovedProposalWriter {
 		});
 		if (renderResult.status !== "rendered") throw new Error(renderResult.message);
 		let drafts = proposal.kind === "new_card"
-			? await this.alignCardDraftWithConcept(renderResult.drafts, proposal.payload?.conceptId)
+			? await this.alignCardDraftWithConcept(renderResult.drafts, proposal.payload?.conceptId, requiredConceptPath)
 			: renderResult.drafts;
 		if (receipt) {
 			drafts = drafts.map((draft) => ({ ...draft, targetPath: receipt.targetPath,
@@ -346,12 +366,17 @@ export class ApprovedProposalWriter {
 	private async alignCardDraftWithConcept(
 		drafts: MarkdownWriteDraft[],
 		conceptId: string | undefined,
+		requiredConceptPath?: string,
 	): Promise<MarkdownWriteDraft[]> {
 		if (!this.options.conceptScanner || !conceptId) {
+			if (requiredConceptPath) throw new Error("The target Concept ID was duplicated and repaired. Concept lookup is required to verify this Card proposal's target.");
 			return drafts;
 		}
 
 		const concept = await this.resolveConceptSummary(conceptId);
+		if (requiredConceptPath && normalizeVaultPath(concept.path) !== requiredConceptPath) {
+			throw new Error("The target Concept ID was duplicated and repaired. This Card proposal belongs to a different Concept path. Its text was preserved; regenerate it from the intended Concept.");
+		}
 		const declaredCardsPath = concept.cardsPath
 			? normalizeVaultPath(concept.cardsPath)
 			: undefined;
