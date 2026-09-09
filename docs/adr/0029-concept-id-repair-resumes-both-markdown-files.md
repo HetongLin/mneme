@@ -63,8 +63,26 @@ do not form a transaction with external plugins, sync or filesystem writers.
 Conflicting files/references, malformed records and historical partial repairs
 without receipts require inspection, not automatic rollback or owner guessing.
 
-Index/provenance reconciliation after explicit identity repair remains a separate
-policy review. Preserving those records does not assert that every old reference
-has already been reconciled. Real Obsidian YAML/UI/restart and platform acceptance
-remain outstanding; deterministic fault tests use in-memory Vaults and cloned
-storage.
+### Index reconciliation addendum — 2026-09-09
+
+Resync must not discard Source evidence simply because a repaired identity is
+absent from the Concept scan. For removal candidates caused by a missing Concept,
+the link store reads current repair receipts inside the shared mutation queue.
+If any pending or completed receipt references the link's Concept ID as an old
+Concept ID, old review owner, or new ID, keep the entire link and report deferred
+cleanup. This includes repairs completed after the scan and duplicate-ID repairs;
+the receipt does not establish which Concept should inherit shared provenance.
+Resync and Inbox display the unresolved ownership message, rather than reporting
+that all indexes match the Vault.
+
+This is deliberately conservative: completed receipts also protect these missing
+identities on later scans, even if a file was subsequently removed externally.
+Normal missing-Source cleanup for a Concept present in the scan is unchanged.
+Explicit removal remains effective; stale scans cannot resurrect removed links.
+Source records for existing files keep their original `linkedConceptIds`. There
+is no automatic link rekeying, alias resolution, or global replacement in creation
+receipts, proposals, drafts, or history. An explicit ownership-resolution workflow
+remains future work. No additional persisted fields or schema version changes.
+
+Real Obsidian YAML/UI/restart and platform acceptance remain outstanding;
+deterministic fault tests use in-memory Vaults and cloned storage.

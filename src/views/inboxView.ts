@@ -96,16 +96,14 @@ export class MnemeInboxView extends ItemView {
 				: undefined;
 			this.proposals = await this.proposalStore.listProposals();
 			const activeCount = filterActiveInboxProposals(this.getVisibleProposals()).length;
-			const reconciledCount = countReconciledItems(reconciliationResult);
+			const reconciliationMessage = reconciliationResult && (countReconciledItems(reconciliationResult) > 0
+				|| reconciliationResult.deferredConceptSourceLinkIds.length > 0)
+				? ` ${reconciliationResult.message}` : "";
 
-			this.statusMessage = reconciledCount > 0
-				? `${activeCount} items ready for review. Reconciled ${reconciledCount} stale items.`
-				: `${activeCount} items ready for review.`;
+			this.statusMessage = `${activeCount} items ready for review.${reconciliationMessage}`;
 
 			if (options.showNotice) {
-				new Notice(reconciledCount > 0
-					? `Mneme: Inbox refreshed. Reconciled ${reconciledCount} stale items.`
-					: "Mneme: Inbox refreshed.");
+				new Notice(`Mneme: Inbox refreshed.${reconciliationMessage}`);
 			}
 		} catch (error) {
 			console.error("Mneme: failed to load Inbox proposals", error);

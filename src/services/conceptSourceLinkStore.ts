@@ -5,6 +5,12 @@ import type {
 import type { MnemePluginData } from "../models/reviewState";
 import { runPluginDataMutation } from "./pluginDataMutation";
 import { normalizePluginData } from "./reviewStateStore";
+import { readConceptIdRepairs } from "./conceptIdRepairReceipt";
+
+export interface ConceptSourceLinkReconciliationChange {
+	expected: ConceptSourceLink;
+	action: "remove" | "remove_missing_concept" | "mark_stale";
+}
 
 export interface ConceptSourceLinkStorage {
 	loadData(): Promise<unknown>;
@@ -43,17 +49,26 @@ export class ConceptSourceLinkStore {
 
 	/** A stale scan must not undo relinking, explicit removal, or newly saved provenance. */
 	async reconcileLinksIfUnchanged(
-		changes: Array<{ expected: ConceptSourceLink; action: "remove" | "mark_stale" }>,
-	): Promise<{ removedLinks: ConceptSourceLink[]; staleLinkIds: string[] }> {
+		changes: ConceptSourceLinkReconciliationChange[],
+	): Promise<{ removedLinks: ConceptSourceLink[]; staleLinkIds: string[]; deferredLinkIds: string[] }> {
 		return runPluginDataMutation(this.storage, async () => {
 			const data = await this.loadPluginData();
+			// Inspect current receipts inside the queue: repair may have finished after the scan.
+			// A receipt records identity changes, not permission to discard or reassign provenance.
+			const repairConceptIds = new Set(Object.values(readConceptIdRepairs(data.conceptIdRepairs))
+				.flatMap((receipt) => [receipt.oldConceptId, receipt.oldReviewConceptId, receipt.newConceptId]));
 			const links = { ...data.conceptSourceLinks };
 			const removedLinks: ConceptSourceLink[] = [];
 			const staleLinkIds: string[] = [];
+			const deferredLinkIds: string[] = [];
 			for (const { expected, action } of changes) {
 				const current = links[expected.id];
 				if (!current || JSON.stringify(current) !== JSON.stringify(expected)) continue;
-				if (action === "remove") {
+				if (action === "remove_missing_concept" && repairConceptIds.has(current.conceptId)) {
+					deferredLinkIds.push(current.id);
+					continue;
+				}
+				if (action === "remove" || action === "remove_missing_concept") {
 					delete links[current.id];
 					removedLinks.push(current);
 				} else if (current.status === "approved") {
@@ -64,7 +79,7 @@ export class ConceptSourceLinkStore {
 			if (removedLinks.length > 0 || staleLinkIds.length > 0) {
 				await this.storage.saveData({ ...data, conceptSourceLinks: links });
 			}
-			return { removedLinks, staleLinkIds };
+			return { removedLinks, staleLinkIds, deferredLinkIds };
 		});
 	}
 

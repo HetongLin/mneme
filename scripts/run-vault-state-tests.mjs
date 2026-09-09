@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 
 const tests = [
 	"tests/vaultStateReconciler.test.ts",
+	"tests/identityRepairProvenance.test.ts",
 ];
 
 for (const test of tests) {

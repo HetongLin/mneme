@@ -1,8 +1,7 @@
 import type { ConceptSummary } from "../models/conceptLibrary";
 import type { SourceAnalysisRecord } from "../models/sourceAnalysis";
-import type { ConceptSourceLink } from "../models/conceptSource";
 import type { KnowledgeProposal, KnowledgeProposalStatus } from "../models/knowledgeProposal";
-import type { ConceptSourceLinkStore } from "./conceptSourceLinkStore";
+import type { ConceptSourceLinkReconciliationChange, ConceptSourceLinkStore } from "./conceptSourceLinkStore";
 import type { ConceptSummaryScanner } from "./preAiAcceptanceFixtureService";
 import type { SourceAnalysisStore } from "./sourceAnalysisStore";
 import { hasWriteReceipt, type KnowledgeProposalStore } from "./knowledgeProposalStore";
@@ -19,6 +18,7 @@ export interface VaultStateAdapter {
 export interface VaultStateReconciliationResult {
 	message: string;
 	missingConceptIds: string[];
+	deferredConceptSourceLinkIds: string[];
 	removedConceptSourceLinkIds: string[];
 	removedProposalIds: string[];
 	removedSourcePaths: string[];
@@ -45,12 +45,16 @@ export class VaultStateReconciler {
 			+ sourceResult.removedSourcePaths.length
 			+ linkResult.removedConceptSourceLinkIds.length;
 		const reconciledCount = removedCount + linkResult.staleConceptSourceLinkIds.length;
+		const messages: string[] = [];
+		if (reconciledCount > 0) messages.push(`Reconciled ${reconciledCount} stale index items.`);
+		if (linkResult.deferredConceptSourceLinkIds.length > 0) {
+			messages.push(`Kept ${linkResult.deferredConceptSourceLinkIds.length} source links for missing Concepts involved in ID repair. Their ownership still needs review.`);
+		}
 
 		return {
-			message: reconciledCount > 0
-				? `Reconciled ${reconciledCount} stale index items.`
-				: "Mneme indexes already match the current vault state.",
+			message: messages.join(" ") || "Mneme indexes already match the current vault state.",
 			missingConceptIds: linkResult.missingConceptIds,
+			deferredConceptSourceLinkIds: linkResult.deferredConceptSourceLinkIds,
 			removedConceptSourceLinkIds: linkResult.removedConceptSourceLinkIds,
 			removedProposalIds: proposalResult.removedProposalIds,
 			removedSourcePaths: sourceResult.removedSourcePaths,
@@ -101,13 +105,14 @@ export class VaultStateReconciler {
 
 	private async reconcileConceptSourceLinks(): Promise<{
 		missingConceptIds: string[];
+		deferredConceptSourceLinkIds: string[];
 		removedConceptSourceLinkIds: string[];
 		staleConceptSourceLinkIds: string[];
 	}> {
 		const links = await this.options.conceptSourceLinkStore.loadLinks();
 		const concepts = await this.scanConceptsSafely();
 		const knownConceptIds = concepts ? new Set(concepts.map((concept) => concept.conceptId)) : undefined;
-		const changes: Array<{ expected: ConceptSourceLink; action: "remove" | "mark_stale" }> = [];
+		const changes: ConceptSourceLinkReconciliationChange[] = [];
 
 		for (const link of Object.values(links)) {
 			const sourceExists = await this.options.vault.exists(link.sourcePath);
@@ -122,11 +127,12 @@ export class VaultStateReconciler {
 				continue;
 			}
 
-			changes.push({ expected: link, action: "remove" });
+			changes.push({ expected: link, action: conceptExists ? "remove" : "remove_missing_concept" });
 		}
 
 		const result = await this.options.conceptSourceLinkStore.reconcileLinksIfUnchanged(changes);
 		return {
+			deferredConceptSourceLinkIds: result.deferredLinkIds,
 			missingConceptIds: [...new Set(result.removedLinks
 				.filter((link) => knownConceptIds && !knownConceptIds.has(link.conceptId))
 				.map((link) => link.conceptId))],

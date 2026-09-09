@@ -6,6 +6,7 @@ import { SourceAnalysisStore } from "../src/services/sourceAnalysisStore";
 import type { ConceptSummaryScanner } from "../src/services/preAiAcceptanceFixtureService";
 import { VaultStateReconciler, type VaultStateAdapter } from "../src/services/vaultStateReconciler";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
+import type { ConceptIdRepairReceipt } from "../src/services/conceptIdRepairReceipt";
 import {
 	createConceptSourceLink,
 	createPluginData,
@@ -59,6 +60,58 @@ function createReconciler(
 }
 
 async function runAsyncTests(): Promise<void> {
+	// Historical repair IDs are evidence of uncertain ownership, even after completion.
+	for (const status of ["pending", "completed"] as const) {
+		for (const duplicate of [false, true]) {
+			const receipt: ConceptIdRepairReceipt = {
+				version: 1, status, newConceptId: "new-id", oldReviewConceptId: "old-id",
+				...(duplicate ? { oldConceptId: "old-id" } : {}),
+				migrateState: !duplicate, createdAt: "2026-09-09T00:00:00.000Z",
+				concept: { path: "Concepts/A.md", beforeHash: "a".repeat(64), afterHash: "b".repeat(64) },
+				cards: { path: "Cards/A.md", beforeHash: "c".repeat(64), afterHash: "d".repeat(64) },
+			};
+			const oldLink = createConceptSourceLink("old-link", { conceptId: "old-id" });
+			const newLink = createConceptSourceLink("new-link", { conceptId: "new-id" });
+			const unrelated = createConceptSourceLink("unrelated", { conceptId: "unrelated-id" });
+			const data = createPluginData({}, {}, { [oldLink.id]: oldLink, [newLink.id]: newLink, [unrelated.id]: unrelated });
+			data.conceptIdRepairs = { "new-id": receipt };
+			const storage = new MemoryKnowledgeProposalStorage(data);
+			const reconciler = createReconciler(storage, new MemoryVaultStateAdapter(new Set()));
+			const result = await reconciler.reconcile();
+			assert.deepEqual(await new ConceptSourceLinkStore(storage).loadLinks(), { [oldLink.id]: oldLink, [newLink.id]: newLink });
+			assert.deepEqual(result.deferredConceptSourceLinkIds, [oldLink.id, newLink.id]);
+			assert.deepEqual(result.removedConceptSourceLinkIds, [unrelated.id]);
+			assert.deepEqual(result.missingConceptIds, [unrelated.conceptId]);
+			assert.match(result.message, /Reconciled 1 stale index items/);
+			assert.match(result.message, /Kept 2 source links/);
+			const repeated = await reconciler.reconcile();
+			assert.deepEqual(repeated.removedConceptSourceLinkIds, []);
+			assert.deepEqual(repeated.deferredConceptSourceLinkIds, result.deferredConceptSourceLinkIds);
+			assert.doesNotMatch(repeated.message, /already match/);
+
+			// Receipt protection applies to missing Concept observations, not normal Source cleanup.
+			const knownConcepts = ["old-id", "new-id"].map((conceptId) => ({ conceptId, path: `${conceptId}.md`, title: conceptId }));
+			const knownResult = await createReconciler(storage, new MemoryVaultStateAdapter(new Set()), knownConcepts).reconcile();
+			assert.deepEqual(knownResult.deferredConceptSourceLinkIds, []);
+			assert.deepEqual(knownResult.staleConceptSourceLinkIds, [oldLink.id, newLink.id]);
+
+			// Explicit removal while scanning must not resurrect the protected links or report deferral.
+			const store = new ConceptSourceLinkStore(storage);
+			const removedResult = await createReconciler(storage, new MemoryVaultStateAdapter(new Set(), async () => {
+				await store.clearLinks();
+			})).reconcile();
+			assert.deepEqual(await store.loadLinks(), {});
+			assert.deepEqual(removedResult.deferredConceptSourceLinkIds, []);
+		}
+	}
+	{
+		const link = createConceptSourceLink("malformed-repair-link");
+		const storage = new MemoryKnowledgeProposalStorage({
+			...createPluginData({}, {}, { [link.id]: link }), conceptIdRepairs: { "bad-id": { status: "completed" } },
+		});
+		await assert.rejects(createReconciler(storage, new MemoryVaultStateAdapter(new Set())).reconcile(), /repair records are invalid/);
+		assert.deepEqual(await new ConceptSourceLinkStore(storage).loadLinks(), { [link.id]: link });
+	}
 	{
 		const missingSourceProposal = createProposal("missing-source", {
 			sourcePath: "Notes/Missing.md",
