@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-09 (twelfth pass)
+Updated: 2026-09-10 (thirteenth pass)
 
 ## Scope and checkpoint
 
@@ -26,6 +26,8 @@ The eleventh pass on `fix/concept-id-repair-recovery` starts from checkpoint `76
 
 The twelfth pass on `fix/repair-provenance-reconciliation` starts from checkpoint `34e8d72`. It prevents index cleanup from discarding provenance associated with repaired identities and makes deferred cleanup visible.
 
+The thirteenth pass on `fix/proposal-target-after-id-repair` starts from checkpoint `25cf41c`. It prevents ambiguous legacy proposals from writing to the remaining owner of a repaired duplicate ID, and preserves authored conflict-Merge drafts when their context changes.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication, version change, or live Vault update was performed.
 
 ## Local implementation commits
@@ -46,6 +48,7 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `ab38414` — durable single-Card ID repair, atomic state migration and explicit recovery without Markdown rollback.
 - `32f6f3d` — durable two-file Concept ID repair, pause migration, ownership checks and cross-workflow guards.
 - `9a33133` — preserve repaired Concept provenance during index resync and report deferred cleanup.
+- `f8a9c05` — verify proposal targets after duplicate-ID repair and retain authored Merge drafts across context changes.
 
 ## Confirmed and fixed
 
@@ -231,6 +234,31 @@ Resync display the unresolved ownership message. Unrelated cleanup and explicit
 removal retain their existing behavior. No IDs are reassigned automatically.
 See the reconciliation addendum in [ADR 0029](adr/0029-concept-id-repair-resumes-both-markdown-files.md).
 
+### P1 — Duplicate-ID repair could redirect an older Proposal to another Concept
+
+After repairing Concept A from a shared old ID to a new ID, Concept B could be the
+only scan result for that old ID. An older Proposal with only the ID then wrote to
+B without evidence that B was its intended target. The baseline writer returned
+`written` in the new regression that requires rejection. Pending-repair guards
+and the scanner's multiple-match check did not cover completed duplicate repairs.
+
+Before allocating a receipt, the writer now rejects Concept updates, added Views,
+and Source links referring to a completed duplicate repair's old ID. Card proposals
+may proceed only when their recorded generating Concept path matches the unique
+scan result and is not a repaired path. Missing paths/scanners and mismatches stop
+the write while keeping the full proposal. Valid existing write receipts retain
+their path/hash recovery checks; there is no automatic replacement with the new ID.
+
+### P2 — Reopening Merge after a context change discarded authored draft text
+
+Conflict Merge cleared a saved draft if its existing Concept ID or incoming
+fingerprint no longer matched, then persisted generated defaults over the edited
+text. The baseline real-`setSession` test replaced every authored field. Reopening
+now restores the saved text and warns when its context differs. The current
+session still supplies the chosen Concepts, and preview/confirmation remain
+necessary before any Markdown write. No stored draft is cleared or overwritten
+merely by loading the changed context.
+
 ## Remaining boundaries
 
 The confirmed findings above have implementation fixes. This is still a focused audit, not proof that every workflow is correct. Historical partial writes without recovery metadata, corrupted external state, conflicting target edits, and external writers remain outside automatic recovery. Real Obsidian restart, UI rendering, and platform acceptance remain outstanding.
@@ -240,6 +268,18 @@ Card and Concept ID repairs now have durable recovery records. External edits, m
 New Concept and single-Card deletions now have durable recovery metadata. Historical partial deletions without receipts still require manual inspection. External edits/moves or changed Related files deliberately stop recovery; there is no automatic conflict resolution or undo. Obsidian rename does not guarantee an atomic compare-and-rename, and local-trash semantics still need real-platform acceptance. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; their prose is preserved rather than silently discarded.
 
 ## Validation
+
+Thirteenth-pass validation (2026-09-10): full tests, build, release metadata check,
+and diff check passed. The final strengthened approved-write recovery suite also
+passed. Full output: `/private/tmp/mneme-proposal-target-repair-all.log`. Baseline
+bundles substituting the writer/View from `25cf41c` failed with `written` instead
+of rejection and with default Merge text instead of authored fields, respectively.
+Temporary red logs: `/private/tmp/mneme-approvedWriteRecovery-red.log` and
+`/private/tmp/mneme-conceptConflictMergeDraftRestore-red.log`. Regression coverage
+includes ambiguous Concept writes, Card path/scanner checks, unrelated repairs,
+real completion-save failure followed by reconstructed storage/Vault recovery with
+zero repeated writes, and four saved-draft context combinations plus first use.
+The View test invokes the real method with a render stub, not real Obsidian UI.
 
 Twelfth-pass validation (2026-09-09): `npm run test:all`, `npm run build`,
 `npm run check:release -- 1.0.0`, and `git diff --check` passed. Full output:
@@ -347,3 +387,10 @@ Twelfth-pass manual checks in a disposable Vault:
 1. Repair a missing Concept ID with an orphan owner and existing Source evidence. Run **Resync Index**, then refresh Inbox: the original link and evidence must remain, and the UI must report ownership still needs review. The source record must retain its old linked ID.
 2. Repeat resync and restart: retained provenance must not silently disappear or be assigned to the new Concept. Confirm that unrelated stale index items still reconcile.
 3. Repair one duplicate ID: shared old provenance must stay with its original ID. Explicitly remove a Source link through its normal workflow and confirm a subsequent resync does not restore it.
+
+Thirteenth-pass manual checks in a disposable Vault:
+
+1. Preserve a Proposal generated for one of two Concepts with the same ID, repair that Concept, then accept the old Proposal. An ambiguous target must be rejected with its text intact and the other Concept unchanged. A Card generated from the remaining Concept with a matching source path must still work.
+2. Edit every field in a conflict-Merge draft, return to conflict options, then change the existing Concept ID or incoming revision and reopen Merge. Confirm all saved text remains and a context warning is visible; review the current targets and preview before confirming.
+
+Explicit rebinding of ambiguous legacy Proposals and Conflict Merge asynchronous confirmation/lifecycle and durable completion remain follow-up work. These tests do not establish real Obsidian restart or platform acceptance.
