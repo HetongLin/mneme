@@ -1,4 +1,5 @@
-import { App, Modal, Notice, TFile } from "obsidian";
+import { assertConceptIdRepairOwnership, type ConceptIdentityReference } from "../services/conceptIdRepairOwnership";
+import { App, Modal, Notice, TFile, parseYaml } from "obsidian";
 import type { ConceptIdentityIssue } from "../models/conceptLibrary";
 import {
 	assignCardGroupConceptId,
@@ -78,7 +79,7 @@ export class ConceptIdRepairModal extends Modal {
 				return;
 			}
 
-			const conceptBefore = await this.app.vault.cachedRead(conceptFile);
+			const conceptBefore = await this.app.vault.read(conceptFile);
 			const conceptResult = assignConceptId(conceptBefore, {
 				expectedConceptId: issue.conceptId,
 				newConceptId,
@@ -92,8 +93,15 @@ export class ConceptIdRepairModal extends Modal {
 				? this.app.vault.getAbstractFileByPath(issue.cardsPath)
 				: undefined;
 			const cardBefore = cardFile instanceof TFile
-				? await this.app.vault.cachedRead(cardFile)
+				? await this.app.vault.read(cardFile)
 				: undefined;
+			const references: ConceptIdentityReference[] = [];
+			for (const file of this.app.vault.getMarkdownFiles()) {
+				if (file.path === issue.path) continue;
+				references.push({ path: file.path, frontmatter: readFrontmatter(await this.app.vault.read(file)) });
+			}
+			assertConceptIdRepairOwnership(issue, newConceptId, readFrontmatter(conceptBefore),
+				cardBefore === undefined ? undefined : readFrontmatter(cardBefore), references);
 			const cardConceptId = cardBefore === undefined
 				? undefined
 				: getCardGroupConceptId(cardBefore);
@@ -130,7 +138,7 @@ export class ConceptIdRepairModal extends Modal {
 			this.close();
 		} catch (error) {
 			console.error("Mneme: failed to repair Concept ID", { error, path: this.options.issue.path });
-			new Notice("Mneme: Concept ID could not be repaired. See console.");
+			new Notice(`Mneme: ${error instanceof Error ? error.message : "Concept ID could not be repaired. See console."}`);
 		} finally {
 			this.isSaving = false;
 			saveButton.disabled = false;
@@ -157,4 +165,9 @@ function getCachedConceptId(app: App, path: string): string | undefined {
 	const value = app.metadataCache.getCache(path)?.frontmatter?.mneme_concept_id;
 
 	return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function readFrontmatter(markdown: string): unknown {
+	const match = /^\uFEFF?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(markdown);
+	return match ? parseYaml(match[1] ?? "") : undefined;
 }

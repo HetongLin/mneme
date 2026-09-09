@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-for (const test of ["cardDeletionEditor", "cardMarkerEditor", "recoverableCardDeletion", "cardDeleteModal"]) {
+for (const test of ["cardDeletionEditor", "cardMarkerEditor", "cardIdEditor", "recoverableCardDeletion", "cardDeleteModal"]) {
 	const outfile = path.join(tmpdir(), `mneme-${test}-${Date.now()}.mjs`);
 	const build = spawnSync("npx", [
 		"esbuild", `tests/${test}.test.ts`, "--bundle", "--platform=node", "--format=esm",

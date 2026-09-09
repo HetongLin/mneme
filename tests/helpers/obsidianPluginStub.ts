@@ -19,3 +19,4 @@ export const MarkdownRenderer = {};
 export function normalizePath(path: string): string { return path; }
 export function requestUrl(): never { throw new Error("requestUrl is unavailable in this test."); }
 export function setIcon(): void {}
+export function parseYaml(): never { throw new Error("parseYaml is unavailable in this import-only test."); }

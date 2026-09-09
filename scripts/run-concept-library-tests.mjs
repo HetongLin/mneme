@@ -10,6 +10,8 @@ const tests = [
 	"tests/conceptReviewAvailability.test.ts",
 	"tests/conceptScanner.test.ts",
 	"tests/conceptIdEditor.test.ts",
+	"tests/conceptIdRepairOwnership.test.ts",
+	"tests/conceptIdRepairModal.test.ts",
 	"tests/conceptDuplicateDetector.test.ts",
 	"tests/conceptMergeService.test.ts",
 	"tests/incomingConceptMergeService.test.ts",
@@ -35,6 +37,7 @@ for (const test of tests) {
 		"--bundle",
 		"--platform=node",
 		"--format=esm",
+		...(test === "tests/conceptIdRepairModal.test.ts" ? ["--alias:obsidian=./tests/helpers/obsidianIdentityRepairStub.ts"] : []),
 		`--outfile=${outfile}`,
 	], { stdio: "inherit" });
 

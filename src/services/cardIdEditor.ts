@@ -14,6 +14,7 @@ export type AssignCardIdResult =
 
 interface CardBlockRange {
 	explicitCardId?: string;
+	invalidAttributes: boolean;
 	markerEnd: number;
 	markerStart: number;
 }
@@ -43,6 +44,9 @@ export function assignCardId(markdown: string, input: AssignCardIdInput): Assign
 	}
 
 	const parsedBefore = parseMnemeCards(markdown);
+	if (parsedBefore.some((card) => card.errors.some((issue) => issue.code === "malformed_card_block"))) {
+		return { message: "Repair invalid Card markers before assigning a stable ID.", status: "invalid" };
+	}
 	const expectedCard = parsedBefore[input.cardBlockIndex];
 	if (
 		!expectedCard
@@ -52,11 +56,11 @@ export function assignCardId(markdown: string, input: AssignCardIdInput): Assign
 		return { message: "Card content changed after the repair view opened.", status: "conflict" };
 	}
 
-	if (parsedBefore.some((card) => card.explicitCardId === newCardId)) {
+	const blocks = getCardBlockRanges(markdown);
+	if (blocks.some((card) => card.explicitCardId === newCardId)) {
 		return { message: "That Card ID is already used in this Card Group.", status: "conflict" };
 	}
 
-	const blocks = getCardBlockRanges(markdown);
 	let updatedMarkdown: string;
 
 	if (blocks.length > 0) {
@@ -68,8 +72,12 @@ export function assignCardId(markdown: string, input: AssignCardIdInput): Assign
 		if (target.explicitCardId !== input.expectedCardId) {
 			return { message: "Card ID changed after the repair view opened.", status: "conflict" };
 		}
+		if (target.invalidAttributes) {
+			return { message: "Card start marker has ambiguous ID attributes.", status: "invalid" };
+		}
 
-		const marker = `<!-- MNEME:CARD:start id="${newCardId}" -->`;
+		const opening = markdown.slice(target.markerStart, target.markerEnd);
+		const marker = replaceOrInsertIdAttribute(opening, newCardId);
 		updatedMarkdown = `${markdown.slice(0, target.markerStart)}${marker}${markdown.slice(target.markerEnd)}`;
 	} else {
 		if (input.cardBlockIndex !== 0 || input.expectedCardId) {
@@ -86,13 +94,15 @@ export function assignCardId(markdown: string, input: AssignCardIdInput): Assign
 			return { message: "Complete Card markers were not found.", status: "invalid" };
 		}
 
-		const start = `<!-- MNEME:CARD:start id="${newCardId}" -->\n`;
-		const end = "\n<!-- MNEME:CARD:end -->";
+		const newline = markdown.includes("\r\n") ? "\r\n" : "\n";
+		const start = `<!-- MNEME:CARD:start id="${newCardId}" -->${newline}`;
+		const end = `${newline}<!-- MNEME:CARD:end -->`;
 		updatedMarkdown = `${markdown.slice(0, markerSpan.start)}${start}${markdown.slice(markerSpan.start, markerSpan.end)}${end}${markdown.slice(markerSpan.end)}`;
 	}
 
 	const repairedCard = parseMnemeCards(updatedMarkdown)[input.cardBlockIndex];
-	if (!repairedCard?.isValid || repairedCard.explicitCardId !== newCardId) {
+	const repairedBlocks = getCardBlockRanges(updatedMarkdown);
+	if (!repairedCard?.isValid || repairedCard.explicitCardId !== newCardId || repairedBlocks[input.cardBlockIndex]?.explicitCardId !== newCardId) {
 		return { message: "Assigned Card ID did not pass marker validation.", status: "invalid" };
 	}
 
@@ -103,14 +113,13 @@ function getCardBlockRanges(markdown: string): CardBlockRange[] {
 	const pattern = /<!--\s*MNEME:CARD:start\b([^>]*)-->([\s\S]*?)<!--\s*MNEME:CARD:end\s*-->/g;
 
 	return Array.from(markdown.matchAll(pattern), (match) => {
-		const fullMatch = match[0] ?? "";
-		const content = match[2] ?? "";
 		const markerStart = match.index ?? 0;
-		const contentOffset = fullMatch.indexOf(content);
+		const opening = (match[0] ?? "").match(/^<!--\s*MNEME:CARD:start\b[^>]*-->/)?.[0] ?? "";
 
 		return {
 			explicitCardId: parseCardIdAttribute(match[1] ?? ""),
-			markerEnd: markerStart + contentOffset,
+			invalidAttributes: hasAmbiguousIdAttribute(match[1] ?? ""),
+			markerEnd: markerStart + opening.length,
 			markerStart,
 		};
 	});
@@ -138,9 +147,54 @@ function getLegacyMarkerSpan(markdown: string): { end: number; start: number } |
 }
 
 function parseCardIdAttribute(attributes: string): string | undefined {
-	const quoted = /\bid\s*=\s*"([^"]+)"/.exec(attributes)
-		?? /\bid\s*=\s*'([^']+)'/.exec(attributes);
-	const value = quoted?.[1] ?? /\bid\s*=\s*([^\s>]+)/.exec(attributes)?.[1];
+	return scanIdAttributes(attributes)[0]?.value;
+}
 
-	return value?.trim() || undefined;
+function hasAmbiguousIdAttribute(attributes: string): boolean {
+	return scanIdAttributes(attributes).length > 1;
+}
+
+function replaceOrInsertIdAttribute(marker: string, id: string): string {
+	const openingEnd = marker.lastIndexOf("-->");
+	const attributes = marker.slice(marker.indexOf("start") + "start".length, openingEnd);
+	const idAttribute = scanIdAttributes(attributes)[0];
+	if (idAttribute) {
+		const value = idAttribute.quote ? `${idAttribute.quote}${id}${idAttribute.quote}` : id;
+		const start = marker.indexOf("start") + "start".length + idAttribute.valueStart;
+		return `${marker.slice(0, start)}${value}${marker.slice(start + idAttribute.rawValue.length)}`;
+	}
+	return `${marker.slice(0, openingEnd)} id="${id}"${marker.slice(openingEnd)}`;
+}
+
+interface IdAttribute { quote?: "'" | '"'; rawValue: string; value: string; valueStart: number; }
+
+function scanIdAttributes(attributes: string): IdAttribute[] {
+	const result: IdAttribute[] = [];
+	let index = 0;
+	while (index < attributes.length) {
+		while (/\s/.test(attributes[index] ?? "")) index += 1;
+		const nameStart = index;
+		while (index < attributes.length && !/[\s=>]/.test(attributes[index] ?? "")) index += 1;
+		if (index === nameStart) { index += 1; continue; }
+		const name = attributes.slice(nameStart, index);
+		while (/\s/.test(attributes[index] ?? "")) index += 1;
+		if (attributes[index] !== "=") { continue; }
+		index += 1;
+		while (/\s/.test(attributes[index] ?? "")) index += 1;
+		const quote = attributes[index] === '"' || attributes[index] === "'" ? attributes[index] as '"' | "'" : undefined;
+		const valueStart = index;
+		let value: string;
+		if (quote) {
+			index += 1;
+			const innerStart = index;
+			while (index < attributes.length && attributes[index] !== quote) index += 1;
+			value = attributes.slice(innerStart, index);
+			if (attributes[index] === quote) index += 1;
+		} else {
+			while (index < attributes.length && !/\s/.test(attributes[index] ?? "")) index += 1;
+			value = attributes.slice(valueStart, index);
+		}
+		if (name === "id") result.push({ quote, rawValue: attributes.slice(valueStart, index), value: value.trim(), valueStart });
+	}
+	return result;
 }

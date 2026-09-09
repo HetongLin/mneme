@@ -27,3 +27,11 @@ Mneme is a focused lifelong-learning plugin. Its durable identifiers need to be 
 - Markdown IDs are less mnemonic, so user-facing surfaces lead with Concept titles and Card fronts. IDs remain available for diagnostics and repair.
 - Same-title Concepts can coexist with independent IDs. Exact title, alias, and path checks remain review signals, while identity allocation is handled separately.
 - ADR 0015 remains as historical context but no longer governs new identity allocation or English Alias requirements.
+
+## ID repair safeguards (2026-09-09)
+
+Explicit repair of missing or duplicate IDs changes only the identity value. Existing Card type/custom attributes, YAML quotes/comments, surrounding content, and line endings must survive. Ambiguous ID syntax must block repair rather than select an arbitrary value.
+
+Before changing a linked Card Group's Concept ID, repair checks fresh Markdown identities and links. Another Concept's owner, a shared Card Group link (including a legacy folder reference), a newly occupied ID, or a changed target link blocks all writes. A missing-ID Concept may adopt an unclaimed Card Group identity. Ordinary renaming still never rewrites IDs.
+
+These are content and ownership preconditions. The current repair modals still use whole-file writes and compensation around state-migration callbacks; durable recovery, atomic ID reservations, and concurrent-write protection require a separate coordinator.

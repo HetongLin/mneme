@@ -63,3 +63,45 @@ import {
 }
 
 assert.equal(createStableConceptId(1_700_000_000_000, 0), "concept_loyw3v28_0000000");
+
+// ID repair must preserve inline annotations and must not consume the next YAML field.
+{
+	const markdown = '---\r\nmneme_type: concept\r\nmneme_id: "old-id"  # identity note\r\nimportance: high\r\n---\r\n# Body\r\n';
+	const result = assignConceptId(markdown, { expectedConceptId: "old-id", newConceptId: "new-id" });
+	assert.equal(result.status, "updated");
+	if (result.status === "updated") assert.equal(result.markdown, markdown.replace('"old-id"', '"new-id"'));
+}
+{
+	const markdown = "---\nmneme_type: concept\nmneme_id:\nimportance: high\n---\n# Body\n";
+	const result = assignConceptId(markdown, { newConceptId: "new-id" });
+	assert.equal(result.status, "updated");
+	if (result.status === "updated") assert.equal(result.markdown, markdown.replace("mneme_id:", "mneme_id: new-id"));
+}
+{
+	const markdown = "---\nmneme_type: card_group\nmneme_concept_id: 'old#id' # keep me\n---\n";
+	assert.equal(getCardGroupConceptId(markdown), "old#id");
+	const result = assignCardGroupConceptId(markdown, { expectedConceptId: "old#id", newConceptId: "new-id" });
+	assert.equal(result.status, "updated");
+	if (result.status === "updated") assert.equal(result.markdown, markdown.replace("'old#id'", "'new-id'"));
+}
+
+for (const newline of ["\n", "\r\n"]) {
+	const markdown = ["---", "mneme_type: concept # type note", "mneme_id: # identity note", "importance: high", "---", "Body"].join(newline);
+	const result = assignConceptId(markdown, { newConceptId: "new-id" });
+	assert.equal(result.status, "updated");
+	if (result.status === "updated") assert.equal(result.markdown, markdown.replace("mneme_id: #", "mneme_id: new-id #"));
+	const missing = markdown.replace(`mneme_id: # identity note${newline}`, "");
+	const assigned = assignConceptId(missing, { newConceptId: "new-id" });
+	assert.equal(assigned.status, "updated");
+	if (assigned.status === "updated") assert.equal(assigned.markdown, missing.replace(`mneme_type: concept # type note${newline}`, `mneme_type: concept # type note${newline}mneme_id: new-id${newline}`));
+}
+for (const value of ["[one, two]", "|", '"unterminated', "{value: old}"]) {
+	const markdown = `---\nmneme_type: concept\nmneme_id: ${value}\n---\n`;
+	assert.equal(assignConceptId(markdown, { newConceptId: "new-id" }).status, "invalid");
+}
+{
+	const markdown = '---\n"mneme_type": concept\n"mneme_id": old-id # note\n---\n';
+	const result = assignConceptId(markdown, { expectedConceptId: "old-id", newConceptId: "new-id" });
+	assert.equal(result.status, "updated");
+	if (result.status === "updated") assert.equal(result.markdown, markdown.replace("old-id", "new-id"));
+}
