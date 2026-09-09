@@ -12,6 +12,8 @@ const tests = [
 	"tests/conceptIdEditor.test.ts",
 	"tests/conceptIdRepairOwnership.test.ts",
 	"tests/conceptIdRepairModal.test.ts",
+	"tests/recoverableConceptIdRepair.test.ts",
+	"tests/conceptIdRepairWriteGuards.test.ts",
 	"tests/conceptDuplicateDetector.test.ts",
 	"tests/conceptMergeService.test.ts",
 	"tests/incomingConceptMergeService.test.ts",

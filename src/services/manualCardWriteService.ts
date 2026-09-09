@@ -1,5 +1,6 @@
 import { assertCardDeletionAllowsPath, readCardDeletion } from "./cardDeletionReceipt";
 import { assertCardIdRepairAllowsCard, assertCardIdRepairAllowsPath, getReservedCardRepairIds } from "./cardIdRepairReceipt";
+import { assertConceptIdRepairAllowsPath, assertConceptIdRepairAllowsConcept } from "./conceptIdRepairReceipt";
 import { assertConceptNotDeleting } from "./conceptDeletionReceipt";
 import type { ConceptSummary } from "../models/conceptLibrary";
 import { createEmptyManualCardDraft, type ManualCardDraft } from "../models/manualCardDraft";
@@ -39,7 +40,9 @@ export function createManualCardWithRecovery(
 			throw new Error("Resume the pending Card creation before creating another Card.");
 		}
 		assertConceptNotDeleting(data.conceptDeletions, draft.conceptId ?? "");
+		assertConceptIdRepairAllowsConcept(data.conceptIdRepairs, draft.conceptId ?? "");
 		assertCardIdRepairAllowsPath(data.cardIdRepairs, receipt?.cardsPath ?? "");
+		assertConceptIdRepairAllowsPath(data.conceptIdRepairs, receipt?.cardsPath ?? "");
 		const cardDeletion = readCardDeletion(data.cardDeletion);
 		if (receipt?.status === "pending") assertCardDeletionAllowsPath(data.cardDeletion, receipt.cardsPath);
 		if (draft.draftId !== currentDraft.draftId || inputHash !== await manualCardDraftHash(currentDraft)) {
@@ -59,6 +62,7 @@ export function createManualCardWithRecovery(
 			const prepared = await prepareManualCard({ ...draft, concept }, settings, vault, reservedIds, createId);
 			assertCardDeletionAllowsPath(data.cardDeletion, prepared.cardsPath);
 			assertCardIdRepairAllowsPath(data.cardIdRepairs, prepared.cardsPath);
+			assertConceptIdRepairAllowsPath(data.conceptIdRepairs, prepared.cardsPath);
 			assertCardIdRepairAllowsCard(data.cardIdRepairs, prepared.cardId);
 			const afterHash = await writtenContentHash("upsert_card_group", prepared.markdown, prepared.cardId);
 			if (!afterHash) throw new Error("The Card could not be rendered with a valid identity.");
@@ -75,6 +79,7 @@ export function createManualCardWithRecovery(
 
 		const existing = await vault.exists(receipt.cardsPath) ? await vault.read(receipt.cardsPath) : undefined;
 		assertCardIdRepairAllowsPath(data.cardIdRepairs, receipt.cardsPath);
+		assertConceptIdRepairAllowsPath(data.conceptIdRepairs, receipt.cardsPath);
 		assertCardIdRepairAllowsCard(data.cardIdRepairs, receipt.cardId);
 		const currentHash = existing === undefined ? undefined : await writtenContentHash("upsert_card_group", existing, receipt.cardId);
 		if (currentHash !== receipt.afterHash) {

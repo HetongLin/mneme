@@ -1,17 +1,12 @@
-import { assertConceptIdRepairOwnership, type ConceptIdentityReference } from "../services/conceptIdRepairOwnership";
-import { App, Modal, Notice, TFile, parseYaml } from "obsidian";
+import { App, Modal, Notice } from "obsidian";
 import type { ConceptIdentityIssue } from "../models/conceptLibrary";
-import {
-	assignCardGroupConceptId,
-	assignConceptId,
-	createStableConceptId,
-	getCardGroupConceptId,
-} from "../services/conceptIdEditor";
+import { createStableConceptId } from "../services/conceptIdEditor";
 
 export interface ConceptIdRepairModalOptions {
 	existingConceptIds: Set<string>;
 	issue: ConceptIdentityIssue;
-	onSaved(oldReviewConceptId: string | undefined, newConceptId: string, migrateState: boolean): Promise<void> | void;
+	onConfirmed(newConceptId: string): Promise<void> | void;
+	onSaved(): Promise<void> | void;
 }
 
 export class ConceptIdRepairModal extends Modal {
@@ -72,73 +67,19 @@ export class ConceptIdRepairModal extends Modal {
 				return;
 			}
 
-			const { issue } = this.options;
-			const conceptFile = this.app.vault.getAbstractFileByPath(issue.path);
-			if (!(conceptFile instanceof TFile)) {
-				new Notice("Mneme: Concept.md was not found.");
-				return;
-			}
-
-			const conceptBefore = await this.app.vault.read(conceptFile);
-			const conceptResult = assignConceptId(conceptBefore, {
-				expectedConceptId: issue.conceptId,
-				newConceptId,
-			});
-			if (conceptResult.status !== "updated") {
-				new Notice(`Mneme: ${conceptResult.message}`);
-				return;
-			}
-
-			const cardFile = issue.cardsPath
-				? this.app.vault.getAbstractFileByPath(issue.cardsPath)
-				: undefined;
-			const cardBefore = cardFile instanceof TFile
-				? await this.app.vault.read(cardFile)
-				: undefined;
-			const references: ConceptIdentityReference[] = [];
-			for (const file of this.app.vault.getMarkdownFiles()) {
-				if (file.path === issue.path) continue;
-				references.push({ path: file.path, frontmatter: readFrontmatter(await this.app.vault.read(file)) });
-			}
-			assertConceptIdRepairOwnership(issue, newConceptId, readFrontmatter(conceptBefore),
-				cardBefore === undefined ? undefined : readFrontmatter(cardBefore), references);
-			const cardConceptId = cardBefore === undefined
-				? undefined
-				: getCardGroupConceptId(cardBefore);
-			const cardResult = cardBefore === undefined
-				? undefined
-				: assignCardGroupConceptId(cardBefore, {
-					expectedConceptId: cardConceptId,
-					newConceptId,
-				});
-			if (cardResult && cardResult.status !== "updated") {
-				new Notice(`Mneme: Linked Card Group was not changed. ${cardResult.message}`);
-				return;
-			}
-
-			await this.app.vault.modify(conceptFile, conceptResult.markdown);
-			try {
-				if (cardFile instanceof TFile && cardResult?.status === "updated") {
-					await this.app.vault.modify(cardFile, cardResult.markdown);
-				}
-				const migrateState = !this.isDuplicateRepair()
-					&& !!cardConceptId
-					&& cardConceptId !== newConceptId
-					&& !this.options.existingConceptIds.has(cardConceptId);
-				await this.options.onSaved(cardConceptId, newConceptId, migrateState);
-			} catch (error) {
-				await this.app.vault.modify(conceptFile, conceptBefore);
-				if (cardFile instanceof TFile && cardBefore !== undefined) {
-					await this.app.vault.modify(cardFile, cardBefore);
-				}
-				throw error;
-			}
+			await this.options.onConfirmed(newConceptId);
 
 			new Notice("Mneme: Stable Concept ID saved.");
 			this.close();
+			try {
+				await this.options.onSaved();
+			} catch (error) {
+				console.error("Mneme: Concept ID saved but views could not refresh", error);
+				new Notice("Mneme: Concept ID saved. Reopen Concept Library to refresh it.");
+			}
 		} catch (error) {
 			console.error("Mneme: failed to repair Concept ID", { error, path: this.options.issue.path });
-			new Notice(`Mneme: ${error instanceof Error ? error.message : "Concept ID could not be repaired. See console."}`);
+			new Notice(`Mneme: ${error instanceof Error ? error.message : "Concept ID could not be repaired."} Run Resume Concept ID Repair if a repair record was saved.`);
 		} finally {
 			this.isSaving = false;
 			saveButton.disabled = false;
@@ -165,9 +106,4 @@ function getCachedConceptId(app: App, path: string): string | undefined {
 	const value = app.metadataCache.getCache(path)?.frontmatter?.mneme_concept_id;
 
 	return typeof value === "string" && value.trim() ? value.trim() : undefined;
-}
-
-function readFrontmatter(markdown: string): unknown {
-	const match = /^\uFEFF?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(markdown);
-	return match ? parseYaml(match[1] ?? "") : undefined;
 }

@@ -1,0 +1,70 @@
+# ADR 0029: Concept ID Repair Resumes Both Markdown Files
+
+## Status
+
+Accepted — 2026-09-09
+
+## Context
+
+The Concept ID modal changed Concept Markdown, changed the linked Card Group,
+then called a state-migration callback. On failure it unconditionally restored
+both old snapshots. A migration save that persisted and then rejected could leave
+pause state at the new ID while both files reverted. Interruptions between the two
+file writes had no recovery metadata. A pending Card ID repair could also compete
+for the same Card Group.
+
+## Decision
+
+`RecoverableConceptIdRepair` owns one operation under the shared plugin-data queue
+(ADR 0022), preserving the ID-only content safeguards in ADR 0020.
+
+1. Read fresh Concept/Card Group content and current identity references. Validate
+   the selected identity and link, exclusive Card Group ownership, current ID
+   collisions and pending writes/deletions. Explicit IDs must still be duplicated.
+   Another unlinked Card Group claiming the new ID or an orphan source owner also
+   blocks repair; an absent Concept alone does not establish exclusive ownership.
+2. Persist `conceptIdRepairs[newConceptId]` before changing either file. The strict
+   version-1 record contains status, old Concept/old review/new IDs, migration
+   policy, creation time, and separate path/before-hash/after-hash records for the
+   Concept and optional Card Group. No Markdown prose is copied into plugin data.
+3. Inspect both files and recheck ownership before proceeding. Each before hash
+   permits an ID-only transform with `Vault.process`; each after hash means that
+   file has already completed. Changed or missing files stop recovery. Once both
+   current files match their after hashes, finish state migration and mark the
+   receipt completed in one save. Never compensate with old Markdown.
+4. Reload state and refresh the library after persistence. Refresh failures cannot
+   undo either file. **Resume Concept ID Repair** explicitly resumes pending work
+   without the original dialog. Startup reports pending work without writing.
+
+Keep the existing migration policy: duplicate-ID repair retains shared old pause
+state; missing-ID repair moves only an unclaimed Card Group owner's pause when
+its ID changes. If the Card Group already owns the chosen new ID, retain its pause
+and skip an unchanged group file. A matching completed creation receipt for that
+same Concept path does not prevent re-adopting its owner. Source provenance,
+review events, Card IDs, proposals and drafts remain unchanged; this is not a
+blanket replacement of every occurrence of an old Concept ID.
+
+Pending repair blocks mutations to its old/new Concept identities and both paths.
+Card ID repair, Card/Concept deletion, authoring, ID allocation and merge enforce
+these guards. Legacy pause cleanup at Review View startup must wait while repair
+is pending. After completion, normal legacy-pause cleanup policy still applies.
+
+Allow one pending Concept repair. Completed records retain content-free identity
+provenance: the new ID stays reserved, a migrated orphan owner cannot be recreated
+by stale pause actions, and exact repeat requests verify both current after hashes
+before returning success. Shared old duplicate IDs remain active.
+
+## Compatibility and limits
+
+The new field is optional in schema version 1. Existing Markdown and state formats
+remain readable. Completed records currently have no pruning or undo workflow.
+The queue coordinates participating Mneme operations; scans and `Vault.process`
+do not form a transaction with external plugins, sync or filesystem writers.
+Conflicting files/references, malformed records and historical partial repairs
+without receipts require inspection, not automatic rollback or owner guessing.
+
+Index/provenance reconciliation after explicit identity repair remains a separate
+policy review. Preserving those records does not assert that every old reference
+has already been reconciled. Real Obsidian YAML/UI/restart and platform acceptance
+remain outstanding; deterministic fault tests use in-memory Vaults and cloned
+storage.

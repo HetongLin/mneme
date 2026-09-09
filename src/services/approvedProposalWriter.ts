@@ -1,5 +1,6 @@
 import { assertCardDeletionAllowsPath, readCardDeletion } from "./cardDeletionReceipt";
 import { assertCardIdRepairAllowsCard, assertCardIdRepairAllowsPath, getReservedCardRepairIds } from "./cardIdRepairReceipt";
+import { assertConceptIdRepairAllowsConcept, assertConceptIdRepairAllowsPath, getReservedConceptRepairIds } from "./conceptIdRepairReceipt";
 import { assertConceptNotDeleting, readConceptDeletions } from "./conceptDeletionReceipt";
 import type { ConceptSummary } from "../models/conceptLibrary";
 import type { KnowledgeProposal } from "../models/knowledgeProposal";
@@ -116,13 +117,16 @@ export class ApprovedProposalWriter {
 					return { message: `Proposal kind is not supported for Markdown writing yet: ${proposal.kind}`, proposalId, status: "skipped", targetPaths };
 				}
 				assertConceptNotDeleting(data.conceptDeletions, proposal.conceptId ?? "");
+				assertConceptIdRepairAllowsConcept(data.conceptIdRepairs, proposal.conceptId ?? "");
 				const targetConceptId = proposal.kind === "link_existing_concept" ? proposal.payload?.targetConceptId
 					: proposal.payload && "conceptId" in proposal.payload ? proposal.payload.conceptId : undefined;
 				if (targetConceptId) assertConceptNotDeleting(data.conceptDeletions, targetConceptId);
+				if (targetConceptId) assertConceptIdRepairAllowsConcept(data.conceptIdRepairs, targetConceptId);
 				if (receipt?.mode === "create" && receipt.entityId) assertConceptNotDeleting(data.conceptDeletions, receipt.entityId);
 				const cardDeletion = readCardDeletion(data.cardDeletion);
 				if (receipt) assertCardDeletionAllowsPath(data.cardDeletion, receipt.targetPath);
 				if (receipt) assertCardIdRepairAllowsPath(data.cardIdRepairs, receipt.targetPath);
+				if (receipt) assertConceptIdRepairAllowsPath(data.conceptIdRepairs, receipt.targetPath);
 				const validation = validateKnowledgeProposalPayload(proposal);
 				if (!validation.valid) return this.failedResult(proposalId, validation.errors.join(" "));
 				const proposalHash = await proposalWriteHash(proposal);
@@ -142,6 +146,7 @@ export class ApprovedProposalWriter {
 						.filter((other) => other.id !== proposalId && other.writeReceipt?.mode === expectedMode)
 						.flatMap((other) => typeof other.writeReceipt?.entityId === "string" ? [other.writeReceipt.entityId] : []));
 					if (expectedMode === "create") {
+						for (const id of getReservedConceptRepairIds(data.conceptIdRepairs)) reservedIds.add(id);
 						for (const id of Object.keys(readConceptDeletions(data.conceptDeletions))) reservedIds.add(id);
 					}
 					if (expectedMode === "upsert_card_group") {
@@ -156,6 +161,7 @@ export class ApprovedProposalWriter {
 						.flatMap((other) => typeof other.writeReceipt?.targetPath === "string" ? [other.writeReceipt.targetPath] : []));
 					if (manualConceptWrite && expectedMode === "create") reservedPaths.add(manualConceptWrite.path);
 					if (expectedMode === "create") {
+						for (const id of getReservedConceptRepairIds(data.conceptIdRepairs)) reservedIds.add(id);
 						for (const deletion of Object.values(readConceptDeletions(data.conceptDeletions))) {
 							if (deletion.status === "pending") for (const file of deletion.files) reservedPaths.add(file.path);
 						}
@@ -163,7 +169,9 @@ export class ApprovedProposalWriter {
 					const plan = await this.prepareWrite(proposal, receipt, reservedIds, reservedPaths);
 					assertCardDeletionAllowsPath(data.cardDeletion, plan.draft.targetPath);
 					assertCardIdRepairAllowsPath(data.cardIdRepairs, plan.draft.targetPath);
+					assertConceptIdRepairAllowsPath(data.conceptIdRepairs, plan.draft.targetPath);
 					if (expectedMode === "upsert_card_group" && plan.entityId) assertCardIdRepairAllowsCard(data.cardIdRepairs, plan.entityId);
+					if (expectedMode === "create" && plan.entityId) assertConceptIdRepairAllowsConcept(data.conceptIdRepairs, plan.entityId);
 					const afterHash = await writtenContentHash(plan.draft.mode as ApprovedWriteReceipt["mode"], plan.draft.content, plan.entityId);
 					if (!afterHash) throw new Error("The planned Card has no valid identity.");
 					if (receipt) {

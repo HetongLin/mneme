@@ -9,6 +9,7 @@ import { getCardGroupConceptIdFromFrontmatter } from "./conceptMarkdownIdentity"
 import { readApprovedWriteReceipt } from "./approvedWriteRecovery";
 import { readManualCardWriteReceipt } from "./manualCardWriteRecovery";
 import { readCardIdRepairs, assertCardIdRepairAllowsCard, getReservedCardRepairIds, type CardIdRepairReceipt } from "./cardIdRepairReceipt";
+import { assertConceptIdRepairAllowsPath } from "./conceptIdRepairReceipt";
 import { withRekeyedCardState } from "./cardIdRepairState";
 import { runPluginDataMutation, type PluginDataStorage } from "./pluginDataMutation";
 import { normalizePluginData } from "./reviewStateStore";
@@ -101,6 +102,7 @@ export class RecoverableCardIdRepair {
 
 	private assertStateAvailable(data: MnemePluginData, receipt: CardIdRepairReceipt): void {
 		assertCardDeletionAllowsPath(data.cardDeletion, receipt.path);
+		assertConceptIdRepairAllowsPath(data.conceptIdRepairs, receipt.path);
 		for (const id of [receipt.oldCardId, receipt.newCardId]) {
 			assertCardDeletionAllowsCard(data.cardDeletion, id);
 			assertCardNotDeleting(data.conceptDeletions, id);

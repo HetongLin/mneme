@@ -1,3 +1,4 @@
+import { ObsidianVaultAdapter } from "../services/obsidianVaultAdapter";
 import { ItemView, MarkdownRenderer, MarkdownView, Notice, TAbstractFile, TFile, TFolder, WorkspaceLeaf } from "obsidian";
 import type {
 	ConceptLibraryFilter,
@@ -320,11 +321,10 @@ export class MnemeConceptLibraryView extends ItemView {
 				...Object.keys(this.reviewStateStore.getConceptMergeRecords()),
 			]),
 			issue,
-			onSaved: async (oldConceptId, newConceptId, migrateState) => {
-				if (migrateState && oldConceptId) {
-					await this.reviewStateStore.rekeyConcept(oldConceptId, newConceptId);
-				}
-				void this.refresh();
+			onConfirmed: (newId) => this.reviewStateStore.repairConceptId(issue, newId, new ObsidianVaultAdapter(this.app.vault)),
+			onSaved: async () => {
+				await this.reviewStateStore.load();
+				await this.refresh();
 			},
 		}).open();
 	}

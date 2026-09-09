@@ -1,4 +1,5 @@
 import { assertConceptNotDeleting, readConceptDeletions } from "./conceptDeletionReceipt";
+import { assertConceptIdRepairAllowsConcept, assertConceptIdRepairAllowsPath, getReservedConceptRepairIds, readConceptIdRepairs } from "./conceptIdRepairReceipt";
 import { createEmptyManualConceptDraft, type ManualConceptDraft } from "../models/manualConceptDraft";
 import type { ManualConceptWriteReceipt } from "../models/manualConceptWrite";
 import type { MnemeSettings } from "../models/settings";
@@ -40,6 +41,8 @@ export function createManualConceptWithRecovery(
 		} else if (receipt?.status === "pending") {
 			throw new Error("Resume the pending Concept creation before creating another Concept.");
 		}
+		assertConceptIdRepairAllowsPath(data.conceptIdRepairs, receipt?.path ?? "");
+		assertConceptIdRepairAllowsPath(data.conceptIdRepairs, receipt?.cardsPath ?? "");
 		if (draft.draftId !== currentDraft.draftId || inputHash !== await manualConceptDraftHash(currentDraft)) {
 			throw new Error("This Composer draft is out of date. Reopen Concept Composer before creating a Concept.");
 		}
@@ -48,8 +51,12 @@ export function createManualConceptWithRecovery(
 			const sourcePath = draft.sourcePath?.trim();
 			const source = sourcePath ? await options.readSourceSnapshot?.(sourcePath) : undefined;
 			if (sourcePath && (!source || source.path !== sourcePath)) throw new Error("Select an existing Source Note or clear the Source Note field.");
-			const reservedIds = new Set([...Object.keys(readConceptDeletions(data.conceptDeletions)), ...Object.keys(data.conceptMergeRecords), ...(receipt ? [receipt.conceptId] : [])]);
+			const reservedIds = new Set([...Object.keys(readConceptDeletions(data.conceptDeletions)), ...Object.keys(data.conceptMergeRecords), ...getReservedConceptRepairIds(data.conceptIdRepairs), ...(receipt ? [receipt.conceptId] : [])]);
 			const reservedPaths = new Set(receipt ? [receipt.path] : []);
+			for (const repair of Object.values(readConceptIdRepairs(data.conceptIdRepairs))) if (repair.status === "pending") {
+				reservedPaths.add(repair.concept.path);
+				if (repair.cards) reservedPaths.add(repair.cards.path);
+			}
 			for (const deletion of Object.values(readConceptDeletions(data.conceptDeletions))) {
 				if (deletion.status === "pending") for (const file of deletion.files) reservedPaths.add(file.path);
 			}
@@ -61,6 +68,9 @@ export function createManualConceptWithRecovery(
 			}
 			const prepared = await prepareManualConcept(draft, settings, vault, options.createId,
 				async (id) => reservedIds.has(id) || await options.isConceptIdReserved?.(id) === true, reservedPaths);
+			assertConceptIdRepairAllowsPath(data.conceptIdRepairs, prepared.path);
+			if (prepared.cardsPath) assertConceptIdRepairAllowsPath(data.conceptIdRepairs, prepared.cardsPath);
+			assertConceptIdRepairAllowsConcept(data.conceptIdRepairs, prepared.conceptId);
 			receipt = {
 				version: 1, draftId: draft.draftId, inputHash, conceptId: prepared.conceptId,
 				path: prepared.path, cardsPath: prepared.cardsPath,
@@ -73,6 +83,9 @@ export function createManualConceptWithRecovery(
 		}
 
 		assertConceptNotDeleting(data.conceptDeletions, receipt.conceptId);
+		assertConceptIdRepairAllowsConcept(data.conceptIdRepairs, receipt.conceptId);
+		assertConceptIdRepairAllowsPath(data.conceptIdRepairs, receipt.path);
+		if (receipt.cardsPath) assertConceptIdRepairAllowsPath(data.conceptIdRepairs, receipt.cardsPath);
 		if ((receipt.source?.path ?? "") !== (draft.sourcePath?.trim() ?? "")) throw new Error("The saved Concept source has changed. Existing Markdown was preserved.");
 		if (await vault.exists(receipt.path)) {
 			if (await computeContentHash(await vault.read(receipt.path)) !== receipt.afterHash) {

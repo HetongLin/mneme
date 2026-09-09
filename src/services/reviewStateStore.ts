@@ -1,3 +1,7 @@
+import { RecoverableConceptIdRepair, type ConceptIdRepairVault } from "./recoverableConceptIdRepair";
+import { assertConceptIdRepairAllowsConcept, readConceptIdRepairs } from "./conceptIdRepairReceipt";
+import { withRekeyedConceptPause } from "./conceptIdRepairState";
+import type { ConceptIdentityIssue } from "../models/conceptLibrary";
 import { RecoverableCardIdRepair, type CardIdRepairInput, type CardIdRepairVault } from "./recoverableCardIdRepair";
 import { withRekeyedCardState } from "./cardIdRepairState";
 import { assertCardIdRepairAllowsCard } from "./cardIdRepairReceipt";
@@ -222,6 +226,14 @@ export class ReviewStateStore {
 		});
 	}
 
+	repairConceptId(issue: ConceptIdentityIssue, newId: string, vault: ConceptIdRepairVault): Promise<void> {
+		return new RecoverableConceptIdRepair(vault, this.storage).repair(issue, newId);
+	}
+
+	resumeConceptIdRepair(vault: ConceptIdRepairVault): Promise<boolean> {
+		return new RecoverableConceptIdRepair(vault, this.storage).resume();
+	}
+
 	repairCardId(card: CardIdRepairInput, newCardId: string, vault: CardIdRepairVault): Promise<void> {
 		return new RecoverableCardIdRepair(vault, this.storage).repair(card, newCardId);
 	}
@@ -247,6 +259,7 @@ export class ReviewStateStore {
 
 			const uniqueCardIds = [...new Set(cardIds.map((cardId) => cardId.trim()).filter(Boolean))];
 			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			assertConceptIdRepairAllowsConcept(latestData.conceptIdRepairs, conceptId);
 			for (const cardId of uniqueCardIds) assertCardIdRepairAllowsCard(latestData.cardIdRepairs, cardId);
 			const deletedAt = now.toISOString();
 			const nextData = withDeletedConceptState(latestData, conceptId, cardIds, deletedAt);
@@ -464,6 +477,7 @@ export class ReviewStateStore {
 				pausedAt: now.toISOString(),
 			};
 			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			assertConceptIdRepairAllowsConcept(latestData.conceptIdRepairs, conceptId);
 			const nextData = {
 				...latestData,
 				pausedConcepts: {
@@ -489,18 +503,9 @@ export class ReviewStateStore {
 			}
 
 			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
-			if (latestData.pausedConcepts[newConceptId]) {
-				throw new Error("The new Concept ID already has review state.");
-			}
-
-			const pause = latestData.pausedConcepts[oldConceptId];
-			const nextData = {
-				...latestData,
-				pausedConcepts: {
-					...omitKey(latestData.pausedConcepts, oldConceptId),
-					...(pause ? { [newConceptId]: { ...pause, conceptId: newConceptId } } : {}),
-				},
-			};
+			assertConceptIdRepairAllowsConcept(latestData.conceptIdRepairs, oldConceptId);
+			assertConceptIdRepairAllowsConcept(latestData.conceptIdRepairs, newConceptId);
+			const nextData = withRekeyedConceptPause(latestData, oldConceptId, newConceptId);
 
 			await this.storage.saveData(nextData);
 			this.data = nextData;
@@ -512,6 +517,7 @@ export class ReviewStateStore {
 		return runPluginDataMutation(this.storage, async () => {
 			await this.ensureLoaded();
 			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			assertConceptIdRepairAllowsConcept(latestData.conceptIdRepairs, conceptId);
 			const nextData = {
 				...latestData,
 				pausedConcepts: omitKey(latestData.pausedConcepts, conceptId),
@@ -527,6 +533,9 @@ export class ReviewStateStore {
 		return runPluginDataMutation(this.storage, async () => {
 			await this.ensureLoaded();
 			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			if (Object.values(readConceptIdRepairs(latestData.conceptIdRepairs)).some((r) => r.status === "pending")) {
+				throw new Error("Run Resume Concept ID Repair before clearing legacy Concept pauses.");
+			}
 			const pausedCount = Object.keys(latestData.pausedConcepts).length;
 
 			if (pausedCount === 0) {

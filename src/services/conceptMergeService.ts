@@ -1,5 +1,6 @@
 import { assertCardDeletionAllowsPath } from "./cardDeletionReceipt";
 import { assertCardIdRepairAllowsPath } from "./cardIdRepairReceipt";
+import { assertConceptIdRepairAllowsConcept, assertConceptIdRepairAllowsPath } from "./conceptIdRepairReceipt";
 import { assertConceptNotDeleting } from "./conceptDeletionReceipt";
 import type { ConceptSummary } from "../models/conceptLibrary";
 import type { ConceptSourceLink, SourceEvidence } from "../models/conceptSource";
@@ -101,6 +102,8 @@ export class ConceptMergeService {
 			const data = normalizePluginData(await this.storage.loadData());
 			assertConceptNotDeleting(data.conceptDeletions, input.survivor.conceptId);
 			assertConceptNotDeleting(data.conceptDeletions, input.merged.conceptId);
+			assertConceptIdRepairAllowsConcept(data.conceptIdRepairs, input.survivor.conceptId);
+			assertConceptIdRepairAllowsConcept(data.conceptIdRepairs, input.merged.conceptId);
 			if (data.conceptMergeRecords[input.survivor.conceptId] || data.conceptMergeRecords[input.merged.conceptId]) {
 				return { message: "A selected Concept ID is already reserved by an earlier merge.", status: "blocked" };
 			}
@@ -188,6 +191,7 @@ export class ConceptMergeService {
 			for (const write of writes) {
 				assertCardDeletionAllowsPath(data.cardDeletion, write.path);
 				assertCardIdRepairAllowsPath(data.cardIdRepairs, write.path);
+				assertConceptIdRepairAllowsPath(data.conceptIdRepairs, write.path);
 			}
 			return {
 				plan: {

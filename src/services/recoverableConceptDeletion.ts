@@ -1,5 +1,6 @@
 import { assertCardDeletionAllowsPath } from "./cardDeletionReceipt";
 import { assertCardIdRepairAllowsCard, assertCardIdRepairAllowsPath } from "./cardIdRepairReceipt";
+import { assertConceptIdRepairAllowsConcept, assertConceptIdRepairAllowsPath } from "./conceptIdRepairReceipt";
 import type { MnemePluginData } from "../models/reviewState";
 import { computeContentHash } from "../utils/sourceHash";
 import type { ConceptDeletionPlan } from "./conceptDeletionService";
@@ -141,8 +142,12 @@ export class RecoverableConceptDeletion {
 	}
 	private assertRepairAllowsReceipt(data: MnemePluginData, receipt: PendingConceptDeletionReceipt): void {
 		assertCardIdRepairAllowsPath(data.cardIdRepairs, receipt.conceptPath);
+		assertConceptIdRepairAllowsPath(data.conceptIdRepairs, receipt.conceptPath);
 		for (const file of receipt.files) assertCardIdRepairAllowsPath(data.cardIdRepairs, file.path);
+		for (const file of receipt.files) assertConceptIdRepairAllowsPath(data.conceptIdRepairs, file.path);
 		for (const write of receipt.related) assertCardIdRepairAllowsPath(data.cardIdRepairs, write.path);
+		for (const write of receipt.related) assertConceptIdRepairAllowsPath(data.conceptIdRepairs, write.path);
+		assertConceptIdRepairAllowsConcept(data.conceptIdRepairs, receipt.conceptId);
 		for (const cardId of receipt.cardIds) assertCardIdRepairAllowsCard(data.cardIdRepairs, cardId);
 	}
 
@@ -157,10 +162,12 @@ export class RecoverableConceptDeletion {
 		return new Error(`Deletion stopped because a file changed or moved: ${path}. Preserve the file and check the saved deletion record before running Resume Concept Deletion.`);
 	}
 	private assertNoPendingWrites(data: MnemePluginData, plan: ConceptDeletionPlan): void {
+		assertConceptIdRepairAllowsConcept(data.conceptIdRepairs, plan.concept.conceptId);
 		const paths = new Set([plan.conceptFile.path, plan.concept.cardsPath, ...plan.relatedWrites.map((w) => w.path)]);
 		for (const path of paths) if (path) {
 			assertCardDeletionAllowsPath(data.cardDeletion, path);
 			assertCardIdRepairAllowsPath(data.cardIdRepairs, path);
+			assertConceptIdRepairAllowsPath(data.conceptIdRepairs, path);
 		}
 		for (const cardId of plan.cardIds) assertCardIdRepairAllowsCard(data.cardIdRepairs, cardId);
 		const card = data.manualCardWrite === undefined ? undefined : readManualCardWriteReceipt(data.manualCardWrite);
