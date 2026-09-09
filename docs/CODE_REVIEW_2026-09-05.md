@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-10 (thirteenth pass)
+Updated: 2026-09-10 (fourteenth pass)
 
 ## Scope and checkpoint
 
@@ -28,6 +28,8 @@ The twelfth pass on `fix/repair-provenance-reconciliation` starts from checkpoin
 
 The thirteenth pass on `fix/proposal-target-after-id-repair` starts from checkpoint `25cf41c`. It prevents ambiguous legacy proposals from writing to the remaining owner of a repaired duplicate ID, and preserves authored conflict-Merge drafts when their context changes.
 
+The fourteenth pass on `fix/conflict-merge-session-lifecycle` starts from checkpoint `57bdc2f`. It isolates asynchronous conflict-Merge actions by session and keeps confirmation/commit operations locked through completion.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication, version change, or live Vault update was performed.
 
 ## Local implementation commits
@@ -49,6 +51,7 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `32f6f3d` — durable two-file Concept ID repair, pause migration, ownership checks and cross-workflow guards.
 - `9a33133` — preserve repaired Concept provenance during index resync and report deferred cleanup.
 - `f8a9c05` — verify proposal targets after duplicate-ID repair and retain authored Merge drafts across context changes.
+- `15ad40c` — bind conflict-Merge loads, AI, confirmation and completion to their original session.
 
 ## Confirmed and fixed
 
@@ -259,6 +262,31 @@ session still supplies the chosen Concepts, and preview/confirmation remain
 necessary before any Markdown write. No stored draft is cleared or overwritten
 merely by loading the changed context.
 
+### P1 — A previous conflict-Merge confirmation could execute after session replacement
+
+The operation lock was released after preparing a preview, before awaiting its
+confirmation dialog. Reopening the workspace could replace its session while that
+dialog remained open. The old confirmation still executed its old plan and the
+completion callback then read the new session. The baseline lifecycle test counted
+one execution after switching, where zero was required.
+
+The View now keeps preparation/confirmation/commit under one operation lock and
+binds results to a session revision, including same-key and same-object reopening.
+Execution receives the confirmed plan and original session directly. Switching or
+closing waits for an already-started commit; closing invalidates UI work before
+that wait. The original completion callback still runs, but a closed view is not
+redrawn. Completed drafts are not saved again after the service clears them.
+
+### P2 — Late AI and draft loads could overwrite a newer Merge session
+
+AI drafting and saved-draft loads previously assigned their results without
+checking whether the session had changed or closed. Old completion handlers could
+also release a newer operation's lock. Every asynchronous boundary now verifies
+the current session/revision before updating or saving results. Editor handlers
+and delayed autosaves enforce the same boundary. A failed pre-switch draft save
+retains the original in-memory text. These are View lifecycle changes, not durable
+recovery for the underlying Merge transaction; see [ADR 0021](adr/0021-name-conflict-merge-defers-all-writes.md).
+
 ## Remaining boundaries
 
 The confirmed findings above have implementation fixes. This is still a focused audit, not proof that every workflow is correct. Historical partial writes without recovery metadata, corrupted external state, conflicting target edits, and external writers remain outside automatic recovery. Real Obsidian restart, UI rendering, and platform acceptance remain outstanding.
@@ -268,6 +296,17 @@ Card and Concept ID repairs now have durable recovery records. External edits, m
 New Concept and single-Card deletions now have durable recovery metadata. Historical partial deletions without receipts still require manual inspection. External edits/moves or changed Related files deliberately stop recovery; there is no automatic conflict resolution or undo. Obsidian rename does not guarantee an atomic compare-and-rename, and local-trash semantics still need real-platform acceptance. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; their prose is preserved rather than silently discarded.
 
 ## Validation
+
+Fourteenth-pass validation (2026-09-10): full tests, build, release check, and diff
+check passed. Full output: `/private/tmp/mneme-conflict-merge-lifecycle-all.log`.
+The real View test bundled against `57bdc2f` failed because the previous session's
+confirmation still executed; temporary log:
+`/private/tmp/mneme-conflict-merge-lifecycle-red.log`. Deterministic barriers cover
+session/key/object replacement, duplicate requests while confirming, interleaved
+AI, reversed load completion, close during reads/responses/preparation/dialogs,
+commit waiting, original-session callbacks, completed-draft retention rules and
+save-failure preservation. Tests run the actual confirmation function with a Modal
+stub and replace DOM rendering; they do not exercise real Obsidian windows.
 
 Thirteenth-pass validation (2026-09-10): full tests, build, release metadata check,
 and diff check passed. The final strengthened approved-write recovery suite also
@@ -394,3 +433,11 @@ Thirteenth-pass manual checks in a disposable Vault:
 2. Edit every field in a conflict-Merge draft, return to conflict options, then change the existing Concept ID or incoming revision and reopen Merge. Confirm all saved text remains and a context warning is visible; review the current targets and preview before confirming.
 
 Explicit rebinding of ambiguous legacy Proposals and Conflict Merge asynchronous confirmation/lifecycle and durable completion remain follow-up work. These tests do not establish real Obsidian restart or platform acceptance.
+
+Fourteenth-pass manual checks in a disposable Vault:
+
+1. Leave Confirm Merge open, reopen the same conflict Merge with a changed incoming revision, then accept the old dialog. It must not write or complete the newer session. Repeated Merge clicks while confirming must produce one request.
+2. Start AI drafting, then close or reopen the workspace before the response arrives. The late response must not replace saved/current text. Repeat with slow draft loading and confirm that the latest session wins.
+3. Delay an already-confirmed commit and close or switch the workspace. The transition must wait, completion must refresh the original source, and the closed view must not redraw or recreate its completed draft.
+
+Ordinary Guided Merge lifecycle and durable recovery of Incoming/Guided Merge state commits remain separate audit work.

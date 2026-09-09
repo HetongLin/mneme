@@ -4,6 +4,11 @@ Updated: 2026-09-10
 
 ## 2026-09-05 至 09-10 代码审查后续
 
+- 第十四轮从已提交检查点 `57bdc2f` 继续，代码/ADR 提交为 `15ad40c`，分支为 `fix/conflict-merge-session-lifecycle`。修复 Conflict Merge 的异步会话隔离：旧确认在切换后仍执行、旧 AI/草稿加载覆盖新上下文、旧 finally 解锁新请求、完成回调读取可变化 session 等。每次激活递增 revision；异步结果检查 session+revision+closed，确认流程从准备到提交保持锁定，执行显式接收原 plan/session。
+- 关闭立即使旧 UI 回调失效；已经开始的 commit 完成后才能切换/结束关闭，成功回调仍拿到原 session，关闭后不重绘。编辑控件和旧事件回调受工作状态/会话保护。切换前保存失败保留内存编辑；completed 草稿不再保存复活。草稿清理由 IncomingConceptMergeService 的最终状态提交负责，View 不另行清表。
+- 第十四轮验证：全量测试、构建、发布检查及 diff 检查通过。旧版 bundle 复现切换后旧确认执行 1 次、期望 0 次。测试使用真实 View 方法/确认函数、持久存储克隆和 Promise 屏障，覆盖不同 key/同 key/同对象重开、重复确认、AI交错、加载乱序、关闭期间 read/response/prepare/confirm、提交等待、原会话回调、零迟到重绘及保存失败保留。临时日志 `/private/tmp/mneme-conflict-merge-lifecycle-all.log`、`/private/tmp/mneme-conflict-merge-lifecycle-red.log`。
+- **下一轮建议**：审查普通 Guided Merge View 是否存在相同生命周期问题，以及 Incoming/Guided Merge 的最终状态保存与跨进程中断恢复。本轮没有改变底层 Markdown/状态事务协议，也不代表真实 Obsidian popout/dialog/restart 验收完成；在测试 Vault 中应补“确认框未关闭时重开同一 Merge、AI等待时关闭、提交中切换”的手工验收。规则补充在 [ADR 0021](adr/0021-name-conflict-merge-defers-all-writes.md)。
+
 - 第十三轮从已提交检查点 `25cf41c` 继续，代码/ADR 提交为 `f8a9c05`，分支为 `fix/proposal-target-after-id-repair`。修复 P1：重复 Concept ID 修复后，旧 ID 只剩另一 Concept 使用，旧 Proposal 可能因此写入错误目标。无 write receipt 的 update/add_view/link 提案遇到 completed duplicate repair 的旧 ID 时保留正文并阻止写入；new_card 仅在生成时的 Source path 与唯一扫描 Concept 匹配、且不是已修复文件路径时放行。已有有效 receipt 继续按原路径/哈希恢复；不全局迁移旧 ID。
 - 同轮修复 P2：Conflict Merge 在 existingConceptId 或 incomingFingerprint 改变时，原先自动清空存储草稿并用默认内容覆盖。现在完整恢复手写字段，提示上下文变化、需逐项核对；当前选择的 Concept 和现有预览/确认流程仍决定最终写入。数据格式不变，见 [ADR 0029 补充](adr/0029-concept-id-repair-resumes-both-markdown-files.md)。
 - 第十三轮验证：全量测试、构建、发布检查及 diff 检查通过，最终补强的 writer 专项也通过。旧版 bundle 对照分别复现错误 written 和手写草稿被默认字段替换。测试覆盖三种 Concept 提案、Card 路径缺失/错配/陈旧扫描/无扫描、正常路径、不相关 repair、完成保存失败后重建恢复且零重复写入，以及真实 setSession 的四种草稿上下文组合。临时日志 `/private/tmp/mneme-proposal-target-repair-all.log`、`/private/tmp/mneme-approvedWriteRecovery-red.log`、`/private/tmp/mneme-conceptConflictMergeDraftRestore-red.log`。
@@ -41,7 +46,7 @@ Updated: 2026-09-10
 - 继续时重点关注真实 Obsidian 的中断/重启/本地回收站验收，以及删除后残留提案的显式整理策略。外部改动冲突、旧的无记录部分删除不会自动修复；不要直接删除 journal 或把手动恢复文件当作撤销 tombstone。
 
 - 已先构建并提交审查前备份：`83deb3f`，其父提交 `9cd98ad` 是原产品代码。
-- 当前审查/重构分支：`fix/proposal-target-after-id-repair`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，文档检查点为 `d125577`；第六轮代码提交为 `f66bd16`（索引同步）和 `3a9f321`（删除校验），之后另有本交接/审查文档提交。
+- 当前审查/重构分支：`fix/conflict-merge-session-lifecycle`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，文档检查点为 `d125577`；第六轮代码提交为 `f66bd16`（索引同步）和 `3a9f321`（删除校验），之后另有本交接/审查文档提交。
 - 第一轮修复合并/Related 的并发覆盖、Card 并发追加丢失、Review 重复动作跳卡，并提取共用 Markdown 事务与 Review 动作保护。
 - 第二轮让所有当前 `data.json` 写入共用完整读/检查/改/存队列，覆盖 Review、Settings、Proposal、草稿、来源索引及 Merge 回滚；来源重连/移除也已接入原子 Markdown 事务；诊断开关现在只重绘，不重置复习进度。数据格式与版本不变。队列的共享 storage owner 和禁止嵌套获取规则见 [ADR 0022](adr/0022-plugin-state-mutations-share-one-queue.md)。
 - 第二轮 `npm run test:all`、`npm run build`、`npm run check:release -- 1.0.0`、`git diff --check` 均已通过。新增确定性交错测试覆盖共享状态、真实 `saveSettings()` 方法、Merge 回滚、来源写入/回滚冲突。详细证据见 [CODE_REVIEW_2026-09-05.md](CODE_REVIEW_2026-09-05.md)。
