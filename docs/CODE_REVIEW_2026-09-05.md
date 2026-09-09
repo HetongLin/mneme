@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-09 (ninth pass)
+Updated: 2026-09-09 (tenth pass)
 
 ## Scope and checkpoint
 
@@ -20,6 +20,8 @@ The sixth pass on `refactor/index-reconciliation-safety` starts from committed c
 
 The ninth pass on `fix/identity-repair-content-safety` starts from checkpoint `2b437f3`, after the seventh/eighth-pass durable deletion changes. It addresses ID-only content edits and Concept/Card Group ownership preflight. It does not yet replace the ID repair modals' write/rollback protocol.
 
+The tenth pass on `fix/card-id-repair-recovery` starts from committed checkpoint `596f4e9`. It gives single-Card ID repair a durable coordinator, atomic content checks, state migration and explicit recovery. Concept ID repair remains a separate multi-file audit.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication, version change, or live Vault update was performed.
 
 ## Local implementation commits
@@ -37,6 +39,7 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `daa70e1` — durable Concept deletion recovery and state completion.
 - `fc87e06` — durable single-Card deletion without stale Markdown compensation.
 - `cb1957b` — preserve ID repair content and verify linked Card Group ownership before writes.
+- `ab38414` — durable single-Card ID repair, atomic state migration and explicit recovery without Markdown rollback.
 
 ## Confirmed and fixed
 
@@ -190,11 +193,19 @@ The modal previously rewrote any linked Card Group owner without checking whethe
 
 The regression harness runs the actual modal save method with an intentionally stale ID set. Rebuilding the old modal from checkpoint `2b437f3` against this test produced two writes for the foreign-owner case where zero were required. Current blocked cases assert zero file writes and zero state callbacks; a valid case completes both file writes. The harness supplies registered YAML fixtures rather than exercising Obsidian's real YAML parser. See the repair safeguards in [ADR 0020](adr/0020-random-opaque-entity-identities-and-optional-english-aliases.md).
 
+### P1 — Card ID repair could restore an ID after its review state had moved
+
+The old modal wrote a cached whole-file snapshot and then called a combined state-migration/refresh callback. The regression script reproduced a refresh failure after state migration: state used `card-new`, but Markdown reverted to its unlabelled original. An interruption between those writes had no recovery metadata.
+
+`RecoverableCardIdRepair` now holds the shared storage queue through pending intent, `Vault.process` and completion. It compares the full loaded snapshot, checks fresh Card identities with Obsidian frontmatter parsing, blocks occupied destination history and overlapping authoring/deletion work, and persists only IDs/path/index/hashes/policy/time. Completion migrates fallback FSRS state, controls and events atomically with receipt status; duplicate-ID repair retains shared old state. The modal handles refresh separately. **Resume Card ID Repair** works after restart without the old view; startup only reports pending work. See [ADR 0028](adr/0028-card-id-repair-resumes-without-markdown-rollback.md).
+
+Completed records reserve the destination and reject stale mutations to a migrated fallback ID. Exact repeated requests also verify the current file's after hash: an externally restored file produces a conflict rather than false success. Manual/Inbox allocation and overlapping merge/delete paths enforce the new guards. The extracted state transform additionally rejects destinations having only review-event history.
+
 ## Remaining boundaries
 
 The confirmed findings above have implementation fixes. This is still a focused audit, not proof that every workflow is correct. Historical partial writes without recovery metadata, corrupted external state, conflicting target edits, and external writers remain outside automatic recovery. Real Obsidian restart, UI rendering, and platform acceptance remain outstanding.
 
-Card/Concept ID repair still uses whole-file `vault.modify` and unconditional compensation around state-migration/refresh callbacks. A concurrent edit, interruption, or a save that takes effect then rejects can still diverge Markdown and state or restore stale content. Fresh ownership checks do not reserve IDs atomically or close the read/write gap. The next audit should design a durable ID-repair coordinator and failure matrix, retaining the existing duplicate-ID versus missing-ID state-migration policy.
+Concept ID repair still uses whole-file `vault.modify` and unconditional compensation around state-migration/refresh callbacks. Its concurrent edits, interruptions, save-after-effect errors, and interaction with pending Card repairs require a separate durable coordinator and failure matrix. Retain its duplicate-ID versus missing-ID state-migration policy. Single-Card repair now has recovery records; external edits, malformed records and historical partial repairs without receipts still stop automatic recovery. Completed Card repair provenance is not pruned by history reset: migrated path/index identities and new stable IDs are not available for reuse. External writers do not participate in the queue or its ID reservations.
 
 New Concept and single-Card deletions now have durable recovery metadata. Historical partial deletions without receipts still require manual inspection. External edits/moves or changed Related files deliberately stop recovery; there is no automatic conflict resolution or undo. Obsidian rename does not guarantee an atomic compare-and-rename, and local-trash semantics still need real-platform acceptance. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; their prose is preserved rather than silently discarded.
 
@@ -224,6 +235,8 @@ Seventh-pass final validation (2026-09-08): `npm run test:all`, `npm run build`,
 Eighth-pass final validation (2026-09-08): `npm run test:all`, `npm run build`, `npm run check:release -- 1.0.0`, and `git diff --check` passed. Full output: `/private/tmp/mneme-card-deletion-recovery-all.log`. The Card-editor runner now waits for each exported async suite and includes a lightweight Modal harness. It does not run live Obsidian startup or filesystem crash/restart tests.
 
 Ninth-pass final validation (2026-09-09): `npm run test:all`, `npm run build`, `npm run check:release -- 1.0.0`, and `git diff --check` passed. Full output: `/private/tmp/mneme-identity-content-safety-all.log` (temporary, not a durable artifact). Card-editor and Concept-library runners include the new editor, ownership, and actual Modal-save regressions. Import-only Obsidian stubs throw if YAML parsing is unexpectedly invoked. Real Obsidian rendering, YAML parsing, restart, and platform acceptance remain untested.
+
+Tenth-pass final validation (2026-09-09): `npm run test:all`, `npm run build`, and `npm run check:release -- 1.0.0` passed. Additional final migration-control assertions passed with `npm run test:card-editor`; diff checks passed after documentation cleanup. Temporary logs: `/private/tmp/mneme-card-id-repair-all.log`, `/private/tmp/mneme-card-id-repair-focused.log`. Tests cover before/after intent and completion saves, process failures, cloned-storage reconstruction, missing-ID state/event/control migration, duplicate-state retention, malformed receipts before Vault I/O, fresh Markdown/history-only ID collisions, loaded/process/resume conflicts, restored old Markdown after completion, real queued ratings/settings, Modal refresh failure, and Manual/Inbox path/ID guards. The old refresh rollback was reproduced in `/private/tmp/mneme-card-id-refresh-red.log`. Test Vaults and YAML fixtures do not constitute real Obsidian restart or platform acceptance.
 
 Focused manual checks still to run in a disposable Vault:
 
@@ -269,4 +282,12 @@ Ninth-pass manual checks in a disposable Vault:
 3. Point duplicate-ID Concepts at the same Card Group, or point one at a foreign-owned group. Repair must report the conflict and leave both files unchanged. A new collision introduced after opening the dialog must also block repair.
 4. Repair an exclusively linked duplicate Concept and a missing-ID Concept with an unclaimed group owner; verify the intended IDs and existing pause-migration policy.
 
-Potential follow-up audit: the ID repair ownership/content fixes do not cover broader rollback, durable state migration, or lifecycle behavior. Real Obsidian restart/provider/platform gates remain open.
+Potential follow-up audit: Concept ID repair still needs durable state migration and rollback/lifecycle protection, including overlap with pending Card work. Real Obsidian restart/provider/platform gates remain open.
+
+
+Tenth-pass manual checks in a disposable Vault:
+
+1. Assign an ID to an unlabelled Card with saved reviews, then replace one of two duplicate IDs. Verify fallback state/events move in the first case and shared state stays with the original ID in the second.
+2. Interrupt after intent persistence or after Markdown changes. Reload the plugin: expect a pending notice and no automatic write. Run **Resume Card ID Repair** and verify the same new ID and a single completed migration.
+3. Edit the target before confirmation or resume; expect a conflict with the edit preserved. After a completed repair, restore old Markdown externally and repeat the request; it must report a conflict, not successful repair.
+4. Fail a view refresh after successful persistence. The new ID/state must remain aligned. An old Review View must not recreate migrated fallback state. Check unrelated reviews and settings still persist.
