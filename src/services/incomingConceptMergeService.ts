@@ -1,4 +1,5 @@
 import { assertCardDeletionAllowsPath } from "./cardDeletionReceipt";
+import { assertCardIdRepairAllowsPath } from "./cardIdRepairReceipt";
 import { assertConceptNotDeleting } from "./conceptDeletionReceipt";
 import type { ConceptSummary } from "../models/conceptLibrary";
 import type { ConceptSourceLink } from "../models/conceptSource";
@@ -82,6 +83,7 @@ export class IncomingConceptMergeService {
 			const data = normalizePluginData(await this.storage.loadData());
 			assertConceptNotDeleting(data.conceptDeletions, input.existing.conceptId);
 			assertCardDeletionAllowsPath(data.cardDeletion, input.existing.path);
+			assertCardIdRepairAllowsPath(data.cardIdRepairs, input.existing.path);
 			const before = await this.vault.read(input.existing.path);
 			if (!hasConceptIdentity(before, input.existing.conceptId)) {
 				return {

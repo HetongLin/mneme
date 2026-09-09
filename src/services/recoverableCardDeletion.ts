@@ -3,6 +3,7 @@ import type { MnemePluginData } from "../models/reviewState";
 import { computeContentHash } from "../utils/sourceHash";
 import { deleteCardBlock } from "./cardDeletionEditor";
 import { readCardDeletion, type CardDeletionReceipt } from "./cardDeletionReceipt";
+import { assertCardIdRepairAllowsCard, assertCardIdRepairAllowsPath } from "./cardIdRepairReceipt";
 import { withDeletedCardState } from "./cardDeletionState";
 import { isCardFile } from "./cardFileRecognition";
 import { parseMnemeCards } from "./cardMarkerParser";
@@ -37,6 +38,8 @@ export class RecoverableCardDeletion {
 			if (Object.prototype.hasOwnProperty.call(data.cardTombstones, input.cardId) && !pending) return;
 			if (pending) throw new Error("Run Resume Card Deletion before deleting another Card.");
 			assertCardNotDeleting(data.conceptDeletions, input.cardId);
+			assertCardIdRepairAllowsCard(data.cardIdRepairs, input.cardId);
+			assertCardIdRepairAllowsPath(data.cardIdRepairs, input.path);
 			const frontmatter = parseSimpleFrontmatter(input.content);
 			if (!isCardFile({ name: input.path.split("/").pop() ?? "" }, frontmatter)) {
 				throw new Error("The saved Card is not in recognized Card Markdown. Refresh the view.");
@@ -71,6 +74,8 @@ export class RecoverableCardDeletion {
 	}
 
 	private async finish(data: MnemePluginData, receipt: CardDeletionReceipt): Promise<void> {
+		assertCardIdRepairAllowsCard(data.cardIdRepairs, receipt.cardId);
+		assertCardIdRepairAllowsPath(data.cardIdRepairs, receipt.path);
 		const before = await this.vault.readFresh(receipt.path);
 		const hash = await hashMarkdown(before);
 		if (hash !== receipt.afterHash) {

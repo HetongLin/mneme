@@ -1,11 +1,12 @@
-import { App, Modal, Notice, TFile } from "obsidian";
+import { App, Modal, Notice } from "obsidian";
 import type { LoadedMnemeCard } from "../models/card";
-import { assignCardId, createStableCardId } from "../services/cardIdEditor";
+import { createStableCardId } from "../services/cardIdEditor";
 
 export interface CardIdRepairModalOptions {
 	card: LoadedMnemeCard;
 	existingCardIds: Set<string>;
-	onSaved(oldCardId: string, newCardId: string, migrateState: boolean): Promise<void> | void;
+	onConfirmed(newCardId: string): Promise<void> | void;
+	onSaved(): Promise<void> | void;
 }
 
 export class CardIdRepairModal extends Modal {
@@ -64,48 +65,27 @@ export class CardIdRepairModal extends Modal {
 		const newCardId = newCardIdValue.trim();
 
 		try {
-			const { card } = this.options;
 			if (this.options.existingCardIds.has(newCardId)) {
 				new Notice("Mneme: That Card ID already exists in the vault.");
 				return;
 			}
 
-			const abstractFile = this.app.vault.getAbstractFileByPath(card.path);
-			if (!(abstractFile instanceof TFile)) {
-				new Notice("Mneme: Card Markdown was not found.");
-				return;
-			}
-
-			const currentMarkdown = await this.app.vault.cachedRead(abstractFile);
-			const result = assignCardId(currentMarkdown, {
-				cardBlockIndex: card.cardIndex,
-				expectedBack: card.back,
-				expectedCardId: card.hasExplicitCardId ? card.cardId : undefined,
-				expectedFront: card.front,
-				newCardId,
-			});
-
-			if (result.status !== "updated") {
-				new Notice(`Mneme: ${result.message}`);
-				return;
-			}
-
-			await this.app.vault.modify(abstractFile, result.markdown);
-			try {
-				await this.options.onSaved(card.cardId, newCardId, !this.isDuplicateRepair());
-			} catch (error) {
-				await this.app.vault.modify(abstractFile, currentMarkdown);
-				throw error;
-			}
+			await this.options.onConfirmed(newCardId);
 
 			new Notice("Mneme: Stable Card ID saved.");
 			this.close();
+			try {
+				await this.options.onSaved();
+			} catch (error) {
+				console.error("Mneme: Card ID saved but views could not refresh", error);
+				new Notice("Mneme: Card ID saved. Reopen the Review View to refresh it.");
+			}
 		} catch (error) {
 			console.error("Mneme: failed to repair Card ID", {
 				error,
 				path: this.options.card.path,
 			});
-			new Notice("Mneme: Card ID could not be repaired. See console.");
+			new Notice(`Mneme: ${error instanceof Error ? error.message : "Card ID could not be repaired."} Run Resume Card ID Repair if a repair record was saved.`);
 		} finally {
 			this.isSaving = false;
 			saveButton.disabled = false;

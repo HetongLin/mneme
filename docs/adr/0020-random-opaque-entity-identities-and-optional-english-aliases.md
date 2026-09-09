@@ -34,4 +34,4 @@ Explicit repair of missing or duplicate IDs changes only the identity value. Exi
 
 Before changing a linked Card Group's Concept ID, repair checks fresh Markdown identities and links. Another Concept's owner, a shared Card Group link (including a legacy folder reference), a newly occupied ID, or a changed target link blocks all writes. A missing-ID Concept may adopt an unclaimed Card Group identity. Ordinary renaming still never rewrites IDs.
 
-These are content and ownership preconditions. The current repair modals still use whole-file writes and compensation around state-migration callbacks; durable recovery, atomic ID reservations, and concurrent-write protection require a separate coordinator.
+These are content and ownership preconditions. Card ID repair now uses the durable coordinator in [ADR 0028](0028-card-id-repair-resumes-without-markdown-rollback.md). Concept ID repair still uses whole-file writes and compensation around state-migration callbacks; its durable recovery and concurrent-write protection require a separate coordinator. Neither workflow reserves IDs against external filesystem writers.

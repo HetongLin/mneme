@@ -1,4 +1,5 @@
 import { assertCardDeletionAllowsPath } from "./cardDeletionReceipt";
+import { assertCardIdRepairAllowsCard, assertCardIdRepairAllowsPath } from "./cardIdRepairReceipt";
 import type { MnemePluginData } from "../models/reviewState";
 import { computeContentHash } from "../utils/sourceHash";
 import type { ConceptDeletionPlan } from "./conceptDeletionService";
@@ -81,6 +82,7 @@ export class RecoverableConceptDeletion {
 	}
 
 	private async finish(data: MnemePluginData, receipt: PendingConceptDeletionReceipt): Promise<void> {
+		this.assertRepairAllowsReceipt(data, receipt);
 		for (const write of receipt.related) {
 			const before = await this.vault.read(write.path);
 			const hash = await deletionContentHash(before);
@@ -137,6 +139,12 @@ export class RecoverableConceptDeletion {
 		};
 		await this.storage.saveData(next);
 	}
+	private assertRepairAllowsReceipt(data: MnemePluginData, receipt: PendingConceptDeletionReceipt): void {
+		assertCardIdRepairAllowsPath(data.cardIdRepairs, receipt.conceptPath);
+		for (const file of receipt.files) assertCardIdRepairAllowsPath(data.cardIdRepairs, file.path);
+		for (const write of receipt.related) assertCardIdRepairAllowsPath(data.cardIdRepairs, write.path);
+		for (const cardId of receipt.cardIds) assertCardIdRepairAllowsCard(data.cardIdRepairs, cardId);
+	}
 
 	private async savePending(data: MnemePluginData, receipt: PendingConceptDeletionReceipt): Promise<void> {
 		data.conceptDeletions = { ...readConceptDeletions(data.conceptDeletions), [receipt.conceptId]: receipt };
@@ -150,7 +158,11 @@ export class RecoverableConceptDeletion {
 	}
 	private assertNoPendingWrites(data: MnemePluginData, plan: ConceptDeletionPlan): void {
 		const paths = new Set([plan.conceptFile.path, plan.concept.cardsPath, ...plan.relatedWrites.map((w) => w.path)]);
-		for (const path of paths) if (path) assertCardDeletionAllowsPath(data.cardDeletion, path);
+		for (const path of paths) if (path) {
+			assertCardDeletionAllowsPath(data.cardDeletion, path);
+			assertCardIdRepairAllowsPath(data.cardIdRepairs, path);
+		}
+		for (const cardId of plan.cardIds) assertCardIdRepairAllowsCard(data.cardIdRepairs, cardId);
 		const card = data.manualCardWrite === undefined ? undefined : readManualCardWriteReceipt(data.manualCardWrite);
 		const concept = data.manualConceptWrite === undefined ? undefined : readManualConceptWriteReceipt(data.manualConceptWrite);
 		if ((card?.status === "pending" && (card.conceptId === plan.concept.conceptId || paths.has(card.cardsPath)))

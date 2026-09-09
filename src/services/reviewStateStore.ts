@@ -1,3 +1,6 @@
+import { RecoverableCardIdRepair, type CardIdRepairInput, type CardIdRepairVault } from "./recoverableCardIdRepair";
+import { withRekeyedCardState } from "./cardIdRepairState";
+import { assertCardIdRepairAllowsCard } from "./cardIdRepairReceipt";
 import { assertCardDeletionAllowsCard } from "./cardDeletionReceipt";
 import { withDeletedCardState } from "./cardDeletionState";
 import { RecoverableCardDeletion, type CardDeletionInput, type CardDeletionVault } from "./recoverableCardDeletion";
@@ -73,6 +76,7 @@ export class ReviewStateStore {
 		return runPluginDataMutation(this.storage, async () => {
 			await this.ensureLoaded();
 			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			assertCardIdRepairAllowsCard(latestData.cardIdRepairs, cardId);
 			assertCardDeletionAllowsCard(latestData.cardDeletion, cardId);
 			assertCardNotDeleting(latestData.conceptDeletions, cardId);
 			if (latestData.cardTombstones[cardId]) {
@@ -205,6 +209,7 @@ export class ReviewStateStore {
 				throw new Error("This Card ID is already deleted.");
 			}
 
+			assertCardIdRepairAllowsCard(latestData.cardIdRepairs, cardId);
 			assertCardDeletionAllowsCard(latestData.cardDeletion, cardId);
 			assertCardNotDeleting(latestData.conceptDeletions, cardId);
 			const nextData = withDeletedCardState(latestData, cardId, now.toISOString());
@@ -215,6 +220,14 @@ export class ReviewStateStore {
 			this.pendingSettings = undefined;
 			return tombstone;
 		});
+	}
+
+	repairCardId(card: CardIdRepairInput, newCardId: string, vault: CardIdRepairVault): Promise<void> {
+		return new RecoverableCardIdRepair(vault, this.storage).repair(card, newCardId);
+	}
+
+	resumeCardIdRepair(vault: CardIdRepairVault): Promise<boolean> {
+		return new RecoverableCardIdRepair(vault, this.storage).resume();
 	}
 
 	deleteCardFromMarkdown(card: CardDeletionInput, vault: CardDeletionVault): Promise<void> {
@@ -234,6 +247,7 @@ export class ReviewStateStore {
 
 			const uniqueCardIds = [...new Set(cardIds.map((cardId) => cardId.trim()).filter(Boolean))];
 			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			for (const cardId of uniqueCardIds) assertCardIdRepairAllowsCard(latestData.cardIdRepairs, cardId);
 			const deletedAt = now.toISOString();
 			const nextData = withDeletedConceptState(latestData, conceptId, cardIds, deletedAt);
 
@@ -250,6 +264,7 @@ export class ReviewStateStore {
 		return runPluginDataMutation(this.storage, async () => {
 			await this.ensureLoaded();
 			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			assertCardIdRepairAllowsCard(latestData.cardIdRepairs, cardId);
 			assertCardDeletionAllowsCard(latestData.cardDeletion, cardId);
 			assertCardNotDeleting(latestData.conceptDeletions, cardId);
 			if (!latestData.cardTombstones[cardId]) {
@@ -329,6 +344,7 @@ export class ReviewStateStore {
 				retiredAt: now.toISOString(),
 			};
 			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			assertCardIdRepairAllowsCard(latestData.cardIdRepairs, cardId);
 			assertCardDeletionAllowsCard(latestData.cardDeletion, cardId);
 			assertCardNotDeleting(latestData.conceptDeletions, cardId);
 			if (latestData.cardTombstones[cardId]) throw new Error("Deleted Card IDs cannot receive review controls.");
@@ -354,6 +370,7 @@ export class ReviewStateStore {
 		return runPluginDataMutation(this.storage, async () => {
 			await this.ensureLoaded();
 			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			assertCardIdRepairAllowsCard(latestData.cardIdRepairs, cardId);
 			const nextData = {
 				...latestData,
 				retiredCards: omitKey(latestData.retiredCards, cardId),
@@ -378,6 +395,7 @@ export class ReviewStateStore {
 				suspendedAt: now.toISOString(),
 			};
 			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			assertCardIdRepairAllowsCard(latestData.cardIdRepairs, cardId);
 			assertCardDeletionAllowsCard(latestData.cardDeletion, cardId);
 			assertCardNotDeleting(latestData.conceptDeletions, cardId);
 			if (latestData.cardTombstones[cardId]) throw new Error("Deleted Card IDs cannot receive review controls.");
@@ -402,6 +420,7 @@ export class ReviewStateStore {
 		return runPluginDataMutation(this.storage, async () => {
 			await this.ensureLoaded();
 			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			assertCardIdRepairAllowsCard(latestData.cardIdRepairs, cardId);
 			const nextData = {
 				...latestData,
 				suspendedCards: omitKey(latestData.suspendedCards, cardId),
@@ -422,48 +441,9 @@ export class ReviewStateStore {
 			}
 
 			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
-			assertCardDeletionAllowsCard(latestData.cardDeletion, oldCardId);
-			assertCardDeletionAllowsCard(latestData.cardDeletion, newCardId);
-			assertCardNotDeleting(latestData.conceptDeletions, oldCardId);
-			assertCardNotDeleting(latestData.conceptDeletions, newCardId);
-			if (latestData.cardTombstones[oldCardId]) throw new Error("Deleted Card IDs cannot be migrated.");
-			if (
-				latestData.cardTombstones[newCardId]
-				|| latestData.reviewStates[newCardId]
-				|| latestData.reviewDeferrals[newCardId]
-				|| latestData.retiredCards[newCardId]
-				|| latestData.suspendedCards[newCardId]
-			) {
-				throw new Error("The new Card ID already has review state.");
-			}
-
-			const reviewState = latestData.reviewStates[oldCardId];
-			const deferral = latestData.reviewDeferrals[oldCardId];
-			const retirement = latestData.retiredCards[oldCardId];
-			const suspension = latestData.suspendedCards[oldCardId];
-			const nextData = {
-				...latestData,
-				reviewEvents: Object.fromEntries(Object.entries(latestData.reviewEvents).map(([eventId, event]) => [
-					eventId,
-					event.cardId === oldCardId ? { ...event, cardId: newCardId } : event,
-				])),
-				reviewDeferrals: {
-					...omitKey(latestData.reviewDeferrals, oldCardId),
-					...(deferral ? { [newCardId]: { ...deferral, cardId: newCardId } } : {}),
-				},
-				reviewStates: {
-					...omitKey(latestData.reviewStates, oldCardId),
-					...(reviewState ? { [newCardId]: { ...reviewState, cardId: newCardId } } : {}),
-				},
-				retiredCards: {
-					...omitKey(latestData.retiredCards, oldCardId),
-					...(retirement ? { [newCardId]: { ...retirement, cardId: newCardId } } : {}),
-				},
-				suspendedCards: {
-					...omitKey(latestData.suspendedCards, oldCardId),
-					...(suspension ? { [newCardId]: { ...suspension, cardId: newCardId } } : {}),
-				},
-			};
+			assertCardIdRepairAllowsCard(latestData.cardIdRepairs, oldCardId);
+			assertCardIdRepairAllowsCard(latestData.cardIdRepairs, newCardId);
+			const nextData = withRekeyedCardState(latestData, oldCardId, newCardId);
 
 			await this.storage.saveData(nextData);
 			this.data = nextData;
@@ -580,6 +560,7 @@ export class ReviewStateStore {
 				resumeAt: resumeAt.toISOString(),
 			};
 			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			assertCardIdRepairAllowsCard(latestData.cardIdRepairs, cardId);
 			assertCardDeletionAllowsCard(latestData.cardDeletion, cardId);
 			assertCardNotDeleting(latestData.conceptDeletions, cardId);
 			if (latestData.cardTombstones[cardId]) throw new Error("Deleted Card IDs cannot receive review controls.");

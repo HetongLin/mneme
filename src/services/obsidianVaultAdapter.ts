@@ -1,4 +1,4 @@
-import { TFile, Vault, normalizePath } from "obsidian";
+import { TFile, Vault, normalizePath, parseYaml } from "obsidian";
 import type { MnemeVaultAdapter } from "./approvedProposalWriter";
 import type { VaultStateAdapter, VaultStateFile } from "./vaultStateReconciler";
 import type { SourceRelinkFileSnapshot } from "./sourceProvenanceRelinkService";
@@ -29,6 +29,11 @@ export class ObsidianVaultAdapter implements MnemeVaultAdapter, VaultStateAdapte
 		const file = this.getFile(path);
 
 		await this.vault.append(file, content);
+	}
+
+	parseFrontmatter(markdown: string): unknown {
+		const match = /^\uFEFF?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(markdown);
+		return match ? parseYaml(match[1] ?? "") : undefined;
 	}
 
 	async readFresh(path: string): Promise<string> {

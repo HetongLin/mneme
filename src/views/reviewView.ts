@@ -1006,10 +1006,9 @@ export class MnemeReviewView extends ItemView {
 							...getAllCardIds(this.reviewQueue),
 							...Object.keys(this.reviewStateStore.getCardTombstones()),
 						]),
-						onSaved: async (oldCardId, newCardId, migrateState) => {
-							if (migrateState) {
-								await this.reviewStateStore.rekeyCard(oldCardId, newCardId);
-							}
+						onConfirmed: (newCardId) => this.reviewStateStore.repairCardId(card, newCardId, new ObsidianVaultAdapter(this.app.vault)),
+						onSaved: async () => {
+							await this.reviewStateStore.load();
 							await this.refreshCards();
 						},
 					}).open();

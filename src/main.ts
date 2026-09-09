@@ -1,3 +1,4 @@
+import { readCardIdRepairs } from "./services/cardIdRepairReceipt";
 import { readCardDeletion } from "./services/cardDeletionReceipt";
 import { Notice, Plugin, TAbstractFile, TFile, TFolder, WorkspaceLeaf } from "obsidian";
 import {
@@ -162,6 +163,9 @@ export default class MnemePlugin extends Plugin {
 		await this.reviewStateStore.load();
 		try {
 			const data = await this.loadData();
+			if (Object.values(readCardIdRepairs(data?.cardIdRepairs)).some((r) => r.status === "pending")) {
+				new Notice("Mneme: A Card ID repair is pending. Run Resume Card ID Repair to finish it.");
+			}
 			if (readCardDeletion(data?.cardDeletion)) {
 				new Notice("Mneme: A Card deletion is pending. Run Resume Card Deletion to finish it.");
 			}
@@ -169,8 +173,8 @@ export default class MnemePlugin extends Plugin {
 				new Notice("Mneme: A Concept deletion is pending. Run Resume Concept Deletion to finish it.");
 			}
 		} catch (error) {
-			console.error("Mneme: could not read deletion records", error);
-			new Notice("Mneme: Could not read deletion records. Check data.json before deleting Cards or Concepts.");
+			console.error("Mneme: could not read recovery records", error);
+			new Notice("Mneme: Could not read recovery records. Inspect data.json before changing Cards or Concepts.");
 		}
 		const conceptMergeService = new ConceptMergeService(
 			new ObsidianVaultAdapter(this.app.vault),
@@ -425,6 +429,12 @@ export default class MnemePlugin extends Plugin {
 			callback: () => {
 				void this.openConceptMergeView();
 			},
+		});
+
+		this.addCommand({
+			id: "mneme-resume-card-id-repair",
+			name: "Resume Card ID Repair",
+			callback: () => { void this.resumeCardIdRepair(); },
 		});
 
 		this.addCommand({
@@ -1404,6 +1414,24 @@ export default class MnemePlugin extends Plugin {
 
 	private createConceptDeletion(): RecoverableConceptDeletion {
 		return new RecoverableConceptDeletion(new ObsidianConceptDeletionVault(this.app.vault), this);
+	}
+
+	private async resumeCardIdRepair(): Promise<void> {
+		try {
+			const resumed = await this.reviewStateStore.resumeCardIdRepair(new ObsidianVaultAdapter(this.app.vault));
+			new Notice(resumed ? "Mneme: Card ID repair completed." : "Mneme: No pending Card ID repair.");
+		} catch (error) {
+			console.error("Mneme: failed to resume Card ID repair", error);
+			new Notice(`Mneme: ${formatUserFacingError(error, "Could not resume Card ID repair.")}`);
+			return;
+		}
+		try {
+			await this.reviewStateStore.load();
+			await Promise.all([this.refreshReviewViews(), this.refreshOpenConceptLibraryViews()]);
+		} catch (error) {
+			console.error("Mneme: Card ID repair finished but views could not refresh", error);
+			new Notice("Mneme: Reopen Mneme views to refresh them.");
+		}
 	}
 
 	private async resumeCardDeletion(): Promise<void> {
