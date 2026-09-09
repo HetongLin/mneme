@@ -4,10 +4,16 @@ Updated: 2026-09-09
 
 ## 2026-09-05 至 09-09 代码审查后续
 
+- 第十一轮从已提交检查点 `764354a` 继续，代码/ADR 提交为 `32f6f3d`，分支为 `fix/concept-id-repair-recovery`。Concept ID 修复改为共享队列内持久化 intent → 分别核对/原子更新 Concept 和 Card Group → 一次保存暂停状态迁移和完成标记；失败不再无条件回写旧正文。新增 **Resume Concept ID Repair**，启动只提示。详见 [ADR 0029](adr/0029-concept-id-repair-resumes-both-markdown-files.md)。
+- 新增可选 schema-version-1 `conceptIdRepairs`，记录两个文件的路径/前后哈希及 ID/迁移策略/时间/状态，无正文。已写完的文件恢复时不重写；已完成请求也须核验当前文件。重复 ID 保留共享旧暂停；缺失 ID 只迁移独占 orphan owner 的暂停。沿用 group 当前 ID 时只补 Concept，并保留已有暂停。
+- 交叉保护覆盖 Card ID 修复、删除、Manual/Inbox 创建、Merge、暂停操作及 Review View 的旧暂停清理。另一 Card Group 占用目标 ID 或 orphan owner 时阻止修复；完成记录保留新 ID 预留和旧迁移来源保护。
+- 第十一轮验证：全量测试、构建、发布检查及 diff 检查通过。覆盖两个文件各自写入前后失败、两次保存前后失败、重建存储恢复、暂停迁移/保留、互斥操作、来源/草稿保留、刷新失败及旧暂停清理；临时日志 `/private/tmp/mneme-concept-id-repair-all.log`。
+- **下一轮建议**：审查修复后的 Source/索引/历史创建记录引用是否需要显式协调；本轮按原约定保留这些数据，不做全局旧 ID 替换。真实 Obsidian YAML/UI、双文件中断/重启、跨平台验收仍待执行；外部文件编辑导致冲突时不自动恢复旧正文。
+
 - 第十轮从已提交检查点 `596f4e9` 继续，代码/ADR 提交为 `ab38414`，分支为 `fix/card-id-repair-recovery`。单张 Card ID 修复已改为共享队列内的持久化 intent → `Vault.process` 全文件核对 → 状态迁移/完成标记一次保存；刷新失败不再回写旧 Markdown。新增 **Resume Card ID Repair**，启动只提示。详见 [ADR 0028](adr/0028-card-id-repair-resumes-without-markdown-rollback.md)。
 - 新增可选 schema-version-1 `cardIdRepairs`，只存 ID、路径、block index、哈希、迁移策略、时间和状态，无正文。完成记录保留，用于新 ID 预留、防止重复执行，以及阻止旧窗口重建已迁移 fallback 状态；重复 ID 修复仍保留共享旧状态。历史重置不会清除此记录；外部编辑后复用旧 path/index 需人工检查。
 - 第十轮验证：全量测试、构建、发布元数据检查、最终 Card 专项测试和 diff 检查通过。覆盖写入前后故障、重建存储恢复、state/events/controls 迁移、真实队列交错、刷新失败及 Manual/Inbox ID 预留；临时日志 `/private/tmp/mneme-card-id-repair-all.log`、`/private/tmp/mneme-card-id-repair-focused.log`。
-- **下一轮优先事项**：Concept ID 修复仍是整文件写入和无条件失败回滚，需独立的双文件持久化协议，尤其要检查它与 pending Card ID 修复的交错。不要把本轮单 Card 协调器的保证推广到 Concept 修复或外部 Vault 写入。真实 Obsidian YAML/UI/重启与跨平台验收尚未运行。
+- 第十轮遗留问题（第十一轮已处理）：Concept ID 修复当时仍是整文件写入和无条件失败回滚，需独立的双文件持久化协议，尤其要检查它与 pending Card ID 修复的交错。不要把本轮单 Card 协调器的保证推广到 Concept 修复或外部 Vault 写入。真实 Obsidian YAML/UI/重启与跨平台验收尚未运行。
 
 - 第九轮从已提交检查点 `2b437f3` 继续，代码/ADR 提交为 `cb1957b`，分支为 `fix/identity-repair-content-safety`。修复 Card ID 替换丢失 type/自定义属性，以及空 YAML ID 吞掉下一字段、丢失引号/注释的问题；仅替换 ID 值并保留换行。歧义属性和不支持的 scalar 语法会阻止修复。
 - Concept ID 修复在任何文件写入前读取当前 Markdown，检查 ID、链接和 Card Group 归属。外部归属、共享链接（含旧 folder 引用）、新 ID 冲突、陈旧链接及缺失/错误类型目标均阻止写入；仍允许缺失 ID 的 Concept 接回无人认领的 group owner。没有改变数据格式。
@@ -25,7 +31,7 @@ Updated: 2026-09-09
 - 继续时重点关注真实 Obsidian 的中断/重启/本地回收站验收，以及删除后残留提案的显式整理策略。外部改动冲突、旧的无记录部分删除不会自动修复；不要直接删除 journal 或把手动恢复文件当作撤销 tombstone。
 
 - 已先构建并提交审查前备份：`83deb3f`，其父提交 `9cd98ad` 是原产品代码。
-- 当前审查/重构分支：`fix/card-id-repair-recovery`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，文档检查点为 `d125577`；第六轮代码提交为 `f66bd16`（索引同步）和 `3a9f321`（删除校验），之后另有本交接/审查文档提交。
+- 当前审查/重构分支：`fix/concept-id-repair-recovery`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，文档检查点为 `d125577`；第六轮代码提交为 `f66bd16`（索引同步）和 `3a9f321`（删除校验），之后另有本交接/审查文档提交。
 - 第一轮修复合并/Related 的并发覆盖、Card 并发追加丢失、Review 重复动作跳卡，并提取共用 Markdown 事务与 Review 动作保护。
 - 第二轮让所有当前 `data.json` 写入共用完整读/检查/改/存队列，覆盖 Review、Settings、Proposal、草稿、来源索引及 Merge 回滚；来源重连/移除也已接入原子 Markdown 事务；诊断开关现在只重绘，不重置复习进度。数据格式与版本不变。队列的共享 storage owner 和禁止嵌套获取规则见 [ADR 0022](adr/0022-plugin-state-mutations-share-one-queue.md)。
 - 第二轮 `npm run test:all`、`npm run build`、`npm run check:release -- 1.0.0`、`git diff --check` 均已通过。新增确定性交错测试覆盖共享状态、真实 `saveSettings()` 方法、Merge 回滚、来源写入/回滚冲突。详细证据见 [CODE_REVIEW_2026-09-05.md](CODE_REVIEW_2026-09-05.md)。
@@ -313,7 +319,7 @@ Lightweight organization may be reconsidered only if Tags, search, Related Conce
 - docs/ROADMAP.md
 - docs/V1_RELEASE_CHECKLIST.md
 
-注意：当前版本 1.0.0，审查重构分支为 `fix/card-id-repair-recovery`，审查前备份提交为 `83deb3f`；最新提交请以 git log 为准。请先读 docs/CODE_REVIEW_2026-09-05.md 的已修复与未修复事项。另有长期存在的未跟踪 `mneme` 自链接和 `release-artifacts/`。先只读检查 git status，保留所有现有修改、验收 Vault 与录像。
+注意：当前版本 1.0.0，审查重构分支为 `fix/concept-id-repair-recovery`，审查前备份提交为 `83deb3f`；最新提交请以 git log 为准。请先读 docs/CODE_REVIEW_2026-09-05.md 的已修复与未修复事项。另有长期存在的未跟踪 `mneme` 自链接和 `release-artifacts/`。先只读检查 git status，保留所有现有修改、验收 Vault 与录像。
 
 v1.0 功能已经完成。产品定位已调整为面向自我导向终生学习者的个人知识记忆插件，核心闭环是 Source Note → Concept → Card → Review → Concept Library。
 
