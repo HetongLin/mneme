@@ -344,6 +344,6 @@ Eleventh-pass manual checks in a disposable Vault:
 
 Twelfth-pass manual checks in a disposable Vault:
 
-1. Repair a missing Concept ID with an orphan owner and existing Source evidence. Run **Resync Mneme Index**, then refresh Inbox: the original link and evidence must remain, and the UI must report ownership still needs review. The source record must retain its old linked ID.
+1. Repair a missing Concept ID with an orphan owner and existing Source evidence. Run **Resync Index**, then refresh Inbox: the original link and evidence must remain, and the UI must report ownership still needs review. The source record must retain its old linked ID.
 2. Repeat resync and restart: retained provenance must not silently disappear or be assigned to the new Concept. Confirm that unrelated stale index items still reconcile.
 3. Repair one duplicate ID: shared old provenance must stay with its original ID. Explicitly remove a Source link through its normal workflow and confirm a subsequent resync does not restore it.
