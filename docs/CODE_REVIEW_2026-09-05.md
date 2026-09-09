@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-09 (eleventh pass)
+Updated: 2026-09-09 (twelfth pass)
 
 ## Scope and checkpoint
 
@@ -24,6 +24,8 @@ The tenth pass on `fix/card-id-repair-recovery` starts from committed checkpoint
 
 The eleventh pass on `fix/concept-id-repair-recovery` starts from checkpoint `764354a`. It replaces Concept ID repair compensation with a durable two-file coordinator and protects overlapping identity and authoring work.
 
+The twelfth pass on `fix/repair-provenance-reconciliation` starts from checkpoint `34e8d72`. It prevents index cleanup from discarding provenance associated with repaired identities and makes deferred cleanup visible.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication, version change, or live Vault update was performed.
 
 ## Local implementation commits
@@ -43,6 +45,7 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `cb1957b` — preserve ID repair content and verify linked Card Group ownership before writes.
 - `ab38414` — durable single-Card ID repair, atomic state migration and explicit recovery without Markdown rollback.
 - `32f6f3d` — durable two-file Concept ID repair, pause migration, ownership checks and cross-workflow guards.
+- `9a33133` — preserve repaired Concept provenance during index resync and report deferred cleanup.
 
 ## Confirmed and fixed
 
@@ -212,15 +215,42 @@ The new coordinator saves one content-free receipt for both files under the shar
 
 **Resume Concept ID Repair** works without the original dialog; startup only reports pending work. The modal delegates persistence and handles refresh separately. Pending identities/paths are protected across authoring, deletion, merge, Card ID repair and pause controls. Review startup's automatic legacy-pause cleanup now also waits while repair is pending; otherwise it could erase the pause before migration. Completed repair provenance preserves ID reservations and rejects stale actions against a migrated orphan owner.
 
+### P1 — Resync could delete Source evidence retained by Concept ID repair
+
+Missing-ID repair deliberately keeps original Source links and Source record IDs.
+After changing an orphan owner to a new ID, resync saw the old ID absent from its
+Concept scan and permanently removed the original link, including its evidence.
+The link itself had not changed, so the existing snapshot-equality check allowed
+this deletion. A scan can also become stale when repair completes before cleanup.
+
+Link cleanup now distinguishes missing-Concept removals from missing-Source
+cleanup. Inside the mutation queue, it checks current Concept repair receipts and
+defers missing-Concept removal for every old/new ID referenced by those records.
+The entire link remains unchanged; the result reports deferred IDs and Inbox and
+Resync display the unresolved ownership message. Unrelated cleanup and explicit
+removal retain their existing behavior. No IDs are reassigned automatically.
+See the reconciliation addendum in [ADR 0029](adr/0029-concept-id-repair-resumes-both-markdown-files.md).
+
 ## Remaining boundaries
 
 The confirmed findings above have implementation fixes. This is still a focused audit, not proof that every workflow is correct. Historical partial writes without recovery metadata, corrupted external state, conflicting target edits, and external writers remain outside automatic recovery. Real Obsidian restart, UI rendering, and platform acceptance remain outstanding.
 
-Card and Concept ID repairs now have durable recovery records. External edits, malformed records and historical partial repairs without receipts still stop automatic recovery. Completed provenance retains identity reservations; migrated fallback/orphan IDs cannot be silently reused. External writers do not participate in the queue or its ID reservations. Concept repair preserves existing Source/Proposal/history provenance rather than globally rekeying it; reconciliation of those references remains a separate policy audit. Normal Review startup still clears legacy Concept pauses after pending repairs finish, as required by the existing review policy.
+Card and Concept ID repairs now have durable recovery records. External edits, malformed records and historical partial repairs without receipts still stop automatic recovery. Completed provenance retains identity reservations; migrated fallback/orphan IDs cannot be silently reused. External writers do not participate in the queue or its ID reservations. Concept repair preserves existing Source/Proposal/history provenance rather than globally rekeying it. Resync now protects links associated with repair records, including historical identities later removed externally; explicit ownership resolution and history-reference coordination remain future work. Normal Review startup still clears legacy Concept pauses after pending repairs finish, as required by the existing review policy.
 
 New Concept and single-Card deletions now have durable recovery metadata. Historical partial deletions without receipts still require manual inspection. External edits/moves or changed Related files deliberately stop recovery; there is no automatic conflict resolution or undo. Obsidian rename does not guarantee an atomic compare-and-rename, and local-trash semantics still need real-platform acceptance. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; their prose is preserved rather than silently discarded.
 
 ## Validation
+
+Twelfth-pass validation (2026-09-09): `npm run test:all`, `npm run build`,
+`npm run check:release -- 1.0.0`, and `git diff --check` passed. Full output:
+`/private/tmp/mneme-repair-provenance-all.log`. The integration test bundled with
+the two reconciliation modules from `34e8d72` failed because the Source link map
+became empty; output: `/private/tmp/mneme-repair-provenance-red.log`. Current tests
+cover real repair followed by resync, repair completed between scan and cleanup,
+complete link/Source-record retention, pending/completed and missing/duplicate
+receipts, repeated resync, explicit removal and malformed repair records. Logs
+are temporary; tests and the runner are committed. No live Obsidian UI or restart
+acceptance was performed.
 
 First-pass commands and results:
 
@@ -311,3 +341,9 @@ Eleventh-pass manual checks in a disposable Vault:
 2. Interrupt before/after each file change and before completion state saves. Reload, then run **Resume Concept ID Repair**: each file must end at the same new ID without duplicate writes or stale-content restoration.
 3. Change the second file or add a conflicting Concept/Card Group before resume. Expect a conflict and preserved content. Restore old Markdown after a completed repair and repeat the request: it must not report success.
 4. Open Review while repair is pending; legacy pause cleanup must preserve pending pause state. Check competing Card ID repair, creation, merge and deletion are blocked where they overlap. After repair, legacy pause cleanup retains its existing behavior.
+
+Twelfth-pass manual checks in a disposable Vault:
+
+1. Repair a missing Concept ID with an orphan owner and existing Source evidence. Run **Resync Mneme Index**, then refresh Inbox: the original link and evidence must remain, and the UI must report ownership still needs review. The source record must retain its old linked ID.
+2. Repeat resync and restart: retained provenance must not silently disappear or be assigned to the new Concept. Confirm that unrelated stale index items still reconcile.
+3. Repair one duplicate ID: shared old provenance must stay with its original ID. Explicitly remove a Source link through its normal workflow and confirm a subsequent resync does not restore it.
