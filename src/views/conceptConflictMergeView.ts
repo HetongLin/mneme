@@ -52,7 +52,7 @@ export class MnemeConceptConflictMergeView extends ItemView {
 	private draft?: ConceptMergeDraft;
 	private isClosed = false;
 	private isWorking = false;
-	private plan?: IncomingConceptMergePlan;
+	private sessionRevision = 0;
 	private returnHandled = false;
 	private saveQueue: Promise<void> = Promise.resolve();
 	private saveTimer?: number;
@@ -84,14 +84,17 @@ export class MnemeConceptConflictMergeView extends ItemView {
 
 	protected async onOpen(): Promise<void> {
 		this.isClosed = false;
+		this.isWorking = false;
 		this.render();
 	}
 
 	protected async onClose(): Promise<void> {
+		this.isClosed = true;
+		this.sessionRevision++;
+		this.contentEl.empty();
 		if (this.commitPromise) {
 			await this.commitPromise;
 		}
-		this.isClosed = true;
 		if (this.session && this.draft && !this.completed) {
 			try {
 				await this.flushDraft();
@@ -116,31 +119,53 @@ export class MnemeConceptConflictMergeView extends ItemView {
 	}
 
 	async setSession(session: ConceptConflictMergeSession): Promise<void> {
-		if (this.session && this.draft) await this.flushDraft();
-		this.session = session;
-		this.completed = false;
-		this.returnHandled = false;
-		this.plan = undefined;
-		const stored = await this.actions.draftStore.getDraft(session.key);
-		if (stored) {
-			this.draft = cloneDraft(stored.draft);
-			this.statusMessage = stored.existingConceptId === session.existing.conceptId
-				&& stored.incomingFingerprint === session.incomingFingerprint
-				? "Saved Merge draft restored. No vault content has changed."
-				: "Saved Merge draft came from a different Concept or incoming revision. Its text was kept. Review every field against the current Concepts before confirming.";
-		} else {
-			this.draft = createManualConceptMergeDraft(
-				session.existing,
-				session.incoming,
-				session.existing,
-			);
-			this.statusMessage = "Review the merged learning content. Nothing is written until Confirm Merge.";
-			await this.persistDraft();
-		}
+		if (this.commitPromise) await this.commitPromise;
+		if (this.isClosed) return;
+		const revision = ++this.sessionRevision;
+		this.isWorking = true;
 		this.render();
+		try {
+			if (this.session && this.draft && !this.completed) await this.flushDraft();
+			if (this.isClosed || revision !== this.sessionRevision) return;
+			this.session = session;
+			this.draft = undefined;
+			this.completed = false;
+			this.returnHandled = false;
+			this.statusMessage = "Loading saved Merge draft...";
+			this.render();
+			const stored = await this.actions.draftStore.getDraft(session.key);
+			if (!this.isCurrentSession(session, revision)) return;
+			if (stored) {
+				this.draft = cloneDraft(stored.draft);
+				this.statusMessage = stored.existingConceptId === session.existing.conceptId
+					&& stored.incomingFingerprint === session.incomingFingerprint
+					? "Saved Merge draft restored. No vault content has changed."
+					: "Saved Merge draft came from a different Concept or incoming revision. Its text was kept. Review every field against the current Concepts before confirming.";
+			} else {
+				this.draft = createManualConceptMergeDraft(session.existing, session.incoming, session.existing);
+				this.statusMessage = "Review the merged learning content. Nothing is written until Confirm Merge.";
+				await this.persistDraft();
+			}
+		} catch (error) {
+			if (!this.isClosed && revision === this.sessionRevision) {
+				this.statusMessage = formatUserFacingError(error, "Could not load the Merge draft. Reopen Merge to retry.");
+			}
+		} finally {
+			if (!this.isClosed && revision === this.sessionRevision) {
+				this.isWorking = false;
+				this.render();
+			}
+		}
+	}
+
+	private isCurrentSession(session: ConceptConflictMergeSession, revision: number): boolean {
+		return !this.isClosed && this.session === session && this.sessionRevision === revision;
 	}
 
 	private render(): void {
+		if (this.isClosed) return;
+		const session = this.session;
+		const revision = this.sessionRevision;
 		this.contentEl.empty();
 		this.contentEl.addClass("mneme-review-view", "mneme-concept-merge-view");
 		const shellEl = this.contentEl.createDiv({ cls: "mneme-concept-merge-shell" });
@@ -159,7 +184,9 @@ export class MnemeConceptConflictMergeView extends ItemView {
 
 		headerEl.createEl("button", { text: "Back to Conflict Options" }, (buttonEl) => {
 			buttonEl.disabled = this.isWorking;
-			buttonEl.addEventListener("click", () => void this.returnToConflictOptions());
+			buttonEl.addEventListener("click", () => {
+				if (session && this.isCurrentSession(session, revision)) void this.returnToConflictOptions();
+			});
 		});
 		shellEl.createEl("p", { cls: "mneme-review-status", text: this.statusMessage });
 		this.renderComparison(shellEl);
@@ -211,13 +238,16 @@ export class MnemeConceptConflictMergeView extends ItemView {
 	private renderDraftEditor(parentEl: HTMLElement): void {
 		const session = this.session;
 		const draft = this.draft;
+		const revision = this.sessionRevision;
 		if (!session || !draft) return;
 		const sectionEl = parentEl.createDiv({ cls: "mneme-concept-merge-section" });
 		const headingEl = sectionEl.createDiv({ cls: "mneme-concept-conflict-merge-step-heading" });
 		headingEl.createEl("h3", { text: "2. Edit Merged Concept" });
 		const aiButton = headingEl.createEl("button", { text: "Draft with AI" });
 		aiButton.disabled = this.isWorking;
-		aiButton.addEventListener("click", () => void this.draftWithAi(aiButton));
+		aiButton.addEventListener("click", () => {
+			if (this.isCurrentSession(session, revision)) void this.draftWithAi(aiButton);
+		});
 
 		const titleInput = this.createTextInput(sectionEl, "Title", draft.title);
 		const englishField = this.createTextInputField(sectionEl, "English Alias (optional)", draft.englishName);
@@ -250,6 +280,7 @@ export class MnemeConceptConflictMergeView extends ItemView {
 			value: draft.whyItMatters,
 		});
 		const updateDraft = (): void => {
+			if (!this.isCurrentSession(session, revision) || this.isWorking || this.completed) return;
 			const current = this.draft ?? draft;
 			this.draft = {
 				...current,
@@ -258,9 +289,9 @@ export class MnemeConceptConflictMergeView extends ItemView {
 				title: titleInput.value,
 				whyItMatters: whyInput.value,
 			};
-			this.plan = undefined;
 			this.scheduleDraftSave();
 		};
+		for (const input of [titleInput, englishInput, coreInput, whyInput]) input.disabled = this.isWorking;
 		titleInput.addEventListener("input", () => {
 			const nextTitle = titleInput.value.trim();
 			if (nextTitle !== observedTitle) {
@@ -277,6 +308,7 @@ export class MnemeConceptConflictMergeView extends ItemView {
 		const mergeButton = sectionEl.createEl("button", { cls: "mod-cta", text: "Merge Concepts…" });
 		mergeButton.disabled = this.isWorking;
 		mergeButton.addEventListener("click", () => {
+			if (!this.isCurrentSession(session, revision)) return;
 			updateDraft();
 			void this.requestMergeConfirmation(mergeButton);
 		});
@@ -301,117 +333,112 @@ export class MnemeConceptConflictMergeView extends ItemView {
 	private async draftWithAi(button: HTMLButtonElement): Promise<void> {
 		const session = this.session;
 		const draft = this.draft;
-		if (!session || !draft || this.isWorking) return;
+		const revision = this.sessionRevision;
+		if (!session || !draft || this.isWorking || this.isClosed || this.completed) return;
 		this.isWorking = true;
 		button.disabled = true;
 		this.statusMessage = "Drafting merged learning content...";
 		this.render();
 		try {
+			const firstMarkdown = await this.actions.readMarkdown(session.existing.path);
+			if (!this.isCurrentSession(session, revision)) return;
 			const aiDraft = await this.actions.aiService.draftMerge({
 				first: session.existing,
-				firstMarkdown: await this.actions.readMarkdown(session.existing.path),
+				firstMarkdown,
 				second: session.incoming,
 				secondMarkdown: session.incomingMarkdown,
 			});
-			this.draft = {
-				...draft,
-				...aiDraft,
-				englishName: aiDraft.englishName ?? draft.englishName,
-			};
-			this.plan = undefined;
+			if (!this.isCurrentSession(session, revision)) return;
+			this.draft = { ...draft, ...aiDraft, englishName: aiDraft.englishName ?? draft.englishName };
 			await this.persistDraft();
-			this.statusMessage = "AI draft is ready. Review and edit it before merging.";
+			if (this.isCurrentSession(session, revision)) {
+				this.statusMessage = "AI draft is ready. Review and edit it before merging.";
+			}
 		} catch (error) {
+			if (!this.isCurrentSession(session, revision)) return;
 			console.error("Mneme: conflict Merge AI draft failed", error);
 			this.statusMessage = formatUserFacingError(error, "Continue with the Manual draft.");
 			new Notice(`Mneme: ${this.statusMessage}`);
 		} finally {
-			this.isWorking = false;
-			if (!this.isClosed) this.render();
+			if (this.isCurrentSession(session, revision)) {
+				this.isWorking = false;
+				this.render();
+			}
 		}
 	}
 
 	private async requestMergeConfirmation(button: HTMLButtonElement): Promise<void> {
 		const session = this.session;
 		const draft = this.draft;
-		if (!session || !draft || this.isWorking) return;
+		const revision = this.sessionRevision;
+		if (!session || !draft || this.isWorking || this.isClosed || this.completed) return;
 		this.isWorking = true;
 		button.disabled = true;
-		let preparedPlan: IncomingConceptMergePlan | undefined;
+		this.render();
 		try {
 			await this.flushDraft();
+			if (!this.isCurrentSession(session, revision)) return;
 			const result = await this.actions.mergeService.prepare({
 				draft: this.actions.englishAliasesEnabled() && shouldOfferEnglishAlias(draft.title)
-					? draft
-					: { ...draft, englishName: "" },
+					? cloneDraft(draft) : { ...cloneDraft(draft), englishName: "" },
 				existing: session.existing,
 				origin: session.origin,
 			});
+			if (!this.isCurrentSession(session, revision)) return;
 			if (result.status === "blocked") {
 				this.statusMessage = result.message;
 				new Notice(`Mneme: ${result.message}`);
-			} else {
-				preparedPlan = result.plan;
+				return;
+			}
+			const plan = result.plan;
+			const confirmed = await confirmConceptMerge(this.app, {
+				changes: [{ after: plan.after, before: plan.before, label: "Existing Concept", path: plan.existing.path }],
+				description: "The existing Concept will be updated in place. No Redirect Note or -2 path will be created.",
+				impact: `${plan.sourceLinksAdded} Source Notes · ${plan.viewsAdded} Views · no duplicate Concept created`,
+			});
+			if (!this.isCurrentSession(session, revision)) return;
+			if (!confirmed) {
+				this.statusMessage = "Merge cancelled. No vault content changed.";
+				return;
+			}
+			const commit = this.executeMerge(plan, session, revision);
+			this.commitPromise = commit;
+			try {
+				await commit;
+			} finally {
+				if (this.commitPromise === commit) this.commitPromise = undefined;
 			}
 		} catch (error) {
+			if (!this.isCurrentSession(session, revision)) return;
 			console.error("Mneme: failed to prepare conflict Merge preview", error);
 			this.statusMessage = formatUserFacingError(error, "Return to the conflict options and try again.");
 			new Notice(`Mneme: ${this.statusMessage}`);
 		} finally {
-			this.isWorking = false;
-			button.disabled = false;
+			if (this.isCurrentSession(session, revision)) {
+				this.isWorking = false;
+				if (!this.completed) this.render();
+			}
 		}
-		if (!preparedPlan) {
-			if (!this.isClosed) this.render();
-			return;
-		}
-
-		const confirmed = await confirmConceptMerge(this.app, {
-			changes: [{
-				after: preparedPlan.after,
-				before: preparedPlan.before,
-				label: "Existing Concept",
-				path: preparedPlan.existing.path,
-			}],
-			description: "The existing Concept will be updated in place. No Redirect Note or -2 path will be created.",
-			impact: `${preparedPlan.sourceLinksAdded} Source Notes · ${preparedPlan.viewsAdded} Views · no duplicate Concept created`,
-		});
-		if (!confirmed || this.isClosed) {
-			this.statusMessage = "Merge cancelled. No vault content changed.";
-			if (!this.isClosed) this.render();
-			return;
-		}
-
-		this.plan = preparedPlan;
-		button.disabled = true;
-		const commit = this.executeMerge();
-		this.commitPromise = commit;
-		void commit.finally(() => {
-			if (this.commitPromise === commit) this.commitPromise = undefined;
-		});
 	}
 
-	private async executeMerge(): Promise<void> {
-		const plan = this.plan;
-		if (!plan || this.isWorking) return;
-		this.isWorking = true;
+	private async executeMerge(plan: IncomingConceptMergePlan, session: ConceptConflictMergeSession, revision: number): Promise<void> {
 		try {
 			const result = await this.actions.mergeService.execute(plan);
 			if (result.status !== "merged") {
+				if (!this.isCurrentSession(session, revision)) return;
 				this.statusMessage = result.message;
 				new Notice(`Mneme: ${result.message}`);
 				return;
 			}
 			this.completed = true;
 			let refreshFailed = false;
-			if (this.session) {
-				try {
-					await this.actions.onMerged(this.session);
-				} catch (error) {
-					refreshFailed = true;
-					console.error("Mneme: conflict Merge completed but dependent views could not refresh", error);
-				}
+			try {
+				await this.actions.onMerged(session);
+			} catch (error) {
+				refreshFailed = true;
+				console.error("Mneme: conflict Merge completed but dependent views could not refresh", error);
 			}
+			if (!this.isCurrentSession(session, revision)) return;
 			this.contentEl.empty();
 			this.contentEl.addClass("mneme-review-view", "mneme-concept-merge-view");
 			const shellEl = this.contentEl.createDiv({ cls: "mneme-concept-merge-shell" });
@@ -430,28 +457,44 @@ export class MnemeConceptConflictMergeView extends ItemView {
 				new Notice("Mneme: Merge completed, but dependent views could not refresh.");
 			}
 		} catch (error) {
+			if (!this.isCurrentSession(session, revision)) return;
 			console.error("Mneme: conflict Merge failed", error);
 			this.statusMessage = formatUserFacingError(error, "Your incoming Concept remains saved.");
 			new Notice(`Mneme: ${this.statusMessage}`);
-		} finally {
-			this.isWorking = false;
-			if (!this.completed && !this.isClosed) this.render();
 		}
 	}
 
 	private async returnToConflictOptions(): Promise<void> {
 		const session = this.session;
-		if (!session || this.isWorking) return;
-		await this.flushDraft();
-		this.returnHandled = true;
-		this.leaf.detach();
-		await session.onReturn();
+		const revision = this.sessionRevision;
+		if (!session || this.isWorking || this.isClosed || this.completed) return;
+		this.isWorking = true;
+		this.render();
+		try {
+			await this.flushDraft();
+			if (!this.isCurrentSession(session, revision)) return;
+			this.returnHandled = true;
+			this.leaf.detach();
+			await session.onReturn();
+		} catch (error) {
+			if (!this.isCurrentSession(session, revision)) return;
+			this.statusMessage = formatUserFacingError(error, "Could not save the Merge draft. Try returning again.");
+			new Notice(`Mneme: ${this.statusMessage}`);
+		} finally {
+			if (this.isCurrentSession(session, revision)) {
+				this.isWorking = false;
+				this.render();
+			}
+		}
 	}
 
 	private scheduleDraftSave(): void {
+		const session = this.session;
+		const revision = this.sessionRevision;
 		if (this.saveTimer !== undefined) window.clearTimeout(this.saveTimer);
 		this.saveTimer = window.setTimeout(() => {
 			this.saveTimer = undefined;
+			if (!session || !this.isCurrentSession(session, revision) || this.isWorking || this.completed) return;
 			void this.persistDraft().catch((error) => {
 				console.error("Mneme: failed to auto-save conflict Merge draft", error);
 			});
@@ -469,7 +512,7 @@ export class MnemeConceptConflictMergeView extends ItemView {
 	private persistDraft(): Promise<void> {
 		const session = this.session;
 		const draft = this.draft;
-		if (!session || !draft) return Promise.resolve();
+		if (!session || !draft || this.completed) return this.saveQueue;
 		const record: ConceptConflictMergeDraftRecord = {
 			draft: cloneDraft(draft),
 			existingConceptId: session.existing.conceptId,

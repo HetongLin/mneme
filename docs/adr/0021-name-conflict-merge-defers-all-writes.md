@@ -58,3 +58,25 @@ confirmation.
   incoming side has no durable Concept identity, path, Card Group, or history.
 - Merge-draft persistence belongs in `data.json`; Concept content remains
   authoritative only after confirmation writes Concept Markdown.
+
+## Async session boundaries — 2026-09-10
+
+Each conflict-Merge session activation has a revision, including reopening the
+same key or session object. Draft loads, AI responses, preview preparation,
+confirmation results and editor callbacks may affect the view only while both
+their session and revision remain current. Replacing a session invalidates old
+work before loading the new draft. A failed save before switching retains the
+current in-memory edits; an obsolete load cannot overwrite the newer draft.
+
+Keep the operation lock from preparation through the confirmation dialog and
+commit. Disable draft editing during that interval, and pass the confirmed plan
+and original session explicitly to execution. The completion callback always
+receives that original session. Closing invalidates UI callbacks immediately;
+closing or switching after a commit has started waits for its completion. This
+does not cancel or undo an already-confirmed write. Completed drafts are not
+auto-saved again: the service already removes them in its state commit.
+
+No new persisted fields are required. These View guards do not provide durable
+Merge recovery across process termination, change the underlying transaction
+protocol, or cover the separate Guided Merge View. Real Obsidian dialog/popout
+and restart acceptance remains separate from deterministic lifecycle tests.

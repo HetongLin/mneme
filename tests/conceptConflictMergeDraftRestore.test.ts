@@ -42,6 +42,7 @@ interface Harness {
 	session?: ConceptConflictMergeSession;
 	statusMessage?: string;
 	saveQueue: Promise<void>;
+	sessionRevision: number;
 	render(): void;
 	setSession: MnemeConceptConflictMergeView["setSession"];
 }
@@ -51,6 +52,7 @@ function createHarness(storage: Storage): Harness {
 	const view = Object.create(MnemeConceptConflictMergeView.prototype) as Harness;
 	view.actions = { draftStore };
 	view.saveQueue = Promise.resolve();
+	view.sessionRevision = 0;
 	view.render = () => undefined;
 	return view;
 }

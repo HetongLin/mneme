@@ -4,12 +4,14 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import esbuild from "esbuild";
 
-const tests = ["markdownPath", "entityId", "conceptNaming", "conceptMarkdownIdentity", "markdownProposalRenderer", "approvedProposalWriter", "manualConceptService", "manualConceptWriteRecovery", "manualCardService", "manualCardWriteRecovery", "ankiTsvExporter", "approvedWriteRecovery", "cardComposerView", "conceptComposerView", "conceptConflictMergeDraftRestore"];
+const tests = ["markdownPath", "entityId", "conceptNaming", "conceptMarkdownIdentity", "markdownProposalRenderer", "approvedProposalWriter", "manualConceptService", "manualConceptWriteRecovery", "manualCardService", "manualCardWriteRecovery", "ankiTsvExporter", "approvedWriteRecovery", "cardComposerView", "conceptComposerView", "conceptConflictMergeDraftRestore", "conceptConflictMergeLifecycle"];
 
 for (const test of tests) {
 	const outfile = path.join(tmpdir(), `mneme-${test}-tests-${Date.now()}.mjs`);
 	const obsidianStub = test === "conceptConflictMergeDraftRestore"
 		? "./tests/helpers/obsidianConceptComposerStub.ts"
+		: test === "conceptConflictMergeLifecycle"
+			? "./tests/helpers/obsidianConflictMergeStub.ts"
 		: test.endsWith("ComposerView") ? `./tests/helpers/obsidian${test[0].toUpperCase()}${test.slice(1, -4)}Stub.ts` : undefined;
 	try {
 		await esbuild.build({
