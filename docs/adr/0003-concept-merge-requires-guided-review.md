@@ -24,3 +24,27 @@ Before any write, Mneme builds a zero-write preview in a compact confirmation di
 ## Consequences
 
 AI accelerates comparison and prose drafting but cannot reorganize approved knowledge without the learner's reviewed confirmation. The workflow is deliberately more explicit than ordinary editing because it changes identity and graph structure while preserving long-lived review state.
+
+## Async selection boundaries — 2026-09-10
+
+Ordinary Guided Merge tracks an operation revision. Refreshing, selecting another
+pair, restarting a manual draft or closing the workspace invalidates results from
+earlier scans, AI drafts, shortlist inspections and confirmations. The same pair
+being reopened is a new activation. Capture the survivor before asynchronous AI
+work, and pass the confirmed plan and final Markdown directly to execution rather
+than retaining mutable preview fields on the View.
+
+Keep editing and selection locked from preview preparation through confirmation
+and commit. Disabled controls also reject stale callbacks. A refresh or selection
+requested through another entry point can replace uncommitted work; it must wait
+for an already-started commit. Closing immediately invalidates UI work and waits
+for that commit without undoing it. Completion still refreshes dependent views,
+but cannot redraw a closed workspace. Successful execution clears the in-memory
+draft and rejects repeated submission until a new selection/refresh starts.
+
+An ordinary scan that loses the current Concept selection preserves authored
+draft text, while missing targets prevent confirmation. Explicit pair selection
+and Start Manual Draft retain their existing draft-reset behavior. No persisted
+fields or underlying Merge transaction rules change. These guards do not provide
+cross-process recovery, external-writer isolation, or real Obsidian window/restart
+acceptance. Name-conflict Merge uses its separate workflow in ADR 0021.
