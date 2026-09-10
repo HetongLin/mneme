@@ -341,10 +341,56 @@ async function runAsyncTests(): Promise<void> {
 			assert.equal(storage.saveCount, 0);
 		}
 	}
+
+	{
+		const vault = new MemoryMergeVault(createFiles());
+		const storage = new MemoryMergeStorage(createData());
+		const service = new ConceptMergeService(vault, storage);
+		const prepared = await service.prepare({ merged, preserveMergedAsView: true, survivor });
+		assert.equal(prepared.status, "ready");
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		assert.ok(prepared.plan.writes.filter((write) => write.after !== write.before).length >= 2);
+		const beforeFiles = { ...vault.files };
+		const beforeData = structuredClone(storage.data);
+		const finalConcept = prepared.plan.writes.find((write) => write.path === survivor.path)?.after ?? "";
+		vault.throwAfterProcessAt = 2;
+		const result = await service.execute(prepared.plan, finalConcept);
+		assert.equal(result.status, "failed");
+		assert.deepEqual(vault.files, beforeFiles);
+		assert.deepEqual(storage.data, beforeData);
+		assert.equal(storage.saveCount, 0);
+	}
+
+	{
+		const vault = new MemoryMergeVault(createFiles());
+		const storage = new MemoryMergeStorage(createData());
+		const service = new ConceptMergeService(vault, storage);
+		const prepared = await service.prepare({ merged, preserveMergedAsView: true, survivor });
+		assert.equal(prepared.status, "ready");
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		const finalConcept = prepared.plan.writes.find((write) => write.path === survivor.path)?.after ?? "";
+		const racedWrite = prepared.plan.writes.find((write) => write.after !== write.before);
+		assert.ok(racedWrite);
+		const beforeFiles = { ...vault.files };
+		const beforeData = structuredClone(storage.data);
+		vault.throwAfterProcessAt = 1;
+		vault.throwAfterProcessEdit = "\nLearner edit during rollback\n";
+		const result = await service.execute(prepared.plan, finalConcept);
+		assert.equal(result.status, "failed");
+		assert.match(result.message, /Rollback also failed/i);
+		assert.deepEqual(vault.files, {
+			...beforeFiles,
+			[racedWrite.path]: `${racedWrite.after}\nLearner edit during rollback\n`,
+		});
+		assert.deepEqual(storage.data, beforeData);
+		assert.equal(storage.saveCount, 0);
+	}
 }
 
 class MemoryMergeVault implements ConceptMergeVaultAdapter {
 	commitCount = 0;
+	throwAfterProcessAt?: number;
+	throwAfterProcessEdit?: string;
 	racePath?: string;
 	raceEdit?: string;
 	rollbackRaceAfter?: number;
@@ -381,6 +427,11 @@ class MemoryMergeVault implements ConceptMergeVaultAdapter {
 		const next = transform(current);
 		this.files[path] = next;
 		this.commitCount += 1;
+		if (this.throwAfterProcessAt === this.commitCount) {
+			this.throwAfterProcessAt = undefined;
+			if (this.throwAfterProcessEdit) this.files[path] += this.throwAfterProcessEdit;
+			throw new Error("Injected after-process failure");
+		}
 		if (this.changeAfterCommit === this.commitCount && this.changeAfterCommitPath) {
 			this.files[this.changeAfterCommitPath] += "\nEdit made during execution\n";
 			this.changeAfterCommit = undefined;

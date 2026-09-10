@@ -90,6 +90,7 @@ async function runAsyncTests(): Promise<void> {
 		sourcePath: "Notes/Source.md",
 		status: "clean",
 	};
+	const completeDataFixture = structuredClone(data);
 	const vault = new MemoryIncomingMergeVault({
 		[existing.path]: conceptMarkdown(existing),
 	});
@@ -421,10 +422,72 @@ async function runAsyncTests(): Promise<void> {
 		assert.match(rollbackVault.files[existing.path] ?? "", /Merged\./);
 		assert.match(rollbackVault.files[existing.path] ?? "", /Edit made during rollback/);
 	}
+
+	{
+		const faultData = structuredClone(completeDataFixture);
+		const faultVault = new MemoryIncomingMergeVault({ [existing.path]: conceptMarkdown(existing) });
+		const faultStorage = new MemoryIncomingMergeStorage(faultData);
+		const faultService = new IncomingConceptMergeService(faultVault, faultStorage, () => now);
+		const prepared = await faultService.prepare({
+			draft: {
+				coreMeaning: "Merged.",
+				englishName: "",
+				importance: "normal",
+				learningMode: "reviewable",
+				tags: [],
+				title: "Shared title",
+				whyItMatters: "",
+			},
+			existing,
+			origin: { kind: "inbox", proposalId: proposal.id, proposalUpdatedAt: proposal.updatedAt },
+		});
+		assert.equal(prepared.status, "ready");
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		const filesBefore = { ...faultVault.files };
+		const dataBefore = structuredClone(faultStorage.data);
+		faultVault.throwAfterProcessOnce = true;
+		const result = await faultService.execute(prepared.plan);
+		assert.equal(result.status, "failed");
+		assert.deepEqual(faultVault.files, filesBefore);
+		assert.deepEqual(faultStorage.data, dataBefore);
+		assert.equal(faultStorage.saveCount, 0);
+	}
+
+	{
+		const raceData = structuredClone(completeDataFixture);
+		const raceVault = new MemoryIncomingMergeVault({ [existing.path]: conceptMarkdown(existing) });
+		const raceStorage = new MemoryIncomingMergeStorage(raceData);
+		const raceService = new IncomingConceptMergeService(raceVault, raceStorage, () => now);
+		const prepared = await raceService.prepare({
+			draft: {
+				coreMeaning: "Merged.",
+				englishName: "",
+				importance: "normal",
+				learningMode: "reviewable",
+				tags: [],
+				title: "Shared title",
+				whyItMatters: "",
+			},
+			existing,
+			origin: { kind: "inbox", proposalId: proposal.id, proposalUpdatedAt: proposal.updatedAt },
+		});
+		assert.equal(prepared.status, "ready");
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		raceVault.throwAfterProcessOnce = true;
+		raceVault.throwAfterProcessRaceEdit = "\nLearner edit during rollback\n";
+		const result = await raceService.execute(prepared.plan);
+		assert.equal(result.status, "failed");
+		assert.match(result.message, /Rollback also failed/i);
+		assert.equal(raceVault.files[existing.path], `${prepared.plan.after}\nLearner edit during rollback\n`);
+		assert.deepEqual(raceStorage.data, completeDataFixture);
+		assert.equal(raceStorage.saveCount, 0);
+	}
 }
 
 class MemoryIncomingMergeVault implements IncomingConceptMergeVault {
 	modifyCount = 0;
+	throwAfterProcessOnce = false;
+	throwAfterProcessRaceEdit?: string;
 	racePath?: string;
 	raceEdit?: string;
 	rollbackRace = false;
@@ -453,6 +516,11 @@ class MemoryIncomingMergeVault implements IncomingConceptMergeVault {
 		const next = transform(current);
 		this.files[path] = next;
 		this.modifyCount += 1;
+		if (this.throwAfterProcessOnce) {
+			this.throwAfterProcessOnce = false;
+			if (this.throwAfterProcessRaceEdit) this.files[path] += this.throwAfterProcessRaceEdit;
+			throw new Error("Injected after-process failure");
+		}
 	}
 }
 
@@ -506,7 +574,4 @@ function conceptMarkdown(concept: ConceptSummary): string {
 	].join("\n");
 }
 
-void runAsyncTests().catch((error) => {
-	console.error(error);
-	process.exitCode = 1;
-});
+export const done = runAsyncTests();

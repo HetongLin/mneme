@@ -51,6 +51,24 @@ This check protects against concurrent in-process state mutations. It does not
 make the earlier filesystem observation atomic with the later state save; an
 external filesystem change may require a subsequent reconciliation.
 
+## Uncertain Markdown writes (2026-09-10)
+
+The shared Markdown transaction records a write as attempted inside the atomic
+transform, after its exact `before` check passes and before returning `after`.
+`Vault.process()` may apply the result and then reject, so a resolved Promise is
+not required for compensation. A rejected precondition never registers ownership
+of that file, even if its current content equals the planned result.
+
+On failure, compensation visits attempted writes in reverse order. Exact `after`
+content is restored to `before`; content already equal to `before` is left as is.
+Any other content is preserved and reported as a rollback conflict. Compensation
+continues for other files, and state rollback still runs only if state commit was
+attempted. Callers continue to receive the original error or an error including
+all rollback failures.
+
+This is same-process compensation only. It adds no journal and cannot recover
+after process termination or guarantee consistency when compensation fails.
+
 ## Consequences and Boundaries
 
 - Independent in-process state mutations preserve one another's changes.
