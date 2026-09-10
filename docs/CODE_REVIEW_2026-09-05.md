@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-10 (fourteenth pass)
+Updated: 2026-09-10 (fifteenth pass)
 
 ## Scope and checkpoint
 
@@ -30,6 +30,8 @@ The thirteenth pass on `fix/proposal-target-after-id-repair` starts from checkpo
 
 The fourteenth pass on `fix/conflict-merge-session-lifecycle` starts from checkpoint `57bdc2f`. It isolates asynchronous conflict-Merge actions by session and keeps confirmation/commit operations locked through completion.
 
+The fifteenth pass on `fix/guided-merge-session-lifecycle` starts from checkpoint `8c0a112`. It applies selection and operation boundaries to the separate ordinary Guided Merge View, without changing the underlying Merge transaction protocol.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication, version change, or live Vault update was performed.
 
 ## Local implementation commits
@@ -52,6 +54,7 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `9a33133` — preserve repaired Concept provenance during index resync and report deferred cleanup.
 - `f8a9c05` — verify proposal targets after duplicate-ID repair and retain authored Merge drafts across context changes.
 - `15ad40c` — bind conflict-Merge loads, AI, confirmation and completion to their original session.
+- `72edadb` — isolate Guided Merge scans, AI, selection and confirmation, and wait for started commits during transitions.
 
 ## Confirmed and fixed
 
@@ -287,6 +290,28 @@ and delayed autosaves enforce the same boundary. A failed pre-switch draft save
 retains the original in-memory text. These are View lifecycle changes, not durable
 recovery for the underlying Merge transaction; see [ADR 0021](adr/0021-name-conflict-merge-defers-all-writes.md).
 
+### P1 — Closed or reselected Guided Merge could still execute an old confirmation
+
+Ordinary Guided Merge had its own unguarded confirmation and close path. Its lock
+ended before the dialog resolved; closing only emptied the DOM. The baseline
+regression executed a prepared plan after closing the workspace. Selection changes
+from another entry point could also race with an already-started commit's success
+rendering. The View now invalidates obsolete operations by revision, keeps the
+confirmation lock through commit, and passes the exact plan/final Markdown to
+execution. Close/refresh/selection transitions wait for a started commit, while
+close immediately suppresses late UI updates. Successful completion clears the
+in-memory draft and prevents repeat submission from old controls.
+
+### P2 — Guided Merge AI and scans could replace newer selections and edits
+
+AI drafting read the survivor after the response returned; inspection and scanner
+responses updated fields without checking whether selection had changed. Revision
+checks now guard reads, responses, preparation, errors and finalizers. AI uses the
+survivor captured at request time. Controls and callbacks are locked together, and
+obsolete original-Markdown rendering stops when its container or operation is no
+longer current. A regular scan losing a selected Concept retains authored text
+while missing targets prevent confirmation. See [ADR 0003](adr/0003-concept-merge-requires-guided-review.md).
+
 ## Remaining boundaries
 
 The confirmed findings above have implementation fixes. This is still a focused audit, not proof that every workflow is correct. Historical partial writes without recovery metadata, corrupted external state, conflicting target edits, and external writers remain outside automatic recovery. Real Obsidian restart, UI rendering, and platform acceptance remain outstanding.
@@ -296,6 +321,19 @@ Card and Concept ID repairs now have durable recovery records. External edits, m
 New Concept and single-Card deletions now have durable recovery metadata. Historical partial deletions without receipts still require manual inspection. External edits/moves or changed Related files deliberately stop recovery; there is no automatic conflict resolution or undo. Obsidian rename does not guarantee an atomic compare-and-rename, and local-trash semantics still need real-platform acceptance. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; their prose is preserved rather than silently discarded.
 
 ## Validation
+
+Fifteenth-pass validation (2026-09-10): full tests, build, release check and diff
+check passed. A final completion-state adjustment also passed the Markdown-writer
+suite and build. Full/focused outputs:
+`/private/tmp/mneme-guided-merge-lifecycle-all.log` and
+`/private/tmp/mneme-guided-merge-lifecycle-focused.log`. The new View suite bundled
+with `8c0a112` failed because a confirmation still executed after close; temporary
+log: `/private/tmp/mneme-guided-merge-lifecycle-red.log`. Tests cover pair and
+same-pair changes, refresh/close while confirming, operation locking, late AI and
+inspection, reverse scan completion, close during read/prepare/scan, waiting for
+started commits, successful submission guards, and retaining text when a scan
+loses the current selection. These are actual View methods with service/DOM
+doubles, not real Obsidian or process-termination acceptance.
 
 Fourteenth-pass validation (2026-09-10): full tests, build, release check, and diff
 check passed. Full output: `/private/tmp/mneme-conflict-merge-lifecycle-all.log`.
@@ -441,3 +479,11 @@ Fourteenth-pass manual checks in a disposable Vault:
 3. Delay an already-confirmed commit and close or switch the workspace. The transition must wait, completion must refresh the original source, and the closed view must not redraw or recreate its completed draft.
 
 Ordinary Guided Merge lifecycle and durable recovery of Incoming/Guided Merge state commits remain separate audit work.
+
+Fifteenth-pass manual checks in a disposable Vault:
+
+1. Open Guided Merge confirmation, then close the workspace or reopen it with another pair. Accepting the old dialog must not execute its plan. Reopening the same pair must also invalidate the old dialog.
+2. Start AI drafting/shortlist inspection, then change selection from another entry point. The old response must not replace the new draft, selection or operation state. Refresh with a now-missing Concept and verify authored text remains visible.
+3. Delay a confirmed commit and close, refresh or select another pair. The transition must wait for completion, and a closed workspace must not render success. Completed draft controls must not submit the same Merge again.
+
+Incoming/Guided Merge durable completion, rollback behavior and real Obsidian process-restart acceptance remain follow-up work.

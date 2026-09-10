@@ -4,6 +4,11 @@ Updated: 2026-09-10
 
 ## 2026-09-05 至 09-10 代码审查后续
 
+- 第十五轮从已提交检查点 `8c0a112` 继续，代码/ADR 提交为 `72edadb`，分支为 `fix/guided-merge-session-lifecycle`。修复普通 Guided Merge 的同类生命周期问题：关闭/换选择后旧确认仍能执行、旧 AI/shortlist inspection/扫描结果影响新选择、确认期间操作锁提前释放、提交完成后覆盖新 UI。operation revision 隔离扫描/AI/确认和编辑回调；AI 提前捕获 survivor；执行显式接收 plan/final Markdown，移除 View 上可变化的预览字段。
+- 锁覆盖准备→确认→提交，控件和回调均检查状态。刷新/换选择等待已开始的 commit；关闭立即使 UI 回调失效并等待 commit，不撤销已确认写入。完成后清除内存草稿，旧控件不能重复提交。普通刷新丢失已选 Concept 时仍保留手写正文，缺失目标不能合并。无新持久字段，规则补充在 [ADR 0003](adr/0003-concept-merge-requires-guided-review.md)。
+- 第十五轮验证：全量测试、构建、发布检查及 diff 检查通过；最终小调整后 writer 专项和构建也通过。旧版 bundle 复现关闭后旧确认执行。回归覆盖关闭/换对/同对重开/刷新、重复确认、AI/inspection迟到、乱序扫描、read/prepare/scan时关闭、提交中close/setSelection/refresh等待、完成防重提及刷新丢失选择时草稿保留。临时日志 `/private/tmp/mneme-guided-merge-lifecycle-all.log`、`/private/tmp/mneme-guided-merge-lifecycle-focused.log`、`/private/tmp/mneme-guided-merge-lifecycle-red.log`。
+- **下一轮重点**：IncomingConceptMergeService 和 ConceptMergeService 的最终状态保存/回滚及跨进程中断恢复。本轮没有改变底层多文件 Markdown/状态事务；不要把 View 关闭保护解释为持久化恢复。真实 Obsidian 待验收：确认框打开后重开另一对或关闭 View，旧确认不得写；AI等待期间从另一入口换选择；提交中关闭/换对须等待并刷新正确结果。
+
 - 第十四轮从已提交检查点 `57bdc2f` 继续，代码/ADR 提交为 `15ad40c`，分支为 `fix/conflict-merge-session-lifecycle`。修复 Conflict Merge 的异步会话隔离：旧确认在切换后仍执行、旧 AI/草稿加载覆盖新上下文、旧 finally 解锁新请求、完成回调读取可变化 session 等。每次激活递增 revision；异步结果检查 session+revision+closed，确认流程从准备到提交保持锁定，执行显式接收原 plan/session。
 - 关闭立即使旧 UI 回调失效；已经开始的 commit 完成后才能切换/结束关闭，成功回调仍拿到原 session，关闭后不重绘。编辑控件和旧事件回调受工作状态/会话保护。切换前保存失败保留内存编辑；completed 草稿不再保存复活。草稿清理由 IncomingConceptMergeService 的最终状态提交负责，View 不另行清表。
 - 第十四轮验证：全量测试、构建、发布检查及 diff 检查通过。旧版 bundle 复现切换后旧确认执行 1 次、期望 0 次。测试使用真实 View 方法/确认函数、持久存储克隆和 Promise 屏障，覆盖不同 key/同 key/同对象重开、重复确认、AI交错、加载乱序、关闭期间 read/response/prepare/confirm、提交等待、原会话回调、零迟到重绘及保存失败保留。临时日志 `/private/tmp/mneme-conflict-merge-lifecycle-all.log`、`/private/tmp/mneme-conflict-merge-lifecycle-red.log`。
@@ -46,7 +51,7 @@ Updated: 2026-09-10
 - 继续时重点关注真实 Obsidian 的中断/重启/本地回收站验收，以及删除后残留提案的显式整理策略。外部改动冲突、旧的无记录部分删除不会自动修复；不要直接删除 journal 或把手动恢复文件当作撤销 tombstone。
 
 - 已先构建并提交审查前备份：`83deb3f`，其父提交 `9cd98ad` 是原产品代码。
-- 当前审查/重构分支：`fix/conflict-merge-session-lifecycle`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，文档检查点为 `d125577`；第六轮代码提交为 `f66bd16`（索引同步）和 `3a9f321`（删除校验），之后另有本交接/审查文档提交。
+- 当前审查/重构分支：`fix/guided-merge-session-lifecycle`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，文档检查点为 `d125577`；第六轮代码提交为 `f66bd16`（索引同步）和 `3a9f321`（删除校验），之后另有本交接/审查文档提交。
 - 第一轮修复合并/Related 的并发覆盖、Card 并发追加丢失、Review 重复动作跳卡，并提取共用 Markdown 事务与 Review 动作保护。
 - 第二轮让所有当前 `data.json` 写入共用完整读/检查/改/存队列，覆盖 Review、Settings、Proposal、草稿、来源索引及 Merge 回滚；来源重连/移除也已接入原子 Markdown 事务；诊断开关现在只重绘，不重置复习进度。数据格式与版本不变。队列的共享 storage owner 和禁止嵌套获取规则见 [ADR 0022](adr/0022-plugin-state-mutations-share-one-queue.md)。
 - 第二轮 `npm run test:all`、`npm run build`、`npm run check:release -- 1.0.0`、`git diff --check` 均已通过。新增确定性交错测试覆盖共享状态、真实 `saveSettings()` 方法、Merge 回滚、来源写入/回滚冲突。详细证据见 [CODE_REVIEW_2026-09-05.md](CODE_REVIEW_2026-09-05.md)。
