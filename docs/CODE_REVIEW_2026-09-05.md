@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-10 (fifteenth pass)
+Updated: 2026-09-10 (sixteenth pass)
 
 ## Scope and checkpoint
 
@@ -32,6 +32,8 @@ The fourteenth pass on `fix/conflict-merge-session-lifecycle` starts from checkp
 
 The fifteenth pass on `fix/guided-merge-session-lifecycle` starts from checkpoint `8c0a112`. It applies selection and operation boundaries to the separate ordinary Guided Merge View, without changing the underlying Merge transaction protocol.
 
+The sixteenth pass on `fix/markdown-transaction-uncertain-writes` starts from checkpoint `292e6fc`. It fixes same-process compensation when an atomic Markdown transform succeeds but `process()` rejects before or after applying its result. Durable Merge recovery remains separate work.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication, version change, or live Vault update was performed.
 
 ## Local implementation commits
@@ -55,6 +57,7 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `f8a9c05` — verify proposal targets after duplicate-ID repair and retain authored Merge drafts across context changes.
 - `15ad40c` — bind conflict-Merge loads, AI, confirmation and completion to their original session.
 - `72edadb` — isolate Guided Merge scans, AI, selection and confirmation, and wait for started commits during transitions.
+- `223494d` — compensate Markdown writes applied before process rejection, with exact-content rollback guards and fault-injection regressions.
 
 ## Confirmed and fixed
 
@@ -312,7 +315,24 @@ obsolete original-Markdown rendering stops when its container or operation is no
 longer current. A regular scan losing a selected Concept retains authored text
 while missing targets prevent confirmation. See [ADR 0003](adr/0003-concept-merge-requires-guided-review.md).
 
+### P1 — A Markdown write applied before rejection was omitted from rollback
+
+The shared transaction appended each write to its rollback list only after
+`await vault.process()` returned successfully. If the adapter applied a result
+and then rejected, the failing file remained changed while earlier files rolled
+back and plugin data stayed at its previous state. This affects Incoming Merge,
+Guided Merge, Related updates, and Source provenance relink/removal.
+
+The helper now records an attempt inside the transform after the exact `before`
+check succeeds. Reverse compensation restores exact `after`, accepts an already
+unchanged `before`, and preserves any other content with an explicit rollback
+error. A transform precondition failure never registers the file, including when
+another writer independently produced the planned `after`. State commit and
+rollback sequencing is unchanged. See [ADR 0022](adr/0022-plugin-state-mutations-share-one-queue.md).
+
 ## Remaining boundaries
+
+Incoming/Guided Merge still lack durable completion records. Process termination or conflicting/failed compensation can leave Markdown and state partially updated; this pass does not resolve those cases.
 
 The confirmed findings above have implementation fixes. This is still a focused audit, not proof that every workflow is correct. Historical partial writes without recovery metadata, corrupted external state, conflicting target edits, and external writers remain outside automatic recovery. Real Obsidian restart, UI rendering, and platform acceptance remain outstanding.
 
@@ -321,6 +341,20 @@ Card and Concept ID repairs now have durable recovery records. External edits, m
 New Concept and single-Card deletions now have durable recovery metadata. Historical partial deletions without receipts still require manual inspection. External edits/moves or changed Related files deliberately stop recovery; there is no automatic conflict resolution or undo. Obsidian rename does not guarantee an atomic compare-and-rename, and local-trash semantics still need real-platform acceptance. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; their prose is preserved rather than silently discarded.
 
 ## Validation
+
+Sixteenth-pass validation (2026-09-10): `npm run test:all`, `npm run build`,
+`npm run check:release -- 1.0.0`, and diff checks passed. Full output:
+`/private/tmp/mneme-markdown-uncertain-writes-all.log`; writer-focused output:
+`/private/tmp/mneme-markdown-uncertain-writes-focused.log`. The old helper left
+`B.md` at `B after` instead of `B before` in the new direct regression:
+`/private/tmp/mneme-markdown-transaction-red.log`. Tests cover failures before
+transform, after transform but before application, and after application; reverse
+rollback, untouched later files, concurrent edits (including content equal to the
+planned result), normal state commit/rollback, and unchanged writes. Real service
+fixtures cover single-file Incoming and second-file Guided failures with complete
+Markdown and plugin-data equality, zero state commits, and learner edits retained
+on rollback conflict. These are injected adapter failures within one process,
+not crash/restart recovery or real Obsidian acceptance.
 
 Fifteenth-pass validation (2026-09-10): full tests, build, release check and diff
 check passed. A final completion-state adjustment also passed the Markdown-writer
@@ -487,3 +521,9 @@ Fifteenth-pass manual checks in a disposable Vault:
 3. Delay a confirmed commit and close, refresh or select another pair. The transition must wait for completion, and a closed workspace must not render success. Completed draft controls must not submit the same Merge again.
 
 Incoming/Guided Merge durable completion, rollback behavior and real Obsidian process-restart acceptance remain follow-up work.
+
+
+Sixteenth-pass manual checks in a disposable Vault with an instrumented adapter:
+
+1. Inject a one-shot error immediately after applying Incoming Merge Markdown, then repeat after the second changed file in Guided Merge. The operation must report failure; all touched files must return to their prior contents, and Proposal/draft/Source state must remain unchanged.
+2. Add a learner edit after that write and before rejection. The edit must survive; the error must include the rollback conflict. Inspect the partial result before retrying. These checks require fault injection; terminating Obsidian is a different, still-open recovery scenario.
