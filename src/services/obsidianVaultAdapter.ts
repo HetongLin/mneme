@@ -1,10 +1,15 @@
 import { TFile, Vault, normalizePath, parseYaml } from "obsidian";
+import type { MetadataCache } from "obsidian";
 import type { MnemeVaultAdapter } from "./approvedProposalWriter";
 import type { VaultStateAdapter, VaultStateFile } from "./vaultStateReconciler";
 import type { SourceRelinkFileSnapshot } from "./sourceProvenanceRelinkService";
 
 export class ObsidianVaultAdapter implements MnemeVaultAdapter, VaultStateAdapter {
-	constructor(private readonly vault: Vault) {
+	constructor(private readonly vault: Vault, private readonly metadataCache?: MetadataCache) {
+	}
+
+	resolveLinkpath(linkpath: string, sourcePath: string): string | undefined {
+		return this.metadataCache?.getFirstLinkpathDest(linkpath, sourcePath)?.path;
 	}
 
 	async exists(path: string): Promise<boolean> {

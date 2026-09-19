@@ -181,7 +181,7 @@ export default class MnemePlugin extends Plugin {
 			new Notice("Mneme: Could not read recovery records. Inspect data.json before changing Cards or Concepts.");
 		}
 		const conceptMergeService = new ConceptMergeService(
-			new ObsidianVaultAdapter(this.app.vault),
+			new ObsidianVaultAdapter(this.app.vault, this.app.metadataCache),
 			this,
 		);
 		const conceptMergeAiService = new ConceptMergeAiService({

@@ -14,6 +14,107 @@ const survivor = createConcept("concept-a", "Alpha", "Mneme/Concepts/Alpha/Conce
 const merged = createConcept("concept-b", "Beta", "Mneme/Concepts/Beta/Concept.md", "Mneme/Cards/Beta/Card.md");
 
 async function runAsyncTests(): Promise<void> {
+	for (const content of [
+		"![image](./asset.png)", "[note](../Note.md)", "[heading](#heading)",
+		"[nested [label]](./asset.png)", "![image](<asset with spaces.png>)",
+		"[note](/Notes/Note.md)", "[note](file:./Note.md)",
+		"[[#heading]]", "![[#^block]]", "[[missing]]", "[[ambiguous#heading|label]]",
+		"[[self#^block]]", "![[asset.png]]", "[label][definition]", "[definition][]",
+		"[^footnote]", "^[inline footnote]", "[definition]", "[outer [definition]]", "[TARGET\n definition]",
+		"[unused]: https://example.com", "<img src='./asset.png'>", "<a href='./Note.md'>note</a>",
+	]) {
+		const files = createFiles();
+		files[merged.cardsPath!] = cardMarkdown(merged, "card-b", content, "Answer")
+			+ "\n[definition]: ./source.png\n[^footnote]: Source footnote\n";
+		files[survivor.cardsPath!] += "\n[target definition]: ./target.png\n";
+		const vault = new MemoryMergeVault(files);
+		vault.resolveLinkpath = (linkpath, path) => linkpath === "self" ? merged.cardsPath
+			: linkpath === "missing" ? undefined : `${path}/${linkpath}`;
+		const storage = new MemoryMergeStorage(createData());
+		const before = { ...files };
+		const dataBefore = JSON.stringify(storage.data);
+		const prepared = await new ConceptMergeService(vault, storage).prepare({ merged, survivor, preserveMergedAsView: false });
+		assert.equal(prepared.status, "blocked", `Unsafe relocated content: ${content}`);
+		if (prepared.status === "blocked") assert.match(prepared.message, /Card card-b cannot move.*Review its references/);
+		assert.deepEqual(vault.files, before);
+		assert.equal(JSON.stringify(storage.data), dataBefore);
+		assert.equal(vault.commitCount, 0);
+		assert.equal(storage.saveCount, 0);
+	}
+
+	for (const content of [
+		"[website](https://example.com/path#heading) ![remote](https://example.com/image.png)",
+		"[email](mailto:hello@example.com) [call](tel:+1234) ![inline](data:image/png;base64,AAAA)",
+		"A plain [label] without a definition",
+		"[[Notes/Stable#heading|label]] ![[assets/stable.png]]",
+	]) {
+		const files = createFiles();
+		files[merged.cardsPath!] = cardMarkdown(merged, "card-b", content, "Answer");
+		const raw = files[merged.cardsPath!]!.match(/<!-- MNEME:CARD:start[\s\S]*<!-- MNEME:CARD:end -->/)![0];
+		const vault = new MemoryMergeVault(files);
+		vault.resolveLinkpath = (linkpath) => `${linkpath}.md`;
+		const storage = new MemoryMergeStorage(createData());
+		const service = new ConceptMergeService(vault, storage);
+		const prepared = await service.prepare({ merged, survivor, preserveMergedAsView: false });
+		assert.equal(prepared.status, "ready", content);
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		assert.deepEqual(await service.execute(prepared.plan, prepared.plan.writes.find((w) => w.path === survivor.path)!.after), { status: "merged" });
+		assert.ok(vault.files[survivor.cardsPath!]!.includes(raw));
+		assert.deepEqual(parseMnemeCards(vault.files[survivor.cardsPath!]!).map((card) => card.explicitCardId), ["card-a", "card-b"]);
+		assert.equal(storage.data.reviewStates["card-b"]?.reviewCount, 2);
+	}
+
+	{
+		const files = createFiles();
+		files[merged.cardsPath!] = cardMarkdown(merged, "card-b", "[[Notes/Stable]]", "Answer");
+		const vault = new MemoryMergeVault(files);
+		const storage = new MemoryMergeStorage(createData());
+		const before = { ...files };
+		const prepared = await new ConceptMergeService(vault, storage).prepare({ merged, survivor, preserveMergedAsView: false });
+		assert.equal(prepared.status, "blocked", "An unavailable resolver must not silently accept Wiki relocation");
+		assert.deepEqual(vault.files, before);
+		assert.equal(vault.commitCount, 0);
+		assert.equal(storage.saveCount, 0);
+	}
+
+	{
+		const files = createFiles();
+		files[merged.cardsPath!] = cardMarkdown(merged, "card-b", "![[stable.png]]", "Answer");
+		const vault = new MemoryMergeVault(files);
+		vault.resolveLinkpath = () => "assets/stable.png";
+		const storage = new MemoryMergeStorage(createData());
+		const service = new ConceptMergeService(vault, storage);
+		const prepared = await service.prepare({ merged, survivor, preserveMergedAsView: false });
+		assert.equal(prepared.status, "ready");
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		// No participant Markdown or Mneme state changed; another file changed Wiki resolution.
+		vault.resolveLinkpath = (_linkpath, path) => path === merged.cardsPath ? "assets/stable.png" : "other/stable.png";
+		const before = { ...vault.files };
+		const dataBefore = JSON.stringify(storage.data);
+		const result = await service.execute(prepared.plan, prepared.plan.writes.find((w) => w.path === survivor.path)!.after);
+		assert.equal(result.status, "conflict");
+		assert.deepEqual(vault.files, before);
+		assert.equal(JSON.stringify(storage.data), dataBefore);
+		assert.equal(vault.commitCount, 0);
+		assert.equal(storage.saveCount, 0);
+	}
+
+	{
+		// Adopting a source group retains its rendering path, including local references.
+		const files = createFiles();
+		delete files[survivor.cardsPath!];
+		files[merged.cardsPath!] = cardMarkdown(merged, "card-b", "![image](./asset.png) [[#heading]]", "Answer");
+		const vault = new MemoryMergeVault(files);
+		const storage = new MemoryMergeStorage(createData());
+		const service = new ConceptMergeService(vault, storage);
+		const prepared = await service.prepare({ merged, survivor, preserveMergedAsView: false });
+		assert.equal(prepared.status, "ready");
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		assert.equal(prepared.plan.targetCardsPath, merged.cardsPath);
+		assert.deepEqual(await service.execute(prepared.plan, prepared.plan.writes.find((w) => w.path === survivor.path)!.after), { status: "merged" });
+		assert.ok(vault.files[merged.cardsPath!]!.includes("![image](./asset.png) [[#heading]]"));
+	}
+
 	{
 		const vault = new MemoryMergeVault(createFiles());
 		const storage = new MemoryMergeStorage(createData());
@@ -536,6 +637,7 @@ async function runAsyncTests(): Promise<void> {
 }
 
 class MemoryMergeVault implements ConceptMergeVaultAdapter {
+	resolveLinkpath?: (linkpath: string, sourcePath: string) => string | undefined;
 	commitCount = 0;
 	throwAfterProcessAt?: number;
 	throwAfterProcessEdit?: string;

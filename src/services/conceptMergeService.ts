@@ -1,4 +1,5 @@
 import { assertMergeHasNoPendingWrites } from "./mergePendingWrites";
+import { assertCardRelocationSafe, type ResolveCardLink } from "./cardRelocationSafety";
 import { readMarkdownScalar } from "./markdownScalar";
 import { getCardGroupPathFromConceptFrontmatter } from "./conceptMarkdownIdentity";
 import { assertCardDeletionAllowsPath } from "./cardDeletionReceipt";
@@ -34,6 +35,7 @@ import {
 } from "./markdownWriteTransaction";
 
 export interface ConceptMergeVaultAdapter extends TransactionalMarkdownVault {
+	resolveLinkpath?: ResolveCardLink;
 	exists(path: string): Promise<boolean>;
 	listMarkdownFiles(): Promise<Array<{ path: string }>>;
 }
@@ -279,6 +281,15 @@ export class ConceptMergeService {
 				if (JSON.stringify(latestData) !== plan.dataSnapshot) {
 					return { message: "Mneme state changed after preview. Rebuild the merge preview.", status: "conflict" };
 				}
+				const source = writes.find((write) => write.path === plan.merged.cardsPath);
+				const target = writes.find((write) => write.path === plan.targetCardsPath);
+				if (source && target && source.path !== target.path) {
+					try {
+						this.assertRelocationSafe(inspectCardGroup(source.before, source.path), source, target);
+					} catch (error) {
+						return { message: error instanceof Error ? error.message : "Card references changed after preview.", status: "conflict" };
+					}
+				}
 
 				await executeMarkdownWriteTransaction(this.vault, writes, {
 					commit: () => this.storage.saveData(plan.nextData),
@@ -293,6 +304,19 @@ export class ConceptMergeService {
 				};
 			}
 		});
+	}
+
+	private assertRelocationSafe(
+		cards: RawCardBlock[],
+		source: { path: string; before: string },
+		target: { path: string; before: string },
+	): void {
+		assertCardRelocationSafe(
+			cards,
+			{ path: source.path, markdown: source.before },
+			{ path: target.path, markdown: target.before },
+			this.vault.resolveLinkpath?.bind(this.vault),
+		);
 	}
 
 	private async prepareCards(
@@ -358,6 +382,11 @@ export class ConceptMergeService {
 		const duplicateId = sourceBlocks.find((block) => targetIds.has(block.cardId));
 		if (duplicateId) {
 			return { message: `Card ID ${duplicateId.cardId} exists in both Card Groups. Repair it first.`, status: "blocked" };
+		}
+		if (sourceBlocks.length > 0 && input.merged.cardsPath && targetCardsPath && mergedCardsBefore && targetBefore) {
+			this.assertRelocationSafe(sourceBlocks,
+				{ path: input.merged.cardsPath, before: mergedCardsBefore },
+				{ path: targetCardsPath, before: targetBefore });
 		}
 
 		let nextSurvivorMarkdown = survivorMarkdown;

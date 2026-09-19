@@ -100,3 +100,30 @@ mixed legacy section markers outside complete Card blocks: retaining those marke
 in a vacated group could make the current parser discover an unintended Card.
 This conservative check also blocks marker examples in code fences until reviewed.
 No persisted schema or transaction/recovery protocol changes are introduced.
+
+## Card relocation references — 2026-09-20
+
+Review renders Card Markdown using its current Card Group path. Keeping the raw
+block unchanged does not preserve relative attachments, same-document anchors or
+document-level reference definitions when the block moves to another file.
+Before preview, conservatively reject moved Cards containing local Markdown
+links/images, reference links/definitions, footnotes, shortcut labels defined in
+either group, or HTML resource attributes (`href`, `src`, `srcset`). Report the
+Card ID and both paths so the learner can review the references. Common explicit
+external Markdown destinations (`http://`, `https://`, `mailto:`, `tel:`, `data:`)
+remain allowed; other schemes require manual review.
+
+For Wiki links and embeds, compare Obsidian's resolved file path from the source
+and destination contexts. Permit only a resolved, identical target other than the
+source group. Refuse current-document heading/block anchors and unresolved links.
+Check again immediately before the Markdown transaction, since another Vault file
+can change Wiki resolution without changing the participant snapshots or data.json.
+An unavailable resolver blocks Wiki relocation. Adopting a group in place needs no
+relocation check. Card bytes, IDs, review state and persisted schemas stay unchanged.
+
+This is conservative syntax inspection, including code examples, not a complete
+Markdown parser or a link-rewriting migration. It does not validate external URLs,
+arbitrary plugin embeds/queries, incoming backlinks, or every heading/block-ID
+collision. Obsidian metadata resolution is a current cache observation, not an
+atomic lock against external edits during the multi-file transaction. Real Vault
+rendering acceptance and durable Merge recovery remain separate work.
