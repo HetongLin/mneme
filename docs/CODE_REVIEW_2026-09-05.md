@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-10 (sixteenth pass)
+Updated: 2026-09-19 (seventeenth pass)
 
 ## Scope and checkpoint
 
@@ -34,6 +34,8 @@ The fifteenth pass on `fix/guided-merge-session-lifecycle` starts from checkpoin
 
 The sixteenth pass on `fix/markdown-transaction-uncertain-writes` starts from checkpoint `292e6fc`. It fixes same-process compensation when an atomic Markdown transform succeeds but `process()` rejects before or after applying its result. Durable Merge recovery remains separate work.
 
+The seventeenth pass on `fix/merge-input-ownership` starts from checkpoint `bb69ace`. Before extending durable Merge recovery, it fixes three preparation guards: stale Card Group locators, incoming proposals already owned by approved-write recovery, and false Concept identity matches in body text.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication, version change, or live Vault update was performed.
 
 ## Local implementation commits
@@ -58,6 +60,7 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `15ad40c` — bind conflict-Merge loads, AI, confirmation and completion to their original session.
 - `72edadb` — isolate Guided Merge scans, AI, selection and confirmation, and wait for started commits during transitions.
 - `223494d` — compensate Markdown writes applied before process rejection, with exact-content rollback guards and fault-injection regressions.
+- `6a61b59` — validate current Merge Card associations, incoming write ownership, and frontmatter identity using shared scalar inspection.
 
 ## Confirmed and fixed
 
@@ -330,6 +333,39 @@ error. A transform precondition failure never registers the file, including when
 another writer independently produced the planned `after`. State commit and
 rollback sequencing is unchanged. See [ADR 0022](adr/0022-plugin-state-mutations-share-one-queue.md).
 
+### P1 — Guided Merge could overwrite a Card association changed since scanning
+
+The service read current Concept Markdown but selected Card files solely from the
+cached `ConceptSummary.cardsPath`. A changed, removed, or newly added `cards`
+link could therefore be overwritten with an obsolete association during Merge.
+Preparation now compares the current frontmatter locator with the scanned locator
+using the scanner's own path interpretation. A mismatch blocks before any write;
+link aliases and omitted `.md` extensions remain supported. Existing exact
+snapshot checks continue to reject changes after preview.
+
+### P1 — Conflict Merge could take over a proposal with a pending write receipt
+
+An approved new-Concept proposal can retain payload and a receipt after an
+interrupted Inbox write. Incoming Merge previously accepted that state and could
+mark it written against a different Concept while retaining the original receipt
+and any original target Markdown. A delayed name-conflict choice can reopen Merge
+with the latest proposal timestamp, so the timestamp guard alone is insufficient.
+Any non-undefined receipt now blocks preparation, including malformed records.
+A receipt acquired after preview is caught by the existing state snapshot check.
+The proposal, authored Merge draft, Source state, and original target are retained.
+
+### P1 — A body line could satisfy Incoming Merge's Concept identity check
+
+The old full-document regex accepted an expected `mneme_id` line in prose or a
+code fence even when the actual frontmatter ID had changed. It also omitted type
+and duplicate-field validation. The check now uses leading frontmatter only and
+requires a unique Concept type and ID. ID repair's conservative scalar inspection
+is extracted into `markdownScalar.ts` and shared with Merge. Guided Merge's setter
+recognizes quoted keys so supported input does not create a second `cards` field.
+This is scalar validation, not a full YAML parser. See the additions to
+[ADR 0003](adr/0003-concept-merge-requires-guided-review.md) and
+[ADR 0021](adr/0021-name-conflict-merge-defers-all-writes.md).
+
 ## Remaining boundaries
 
 Incoming/Guided Merge still lack durable completion records. Process termination or conflicting/failed compensation can leave Markdown and state partially updated; this pass does not resolve those cases.
@@ -341,6 +377,20 @@ Card and Concept ID repairs now have durable recovery records. External edits, m
 New Concept and single-Card deletions now have durable recovery metadata. Historical partial deletions without receipts still require manual inspection. External edits/moves or changed Related files deliberately stop recovery; there is no automatic conflict resolution or undo. Obsidian rename does not guarantee an atomic compare-and-rename, and local-trash semantics still need real-platform acceptance. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; their prose is preserved rather than silently discarded.
 
 ## Validation
+
+Seventeenth-pass validation (2026-09-19): full tests, build, release check and diff
+checks passed. Full/focused logs: `/private/tmp/mneme-merge-input-all.log` and
+`/private/tmp/mneme-merge-input-focused.log`. Old-source bundles failed the changed
+Card-link and receipt guards; a bundle restoring only the old identity predicate
+failed the body-ID regression. Logs are
+`/private/tmp/mneme-merge-input-{cards,receipt,identity}-red.log`. Regressions cover
+both Merge participants' changed/removed/added locators; normal alias, quoted key,
+comment and CRLF forms with successful execution; valid and malformed receipts
+with the original target present/absent; receipt acquisition after preview; body
+and code-fence false identities, changed types and duplicate fields. Blocked cases
+assert zero writes and complete file/plugin-data preservation. Receipt fixtures
+are constructed with matching proposal/content hashes; this suite does not inject
+an actual approved-writer crash or perform real Obsidian acceptance.
 
 Sixteenth-pass validation (2026-09-10): `npm run test:all`, `npm run build`,
 `npm run check:release -- 1.0.0`, and diff checks passed. Full output:
@@ -527,3 +577,14 @@ Sixteenth-pass manual checks in a disposable Vault with an instrumented adapter:
 
 1. Inject a one-shot error immediately after applying Incoming Merge Markdown, then repeat after the second changed file in Guided Merge. The operation must report failure; all touched files must return to their prior contents, and Proposal/draft/Source state must remain unchanged.
 2. Add a learner edit after that write and before rejection. The edit must survive; the error must include the rollback conflict. Inspect the partial result before retrying. These checks require fault injection; terminating Obsidian is a different, still-open recovery scenario.
+
+
+Seventeenth-pass manual checks in a disposable Vault:
+
+1. Select two Concepts for Merge, externally change/add/remove one Card Group link before requesting preview, and confirm Merge requests a refresh without modifying either group. Refresh the selection and review the new association before retrying.
+2. Leave a name-conflict choice open while another window starts an Inbox write that leaves a recovery receipt. Choose Merge from the old conflict UI: preparation must direct the learner back to the Inbox write, preserving its target, payload, evidence and drafts.
+3. Change the existing Concept's frontmatter ID or type while retaining its former ID on a line in the body/code fence. Incoming Merge must report an identity change and leave Markdown/state untouched.
+
+Durable Merge intent/completion, process termination, and rollback-conflict recovery
+remain open. These guards do not scan for duplicate IDs introduced externally
+after selection or coordinate other processes.
