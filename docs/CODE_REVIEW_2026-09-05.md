@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-20 (nineteenth pass)
+Updated: 2026-09-20 (twentieth pass)
 
 ## Scope and checkpoint
 
@@ -40,6 +40,8 @@ The eighteenth pass on `fix/merge-pending-write-guards` starts from checkpoint `
 
 The nineteenth pass on `fix/merge-card-group-content` starts from checkpoint `b8656b4`. It retains non-Card content in a vacated Card Group, rejects within-group duplicate IDs, and prevents leftover legacy section markers from becoming unintended Cards after migration.
 
+The twentieth pass on `fix/card-relocation-references` starts from checkpoint `8d6b0d6`. It guards Card relocation against source-path and document-reference dependencies, and rechecks Wiki resolution before execution.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication, version change, or live Vault update was performed.
 
 ## Local implementation commits
@@ -67,6 +69,7 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `6a61b59` — validate current Merge Card associations, incoming write ownership, and frontmatter identity using shared scalar inspection.
 - `d93c26f` — block Merge writes that invalidate pending authoring recovery paths, hashes or Card ownership.
 - `5909142` — preserve former Card Group notes/custom properties and reject ambiguous Card migration.
+- `1c3c23c` — guard moved Card references and recheck Wiki resolution before Guided Merge writes.
 
 ## Confirmed and fixed
 
@@ -413,6 +416,24 @@ vacated group would otherwise create an unintended parser result. Marker example
 inside code fences are conservatively blocked as well. See the content-retention
 addition to [ADR 0003](adr/0003-concept-merge-requires-guided-review.md).
 
+### P1 — Moving unchanged Card bytes changed their reference context
+
+Review renders Markdown using the Card's current group path. Copying a block to
+another file could silently redirect local images/links, current-file anchors or
+reference definitions. The new `cardRelocationSafety` helper rejects those known
+dependencies before preview and reports the Card ID and both paths. Stable Wiki
+links/embeds are allowed only when Obsidian resolves the same non-source file in
+both contexts; common absolute external Markdown destinations remain allowed.
+Execution repeats the guard after snapshot checks, detecting a new ambiguous or
+unresolved Wiki target even when the participant Markdown/state is unchanged.
+Adopting the original group in place remains supported. No Card bytes or schema
+change. See [ADR 0003](adr/0003-concept-merge-requires-guided-review.md).
+
+This conservative lexical check also blocks syntax in code examples and HTML
+resource attributes. It is not a full Markdown parser or link migration. Incoming
+backlinks, arbitrary plugin embeds, heading/block-ID collisions, and external edits
+after the final metadata-cache observation remain separate concerns.
+
 ## Remaining boundaries
 
 Incoming/Guided Merge still lack durable completion records. Process termination or conflicting/failed compensation can leave Markdown and state partially updated; this pass does not resolve those cases.
@@ -424,6 +445,19 @@ Card and Concept ID repairs now have durable recovery records. External edits, m
 New Concept and single-Card deletions now have durable recovery metadata. Historical partial deletions without receipts still require manual inspection. External edits/moves or changed Related files deliberately stop recovery; there is no automatic conflict resolution or undo. Obsidian rename does not guarantee an atomic compare-and-rename, and local-trash semantics still need real-platform acceptance. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; their prose is preserved rather than silently discarded.
 
 ## Validation
+
+Twentieth-pass validation (2026-09-20): full tests, build, release check and diff
+checks passed. Logs: `/private/tmp/mneme-card-relocation-all.log`,
+`/private/tmp/mneme-card-relocation-focused.log` and
+`/private/tmp/mneme-card-relocation-red.log`. A bundle substituting the service
+from `8d6b0d6` returns ready for `![image](./asset.png)` where the new regression
+requires blocked. Tests cover relative/root/anchor Markdown destinations, nested
+labels, attachment paths with spaces, reference/shortcut/footnote forms, HTML
+resources, unresolved/different/self Wiki targets, missing resolver, allowed external
+URLs and stable Wiki links, unchanged raw blocks/IDs/review state after successful
+Merge, and in-place adoption. Wiki target changes after preview return conflict
+with no file or state writes. These are service tests with a resolver double;
+real Obsidian metadata-cache/rendering and restart acceptance remain outstanding.
 
 Nineteenth-pass validation (2026-09-20): full tests, build, release check and diff
 checks passed. Logs: `/private/tmp/mneme-merge-card-content-all.log` and
@@ -683,3 +717,13 @@ Nineteenth-pass manual checks in a disposable Vault:
 
 Non-Card notes remain at the original path. Resolving path-dependent Markdown
 references and durable Merge recovery remain separate audits.
+
+
+Twentieth-pass manual checks in a disposable Vault:
+
+1. Put a relative image, same-file heading/block link or reference-style link in a source Card, then request Merge into a different existing group. The preview must stop and identify the Card and paths without modifying files/state.
+2. Replace it with an explicit Wiki link to a fixed third-party note/attachment. Verify both locations resolve to the same file, complete Merge, and compare Review rendering and the unchanged Card ID/content. Repeat by introducing a same-named file after preview so the two locations resolve differently; confirmation must stop.
+3. Merge when only the source group exists. Its path and relative references must remain intact. Syntax examples may be conservatively blocked and require manual review.
+
+This pass does not rewrite references, validate every Markdown/plugin construct,
+repair incoming backlinks or implement durable Merge recovery.

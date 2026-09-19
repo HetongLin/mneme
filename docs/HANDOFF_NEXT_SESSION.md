@@ -4,6 +4,11 @@ Updated: 2026-09-20
 
 ## 2026-09-05 至 09-20 代码审查后续
 
+- 第二十轮从已提交检查点 `8d6b0d6` 继续，代码/测试/ADR 提交为 `1c3c23c`，分支为 `fix/card-relocation-references`。确认 Review 用 Card 当前文件路径渲染，因此原样搬移 Card blocks 仍会改变相对附件、同文件锚点和文档引用定义的含义。提取 `cardRelocationSafety.ts`：预览前拒绝已知依赖，报告 Card ID/源路径/目标路径；Wiki links/embeds 通过 Obsidian metadata cache 比较两处解析目标，仅放行相同且非源 group 的已解析文件。常见绝对外部 URL 允许；直接采用源 group、不改变路径时不做搬迁拦截。
+- 执行前在原有文件/状态快照校验后再次检查，覆盖预览后其他文件改变 Wiki 解析的情况。相对 Markdown links/images、同文件 Wiki anchors、引用/脚注/定义、源或目标存在定义的 shortcut、HTML href/src/srcset 会保守阻止；代码示例也可能被阻止。不改 Card raw bytes、ID、Review 状态或持久 schema。
+- 第二十轮验证：全量测试、构建、发布检查、diff 检查通过并完成复审。旧服务 bundle 对 `![image](./asset.png)` 仍返回 ready，回归要求 blocked；验证阻止时全部文件/状态零写入、稳定 Wiki 和外部链接成功、原组采用、缺少 resolver、预览后解析变化等。日志 `/private/tmp/mneme-card-relocation-all.log`、`/private/tmp/mneme-card-relocation-focused.log`、`/private/tmp/mneme-card-relocation-red.log`。行为与边界见 [ADR 0003](adr/0003-concept-merge-requires-guided-review.md)。
+- **后续边界**：真实 Obsidian 中验收附件/Wiki cache/Review 渲染仍待执行。当前是保守词法预检，不是完整 Markdown 解析或自动链接迁移；外部 backlinks、第三方 embed/query、heading/block ID 冲突和检查后的外部并发编辑仍需独立审查。Incoming/Guided Merge 的持久化恢复、进程终止及回滚冲突恢复尚未新增。
+
 - 第十九轮从已提交检查点 `b8656b4` 继续，代码/测试/ADR 提交为 `5909142`，分支为 `fix/merge-card-group-content`。修复 Guided Merge 对源 Card Group 整文件生成 redirect，丢弃自定义 YAML 和 Card 块之外笔记的问题。现在按原始 offset 逆序移除完整 Card blocks，原文件保留块外正文/自定义属性，仅更新 Mneme 类型、owner、Concept/redirect 链接并附导航说明；Card blocks 原样搬到目标，块外笔记留在原路径。
 - 同轮补上每个 Card Group 内部的 Card ID 唯一性检查，原先仅比较两组间交集。source/target/直接采用源组三种情况都拒绝组内重复。块外残留 FRONT/BACK/RUBRIC 标记也会阻止 Merge，避免搬走完整块后产生假 Card；代码块中的标记示例同样会被保守阻止。源文件类型规范化为 plain card_group，使原 quoted key 的非空组搬空后仍被识别为空组。
 - 第十九轮验证：全量测试、构建、发布检查、diff 检查与复审通过。旧实现丢失 custom_property，保留修复后再独立复现组内重复仍返回 ready。回归覆盖 LF/CRLF × 零/一/多块、YAML 自定义列表、正文/callout/注释/引用保留、Card raw bytes 与 IDs 保留、空 redirect 解析、组内重复、旧式块外 markers、quoted type。日志 `/private/tmp/mneme-merge-card-content-all.log`、`/private/tmp/mneme-merge-card-content-focused.log`、`/private/tmp/mneme-merge-card-content-red.log`、`/private/tmp/mneme-merge-card-duplicate-red.log`。规则见 [ADR 0003](adr/0003-concept-merge-requires-guided-review.md)。
