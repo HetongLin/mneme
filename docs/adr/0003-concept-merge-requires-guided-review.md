@@ -83,3 +83,20 @@ instead of being discarded. Existing actionable-proposal checks remain in force.
 If a new receipt appears after preview, the state snapshot check inside the shared
 mutation queue rejects execution. These guards preserve existing authoring recovery;
 they do not add a Merge journal or recover historical partial merges.
+
+## Card Group content retention — 2026-09-20
+
+When both participants have Card Groups, move complete source Card blocks using
+exact ranges from the inspected Markdown. Build the former-group redirect from
+the original file with only those blocks removed; retain its non-Card body and
+custom frontmatter instead of replacing the file with a generated template.
+Update Mneme type, owner, Concept link and Card redirect metadata and append the
+navigation notice. Non-Card notes stay at their original path. Card blocks remain
+byte-for-byte intact in the destination, and their IDs and review state do not
+change. An adopted source group continues to retain its full content in place.
+
+Require unique Card IDs within each group as well as across both groups. Refuse
+mixed legacy section markers outside complete Card blocks: retaining those markers
+in a vacated group could make the current parser discover an unintended Card.
+This conservative check also blocks marker examples in code fences until reviewed.
+No persisted schema or transaction/recovery protocol changes are introduced.

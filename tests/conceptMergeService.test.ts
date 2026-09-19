@@ -442,6 +442,97 @@ async function runAsyncTests(): Promise<void> {
 			}
 		}
 	}
+
+	for (const newline of ["\n", "\r\n"]) {
+		for (const count of [0, 1, 2]) {
+			const files = createFiles();
+			const blocks = Array.from({ length: count }, (_, index) =>
+				cardMarkdown(merged, `card-source-${index}`, `Question ${index}`, `Answer ${index}`)
+					.match(/<!-- MNEME:CARD:start[\s\S]*?<!-- MNEME:CARD:end -->/)![0]);
+			const prefix = "# My Card notebook\n\n> [!note] Personal context\n> Keep this introduction.\n";
+			const middle = "\n## My annotations\n\nKeep this table | and [[My Link]].\n";
+			const suffix = "\n[^reference]: Keep the reference.\n<!-- private annotation -->\n";
+			const source = [
+				"---", "mneme_type: card_group", `mneme_concept_id: ${merged.conceptId}`,
+				`concept: "[[${merged.path}]]"`, 'custom_property: "Keep this"',
+				"custom_list:", "  - keep-one", "  - keep-two", "---",
+				prefix, blocks[0] ?? "", middle, blocks[1] ?? "", suffix,
+			].join("\n").replace(/\n/g, newline);
+			files[merged.cardsPath!] = source;
+			const vault = new MemoryMergeVault(files);
+			const storage = new MemoryMergeStorage(createData());
+			const statesBefore = structuredClone(storage.data.reviewStates);
+			const service = new ConceptMergeService(vault, storage);
+			const prepared = await service.prepare({ survivor, merged, preserveMergedAsView: true });
+			if (prepared.status !== "ready") throw new Error(prepared.message);
+			const final = prepared.plan.writes.find((write) => write.path === survivor.path)!.after;
+			assert.deepEqual(await service.execute(prepared.plan, final), { status: "merged" });
+			const former = vault.files[merged.cardsPath!]!;
+			assert.match(former, /custom_property: "Keep this"/);
+			assert.match(former, /custom_list:\n  - keep-one\n  - keep-two/);
+			for (const text of [prefix, middle, suffix]) {
+				assert.ok(former.includes(text.replace(/\n/g, newline)), text);
+			}
+			assert.match(former, /mneme_concept_id: concept-a/);
+			assert.match(former, /redirect_cards_to:/);
+			assert.deepEqual(parseMnemeCards(former), []);
+			const target = vault.files[survivor.cardsPath!]!;
+			for (const block of blocks) assert.ok(target.includes(block.replace(/\n/g, newline)));
+			assert.deepEqual(parseMnemeCards(target).map((card) => card.explicitCardId),
+				["card-a", ...blocks.map((_, index) => `card-source-${index}`)]);
+			assert.deepEqual(storage.data.reviewStates, statesBefore);
+		}
+	}
+
+	for (const side of [survivor, merged]) {
+		for (const adoptSource of [false, true]) {
+			if (adoptSource && side === survivor) continue;
+			const files = createFiles();
+			if (adoptSource) delete files[survivor.cardsPath!];
+			const original = files[side.cardsPath!]!;
+			const block = original.match(/<!-- MNEME:CARD:start[\s\S]*?<!-- MNEME:CARD:end -->/)![0];
+			files[side.cardsPath!] = `${original}\n${block}\n`;
+			const vault = new MemoryMergeVault(files);
+			const storage = new MemoryMergeStorage(createData());
+			const beforeFiles = { ...files };
+			const beforeData = structuredClone(storage.data);
+			const prepared = await new ConceptMergeService(vault, storage).prepare({ survivor, merged, preserveMergedAsView: true });
+			assert.equal(prepared.status, "blocked");
+			if (prepared.status === "blocked") assert.match(prepared.message, /Card ID .* more than once/);
+			assert.deepEqual(vault.files, beforeFiles);
+			assert.deepEqual(storage.data, beforeData);
+			assert.equal(vault.commitCount, 0);
+			assert.equal(storage.saveCount, 0);
+		}
+	}
+
+
+	for (const side of [survivor, merged]) {
+		const files = createFiles();
+		files[side.cardsPath!] += "\n<!-- MNEME:FRONT:start -->\nLegacy question\n<!-- MNEME:FRONT:end -->\n";
+		const vault = new MemoryMergeVault(files);
+		const storage = new MemoryMergeStorage(createData());
+		const before = { ...files };
+		const prepared = await new ConceptMergeService(vault, storage).prepare({ survivor, merged, preserveMergedAsView: true });
+		assert.equal(prepared.status, "blocked");
+		if (prepared.status === "blocked") assert.match(prepared.message, /section markers outside a Card block/);
+		assert.deepEqual(vault.files, before);
+		assert.equal(vault.commitCount, 0);
+		assert.equal(storage.saveCount, 0);
+	}
+
+	{
+		const files = createFiles();
+		files[merged.cardsPath!] = files[merged.cardsPath!]!.replace("mneme_type: card_group", '"mneme_type": "card_group"');
+		const vault = new MemoryMergeVault(files);
+		const service = new ConceptMergeService(vault, new MemoryMergeStorage(createData()));
+		const prepared = await service.prepare({ survivor, merged, preserveMergedAsView: true });
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		const final = prepared.plan.writes.find((write) => write.path === survivor.path)!.after;
+		assert.deepEqual(await service.execute(prepared.plan, final), { status: "merged" });
+		assert.deepEqual(parseMnemeCards(vault.files[merged.cardsPath!]!), []);
+	}
+
 }
 
 class MemoryMergeVault implements ConceptMergeVaultAdapter {

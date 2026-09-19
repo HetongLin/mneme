@@ -384,7 +384,7 @@ export class ConceptMergeService {
 
 		if (survivorCardsBefore && mergedCardsBefore && input.merged.cardsPath) {
 			writes.push({
-				after: renderEmptyCardRedirect(input.survivor, input.merged, targetCardsPath as string),
+				after: renderFormerCardGroupRedirect(mergedCardsBefore, sourceBlocks, input.survivor, targetCardsPath as string),
 				before: mergedCardsBefore,
 				label: "Former Card Group Redirect",
 				path: input.merged.cardsPath,
@@ -534,6 +534,7 @@ async function prepareRelatedConceptMerge(
 interface RawCardBlock {
 	cardId: string;
 	raw: string;
+	start: number;
 }
 
 function inspectCardGroup(markdown: string, path: string): RawCardBlock[] {
@@ -546,10 +547,20 @@ function inspectCardGroup(markdown: string, path: string): RawCardBlock[] {
 		throw new Error(`Card Group contains legacy or malformed blocks: ${path}`);
 	}
 
-	return blocks.map((match, index) => ({
-		cardId: parsed[index]?.explicitCardId as string,
-		raw: match[0] ?? "",
-	}));
+	const ids = new Set<string>();
+	const inspected = blocks.map((match, index) => {
+		const cardId = parsed[index]!.explicitCardId!;
+		if (ids.has(cardId)) {
+			throw new Error(`Card ID ${cardId} appears more than once in ${path}. Repair it before merging.`);
+		}
+		ids.add(cardId);
+		return { cardId, raw: match[0] ?? "", start: match.index ?? 0 };
+	});
+	// Mixed legacy sections must not become phantom Cards after the blocks move.
+	if (/<!--\s*MNEME:(?:FRONT|BACK|RUBRIC):/.test(removeCardBlocks(markdown, inspected))) {
+		throw new Error(`Card Group contains section markers outside a Card block: ${path}. Repair it before merging.`);
+	}
+	return inspected;
 }
 
 function updateCardGroupAssociation(markdown: string, survivor: ConceptSummary): string {
@@ -785,25 +796,24 @@ function renderConceptRedirect(survivor: ConceptSummary, merged: ConceptSummary,
 	].join("\n");
 }
 
-function renderEmptyCardRedirect(
+function removeCardBlocks(markdown: string, blocks: readonly RawCardBlock[]): string {
+	// Offsets refer to the original file; remove from the end to preserve them.
+	return blocks.reduceRight((content, block) =>
+		content.slice(0, block.start) + content.slice(block.start + block.raw.length), markdown);
+}
+
+function renderFormerCardGroupRedirect(
+	markdown: string,
+	blocks: readonly RawCardBlock[],
 	survivor: ConceptSummary,
-	merged: ConceptSummary,
 	targetCardsPath: string,
 ): string {
-	return [
-		"---",
-		"mneme_type: card_group",
-		`mneme_concept_id: ${survivor.conceptId}`,
-		"mneme_version: 1",
-		`concept: ${quoteYaml(toObsidianInternalLink(survivor.path, survivor.title))}`,
-		`redirect_cards_to: ${quoteYaml(toObsidianInternalLink(targetCardsPath, `${survivor.title} Cards`))}`,
-		"---",
-		"",
-		`# ${merged.title} Cards`,
-		"",
-		`Cards moved to ${toObsidianInternalLink(targetCardsPath, `${survivor.title} Cards`)}.`,
-		"",
-	].join("\n");
+	const remaining = setFrontmatterScalar(removeCardBlocks(markdown, blocks), "mneme_type", "card_group");
+	const link = toObsidianInternalLink(targetCardsPath, `${survivor.title} Cards`);
+	const redirected = setFrontmatterScalar(
+		updateCardGroupAssociation(remaining, survivor), "redirect_cards_to", quoteYaml(link),
+	);
+	return `${redirected}\n\nCards moved to ${link}.\n`;
 }
 
 function extractMergedPerspective(markdown: string): string | undefined {
