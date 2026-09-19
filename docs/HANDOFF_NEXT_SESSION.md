@@ -1,8 +1,13 @@
 # Mneme Next-Session Hand-off
 
-Updated: 2026-09-19
+Updated: 2026-09-20
 
-## 2026-09-05 至 09-19 代码审查后续
+## 2026-09-05 至 09-20 代码审查后续
+
+- 第十九轮从已提交检查点 `b8656b4` 继续，代码/测试/ADR 提交为 `5909142`，分支为 `fix/merge-card-group-content`。修复 Guided Merge 对源 Card Group 整文件生成 redirect，丢弃自定义 YAML 和 Card 块之外笔记的问题。现在按原始 offset 逆序移除完整 Card blocks，原文件保留块外正文/自定义属性，仅更新 Mneme 类型、owner、Concept/redirect 链接并附导航说明；Card blocks 原样搬到目标，块外笔记留在原路径。
+- 同轮补上每个 Card Group 内部的 Card ID 唯一性检查，原先仅比较两组间交集。source/target/直接采用源组三种情况都拒绝组内重复。块外残留 FRONT/BACK/RUBRIC 标记也会阻止 Merge，避免搬走完整块后产生假 Card；代码块中的标记示例同样会被保守阻止。源文件类型规范化为 plain card_group，使原 quoted key 的非空组搬空后仍被识别为空组。
+- 第十九轮验证：全量测试、构建、发布检查、diff 检查与复审通过。旧实现丢失 custom_property，保留修复后再独立复现组内重复仍返回 ready。回归覆盖 LF/CRLF × 零/一/多块、YAML 自定义列表、正文/callout/注释/引用保留、Card raw bytes 与 IDs 保留、空 redirect 解析、组内重复、旧式块外 markers、quoted type。日志 `/private/tmp/mneme-merge-card-content-all.log`、`/private/tmp/mneme-merge-card-content-focused.log`、`/private/tmp/mneme-merge-card-content-red.log`、`/private/tmp/mneme-merge-card-duplicate-red.log`。规则见 [ADR 0003](adr/0003-concept-merge-requires-guided-review.md)。
+- **后续边界**：真实 Obsidian 中给源 Card Group 添加自定义属性、卡前/卡间/卡后笔记后合并，核对原文件保留这些内容、目标仅有一份 Card、Review 无重复；加入组内重复 ID 应零写入。块外笔记不会自动搬到目标文件，路径相关的 Markdown 引用与 Merge 自身持久化恢复仍可继续审查。进程终止/回滚冲突的恢复协议仍未新增，不应把本轮内容保留解释为跨进程事务保证。
 
 - 第十八轮从已提交检查点 `83c729f` 继续，代码/测试/ADR 提交为 `d93c26f`，分支为 `fix/merge-pending-write-guards`。修复 Merge 与其他待恢复写入的交叉冲突：Manual Card/Concept 或 Inbox 已写 Markdown、完成保存失败后，Guided Merge 原本仍能移动 Card/改正文，使原 receipt 路径、owner 或哈希失效；Incoming 的 Inbox origin 也能改写另一个 pending Manual Concept 或 Inbox update 的目标。
 - 提取 `mergePendingWrites.ts`。Guided 在返回预览前核对两个 Concept IDs、全部计划路径（含 Related 邻居）、两边声明的 Card Group 路径，保护尚未创建的 group；Incoming 仅核对实际 Concept 目标路径，同 Concept 的独立 pending Manual Card 不受影响。完成及无关有效 receipts 放行；坏的待恢复记录不静默忽略。预览后出现的 receipt 由原有状态快照校验阻止执行，不增加持久字段或新事务协议。
@@ -66,7 +71,7 @@ Updated: 2026-09-19
 - 继续时重点关注真实 Obsidian 的中断/重启/本地回收站验收，以及删除后残留提案的显式整理策略。外部改动冲突、旧的无记录部分删除不会自动修复；不要直接删除 journal 或把手动恢复文件当作撤销 tombstone。
 
 - 已先构建并提交审查前备份：`83deb3f`，其父提交 `9cd98ad` 是原产品代码。
-- 当前审查/重构分支：`fix/merge-pending-write-guards`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，文档检查点为 `d125577`；第六轮代码提交为 `f66bd16`（索引同步）和 `3a9f321`（删除校验），之后另有本交接/审查文档提交。
+- 当前审查/重构分支：`fix/merge-card-group-content`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，文档检查点为 `d125577`；第六轮代码提交为 `f66bd16`（索引同步）和 `3a9f321`（删除校验），之后另有本交接/审查文档提交。
 - 第一轮修复合并/Related 的并发覆盖、Card 并发追加丢失、Review 重复动作跳卡，并提取共用 Markdown 事务与 Review 动作保护。
 - 第二轮让所有当前 `data.json` 写入共用完整读/检查/改/存队列，覆盖 Review、Settings、Proposal、草稿、来源索引及 Merge 回滚；来源重连/移除也已接入原子 Markdown 事务；诊断开关现在只重绘，不重置复习进度。数据格式与版本不变。队列的共享 storage owner 和禁止嵌套获取规则见 [ADR 0022](adr/0022-plugin-state-mutations-share-one-queue.md)。
 - 第二轮 `npm run test:all`、`npm run build`、`npm run check:release -- 1.0.0`、`git diff --check` 均已通过。新增确定性交错测试覆盖共享状态、真实 `saveSettings()` 方法、Merge 回滚、来源写入/回滚冲突。详细证据见 [CODE_REVIEW_2026-09-05.md](CODE_REVIEW_2026-09-05.md)。

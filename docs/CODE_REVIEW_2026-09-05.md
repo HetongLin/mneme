@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-19 (eighteenth pass)
+Updated: 2026-09-20 (nineteenth pass)
 
 ## Scope and checkpoint
 
@@ -38,6 +38,8 @@ The seventeenth pass on `fix/merge-input-ownership` starts from checkpoint `bb69
 
 The eighteenth pass on `fix/merge-pending-write-guards` starts from checkpoint `83c729f`. It protects pending Manual Card/Concept and Inbox operations from overlapping Merge writes, including rewired Related neighbors and Card Groups reserved before creation.
 
+The nineteenth pass on `fix/merge-card-group-content` starts from checkpoint `b8656b4`. It retains non-Card content in a vacated Card Group, rejects within-group duplicate IDs, and prevents leftover legacy section markers from becoming unintended Cards after migration.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication, version change, or live Vault update was performed.
 
 ## Local implementation commits
@@ -64,6 +66,7 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `223494d` — compensate Markdown writes applied before process rejection, with exact-content rollback guards and fault-injection regressions.
 - `6a61b59` — validate current Merge Card associations, incoming write ownership, and frontmatter identity using shared scalar inspection.
 - `d93c26f` — block Merge writes that invalidate pending authoring recovery paths, hashes or Card ownership.
+- `5909142` — preserve former Card Group notes/custom properties and reject ambiguous Card migration.
 
 ## Confirmed and fixed
 
@@ -389,6 +392,27 @@ This preserves existing authoring recovery and does not make Merge itself durabl
 See [ADR 0003](adr/0003-concept-merge-requires-guided-review.md) and
 [ADR 0021](adr/0021-name-conflict-merge-defers-all-writes.md).
 
+### P1 — Generated Card Group redirects discarded learner-authored content
+
+When both Concepts had Card Groups, Guided Merge copied only source Card blocks
+and replaced their entire original file with a generated redirect. Custom YAML,
+callouts, references and notes before/between/after Cards disappeared. The former
+group is now derived from the original Markdown by removing inspected block ranges
+in reverse offset order. Its body and custom properties remain at the old path;
+Mneme type/owner/navigation metadata is updated and a redirect notice is appended.
+The actual Card blocks remain unchanged in the destination. A quoted type key is
+normalized so the vacated file is still recognized as an empty Card Group.
+
+### P1 — Duplicate IDs inside a single Card Group bypassed Merge preflight
+
+The previous check compared IDs between the two groups but did not reject
+repeated IDs within either group. Each group now requires unique explicit IDs,
+including when the source group is adopted directly. Legacy section markers
+outside complete Card blocks also stop preparation: retaining these markers in a
+vacated group would otherwise create an unintended parser result. Marker examples
+inside code fences are conservatively blocked as well. See the content-retention
+addition to [ADR 0003](adr/0003-concept-merge-requires-guided-review.md).
+
 ## Remaining boundaries
 
 Incoming/Guided Merge still lack durable completion records. Process termination or conflicting/failed compensation can leave Markdown and state partially updated; this pass does not resolve those cases.
@@ -400,6 +424,18 @@ Card and Concept ID repairs now have durable recovery records. External edits, m
 New Concept and single-Card deletions now have durable recovery metadata. Historical partial deletions without receipts still require manual inspection. External edits/moves or changed Related files deliberately stop recovery; there is no automatic conflict resolution or undo. Obsidian rename does not guarantee an atomic compare-and-rename, and local-trash semantics still need real-platform acceptance. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; their prose is preserved rather than silently discarded.
 
 ## Validation
+
+Nineteenth-pass validation (2026-09-20): full tests, build, release check and diff
+checks passed. Logs: `/private/tmp/mneme-merge-card-content-all.log` and
+`/private/tmp/mneme-merge-card-content-focused.log`. The original renderer failed
+the custom-property assertion in `/private/tmp/mneme-merge-card-content-red.log`;
+after the retention fix alone, within-group duplicates still returned ready in
+`/private/tmp/mneme-merge-card-duplicate-red.log`. Regressions cover LF/CRLF and
+zero/one/multiple source blocks, custom YAML lists, exact retained body segments,
+raw block retention, final Card IDs, unchanged review state, empty redirect parsing,
+source/target/adopted-source duplicates, legacy outside markers and quoted type
+keys. Full checks include the existing rollback and pending-write suites. These
+are service/parser tests, not real Obsidian UI or process-restart acceptance.
 
 Eighteenth-pass validation (2026-09-19): full tests, build, release metadata check
 and diff checks passed. Full log: `/private/tmp/mneme-merge-pending-all.log`.
@@ -637,3 +673,13 @@ Eighteenth-pass manual checks in a disposable Vault with fault injection:
 
 Merge's own durable recovery and other operations' overlap guards remain separate
 work; this pass adds no persisted intent or external-process coordination.
+
+
+Nineteenth-pass manual checks in a disposable Vault:
+
+1. Add custom YAML and notes before, between and after Cards in the source Card Group. Merge into a Concept with its own group. The original path must retain those notes/properties and a redirect; the destination must contain each Card once with its original ID/content.
+2. Repeat with an empty source group and CRLF Markdown. Confirm Review does not discover a Card from the retained notes.
+3. Duplicate a Card ID within either group, then try Merge. It must refuse before writing. Repeat with legacy section markers outside a Card block and review the explicit repair message.
+
+Non-Card notes remain at the original path. Resolving path-dependent Markdown
+references and durable Merge recovery remain separate audits.
