@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-19 (seventeenth pass)
+Updated: 2026-09-19 (eighteenth pass)
 
 ## Scope and checkpoint
 
@@ -36,6 +36,8 @@ The sixteenth pass on `fix/markdown-transaction-uncertain-writes` starts from ch
 
 The seventeenth pass on `fix/merge-input-ownership` starts from checkpoint `bb69ace`. Before extending durable Merge recovery, it fixes three preparation guards: stale Card Group locators, incoming proposals already owned by approved-write recovery, and false Concept identity matches in body text.
 
+The eighteenth pass on `fix/merge-pending-write-guards` starts from checkpoint `83c729f`. It protects pending Manual Card/Concept and Inbox operations from overlapping Merge writes, including rewired Related neighbors and Card Groups reserved before creation.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication, version change, or live Vault update was performed.
 
 ## Local implementation commits
@@ -61,6 +63,7 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `72edadb` — isolate Guided Merge scans, AI, selection and confirmation, and wait for started commits during transitions.
 - `223494d` — compensate Markdown writes applied before process rejection, with exact-content rollback guards and fault-injection regressions.
 - `6a61b59` — validate current Merge Card associations, incoming write ownership, and frontmatter identity using shared scalar inspection.
+- `d93c26f` — block Merge writes that invalidate pending authoring recovery paths, hashes or Card ownership.
 
 ## Confirmed and fixed
 
@@ -366,6 +369,26 @@ This is scalar validation, not a full YAML parser. See the additions to
 [ADR 0003](adr/0003-concept-merge-requires-guided-review.md) and
 [ADR 0021](adr/0021-name-conflict-merge-defers-all-writes.md).
 
+### P1 — Merge could invalidate another operation's pending recovery record
+
+Guided Merge checked actionable proposals referencing the merged-away Concept,
+but omitted pending Manual creation and receipt-bound writes targeting the
+survivor or a Related neighbor. Once authoring Markdown was written and completion
+saving failed, Merge could move its Card or change its Concept before Resume,
+breaking the original path/owner/hash contract. Incoming's Manual-origin guard
+also did not protect an Inbox-origin merge into a different pending creation or
+pending Inbox update target.
+
+Both services now use a shared preparation guard. Guided checks participant IDs,
+all planned write paths and declared Card Group paths, including absent groups.
+Incoming checks only its actual target Concept path; editing that Concept need
+not block an otherwise independent pending Manual Card. Completed and unrelated
+valid receipts are allowed. Malformed pending records are preserved and rejected.
+Receipts acquired after preview remain covered by the queued state-snapshot check.
+This preserves existing authoring recovery and does not make Merge itself durable.
+See [ADR 0003](adr/0003-concept-merge-requires-guided-review.md) and
+[ADR 0021](adr/0021-name-conflict-merge-defers-all-writes.md).
+
 ## Remaining boundaries
 
 Incoming/Guided Merge still lack durable completion records. Process termination or conflicting/failed compensation can leave Markdown and state partially updated; this pass does not resolve those cases.
@@ -377,6 +400,22 @@ Card and Concept ID repairs now have durable recovery records. External edits, m
 New Concept and single-Card deletions now have durable recovery metadata. Historical partial deletions without receipts still require manual inspection. External edits/moves or changed Related files deliberately stop recovery; there is no automatic conflict resolution or undo. Obsidian rename does not guarantee an atomic compare-and-rename, and local-trash semantics still need real-platform acceptance. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; their prose is preserved rather than silently discarded.
 
 ## Validation
+
+Eighteenth-pass validation (2026-09-19): full tests, build, release metadata check
+and diff checks passed. Full log: `/private/tmp/mneme-merge-pending-all.log`.
+`mergePendingWrites.test.ts` uses the real Manual Card/Concept coordinators and
+ApprovedProposalWriter with cloned storage. It fails Card creation before Markdown
+or at completion save, Concept creation at completion save, and Inbox updates of a
+survivor/Related neighbor at completion save. Blocked preparation preserves full
+files/state and performs no writes. Resuming does not repeat already applied
+Markdown; completed receipts permit Merge, and the Card ID appears once after
+successful Merge. Unrelated pending writes, path normalization, malformed records,
+Incoming with an independent pending Card, and receipt acquisition after preview
+are also covered. Bundles substituting either service from `83c729f` fail because
+preparation incorrectly returns ready. Logs:
+`/private/tmp/mneme-merge-pending-conceptMergeService-red.log` and
+`/private/tmp/mneme-merge-pending-incomingConceptMergeService-red.log`.
+These are in-process fault tests, not real Obsidian restart/platform acceptance.
 
 Seventeenth-pass validation (2026-09-19): full tests, build, release check and diff
 checks passed. Full/focused logs: `/private/tmp/mneme-merge-input-all.log` and
@@ -588,3 +627,13 @@ Seventeenth-pass manual checks in a disposable Vault:
 Durable Merge intent/completion, process termination, and rollback-conflict recovery
 remain open. These guards do not scan for duplicate IDs introduced externally
 after selection or coordinate other processes.
+
+
+Eighteenth-pass manual checks in a disposable Vault with fault injection:
+
+1. Interrupt Manual Card or Concept creation at its completion-state save after Markdown has been written. Guided Merge involving that Concept must request completion first. Resume Creation, then Merge: the Card must appear once with its original ID and the Concept draft must complete normally.
+2. Leave a pending Inbox update on the intended survivor or a Related neighbor. Guided Merge must preserve that file and receipt until the Inbox write is completed. An Inbox-origin conflict Merge targeting the same pending Concept file must also stop.
+3. Repeat with an unrelated pending target: normal Merge should remain available. Incoming Merge that edits only a Concept should still allow a pending Manual Card in its separate group.
+
+Merge's own durable recovery and other operations' overlap guards remain separate
+work; this pass adds no persisted intent or external-process coordination.
