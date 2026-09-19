@@ -1,3 +1,4 @@
+import { assertMergeHasNoPendingWrites } from "./mergePendingWrites";
 import { getConceptId } from "./conceptIdEditor";
 import { assertCardDeletionAllowsPath } from "./cardDeletionReceipt";
 import { assertCardIdRepairAllowsPath } from "./cardIdRepairReceipt";
@@ -166,6 +167,7 @@ export class IncomingConceptMergeService {
 					now,
 				);
 			}
+			assertMergeHasNoPendingWrites(data, [input.existing.path]);
 			let after = applyConceptMergeDraft(before, input.draft);
 
 			for (const view of views) {

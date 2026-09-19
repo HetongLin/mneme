@@ -1,3 +1,4 @@
+import { assertMergeHasNoPendingWrites } from "./mergePendingWrites";
 import { readMarkdownScalar } from "./markdownScalar";
 import { getCardGroupPathFromConceptFrontmatter } from "./conceptMarkdownIdentity";
 import { assertCardDeletionAllowsPath } from "./cardDeletionReceipt";
@@ -205,6 +206,11 @@ export class ConceptMergeService {
 				label: "Redirect Note",
 				path: input.merged.path,
 			});
+
+			assertMergeHasNoPendingWrites(data, [
+				...writes.map((write) => write.path),
+				...[input.survivor.cardsPath, input.merged.cardsPath].filter((path): path is string => !!path),
+			], [input.survivor.conceptId, input.merged.conceptId]);
 
 			for (const write of writes) {
 				assertCardDeletionAllowsPath(data.cardDeletion, write.path);

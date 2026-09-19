@@ -98,3 +98,13 @@ changed types and duplicate ID fields must block preparation. The scalar reader
 is shared with ID repair. Source and Merge drafts remain intact on rejection.
 This changes preparation guards only, not the underlying commit/rollback or
 cross-process recovery protocol.
+
+
+The written target can itself belong to another unfinished operation. Both Inbox
+and Manual origins also check pending authoring receipts against the target
+Markdown path. For example, an Inbox conflict must not rewrite a newly created
+Manual Concept before its creation completion is saved, or a Concept with a
+pending Inbox update. Completed and unrelated valid receipts are allowed. Incoming
+Merge does not move Cards or change their owner, so a pending Manual Card in a
+separate Card Group does not by itself block editing the Concept. The existing
+Manual-origin pending-creation and incoming-proposal receipt guards still apply.

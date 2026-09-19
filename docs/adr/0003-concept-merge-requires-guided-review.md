@@ -65,3 +65,21 @@ Merge and ID repair share the conservative scalar reader for leading frontmatter
 plain/quoted scalar values, comments and LF/CRLF are supported; duplicate fields
 are not treated as valid identities. This does not add a full YAML parser,
 change persisted formats, or provide durable transaction recovery.
+
+
+## Pending authoring writes — 2026-09-19
+
+A successful Markdown write may still belong to an unfinished creation or Inbox
+operation until its completion state is saved. Before returning a Guided Merge
+preview, check pending Manual Concept, Manual Card, and Inbox write receipts
+against both participant IDs, their declared Card Group paths, and every planned
+write path, including Related neighbors. A matching receipt must be completed
+before Merge can alter its path, content hash or Card owner. This also protects a
+reserved Card Group that does not yet exist. Compare normalized Vault paths.
+
+Completed receipts and unrelated valid pending receipts do not block Merge.
+Unreadable pending records cannot safely establish ownership and block preparation
+instead of being discarded. Existing actionable-proposal checks remain in force.
+If a new receipt appears after preview, the state snapshot check inside the shared
+mutation queue rejects execution. These guards preserve existing authoring recovery;
+they do not add a Merge journal or recover historical partial merges.
