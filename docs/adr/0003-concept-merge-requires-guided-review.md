@@ -48,3 +48,20 @@ and Start Manual Draft retain their existing draft-reset behavior. No persisted
 fields or underlying Merge transaction rules change. These guards do not provide
 cross-process recovery, external-writer isolation, or real Obsidian window/restart
 acceptance. Name-conflict Merge uses its separate workflow in ADR 0021.
+
+
+## Current Card association — 2026-09-19
+
+Before preparing Card migration, compare each selected Concept's current
+frontmatter Card Group locator with the locator in its scanned summary. A
+changed, removed, or newly added association requires refreshing the Concept
+Library and rebuilding the selection/preview. Do not move Cards from a cached
+path or restore an obsolete link merely because the Concept ID still matches.
+Use the same path interpretation as the scanner, including link aliases and an
+omitted `.md` extension. Ambiguous or unsupported scalar fields block preparation.
+Existing post-preview snapshot checks continue to protect execution.
+
+Merge and ID repair share the conservative scalar reader for leading frontmatter:
+plain/quoted scalar values, comments and LF/CRLF are supported; duplicate fields
+are not treated as valid identities. This does not add a full YAML parser,
+change persisted formats, or provide durable transaction recovery.

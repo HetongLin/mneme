@@ -1,3 +1,4 @@
+import { getConceptId } from "./conceptIdEditor";
 import { assertCardDeletionAllowsPath } from "./cardDeletionReceipt";
 import { assertCardIdRepairAllowsPath } from "./cardIdRepairReceipt";
 import { assertConceptIdRepairAllowsConcept, assertConceptIdRepairAllowsPath } from "./conceptIdRepairReceipt";
@@ -88,7 +89,7 @@ export class IncomingConceptMergeService {
 			assertCardIdRepairAllowsPath(data.cardIdRepairs, input.existing.path);
 			assertConceptIdRepairAllowsPath(data.conceptIdRepairs, input.existing.path);
 			const before = await this.vault.read(input.existing.path);
-			if (!hasConceptIdentity(before, input.existing.conceptId)) {
+			if (getConceptId(before) !== input.existing.conceptId) {
 				return {
 					message: "The existing Concept identity changed. Return to the conflict options and try again.",
 					status: "blocked",
@@ -105,6 +106,12 @@ export class IncomingConceptMergeService {
 				if (!proposal) {
 					return {
 						message: "The incoming Inbox proposal is no longer available for Merge.",
+						status: "blocked",
+					};
+				}
+				if (proposal.writeReceipt !== undefined) {
+					return {
+						message: "Resume the pending Inbox write before starting Merge.",
 						status: "blocked",
 					};
 				}
@@ -376,9 +383,4 @@ function mergeManualConceptState(
 	}
 
 	return nextData;
-}
-
-function hasConceptIdentity(markdown: string, conceptId: string): boolean {
-	const escaped = conceptId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-	return new RegExp(`^mneme_id:\\s*["']?${escaped}["']?\\s*$`, "m").test(markdown);
 }

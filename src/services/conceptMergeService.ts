@@ -1,3 +1,5 @@
+import { readMarkdownScalar } from "./markdownScalar";
+import { getCardGroupPathFromConceptFrontmatter } from "./conceptMarkdownIdentity";
 import { assertCardDeletionAllowsPath } from "./cardDeletionReceipt";
 import { assertCardIdRepairAllowsPath } from "./cardIdRepairReceipt";
 import { assertConceptIdRepairAllowsConcept, assertConceptIdRepairAllowsPath } from "./conceptIdRepairReceipt";
@@ -122,6 +124,22 @@ export class ConceptMergeService {
 			if (!hasConceptIdentity(survivorMarkdown, input.survivor.conceptId)
 				|| !hasConceptIdentity(mergedMarkdown, input.merged.conceptId)) {
 				return { message: "Concept identity changed. Refresh Concept Library before merging.", status: "blocked" };
+			}
+
+			for (const [concept, markdown] of [
+				[input.survivor, survivorMarkdown], [input.merged, mergedMarkdown],
+			] as const) {
+				const currentCardsPath = getCardGroupPathFromConceptFrontmatter({
+					mneme_type: "concept",
+					cards: readMarkdownScalar(markdown, "cards"),
+					cards_folder: readMarkdownScalar(markdown, "cards_folder"),
+				});
+				if (currentCardsPath !== concept.cardsPath) {
+					return {
+						message: "A Concept's Card Group link changed. Refresh Concept Library before merging.",
+						status: "blocked",
+					};
+				}
 			}
 
 			const cardPlanResult = await this.prepareCards(input, survivorMarkdown, mergedMarkdown);
@@ -856,17 +874,11 @@ function hasCardGroupIdentity(markdown: string, conceptId: string): boolean {
 }
 
 function readFrontmatterScalar(markdown: string, key: string): string | undefined {
-	const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(markdown);
-	if (!match) {
+	try {
+		return readMarkdownScalar(markdown, key);
+	} catch {
 		return undefined;
 	}
-	const lines = (match[1] ?? "").split(/\r?\n/)
-		.filter((candidate) => new RegExp(`^${key}\\s*:`).test(candidate));
-	if (lines.length !== 1) {
-		return undefined;
-	}
-	const line = lines[0];
-	return line?.slice(line.indexOf(":") + 1).trim().replace(/^['"]|['"]$/g, "") || undefined;
 }
 
 function setFrontmatterScalar(markdown: string, key: string, value: string): string {
@@ -875,7 +887,7 @@ function setFrontmatterScalar(markdown: string, key: string, value: string): str
 		throw new Error("Markdown frontmatter is required for Guided Merge.");
 	}
 	const lines = (match[1] ?? "").split(/\r?\n/);
-	const indexes = lines.flatMap((line, index) => new RegExp(`^${key}\\s*:`).test(line) ? [index] : []);
+	const indexes = lines.flatMap((line, index) => new RegExp(`^(?:${key}|"${key}"|'${key}')[ \t]*:`).test(line) ? [index] : []);
 	if (indexes.length > 1) {
 		throw new Error(`Frontmatter field appears more than once: ${key}`);
 	}

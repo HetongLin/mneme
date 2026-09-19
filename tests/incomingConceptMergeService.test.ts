@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
+import type { KnowledgeProposal } from "../src/models/knowledgeProposal";
+import type { ApprovedWriteReceipt } from "../src/models/markdownWrite";
+import { proposalWriteHash } from "../src/services/approvedWriteRecovery";
+import { computeContentHash } from "../src/utils/sourceHash";
 import type { ConceptSummary } from "../src/models/conceptLibrary";
 import type { MnemePluginData } from "../src/models/reviewState";
 import {
 	IncomingConceptMergeService,
 	type IncomingConceptMergeStorage,
 	type IncomingConceptMergeVault,
+	type PrepareIncomingConceptMergeInput,
 } from "../src/services/incomingConceptMergeService";
 import { ManualConceptDraftStore } from "../src/services/manualConceptDraftStore";
 import { createDefaultPluginData } from "../src/services/reviewStateStore";
@@ -574,4 +579,142 @@ function conceptMarkdown(concept: ConceptSummary): string {
 	].join("\n");
 }
 
-export const done = runAsyncTests();
+async function runPreparationGuardTests(): Promise<void> {
+	const proposal: Extract<KnowledgeProposal, { kind: "new_concept" }> = {
+		createdAt: "2026-09-19T09:00:00.000Z",
+		updatedAt: "2026-09-19T10:00:00.000Z",
+		id: "receipt-proposal",
+		kind: "new_concept",
+		status: "approved",
+		sourcePath: "Notes/Source.md",
+		sourceHash: "source-hash",
+		evidence: [{ excerpt: "Incoming evidence" }],
+		payload: {
+			title: "Shared title",
+			coreMeaning: "Incoming",
+			whyItMatters: "Why",
+			tags: [],
+			proposedViews: [],
+			proposedSourceLinks: [],
+		},
+	};
+	const input: PrepareIncomingConceptMergeInput = {
+		draft: {
+			coreMeaning: "Merged",
+			englishName: "",
+			importance: "normal",
+			learningMode: "reviewable",
+			tags: [],
+			title: "Shared title",
+			whyItMatters: "",
+		},
+		existing,
+		origin: { kind: "inbox", proposalId: proposal.id, proposalUpdatedAt: proposal.updatedAt },
+	};
+	const base = createDefaultPluginData();
+	base.knowledgeProposals[proposal.id] = proposal;
+	base.conceptConflictMergeDrafts[`inbox:${proposal.id}`] = {
+		key: `inbox:${proposal.id}`,
+		existingConceptId: existing.conceptId,
+		incomingFingerprint: "fingerprint",
+		updatedAt: proposal.updatedAt,
+		draft: { ...input.draft, coreMeaning: "Preserve authored Merge draft" },
+	};
+	base.sourceAnalysisRecords["Notes/Source.md"] = {
+		sourcePath: "Notes/Source.md",
+		contentHash: "source-hash",
+		mtime: 1,
+		size: 1,
+		lastAnalyzedAt: proposal.updatedAt,
+		linkedConceptIds: [],
+		pendingProposalIds: [proposal.id],
+		status: "clean",
+	};
+	const targetMarkdown = conceptMarkdown({ ...existing, conceptId: "concept-incoming" });
+	const receipt: ApprovedWriteReceipt = {
+		version: 1,
+		mode: "create",
+		proposalHash: await proposalWriteHash(proposal),
+		targetPath: "Mneme/Concepts/Incoming.md",
+		afterHash: await computeContentHash(targetMarkdown),
+		entityId: "concept-incoming",
+		createdAt: proposal.updatedAt,
+	};
+
+	for (const targetExists of [false, true]) {
+		for (const rawReceipt of [receipt, null, {}, "bad", 0, false]) {
+			const data = structuredClone(base);
+			data.knowledgeProposals[proposal.id] = {
+				...proposal, writeReceipt: rawReceipt as unknown as ApprovedWriteReceipt,
+			};
+			const files: Record<string, string> = { [existing.path]: conceptMarkdown(existing) };
+			if (targetExists) files[receipt.targetPath] = targetMarkdown;
+			const vault = new MemoryIncomingMergeVault(files);
+			const storage = new MemoryIncomingMergeStorage(data);
+			const beforeFiles = { ...files };
+			const beforeData = structuredClone(data);
+			const result = await new IncomingConceptMergeService(vault, storage).prepare(input);
+			assert.equal(result.status, "blocked");
+			if (result.status !== "blocked") throw new Error("Expected receipt guard");
+			assert.match(result.message, /Resume the pending Inbox write/);
+			assert.equal(vault.modifyCount, 0);
+			assert.equal(storage.saveCount, 0);
+			assert.deepEqual(vault.files, beforeFiles);
+			assert.deepEqual(storage.data, beforeData);
+		}
+	}
+
+	const original = conceptMarkdown(existing);
+	const changedId = original.replace(`mneme_id: ${existing.conceptId}`, "mneme_id: changed-id");
+	for (const markdown of [
+		`${changedId}\nmneme_id: ${existing.conceptId}\n`,
+		`${changedId}\n\`\`\`yaml\nmneme_id: ${existing.conceptId}\n\`\`\`\n`,
+		original.replace("mneme_type: concept", "mneme_type: note"),
+		original.replace(`mneme_id: ${existing.conceptId}`, `mneme_id: changed-id\nmneme_id: ${existing.conceptId}`),
+		original.replace(`mneme_id: ${existing.conceptId}`, `mneme_id: changed-id\n"mneme_id": "${existing.conceptId}"`),
+	]) {
+		const vault = new MemoryIncomingMergeVault({ [existing.path]: markdown });
+		const storage = new MemoryIncomingMergeStorage(structuredClone(base));
+		const result = await new IncomingConceptMergeService(vault, storage).prepare(input);
+		assert.equal(result.status, "blocked");
+		if (result.status !== "blocked") throw new Error("Expected identity guard");
+		assert.match(result.message, /identity changed/);
+		assert.equal(vault.modifyCount, 0);
+		assert.equal(storage.saveCount, 0);
+		assert.deepEqual(vault.files, { [existing.path]: markdown });
+		assert.deepEqual(storage.data, base);
+	}
+
+	for (const idLine of [
+		`mneme_id: ${existing.conceptId}`,
+		`mneme_id: '${existing.conceptId}' # inline`,
+		`"mneme_id": "${existing.conceptId}" # inline`,
+	]) {
+		for (const newline of ["\n", "\r\n"]) {
+			const markdown = original.replace(`mneme_id: ${existing.conceptId}`, idLine).replace(/\n/g, newline);
+			const result = await new IncomingConceptMergeService(
+				new MemoryIncomingMergeVault({ [existing.path]: markdown }),
+				new MemoryIncomingMergeStorage(structuredClone(base)),
+			).prepare(input);
+			assert.equal(result.status, "ready", idLine);
+		}
+	}
+
+	// A receipt acquired after a valid preview is caught by the state snapshot.
+	{
+		const vault = new MemoryIncomingMergeVault({ [existing.path]: original });
+		const storage = new MemoryIncomingMergeStorage(structuredClone(base));
+		const service = new IncomingConceptMergeService(vault, storage);
+		const prepared = await service.prepare(input);
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		storage.data.knowledgeProposals[proposal.id] = { ...proposal, writeReceipt: receipt };
+		const beforeData = structuredClone(storage.data);
+		assert.equal((await service.execute(prepared.plan)).status, "conflict");
+		assert.deepEqual(storage.data, beforeData);
+		assert.deepEqual(vault.files, { [existing.path]: original });
+		assert.equal(vault.modifyCount, 0);
+		assert.equal(storage.saveCount, 0);
+	}
+}
+
+export const done = runAsyncTests().then(runPreparationGuardTests);

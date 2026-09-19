@@ -80,3 +80,21 @@ No new persisted fields are required. These View guards do not provide durable
 Merge recovery across process termination, change the underlying transaction
 protocol, or cover the separate Guided Merge View. Real Obsidian dialog/popout
 and restart acceptance remains separate from deterministic lifecycle tests.
+
+
+## Incoming write ownership — 2026-09-19
+
+An Inbox proposal with any `writeReceipt` is already owned by the approved-write
+recovery workflow. Conflict Merge must refuse it even if its status is still
+`approved` and the caller has its current timestamp. This includes malformed
+receipts: Merge must not discard the record, complete the proposal, or repurpose
+its incoming content. Finish or diagnose that write through Inbox first. A
+proposal that acquires a receipt after preview is rejected by the existing exact
+plugin-state snapshot check at execution.
+
+Validate the target using the current leading frontmatter's unique Concept type
+and ID. A matching line in body text or a code fence is not an identity check;
+changed types and duplicate ID fields must block preparation. The scalar reader
+is shared with ID repair. Source and Merge drafts remain intact on rejection.
+This changes preparation guards only, not the underlying commit/rollback or
+cross-process recovery protocol.

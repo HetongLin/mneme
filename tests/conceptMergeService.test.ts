@@ -385,6 +385,63 @@ async function runAsyncTests(): Promise<void> {
 		assert.deepEqual(storage.data, beforeData);
 		assert.equal(storage.saveCount, 0);
 	}
+
+	for (const side of ["survivor", "merged"] as const) {
+		for (const mutation of ["changed", "deleted", "added"] as const) {
+			const files = createFiles();
+			const selected = side === "survivor" ? survivor : merged;
+			const original = files[selected.path] ?? "";
+			if (mutation === "changed") {
+				files[selected.path] = original.replace(
+					/^cards:.*$/m,
+					"cards: \"[[Mneme/Cards/Other/Card.md|Other Cards]]\"",
+				);
+				files["Mneme/Cards/Other/Card.md"] = cardMarkdown(selected, "card-other", "Other question", "Other answer");
+			} else if (mutation === "deleted") {
+				files[selected.path] = original.replace(/^cards:.*\n/m, "");
+			}
+			const input = {
+				merged: side === "merged" && mutation === "added" ? { ...merged, cardsPath: undefined } : merged,
+				preserveMergedAsView: false,
+				survivor: side === "survivor" && mutation === "added" ? { ...survivor, cardsPath: undefined } : survivor,
+			};
+			const vault = new MemoryMergeVault(files);
+			const storage = new MemoryMergeStorage(createData());
+			const beforeFiles = { ...vault.files };
+			const beforeData = structuredClone(storage.data);
+			const result = await new ConceptMergeService(vault, storage).prepare(input);
+			assert.equal(result.status, "blocked", `${side}/${mutation}`);
+			if (result.status === "blocked") assert.match(result.message, /Card Group link/i);
+			assert.deepEqual(vault.files, beforeFiles);
+			assert.deepEqual(storage.data, beforeData);
+			assert.equal(storage.saveCount, 0);
+			assert.equal(vault.commitCount, 0);
+		}
+	}
+
+	for (const side of ["survivor", "merged"] as const) {
+		for (const variant of ["double", "single", "double-key", "single-key", "comment", "crlf"] as const) {
+			const files = createFiles();
+			const selected = side === "survivor" ? survivor : merged;
+			const target = selected.cardsPath?.replace(/\.md$/i, "") ?? "";
+			const key = variant === "double-key" ? '"cards"' : variant === "single-key" ? "'cards'" : "cards";
+			const value = variant === "single"
+				? `${key}: '[[${target}|${selected.title} Alias]]'`
+				: `${key}: "[[${target}|${selected.title} Alias]]"${variant === "comment" ? " # cached alias" : ""}`;
+			files[selected.path] = (files[selected.path] ?? "").replace(/^cards:.*$/m, value);
+			if (variant === "crlf") files[selected.path] = files[selected.path].replace(/\n/g, "\r\n");
+			const vault = new MemoryMergeVault(files);
+			const storage = new MemoryMergeStorage(createData());
+			const service = new ConceptMergeService(vault, storage);
+			const result = await service.prepare({ merged, preserveMergedAsView: false, survivor });
+			assert.equal(result.status, "ready", `${side}/${variant}`);
+			if (result.status === "ready") {
+				const finalConcept = result.plan.writes.find((write) => write.path === survivor.path)?.after ?? "";
+				assert.deepEqual(await service.execute(result.plan, finalConcept), { status: "merged" });
+				assert.equal((vault.files[survivor.path]?.match(/^(?:cards|"cards"|'cards'):/gm) ?? []).length, 1);
+			}
+		}
+	}
 }
 
 class MemoryMergeVault implements ConceptMergeVaultAdapter {
