@@ -17,6 +17,47 @@ const merged = createConcept("concept-b", "Beta", "Mneme/Concepts/Beta/Concept.m
 
 async function runAsyncTests(): Promise<void> {
 	{
+		const neighbor = createConcept("concept-neighbor", "Neighbor", "Notes/Neighbor.md");
+		const files = createFiles();
+		files[neighbor.path] = conceptMarkdown(neighbor, "Neighbor meaning")
+			+ `\n## Related Concepts\n- [[${merged.path}]]\n<!-- unclosed comment`;
+		const vault = new MemoryMergeVault(files);
+		const storage = new MemoryMergeStorage(createData());
+		const before = { ...files };
+		const beforeData = structuredClone(storage.data);
+		const result = await new ConceptMergeService(vault, storage).prepare({ merged, survivor, preserveMergedAsView: true });
+		assert.equal(result.status, "blocked");
+		if (result.status === "blocked") assert.match(result.message, /Close.*before adding Related/);
+		assert.deepEqual(vault.files, before);
+		assert.deepEqual(storage.data, beforeData);
+		assert.equal(vault.commitCount, 0);
+		assert.equal(storage.saveCount, 0);
+	}
+
+	for (const actualLink of [false, true]) {
+		const neighbor = createConcept("concept-neighbor", "Neighbor", "Notes/Neighbor.md");
+		const files = createFiles();
+		const example = `<!--\n- [[${merged.path}|Example]]\n-->\n\n\`\`\`\`markdown\n\`\`\`\n- [[${merged.path}|Code]]\n\`\`\`\``;
+		files[neighbor.path] = conceptMarkdown(neighbor, "Neighbor meaning")
+			+ `\n## Related Concepts\n${actualLink ? `- [[${merged.path}|Real relation]]\n` : ""}${example}\n`;
+		const originalNeighbor = files[neighbor.path];
+		const vault = new MemoryMergeVault(files);
+		const storage = new MemoryMergeStorage(createData());
+		const service = new ConceptMergeService(vault, storage);
+		const prepared = await service.prepare({ merged, survivor, preserveMergedAsView: true });
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		assert.equal(prepared.plan.relatedConceptsRewired, actualLink ? 1 : 0);
+		const final = prepared.plan.writes.find((write) => write.path === survivor.path)!.after;
+		assert.deepEqual(await service.execute(prepared.plan, final), { status: "merged" });
+		assert.ok(vault.files[neighbor.path]!.includes(example));
+		if (!actualLink) assert.equal(vault.files[neighbor.path], originalNeighbor);
+		else {
+			assert.ok(!vault.files[neighbor.path]!.includes("Real relation"));
+			assert.ok(vault.files[neighbor.path]!.includes("[[Mneme/Concepts/Alpha/Concept|Alpha]]"));
+		}
+	}
+
+	{
 		const files = createFiles();
 		files[merged.path] += "\n# Learner's second topic\n\nKeep this explanation.\n\n## Supporting detail\n\nKeep this detail.\n";
 		const vault = new MemoryMergeVault(files);

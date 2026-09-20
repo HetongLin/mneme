@@ -1,5 +1,6 @@
 import type { ConceptSummary } from "../models/conceptLibrary";
 import { normalizeVaultPath, toObsidianInternalLink } from "../utils/markdownPath";
+import { inspectMarkdownLines } from "./markdownLineInspector";
 
 export interface RelatedConceptLink {
 	display?: string;
@@ -15,18 +16,13 @@ export function parseRelatedConceptLinks(markdown: string): RelatedConceptLink[]
 	if (!section) return [];
 	const links: RelatedConceptLink[] = [];
 	const seen = new Set<string>();
-	let fence: string | undefined;
-
-	for (const line of section.lines.slice(section.start + 1, section.end)) {
-		fence = updateFence(fence, line);
-		if (fence || /^\s*(```+|~~~+)/.test(line)) continue;
-		for (const match of line.matchAll(/\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\]/g)) {
-			const target = match[1]?.trim();
-			if (!target) continue;
+	for (let index = section.start + 1; index < section.end; index += 1) {
+		for (const match of relatedLinksOnLine(section, index)) {
+			const target = match.target;
 			const key = comparableConceptPath(target);
 			if (seen.has(key)) continue;
 			seen.add(key);
-			links.push({ display: match[2]?.trim() || undefined, target });
+			links.push({ display: match.display, target });
 		}
 	}
 
@@ -46,11 +42,15 @@ export function addRelatedConceptLink(
 	const linkLine = `- ${toObsidianInternalLink(target.path, target.title)}`;
 	const section = findRelatedSection(markdown);
 	if (!section) {
+		if (inspectMarkdownLines(markdown).openLiteral) throw new Error("Close the code fence or comment before adding Related Concepts.");
 		const trimmed = markdown.trimEnd();
 		return {
 			changed: true,
 			markdown: `${trimmed}${newline}${newline}## Related Concepts${newline}${newline}${linkLine}${newline}`,
 		};
+	}
+	if (section.end === section.lines.length && section.openLiteral) {
+		throw new Error("Close the code fence or comment before adding Related Concepts.");
 	}
 
 	const lines = [...section.lines];
@@ -61,7 +61,7 @@ export function addRelatedConceptLink(
 	const needsLeadingBlank = insertion === section.start + 1 || (lines[insertion - 1] ?? "").trim().length > 0;
 	lines.splice(insertion, 0, ...(needsLeadingBlank ? [""] : []), linkLine);
 
-	return { changed: true, markdown: lines.join(newline) };
+	return { changed: true, markdown: section.frontmatter + lines.join(newline) };
 }
 
 export function removeRelatedConceptLink(
@@ -73,24 +73,21 @@ export function removeRelatedConceptLink(
 	const targetKey = comparableConceptPath(targetPath);
 	const lines = [...section.lines];
 	let removals = 0;
-	let fence: string | undefined;
 
 	for (let index = section.start + 1; index < section.end; index += 1) {
 		const line = lines[index] ?? "";
-		fence = updateFence(fence, line);
-		if (fence || /^\s*(```+|~~~+)/.test(line)) continue;
-		const nextLine = line.replace(/\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]/g, (whole, rawTarget: string) => {
-			if (!relatedTargetMatches(rawTarget.trim(), targetKey)) return whole;
-			removals += 1;
-			return "";
-		});
+		const matches = relatedLinksOnLine(section, index)
+			.filter((match) => relatedTargetMatches(match.target, targetKey));
+		if (matches.length === 0) continue;
+		removals += matches.length;
+		const nextLine = matches.reduceRight((text, match) => text.slice(0, match.start) + text.slice(match.end), line);
 		lines[index] = /^\s*[-*+]\s*$/.test(nextLine) ? "" : nextLine;
 	}
 
 	if (removals === 0) return { changed: false, markdown, removals: 0 };
 	const newline = markdown.includes("\r\n") ? "\r\n" : "\n";
 	let nextLines = lines;
-	const nextSection = findRelatedSection(nextLines.join(newline));
+	const nextSection = findRelatedSection(section.frontmatter + nextLines.join(newline));
 	if (nextSection && sectionContainsOnlyWhitespace(nextSection)) {
 		let removeStart = nextSection.start;
 		let removeEnd = nextSection.end;
@@ -101,7 +98,7 @@ export function removeRelatedConceptLink(
 		nextLines = before.length > 0 && after.length > 0 ? [...before, "", ...after] : before.concat(after);
 	}
 
-	const result = nextLines.join(newline);
+	const result = section.frontmatter + nextLines.join(newline);
 	return {
 		changed: true,
 		markdown: markdown.endsWith(newline) && !result.endsWith(newline) ? `${result}${newline}` : result,
@@ -124,35 +121,47 @@ export function comparableConceptPath(path: string): string {
 	return normalizeVaultPath(path).replace(/\.md$/i, "").toLocaleLowerCase();
 }
 
-function findRelatedSection(markdown: string): { end: number; lines: string[]; start: number } | undefined {
-	const lines = markdown.split(/\r?\n/);
-	let fence: string | undefined;
-	let start = -1;
-	let level = 2;
+interface RelatedSection {
+	frontmatter: string;
+	lines: string[];
+	activeLines: string[];
+	openLiteral: boolean;
+	start: number;
+	end: number;
+}
 
-	for (let index = 0; index < lines.length; index += 1) {
-		fence = updateFence(fence, lines[index] ?? "");
-		if (fence) continue;
-		const heading = /^(#{1,6})\s+(.+?)\s*$/.exec(lines[index] ?? "");
-		if (heading?.[1]?.length === 2 && heading[2]?.trim().toLocaleLowerCase() === "related concepts") {
-			start = index;
-			level = heading[1]?.length ?? 2;
+function relatedLinksOnLine(section: RelatedSection, index: number): Array<RelatedConceptLink & { start: number; end: number }> {
+	const links: Array<RelatedConceptLink & { start: number; end: number }> = [];
+	for (const match of (section.activeLines[index] ?? "").matchAll(/\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\]/g)) {
+		const whole = match[0];
+		const start = match.index;
+		const target = match[1]?.trim();
+		if (!whole || start === undefined || !target) continue;
+		const end = start + whole.length;
+		if (section.lines[index]?.slice(start, end) !== whole) continue;
+		links.push({ start, end, target, display: match[2]?.trim() || undefined });
+	}
+	return links;
+}
+
+function findRelatedSection(markdown: string): RelatedSection | undefined {
+	const inspected = inspectMarkdownLines(markdown);
+	const start = inspected.lines.findIndex((line) => line.heading && !line.heading.indent
+		&& line.heading.level === 2 && line.heading.title.toLocaleLowerCase() === "related concepts");
+	if (start < 0) return undefined;
+	let end = inspected.lines.length;
+	for (let index = start + 1; index < inspected.lines.length; index += 1) {
+		const heading = inspected.lines[index]?.heading;
+		if (heading && !heading.indent && heading.level <= 2) {
+			end = index;
 			break;
 		}
 	}
-	if (start < 0) return undefined;
-
-	fence = undefined;
-	for (let index = start + 1; index < lines.length; index += 1) {
-		fence = updateFence(fence, lines[index] ?? "");
-		if (fence) continue;
-		const heading = /^(#{1,6})\s+/.exec(lines[index] ?? "");
-		if (heading && (heading[1]?.length ?? 7) <= level) {
-			return { end: index, lines, start };
-		}
-	}
-
-	return { end: lines.length, lines, start };
+	return {
+		frontmatter: inspected.frontmatter, lines: inspected.lines.map((line) => line.text),
+		activeLines: inspected.lines.map((line) => line.activeText), openLiteral: inspected.openLiteral,
+		start, end,
+	};
 }
 
 function sectionContainsOnlyWhitespace(section: { end: number; lines: string[]; start: number }): boolean {
@@ -165,11 +174,4 @@ function relatedTargetMatches(candidate: string, targetComparablePath: string): 
 	if (candidateComparablePath.includes("/") && targetComparablePath.includes("/")) return false;
 
 	return candidateComparablePath.split("/").pop() === targetComparablePath.split("/").pop();
-}
-
-function updateFence(current: string | undefined, line: string): string | undefined {
-	const marker = line.trim().match(/^(```+|~~~+)/)?.[1]?.[0];
-	if (!marker) return current;
-	if (!current) return marker;
-	return current === marker ? undefined : current;
 }
