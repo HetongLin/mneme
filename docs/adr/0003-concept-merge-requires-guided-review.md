@@ -127,3 +127,29 @@ arbitrary plugin embeds/queries, incoming backlinks, or every heading/block-ID
 collision. Obsidian metadata resolution is a current cache observation, not an
 atomic lock against external edits during the multi-file transaction. Real Vault
 rendering acceptance and durable Merge recovery remain separate work.
+
+## Preserved Concept perspective references — 2026-09-20
+
+The same relocation checks apply to the merged Concept body preserved under Views.
+Extract the perspective after deterministic Related-link removal, then check its
+references against the source Concept and the generated survivor Markdown. Before
+execution, repeat with the final edited survivor text: newly added definitions can
+turn formerly literal shortcut labels into links even without a Vault file change.
+The in-memory plan records whether preservation was requested; no persistent schema
+or write protocol changes are introduced. An explicit service request that omits
+the perspective does not relocate or validate that body. The ordinary Merge View
+continues to request preservation.
+
+Do not copy the template's `Cards: [[...]]` navigation line directly under
+`## Review Cards` when its target exactly matches the source's declared Card Group.
+Card association/navigation belongs to the surviving Concept, and the declared
+group may not yet exist. Keep authored notes in that section and links elsewhere;
+those still receive the normal reference check. Fenced examples are not treated as
+managed navigation. The perspective extractor tracks fence character and opening
+length, accepting only a matching, sufficiently long closing run without trailing
+text, so nested examples keep their text and headings.
+
+The shared Markdown guard retains the conservative behavior and limitations above,
+including blocking reference definitions/footnotes even when some could be moved
+safely. This pass does not replace the other section parsers, preserve arbitrary
+Concept YAML in redirect notes, rewrite links, or provide durable Merge recovery.

@@ -1,5 +1,6 @@
 import { assertMergeHasNoPendingWrites } from "./mergePendingWrites";
 import { assertCardRelocationSafe, type ResolveCardLink } from "./cardRelocationSafety";
+import { assertMarkdownRelocationSafe } from "./markdownRelocationSafety";
 import { readMarkdownScalar } from "./markdownScalar";
 import { getCardGroupPathFromConceptFrontmatter } from "./conceptMarkdownIdentity";
 import { assertCardDeletionAllowsPath } from "./cardDeletionReceipt";
@@ -66,6 +67,7 @@ export interface ConceptMergePlan {
 	merged: ConceptSummary;
 	nextData: MnemePluginData;
 	pauseMigrated: boolean;
+	preserveMergedAsView: boolean;
 	relatedConceptsRewired: number;
 	sourceLinkChanges: Array<{
 		relationType: ConceptSourceLink["relationType"];
@@ -162,11 +164,7 @@ export class ConceptMergeService {
 				}
 			}
 			if (input.preserveMergedAsView) {
-				let perspectiveMarkdown = mergedMarkdown;
-				for (const link of parseRelatedConceptLinks(mergedMarkdown)) {
-					perspectiveMarkdown = removeRelatedConceptLink(perspectiveMarkdown, link.target).markdown;
-				}
-				const perspective = extractMergedPerspective(perspectiveMarkdown);
+				const perspective = extractMergedPerspective(mergedMarkdown);
 				if (perspective) {
 					finalSurvivorMarkdown = appendConceptView(finalSurvivorMarkdown, {
 						body: perspective,
@@ -183,6 +181,9 @@ export class ConceptMergeService {
 				finalSurvivorMarkdown,
 			);
 			finalSurvivorMarkdown = relatedPlan.survivorMarkdown;
+			if (input.preserveMergedAsView) {
+				this.assertPerspectiveRelocationSafe(input.merged, mergedMarkdown, input.survivor.path, finalSurvivorMarkdown);
+			}
 
 			const mergedAt = this.now();
 			const nextData = migratePluginDataForConceptMerge(
@@ -229,6 +230,7 @@ export class ConceptMergeService {
 					merged: input.merged,
 					nextData,
 					pauseMigrated: !!data.pausedConcepts[input.merged.conceptId],
+					preserveMergedAsView: input.preserveMergedAsView,
 					relatedConceptsRewired: relatedPlan.relatedConceptsRewired,
 					sourceLinkChanges: Object.values(data.conceptSourceLinks)
 						.filter((link) => link.conceptId === input.merged.conceptId)
@@ -290,6 +292,15 @@ export class ConceptMergeService {
 						return { message: error instanceof Error ? error.message : "Card references changed after preview.", status: "conflict" };
 					}
 				}
+				if (plan.preserveMergedAsView) {
+					const mergedWrite = writes.find((write) => write.path === plan.merged.path);
+					if (!mergedWrite) return { message: "Merged Concept snapshot is missing. Rebuild the preview.", status: "invalid" };
+					try {
+						this.assertPerspectiveRelocationSafe(plan.merged, mergedWrite.before, plan.survivor.path, finalSurvivorMarkdown);
+					} catch (error) {
+						return { message: error instanceof Error ? error.message : "Concept references changed after preview.", status: "conflict" };
+					}
+				}
 
 				await executeMarkdownWriteTransaction(this.vault, writes, {
 					commit: () => this.storage.saveData(plan.nextData),
@@ -304,6 +315,22 @@ export class ConceptMergeService {
 				};
 			}
 		});
+	}
+
+	private assertPerspectiveRelocationSafe(
+		merged: ConceptSummary,
+		sourceMarkdown: string,
+		targetPath: string,
+		targetMarkdown: string,
+	): void {
+		const perspective = extractMergedPerspective(sourceMarkdown);
+		if (!perspective) return;
+		assertMarkdownRelocationSafe(
+			[{ label: `Concept ${merged.conceptId} perspective`, raw: perspective }],
+			{ path: merged.path, markdown: sourceMarkdown },
+			{ path: targetPath, markdown: targetMarkdown },
+			this.vault.resolveLinkpath?.bind(this.vault),
+		);
 	}
 
 	private assertRelocationSafe(
@@ -846,28 +873,45 @@ function renderFormerCardGroupRedirect(
 }
 
 function extractMergedPerspective(markdown: string): string | undefined {
+	for (const link of parseRelatedConceptLinks(markdown)) {
+		markdown = removeRelatedConceptLink(markdown, link.target).markdown;
+	}
+	const cardsPath = getCardGroupPathFromConceptFrontmatter({
+		mneme_type: "concept",
+		cards: readMarkdownScalar(markdown, "cards"),
+		cards_folder: readMarkdownScalar(markdown, "cards_folder"),
+	});
 	const body = markdown.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, "");
 	const lines = body.split(/\r?\n/);
 	const kept: string[] = [];
-	let fence: string | undefined;
+	let fence: { character: string; length: number } | undefined;
+	let inReviewCards = false;
 	for (const line of lines) {
-		const fenceMarker = line.trim().match(/^(```+|~~~+)/)?.[1]?.[0];
-		if (fenceMarker) {
-			fence = fence ? undefined : fenceMarker;
+		const fenceMarker = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+		if (fence) {
+			if (fenceMarker?.[1]?.[0] === fence.character
+				&& fenceMarker[1].length >= fence.length && !fenceMarker[2]?.trim()) fence = undefined;
 			kept.push(line);
 			continue;
 		}
-		if (!fence) {
-			const heading = /^(#{1,6})\s+(.+?)\s*$/.exec(line);
-			if (heading) {
-				const level = heading[1]?.length ?? 1;
-				if (level === 1) {
-					continue;
-				}
-				kept.push(`${"#".repeat(Math.min(6, level + 2))} ${heading[2]}`);
-				continue;
-			}
+		if (fenceMarker?.[1] && !(fenceMarker[1][0] === "`" && fenceMarker[2]?.includes("`"))) {
+			fence = { character: fenceMarker[1][0]!, length: fenceMarker[1].length };
+			kept.push(line);
+			continue;
 		}
+		const heading = /^(#{1,6})\s+(.+?)\s*$/.exec(line);
+		if (heading) {
+			const level = heading[1]?.length ?? 1;
+			inReviewCards = level === 2 && heading[2]?.toLowerCase() === "review cards";
+			if (level === 1) continue;
+			kept.push(`${"#".repeat(Math.min(6, level + 2))} ${heading[2]}`);
+			continue;
+		}
+		// The template's navigation is managed by the surviving Concept, even when
+		// its declared Card Group has not been created yet. Keep authored notes here.
+		const cardsNavigation = inReviewCards ? /^Cards:\s*(\[\[[^\]]+\]\])\s*$/.exec(line) : null;
+		if (cardsPath && cardsNavigation?.[1]
+			&& normalizeLinkedMarkdownPath(cardsNavigation[1]) === normalizeLinkedMarkdownPath(cardsPath)) continue;
 		kept.push(line);
 	}
 	const result = kept.join("\n").trim();

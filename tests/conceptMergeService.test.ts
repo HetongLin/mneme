@@ -14,6 +14,123 @@ const survivor = createConcept("concept-a", "Alpha", "Mneme/Concepts/Alpha/Conce
 const merged = createConcept("concept-b", "Beta", "Mneme/Concepts/Beta/Concept.md", "Mneme/Cards/Beta/Card.md");
 
 async function runAsyncTests(): Promise<void> {
+	for (const groupExists of [false, true]) {
+		const files = createFiles();
+		if (!groupExists) {
+			delete files[merged.cardsPath!];
+			delete files[survivor.cardsPath!];
+		}
+		const navigation = `Cards: [[${merged.cardsPath!.replace(/\.md$/, "")}|Beta Cards]]`;
+		files[merged.path] += `\n## Review Cards\n\n${navigation}\n\nMy notes about review.\n`;
+		const vault = new MemoryMergeVault(files);
+		const storage = new MemoryMergeStorage(createData());
+		const service = new ConceptMergeService(vault, storage);
+		const prepared = await service.prepare({ merged, survivor, preserveMergedAsView: true });
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		const final = prepared.plan.writes.find((write) => write.path === survivor.path)!.after;
+		assert.ok(!final.includes(navigation));
+		assert.ok(final.includes("My notes about review."));
+		assert.deepEqual(await service.execute(prepared.plan, final), { status: "merged" });
+	}
+
+	for (const [fence, inner] of [["````", "```"], ["````", "~~~"], ["~~~~", "~~~"], ["~~~~", "```"], ["````", "```` not a closing fence"]]) {
+		const files = createFiles();
+		const code = [fence + "markdown", inner, "## Review Cards", `Cards: [[${merged.cardsPath}]]`, "# A code comment", "## Another code comment", fence].join("\n");
+		files[merged.path] += `\n${code}\n`;
+		const vault = new MemoryMergeVault(files);
+		vault.resolveLinkpath = (linkpath) => linkpath;
+		const service = new ConceptMergeService(vault, new MemoryMergeStorage(createData()));
+		const prepared = await service.prepare({ merged, survivor, preserveMergedAsView: true });
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		const final = prepared.plan.writes.find((write) => write.path === survivor.path)!.after;
+		assert.ok(final.includes(code), "Mixed or shorter fence runs must not turn code examples into managed navigation");
+		assert.deepEqual(await service.execute(prepared.plan, final), { status: "merged" });
+	}
+
+	for (const body of [
+		"![image](./asset.png)", "[[#heading]]", "![[#^block]]", "[[ambiguous]]", "[[missing]]",
+		"[[self#heading]]", "[note][ref]\n\n[ref]: ./Note.md", "[^footnote]\n\n[^footnote]: Note",
+		"[target reference]", "<img src='./asset.png'>",
+	]) {
+		for (const newline of ["\n", "\r\n"]) {
+			const files = createFiles();
+			files[merged.path] = conceptMarkdown(merged, body).replace(/\n/g, newline);
+			files[survivor.path] += "\n[target reference]: ./target.md\n";
+			const vault = new MemoryMergeVault(files);
+			vault.resolveLinkpath = (linkpath, path) => linkpath === "self" ? merged.path
+				: linkpath === "missing" ? undefined : `${path}/${linkpath}`;
+			const storage = new MemoryMergeStorage(createData());
+			const before = { ...files };
+			const dataBefore = structuredClone(storage.data);
+			const service = new ConceptMergeService(vault, storage);
+			const prepared = await service.prepare({ merged, survivor, preserveMergedAsView: true });
+			assert.equal(prepared.status, "blocked", `Unsafe Concept perspective: ${body}`);
+			if (prepared.status === "blocked") assert.match(prepared.message, /Concept concept-b perspective cannot move/);
+			assert.deepEqual(vault.files, before);
+			assert.deepEqual(storage.data, dataBefore);
+			assert.equal(vault.commitCount, 0);
+			assert.equal(storage.saveCount, 0);
+			// An explicit service caller can omit the perspective; no source body is copied.
+			const omitted = await service.prepare({ merged, survivor, preserveMergedAsView: false });
+			assert.equal(omitted.status, "ready");
+		}
+	}
+
+	for (const body of [
+		"[website](https://example.com) ![remote](https://example.com/image.png)",
+		"[[Notes/Stable#heading|stable note]] ![[assets/stable.png]]",
+	]) {
+		const files = createFiles();
+		files[merged.path] = conceptMarkdown(merged, body)
+			+ `\n## Related Concepts\n\n- [[${survivor.path}|Alpha]]\n`;
+		const vault = new MemoryMergeVault(files);
+		const resolvedFrom: string[] = [];
+		vault.resolveLinkpath = (linkpath, path) => {
+			resolvedFrom.push(path);
+			return `${linkpath}.md`;
+		};
+		const storage = new MemoryMergeStorage(createData());
+		const service = new ConceptMergeService(vault, storage);
+		const prepared = await service.prepare({ merged, survivor, preserveMergedAsView: true });
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		const final = prepared.plan.writes.find((write) => write.path === survivor.path)!.after;
+		assert.ok(final.includes(body));
+		assert.doesNotMatch(final, /#### Related Concepts/);
+		assert.deepEqual(await service.execute(prepared.plan, final), { status: "merged" });
+		assert.ok(vault.files[survivor.path]!.includes(body));
+		assert.match(vault.files[merged.path]!, /mneme_type: concept_redirect/);
+		assert.equal(storage.data.reviewStates["card-b"]?.reviewCount, 2);
+		if (body.includes("[[")) {
+			assert.ok(resolvedFrom.includes(merged.path));
+			assert.ok(resolvedFrom.includes(survivor.path));
+		}
+	}
+
+	for (const change of ["wiki-resolution", "edited-definition"] as const) {
+		const files = createFiles();
+		files[merged.path] = conceptMarkdown(merged, change === "wiki-resolution" ? "![[stable.png]]" : "A literal [new label]");
+		const vault = new MemoryMergeVault(files);
+		vault.resolveLinkpath = () => "assets/stable.png";
+		const storage = new MemoryMergeStorage(createData());
+		const service = new ConceptMergeService(vault, storage);
+		const prepared = await service.prepare({ merged, survivor, preserveMergedAsView: true });
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		let final = prepared.plan.writes.find((write) => write.path === survivor.path)!.after;
+		if (change === "wiki-resolution") {
+			vault.resolveLinkpath = (_linkpath, path) => path === merged.path ? "assets/stable.png" : "other/stable.png";
+		} else {
+			// The final edited draft introduces a definition without changing any Vault snapshot.
+			final += "\n[new label]: ./other.md\n";
+		}
+		const before = { ...files };
+		const dataBefore = structuredClone(storage.data);
+		assert.equal((await service.execute(prepared.plan, final)).status, "conflict");
+		assert.deepEqual(vault.files, before);
+		assert.deepEqual(storage.data, dataBefore);
+		assert.equal(vault.commitCount, 0);
+		assert.equal(storage.saveCount, 0);
+	}
+
 	for (const content of [
 		"![image](./asset.png)", "[note](../Note.md)", "[heading](#heading)",
 		"[nested [label]](./asset.png)", "![image](<asset with spaces.png>)",
