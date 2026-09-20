@@ -518,6 +518,15 @@ async function prepareRelatedConceptMerge(
 		// An explicit directory is part of the locator, never a basename hint.
 		return byPath.get(comparable) ?? (comparable.includes("/") ? undefined : byBasename.get(comparable));
 	};
+	const matchesTarget = (candidate: string, targetPath: string): boolean => {
+		// Preserve unresolved spellings and never let basename-only edits broaden
+		// the participant / neighbor identities established by this same resolver.
+		if (comparableConceptPath(candidate) === comparableConceptPath(targetPath)) return true;
+		const candidateConcept = resolve(candidate);
+		const targetConcept = resolve(targetPath);
+		return !!candidateConcept && !!targetConcept
+			&& comparableConceptPath(candidateConcept.path) === comparableConceptPath(targetConcept.path);
+	};
 	const survivorKey = comparableConceptPath(survivor.path);
 	const mergedKey = comparableConceptPath(merged.path);
 	const isMergeParticipant = (snapshot: RelatedConceptSnapshot | undefined): boolean => {
@@ -538,7 +547,7 @@ async function prepareRelatedConceptMerge(
 	for (const link of parseRelatedConceptLinks(nextSurvivor)) {
 		const target = resolve(link.target);
 		if (isMergeParticipant(target)) {
-			nextSurvivor = removeRelatedConceptLink(nextSurvivor, link.target).markdown;
+			nextSurvivor = removeRelatedConceptLink(nextSurvivor, link.target, matchesTarget).markdown;
 		} else if (target) {
 			addNeighbor(target);
 		}
@@ -551,7 +560,7 @@ async function prepareRelatedConceptMerge(
 			nextSurvivor = addRelatedConceptLink(nextSurvivor, {
 				path: link.target,
 				title: link.display ?? link.target.split("/").pop() ?? link.target,
-			}).markdown;
+			}, matchesTarget).markdown;
 		}
 	}
 	for (const snapshot of snapshots) {
@@ -568,11 +577,11 @@ async function prepareRelatedConceptMerge(
 		let after = neighbor.markdown;
 		for (const link of parseRelatedConceptLinks(after)) {
 			if (isMergeParticipant(resolve(link.target))) {
-				after = removeRelatedConceptLink(after, link.target).markdown;
+				after = removeRelatedConceptLink(after, link.target, matchesTarget).markdown;
 			}
 		}
-		after = addRelatedConceptLink(after, survivor).markdown;
-		nextSurvivor = addRelatedConceptLink(nextSurvivor, neighbor).markdown;
+		after = addRelatedConceptLink(after, survivor, matchesTarget).markdown;
+		nextSurvivor = addRelatedConceptLink(nextSurvivor, neighbor, matchesTarget).markdown;
 		if (after !== neighbor.markdown) {
 			writes.push({
 				after,

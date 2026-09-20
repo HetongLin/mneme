@@ -77,3 +77,25 @@ This closes directory-discarding matches without changing persisted formats or
 transaction protocols. Bare-link ambiguity, relative paths, case collisions and
 Obsidian's source-context resolution remain a separate audit; this is not a full
 resolver replacement or an automatic rewrite of unresolved links.
+
+## Consistent Merge matching — 2026-09-20
+
+Guided Merge must use its preparation-time Concept resolver for both discovery
+and add/remove matching. Identical normalized spellings match even if unresolved;
+different spellings match only when both resolve to the same Concept path. The
+shared Related helpers accept an optional matcher so Merge can preserve this rule
+without duplicating the Markdown range editor.
+
+For example, when both `Notes/Beta.md` and `Archive/Beta.md` exist, unresolved
+`[[Beta]]` must survive removal of a resolved `[[Notes/Beta]]` participant link.
+An ambiguous bare link also must not suppress an explicit relation to the
+survivor or a neighbor, or an unresolved qualified link copied from the source.
+Unique resolved shorthand still deduplicates and rewires normally. Original
+aliases on retained unresolved links remain intact.
+
+This is consistency within the existing Merge index, not native Wiki resolution.
+The default matcher used by manual relationship edits and deletion still accepts
+bare shorthand without a Concept index. Source-context adapters and guards for
+those workflows remain separate work, as do root-path precedence, case collisions,
+external index changes after preview and durable Merge recovery. No persisted
+schema, plan fields or transaction protocol changes are introduced here.

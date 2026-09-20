@@ -16,6 +16,52 @@ const survivor = createConcept("concept-a", "Alpha", "Mneme/Concepts/Alpha/Conce
 const merged = createConcept("concept-b", "Beta", "Mneme/Concepts/Beta/Concept.md", "Mneme/Cards/Beta/Card.md");
 
 async function runAsyncTests(): Promise<void> {
+	for (const targetKind of ["survivor", "neighbor", "unresolved"] as const) {
+		const first = createConcept("concept-a", "Alpha", "Notes/Alpha.md");
+		const second = createConcept("concept-b", "Beta", "Notes/Beta.md");
+		const reader = createConcept("concept-reader", "Reader", "Notes/Reader.md");
+		const other = createConcept("concept-other", "Other", targetKind === "survivor" ? "Archive/Alpha.md" : "Archive/Reader.md");
+		const files = Object.fromEntries([first, second, reader, other].map((concept) => [concept.path, conceptMarkdown(concept, concept.title)]));
+		const bare = targetKind === "survivor" ? "Alpha" : "Reader";
+		const ownerPath = targetKind === "survivor" ? reader.path : first.path;
+		files[ownerPath] += `\n## Related Concepts\n- [[${bare}|Ambiguous]]\n`;
+		if (targetKind === "survivor") files[reader.path] += "- [[Notes/Beta]]\n";
+		else files[second.path] += `\n## Related Concepts\n- [[${targetKind === "neighbor" ? "Notes" : "Missing"}/Reader|Authored reader]]\n`;
+		const otherBefore = files[other.path];
+		const vault = new MemoryMergeVault(files);
+		const service = new ConceptMergeService(vault, new MemoryMergeStorage(createDefaultPluginData()));
+		const prepared = await service.prepare({ merged: second, survivor: first, preserveMergedAsView: true });
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		const final = prepared.plan.writes.find((write) => write.path === first.path)!.after;
+		assert.deepEqual(await service.execute(prepared.plan, final), { status: "merged" });
+		assert.ok(vault.files[ownerPath]!.includes(`[[${bare}|Ambiguous]]`));
+		const expected = targetKind === "survivor" ? "Notes/Alpha|Alpha" : targetKind === "neighbor" ? "Notes/Reader|Reader" : "Missing/Reader|Authored reader";
+		assert.ok(vault.files[ownerPath]!.includes(`[[${expected}]]`), "An unresolved bare link must not suppress a distinct qualified relationship");
+		assert.equal(vault.files[other.path], otherBefore);
+		if (targetKind === "neighbor") assert.ok(vault.files[reader.path]!.includes("[[Notes/Alpha|Alpha]]"));
+	}
+
+	for (const owner of ["survivor", "reader"] as const) {
+		const first = createConcept("concept-a", "Alpha", "Notes/Alpha.md");
+		const second = createConcept("concept-b", "Beta", "Notes/Beta.md");
+		const other = createConcept("concept-other", "Other Beta", "Archive/Beta.md");
+		const reader = createConcept("concept-reader", "Reader", "Notes/Reader.md");
+		const files = Object.fromEntries([first, second, other, reader].map((concept) => [concept.path, conceptMarkdown(concept, concept.title)]));
+		const ownerPath = owner === "survivor" ? first.path : reader.path;
+		files[ownerPath] += "\n## Related Concepts\n- [[Beta|Ambiguous]]\n- [[Notes/Beta|Actual participant]]\n";
+		const otherBefore = files[other.path];
+		const vault = new MemoryMergeVault(files);
+		const service = new ConceptMergeService(vault, new MemoryMergeStorage(createDefaultPluginData()));
+		const prepared = await service.prepare({ merged: second, survivor: first, preserveMergedAsView: true });
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		const final = prepared.plan.writes.find((write) => write.path === first.path)!.after;
+		assert.deepEqual(await service.execute(prepared.plan, final), { status: "merged" });
+		assert.ok(vault.files[ownerPath]!.includes("[[Beta|Ambiguous]]"), "Removing a resolved participant must retain an unresolved same-basename link");
+		assert.ok(!vault.files[ownerPath]!.includes("[[Notes/Beta|Actual participant]]"));
+		if (owner === "reader") assert.ok(vault.files[reader.path]!.includes("[[Notes/Alpha|Alpha]]"));
+		assert.equal(vault.files[other.path], otherBefore);
+	}
+
 	for (const targets of [["Missing/Beta"], ["Beta"], ["Notes/Beta"], ["Missing/Beta", "Beta"]]) {
 		const first = createConcept("concept-a", "Alpha", "Notes/Alpha.md");
 		const second = createConcept("concept-b", "Beta", "Notes/Beta.md");

@@ -7,6 +7,10 @@ export interface RelatedConceptLink {
 	target: string;
 }
 
+// Callers with a resolved Concept index can use the same identity rule for
+// discovery and edits. Arguments are authored targets / paths, before normalization.
+export type RelatedConceptTargetMatcher = (candidate: string, targetPath: string) => boolean;
+
 export function createRelatedConceptPairKey(firstConceptId: string, secondConceptId: string): string {
 	return JSON.stringify([firstConceptId, secondConceptId].sort());
 }
@@ -32,9 +36,9 @@ export function parseRelatedConceptLinks(markdown: string): RelatedConceptLink[]
 export function addRelatedConceptLink(
 	markdown: string,
 	target: Pick<ConceptSummary, "path" | "title">,
+	matchesTarget: RelatedConceptTargetMatcher = relatedTargetMatches,
 ): { changed: boolean; markdown: string } {
-	const targetKey = comparableConceptPath(target.path);
-	if (parseRelatedConceptLinks(markdown).some((link) => relatedTargetMatches(link.target, targetKey))) {
+	if (parseRelatedConceptLinks(markdown).some((link) => matchesTarget(link.target, target.path))) {
 		return { changed: false, markdown };
 	}
 
@@ -67,17 +71,17 @@ export function addRelatedConceptLink(
 export function removeRelatedConceptLink(
 	markdown: string,
 	targetPath: string,
+	matchesTarget: RelatedConceptTargetMatcher = relatedTargetMatches,
 ): { changed: boolean; markdown: string; removals: number } {
 	const section = findRelatedSection(markdown);
 	if (!section) return { changed: false, markdown, removals: 0 };
-	const targetKey = comparableConceptPath(targetPath);
 	const lines = [...section.lines];
 	let removals = 0;
 
 	for (let index = section.start + 1; index < section.end; index += 1) {
 		const line = lines[index] ?? "";
 		const matches = relatedLinksOnLine(section, index)
-			.filter((match) => relatedTargetMatches(match.target, targetKey));
+			.filter((match) => matchesTarget(match.target, targetPath));
 		if (matches.length === 0) continue;
 		removals += matches.length;
 		const nextLine = matches.reduceRight((text, match) => text.slice(0, match.start) + text.slice(match.end), line);
@@ -168,8 +172,9 @@ function sectionContainsOnlyWhitespace(section: { end: number; lines: string[]; 
 	return section.lines.slice(section.start + 1, section.end).every((line) => line.trim().length === 0);
 }
 
-function relatedTargetMatches(candidate: string, targetComparablePath: string): boolean {
+function relatedTargetMatches(candidate: string, targetPath: string): boolean {
 	const candidateComparablePath = comparableConceptPath(candidate);
+	const targetComparablePath = comparableConceptPath(targetPath);
 	if (candidateComparablePath === targetComparablePath) return true;
 	// Only the authored link may be shorthand. A qualified link to another
 	// directory must not match a root-level target with the same filename.
