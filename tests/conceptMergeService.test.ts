@@ -9,11 +9,51 @@ import {
 } from "../src/services/conceptMergeService";
 import { parseMnemeCards } from "../src/services/cardMarkerParser";
 import { createDefaultPluginData } from "../src/services/reviewStateStore";
+import { renderManualConcept } from "../src/services/manualConceptService";
+import { applyConceptMergeDraft, createManualConceptMergeDraft } from "../src/services/conceptMergeDraft";
 
 const survivor = createConcept("concept-a", "Alpha", "Mneme/Concepts/Alpha/Concept.md", "Mneme/Cards/Alpha/Card.md");
 const merged = createConcept("concept-b", "Beta", "Mneme/Concepts/Beta/Concept.md", "Mneme/Cards/Beta/Card.md");
 
 async function runAsyncTests(): Promise<void> {
+	{
+		const files = createFiles();
+		files[merged.path] += "\n# Learner's second topic\n\nKeep this explanation.\n\n## Supporting detail\n\nKeep this detail.\n";
+		const vault = new MemoryMergeVault(files);
+		const storage = new MemoryMergeStorage(createData());
+		const service = new ConceptMergeService(vault, storage);
+		const prepared = await service.prepare({ merged, survivor, preserveMergedAsView: true });
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		const final = prepared.plan.writes.find((write) => write.path === survivor.path)!.after;
+		assert.match(final, /^#### Learner's second topic$/m, "Additional H1 content must survive under the merged View");
+		assert.match(final, /^##### Supporting detail$/m);
+		assert.ok(final.includes("Keep this explanation."));
+		assert.deepEqual(await service.execute(prepared.plan, final), { status: "merged" });
+		assert.ok(vault.files[survivor.path]!.includes("Learner's second topic"));
+	}
+
+	for (const newline of ["\n", "\r\n"]) {
+		const files = createFiles();
+		delete files[survivor.cardsPath!];
+		for (const concept of [survivor, merged]) {
+			files[concept.path] = renderManualConcept({ title: concept.title, coreMeaning: `${concept.title} meaning` }, concept.conceptId, concept.cardsPath!, false).replace(/\n/g, newline);
+		}
+		files[survivor.path] += `${newline}My Review Cards notes.${newline}`;
+		const vault = new MemoryMergeVault(files);
+		const storage = new MemoryMergeStorage(createData());
+		const service = new ConceptMergeService(vault, storage);
+		const prepared = await service.prepare({ merged, survivor, preserveMergedAsView: true });
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		const final = applyConceptMergeDraft(prepared.plan.writes.find((write) => write.path === survivor.path)!.after,
+			createManualConceptMergeDraft(survivor, merged, survivor));
+		assert.ok(final.includes(`Cards: [[${merged.cardsPath!.replace(/\.md$/, "")}|Alpha Cards]]`), "Native Card navigation must follow the adopted group");
+		assert.ok(!final.includes(`Cards: [[${survivor.cardsPath!.replace(/\.md$/, "")}`));
+		assert.ok(final.includes("My Review Cards notes."));
+		assert.deepEqual(await service.execute(prepared.plan, final), { status: "merged" });
+		assert.equal(storage.data.reviewStates["card-b"]?.reviewCount, 2);
+		assert.equal(vault.files[survivor.cardsPath!], undefined);
+	}
+
 	for (const groupExists of [false, true]) {
 		const files = createFiles();
 		if (!groupExists) {

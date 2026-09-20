@@ -1,3 +1,4 @@
+import { extractMergedPerspective, normalizeLinkedMarkdownPath, rewriteManagedCardNavigation } from "./conceptMergeMarkdown";
 import { assertMergeHasNoPendingWrites } from "./mergePendingWrites";
 import { assertCardRelocationSafe, type ResolveCardLink } from "./cardRelocationSafety";
 import { assertMarkdownRelocationSafe } from "./markdownRelocationSafety";
@@ -419,6 +420,7 @@ export class ConceptMergeService {
 		let nextSurvivorMarkdown = survivorMarkdown;
 		const writes: ConceptMergeWrite[] = [];
 		if (targetCardsPath) {
+			nextSurvivorMarkdown = rewriteManagedCardNavigation(nextSurvivorMarkdown, input.survivor.cardsPath, targetCardsPath);
 			nextSurvivorMarkdown = setFrontmatterScalar(
 				nextSurvivorMarkdown,
 				"cards",
@@ -872,52 +874,6 @@ function renderFormerCardGroupRedirect(
 	return `${redirected}\n\nCards moved to ${link}.\n`;
 }
 
-function extractMergedPerspective(markdown: string): string | undefined {
-	for (const link of parseRelatedConceptLinks(markdown)) {
-		markdown = removeRelatedConceptLink(markdown, link.target).markdown;
-	}
-	const cardsPath = getCardGroupPathFromConceptFrontmatter({
-		mneme_type: "concept",
-		cards: readMarkdownScalar(markdown, "cards"),
-		cards_folder: readMarkdownScalar(markdown, "cards_folder"),
-	});
-	const body = markdown.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, "");
-	const lines = body.split(/\r?\n/);
-	const kept: string[] = [];
-	let fence: { character: string; length: number } | undefined;
-	let inReviewCards = false;
-	for (const line of lines) {
-		const fenceMarker = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
-		if (fence) {
-			if (fenceMarker?.[1]?.[0] === fence.character
-				&& fenceMarker[1].length >= fence.length && !fenceMarker[2]?.trim()) fence = undefined;
-			kept.push(line);
-			continue;
-		}
-		if (fenceMarker?.[1] && !(fenceMarker[1][0] === "`" && fenceMarker[2]?.includes("`"))) {
-			fence = { character: fenceMarker[1][0]!, length: fenceMarker[1].length };
-			kept.push(line);
-			continue;
-		}
-		const heading = /^(#{1,6})\s+(.+?)\s*$/.exec(line);
-		if (heading) {
-			const level = heading[1]?.length ?? 1;
-			inReviewCards = level === 2 && heading[2]?.toLowerCase() === "review cards";
-			if (level === 1) continue;
-			kept.push(`${"#".repeat(Math.min(6, level + 2))} ${heading[2]}`);
-			continue;
-		}
-		// The template's navigation is managed by the surviving Concept, even when
-		// its declared Card Group has not been created yet. Keep authored notes here.
-		const cardsNavigation = inReviewCards ? /^Cards:\s*(\[\[[^\]]+\]\])\s*$/.exec(line) : null;
-		if (cardsPath && cardsNavigation?.[1]
-			&& normalizeLinkedMarkdownPath(cardsNavigation[1]) === normalizeLinkedMarkdownPath(cardsPath)) continue;
-		kept.push(line);
-	}
-	const result = kept.join("\n").trim();
-	return result || undefined;
-}
-
 function validateFinalSurvivorMarkdown(
 	markdown: string,
 	survivor: ConceptSummary,
@@ -943,13 +899,6 @@ function readRelatedTargets(markdown: string): string[] {
 	return parseRelatedConceptLinks(markdown)
 		.map((link) => comparableConceptPath(link.target))
 		.sort();
-}
-
-function normalizeLinkedMarkdownPath(value: string): string {
-	const linkMatch = /^\s*\[\[([^\]|]+)(?:\|[^\]]*)?\]\]\s*$/.exec(value);
-	const path = (linkMatch?.[1] ?? value).trim().replace(/\\/g, "/").replace(/\/+/g, "/").replace(/^\/+/, "");
-
-	return /\.md$/i.test(path) ? path : `${path}.md`;
 }
 
 function hasConceptIdentity(markdown: string, conceptId: string): boolean {

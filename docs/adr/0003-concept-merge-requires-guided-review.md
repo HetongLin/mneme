@@ -153,3 +153,29 @@ The shared Markdown guard retains the conservative behavior and limitations abov
 including blocking reference definitions/footnotes even when some could be moved
 safely. This pass does not replace the other section parsers, preserve arbitrary
 Concept YAML in redirect notes, rewrite links, or provide durable Merge recovery.
+
+## Concept body structure and adopted Card navigation — 2026-09-20
+
+Share the Merge-specific body inspection between perspective extraction and managed
+Card navigation updates. Only a level-one ATX heading on the first nonblank body
+line is treated as the document title and omitted from the copied perspective.
+Other headings are authored content. If any retained heading is level one, shift
+all retained ATX headings by three levels; otherwise keep the existing two-level
+shift. This nests them below the generated level-three View and preserves their
+relative levels up to Markdown's level-six limit. Preambles and subsequent H1
+headings are not silently discarded. These heading/navigation transforms leave
+fenced text and HTML comments intact; existing Related-section parsing is separate.
+
+When the survivor adopts another Card Group, update both its frontmatter locator
+and matching template navigation directly under `## Review Cards`. Rewrite only
+the old declared target, retaining its display alias, surrounding whitespace and
+line endings. Links in prose, other sections, subsections, code examples, comments,
+and links to other targets or anchors remain authored content. Do not invent a
+navigation section when none exists. The same matcher removes the source template
+navigation from the historical perspective.
+
+These transformations are in `conceptMergeMarkdown.ts`. They do not change Card
+bytes, IDs, FSRS state, schemas, the write transaction, or other section parsers.
+This is a scoped ATX/fence/comment inspector, not a complete Markdown parser;
+Setext headings, complex containers/HTML and deeper heading nesting retain their
+existing limitations. Native Obsidian rendering still requires manual acceptance.
