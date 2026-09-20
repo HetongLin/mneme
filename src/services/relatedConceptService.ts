@@ -1,4 +1,6 @@
 import type { ConceptSummary } from "../models/conceptLibrary";
+import { normalizeVaultPath } from "../utils/markdownPath";
+import { createRelatedConceptMatcher, type RelatedConceptResolver } from "./relatedConceptResolution";
 import {
 	addRelatedConceptLink,
 	removeRelatedConceptLink,
@@ -9,7 +11,7 @@ import {
 	type TransactionalMarkdownVault,
 } from "./markdownWriteTransaction";
 
-export type RelatedConceptVaultAdapter = TransactionalMarkdownVault;
+export type RelatedConceptVaultAdapter = TransactionalMarkdownVault & RelatedConceptResolver;
 
 export interface RelatedConceptWrite {
 	after: string;
@@ -50,9 +52,29 @@ export class RelatedConceptService {
 				if (await this.vault.read(write.path) !== write.before) {
 					return { message: `${write.path} changed after the relationship was prepared.`, status: "conflict" };
 				}
+				try {
+					this.assertPlannedResolution(plan, write);
+				} catch {
+					return { message: `Related link resolution changed in ${write.path}. Prepare the relationship again.`, status: "conflict" };
+				}
 			}
 
-			await executeMarkdownWriteTransaction(this.vault, plan.writes);
+			// A later awaited read may change an earlier side's resolution. Check
+			// all sides together even when the transaction has no changed files.
+			for (const write of plan.writes) this.assertPlannedResolution(plan, write);
+			const forwardPaths = new Set(plan.writes.map((write) => write.path));
+			await executeMarkdownWriteTransaction({
+				read: (path) => this.vault.read(path),
+				process: (path, transform) => {
+					// Recheck both sides at each forward transform, including no-op
+					// decisions. Compensation restores bytes, not current resolutions.
+					const forward = forwardPaths.delete(path);
+					return this.vault.process(path, (current) => {
+						if (forward) for (const write of plan.writes) this.assertPlannedResolution(plan, write);
+						return transform(current);
+					});
+				},
+			}, plan.writes);
 
 			return { status: plan.action === "add" ? "linked" : "unlinked" };
 		} catch (error) {
@@ -79,12 +101,8 @@ export class RelatedConceptService {
 				return { message: "Concept identity changed. Refresh Concept Library.", status: "blocked" };
 			}
 
-			const firstAfter = action === "add"
-				? addRelatedConceptLink(firstBefore, second).markdown
-				: removeRelatedConceptLink(firstBefore, second.path).markdown;
-			const secondAfter = action === "add"
-				? addRelatedConceptLink(secondBefore, first).markdown
-				: removeRelatedConceptLink(secondBefore, first.path).markdown;
+			const firstAfter = this.updateMarkdown(action, firstBefore, first.path, second);
+			const secondAfter = this.updateMarkdown(action, secondBefore, second.path, first);
 
 			return {
 				plan: {
@@ -100,6 +118,26 @@ export class RelatedConceptService {
 			};
 		} catch (error) {
 			return { message: formatError(error), status: "blocked" };
+		}
+	}
+
+	private updateMarkdown(action: RelatedConceptPlan["action"], markdown: string, sourcePath: string, target: ConceptSummary): string {
+		const matches = createRelatedConceptMatcher(this.vault, sourcePath);
+		const emittedPath = normalizeVaultPath(target.path).replace(/\.md$/i, "");
+		if (action === "add" && !emittedPath.includes("/") && !matches(emittedPath, target.path)) {
+			throw new Error(`The Related link [[${emittedPath}]] in ${sourcePath} resolves to another file. Rename or move the target to give it an unambiguous path.`);
+		}
+		return action === "add"
+			? addRelatedConceptLink(markdown, target, matches).markdown
+			: removeRelatedConceptLink(markdown, target.path, matches).markdown;
+	}
+
+	private assertPlannedResolution(plan: RelatedConceptPlan, write: RelatedConceptWrite): void {
+		try {
+			const target = write.path === plan.first.path ? plan.second : plan.first;
+			if (this.updateMarkdown(plan.action, write.before, write.path, target) !== write.after) throw new Error("Changed resolution");
+		} catch {
+			throw new MarkdownWriteConflict(write.path);
 		}
 	}
 }

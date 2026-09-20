@@ -7,13 +7,14 @@ import type { ConceptDeletionPlan } from "./conceptDeletionService";
 import { readConceptDeletions, type PendingConceptDeletionReceipt } from "./conceptDeletionReceipt";
 import { withDeletedConceptState } from "./conceptDeletionState";
 import { removeRelatedConceptLink } from "./conceptRelatedLinks";
+import { createRelatedConceptMatcher, type RelatedConceptResolver } from "./relatedConceptResolution";
 import { readApprovedWriteReceipt } from "./approvedWriteRecovery";
 import { readManualCardWriteReceipt } from "./manualCardWriteRecovery";
 import { readManualConceptWriteReceipt } from "./manualConceptWriteRecovery";
 import { runPluginDataMutation, type PluginDataStorage } from "./pluginDataMutation";
 import { normalizePluginData } from "./reviewStateStore";
 
-export interface RecoverableConceptDeletionVault {
+export interface RecoverableConceptDeletionVault extends RelatedConceptResolver {
 	exists(path: string): Promise<boolean>;
 	read(path: string): Promise<string>;
 	process(path: string, transform: (current: string) => string): Promise<void>;
@@ -62,8 +63,15 @@ export class RecoverableConceptDeletion {
 			for (const file of receipt.files) {
 				if (await this.vault.exists(file.stagePath)) throw this.conflict(file.stagePath);
 			}
-			for (const write of plan.relatedWrites) {
+			const relatedChecks = [...(plan.relatedChecks ?? []), ...plan.relatedWrites];
+			for (const write of relatedChecks) {
 				if (await this.vault.read(write.path) !== write.before) throw this.conflict(write.path);
+			}
+			// Re-evaluate together after all reads, including previously unchanged notes.
+			for (const write of relatedChecks) {
+				if (removeRelatedConceptLink(write.before, plan.conceptFile.path, createRelatedConceptMatcher(this.vault, write.path)).markdown !== write.after) {
+					throw this.conflict(write.path);
+				}
 			}
 			await this.storage.saveData(data);
 			await this.finish(data, receipt);
@@ -89,10 +97,13 @@ export class RecoverableConceptDeletion {
 			const hash = await deletionContentHash(before);
 			if (hash === write.afterHash) continue;
 			if (hash !== write.beforeHash) throw this.conflict(write.path);
-			const after = removeRelatedConceptLink(before, receipt.conceptPath).markdown;
+			const after = removeRelatedConceptLink(before, receipt.conceptPath, createRelatedConceptMatcher(this.vault, write.path)).markdown;
 			if (await deletionContentHash(after) !== write.afterHash) throw this.conflict(write.path);
 			await this.vault.process(write.path, (current) => {
 				if (current !== before) throw this.conflict(write.path);
+				if (removeRelatedConceptLink(current, receipt.conceptPath, createRelatedConceptMatcher(this.vault, write.path)).markdown !== after) {
+					throw this.conflict(write.path);
+				}
 				return after;
 			});
 		}

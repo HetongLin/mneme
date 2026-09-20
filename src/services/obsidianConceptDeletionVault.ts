@@ -1,9 +1,13 @@
 import { TFile, Vault } from "obsidian";
+import type { MetadataCache } from "obsidian";
 import type { RecoverableConceptDeletionVault } from "./recoverableConceptDeletion";
 
 /** Disk reads and local trash are available at our minimum Obsidian version (1.5). */
 export class ObsidianConceptDeletionVault implements RecoverableConceptDeletionVault {
-	constructor(private readonly vault: Vault) {}
+	constructor(private readonly vault: Vault, private readonly metadataCache?: MetadataCache) {}
+	resolveLinkpath(linkpath: string, sourcePath: string): string | undefined {
+		return this.metadataCache?.getFirstLinkpathDest(linkpath, sourcePath)?.path;
+	}
 	async exists(path: string): Promise<boolean> {
 		return this.vault.getAbstractFileByPath(path) !== null;
 	}

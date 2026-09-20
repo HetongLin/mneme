@@ -75,3 +75,28 @@ partial deletions without receipts cannot be recovered automatically.
 In-memory failure tests cover operation and persistence boundaries. Real
 Obsidian crash/restart and local-trash behavior still require disposable-Vault
 acceptance on supported platforms.
+
+## Related link source context — 2026-09-21
+
+Preparation and recovery share the source-context matcher from ADR 0016. A bare
+link that resolves to a different same-named file must survive cleanup, including
+when an explicit link to the deleted Concept occurs in the same note. Unresolved
+same-basename links stop preparation rather than being removed speculatively.
+
+The optional in-memory `relatedChecks` list includes reviewed notes whose cleanup
+is a no-op. Before saving intent, verify their snapshots and recompute cleanup
+after all reads. A changed decision requires a fresh plan. Existing plan callers
+without this list still have every planned write checked. The durable version-1
+receipt remains unchanged and stores only actual writes' paths and hashes.
+
+For each unapplied receipt write, recompute using current source-context resolution
+and require the original afterHash, then repeat the decision inside `process`.
+Already-applied afterHash matches are skipped before resolving links, so recovery
+does not require a deleted/staged target to remain resolvable. Old pending receipts
+whose original broad matcher would remove different content stop safely; never
+overwrite hashes or fall back to the old guess to force completion.
+
+Unchanged-note checks are not durable reservations. Resolution changes after
+intent persistence, new notes after scanning, external writers and cache freshness
+remain outside atomic guarantees. Resume preserves the original write scope; it
+does not rescan the Vault or add cleanup targets to a saved deletion.

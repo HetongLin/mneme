@@ -5,9 +5,10 @@ import {
 	getConceptIdFromFrontmatter,
 } from "./conceptMarkdownIdentity";
 import { removeRelatedConceptLink } from "./conceptRelatedLinks";
+import { createRelatedConceptMatcher, type RelatedConceptResolver } from "./relatedConceptResolution";
 import { parseSimpleFrontmatter } from "./simpleFrontmatter";
 
-export interface ConceptDeletionVaultAdapter {
+export interface ConceptDeletionVaultAdapter extends RelatedConceptResolver {
 	exists(path: string): Promise<boolean>;
 	read(path: string): Promise<string>;
 }
@@ -29,6 +30,8 @@ export interface ConceptDeletionPlan {
 	concept: ConceptSummary;
 	conceptFile: ConceptDeletionFile;
 	relatedWrites: ConceptDeletionWrite[];
+	/** In-memory checks include unchanged notes whose bare-link resolution may change. */
+	relatedChecks?: ConceptDeletionWrite[];
 }
 
 export type PrepareConceptDeletionResult =
@@ -71,11 +74,13 @@ export class ConceptDeletionService {
 			}
 
 			const relatedWrites: ConceptDeletionWrite[] = [];
+			const relatedChecks: ConceptDeletionWrite[] = [];
 			for (const other of concepts) {
 				if (other.conceptId === concept.conceptId || other.path === concept.path) continue;
 				if (!await this.vault.exists(other.path)) continue;
 				const before = await this.vault.read(other.path);
-				const removed = removeRelatedConceptLink(before, concept.path);
+				const removed = removeRelatedConceptLink(before, concept.path, createRelatedConceptMatcher(this.vault, other.path));
+				relatedChecks.push({ after: removed.markdown, before, path: other.path });
 				if (removed.changed) {
 					relatedWrites.push({ after: removed.markdown, before, path: other.path });
 				}
@@ -88,6 +93,7 @@ export class ConceptDeletionService {
 					concept,
 					conceptFile: { content: conceptMarkdown, path: concept.path },
 					relatedWrites,
+					relatedChecks,
 				},
 				status: "ready",
 			};

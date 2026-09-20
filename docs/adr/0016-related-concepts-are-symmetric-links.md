@@ -99,3 +99,33 @@ bare shorthand without a Concept index. Source-context adapters and guards for
 those workflows remain separate work, as do root-path precedence, case collisions,
 external index changes after preview and durable Merge recovery. No persisted
 schema, plan fields or transaction protocol changes are introduced here.
+
+## Source context for manual edits and deletion — 2026-09-21
+
+Manual Related add/remove and Concept deletion use `relatedConceptResolution.ts`.
+For bare links, ask `MetadataCache.getFirstLinkpathDest` with the owning Markdown
+file's path. Match its canonical result to the selected Concept path; links to a
+different file remain intact and do not suppress an explicit addition. If a bare
+link has the target's basename but resolution is unavailable, stop and request an
+explicit locator rather than guessing. Resolved canonical paths are compared
+without case folding. Qualified authored links retain the earlier normalized
+exact-path rule; this is not a complete relative/suffix-path resolver.
+
+Both manual entry points and deletion preparation/recovery receive metadataCache.
+Adding a root-level target would itself emit a bare link, so that generated
+locator must resolve to the selected file before addition; otherwise stop.
+Manual execution recomputes both sides after all snapshot reads and at each
+forward atomic transform, including no-op decisions. Changed decisions invalidate
+the plan. Compensation restores the original reviewed bytes using existing
+content guards and does not depend on current link resolution.
+
+Deletion retains checks for unchanged notes in the in-memory plan, re-evaluates
+them before intent persistence, and applies this matcher during recovery with the
+existing before/after hash contract. See ADR 0026 for recovery limits. No persistent
+receipt fields are added. Legacy pending operations whose broader match would
+produce different bytes stop for inspection rather than adopt a new plan.
+
+This decision does not change Guided Merge's separate Concept-index resolver or
+UI relationship discovery. Cache freshness, external changes after a check,
+qualified relative/suffix paths, existing case folding for qualified locators,
+and multiple Related sections need separate review and native Obsidian acceptance.

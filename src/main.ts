@@ -233,7 +233,7 @@ export default class MnemePlugin extends Plugin {
 				createCard: (concept) => this.openCardComposerView(concept.conceptId),
 				deleteConcept: (concept) => this.deleteConcept(concept),
 				getGlobalRetentionTarget: () => this.settings.fsrsRequestRetention,
-				relatedConceptService: new RelatedConceptService(new ObsidianVaultAdapter(this.app.vault)),
+				relatedConceptService: new RelatedConceptService(new ObsidianVaultAdapter(this.app.vault, this.app.metadataCache)),
 				sourceRelinkService: new SourceProvenanceRelinkService(
 					new ObsidianVaultAdapter(this.app.vault),
 					this,
@@ -1397,7 +1397,7 @@ export default class MnemePlugin extends Plugin {
 			globalRetentionTarget: this.settings.fsrsRequestRetention,
 			onOpenRelated: (related) => this.openConceptDetail(related, concepts),
 			onSaved: () => this.refreshOpenConceptLibraryViews(),
-			relatedConceptService: new RelatedConceptService(new ObsidianVaultAdapter(this.app.vault)),
+			relatedConceptService: new RelatedConceptService(new ObsidianVaultAdapter(this.app.vault, this.app.metadataCache)),
 		}).open();
 	}
 
@@ -1410,7 +1410,7 @@ export default class MnemePlugin extends Plugin {
 			throw new Error("Concept was not found. Refresh the view and try again.");
 		}
 
-		const service = new ConceptDeletionService(new ObsidianConceptDeletionVault(this.app.vault));
+		const service = new ConceptDeletionService(new ObsidianConceptDeletionVault(this.app.vault, this.app.metadataCache));
 		const prepared = await service.prepare(current, concepts);
 		if (prepared.status === "blocked") {
 			throw new Error(prepared.message);
@@ -1425,7 +1425,7 @@ export default class MnemePlugin extends Plugin {
 	}
 
 	private createConceptDeletion(): RecoverableConceptDeletion {
-		return new RecoverableConceptDeletion(new ObsidianConceptDeletionVault(this.app.vault), this);
+		return new RecoverableConceptDeletion(new ObsidianConceptDeletionVault(this.app.vault, this.app.metadataCache), this);
 	}
 
 	private async resumeConceptIdRepair(): Promise<void> {

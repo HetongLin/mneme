@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { ConceptDeletionPlan } from "../src/services/conceptDeletionService";
+import { ConceptDeletionService, type ConceptDeletionPlan, type ConceptDeletionWrite } from "../src/services/conceptDeletionService";
 import { createDefaultPluginData } from "../src/services/reviewStateStore";
 import { deletionContentHash, RecoverableConceptDeletion } from "../src/services/recoverableConceptDeletion";
 import { removeRelatedConceptLink } from "../src/services/conceptRelatedLinks";
@@ -50,6 +50,7 @@ class MemoryVault {
 	readonly trashed = new Map<string, string>();
 	trashCount = 0;
 	private calls = 0;
+	resolveLinkpath?: (linkpath: string, sourcePath: string) => string | undefined;
 	renameEntered?: () => void;
 	renameRelease?: Promise<void>;
 	constructor(private readonly failure?: { kind: "rename" | "trash" | "process"; call: number; after?: boolean }) {}
@@ -86,6 +87,11 @@ class MemoryVault {
 		this.files.delete(path); this.trashed.set(path, value); this.trashCount += 1;
 		this.failAfter("trash");
 	}
+}
+
+function planWithChecks(before: string, after: string): ConceptDeletionPlan {
+	const relatedWrite: ConceptDeletionWrite = { path: relatedPath, before, after };
+	return { ...plan(), relatedChecks: [relatedWrite], relatedWrites: [relatedWrite] };
 }
 
 async function rejects(action: Promise<unknown>, pattern: RegExp): Promise<void> {
@@ -238,6 +244,113 @@ async function run(): Promise<void> {
 		};
 		await rejects(new RecoverableConceptDeletion(vault, storage, () => "process-edit").delete(plan()), /changed or moved/);
 		assert.equal(await vault.read(relatedPath), relatedMarkdown + "Learner edit");
+		assert.equal(vault.trashCount, 0);
+	}
+
+	// The real prepare -> delete path uses the resolver matcher for a bare target.
+	{
+		const storage = new MemoryStorage();
+		const vault = new MemoryVault();
+		vault.files.set(relatedPath, relatedMarkdown.replace("[[Mneme/Concepts/First|First]]", "[[First|First]]"));
+		vault.resolveLinkpath = (linkpath) => linkpath === "First" ? conceptPath : undefined;
+		const prepared = await new ConceptDeletionService(vault).prepare(
+			{ conceptId: "concept-first", path: conceptPath, cardsPath, title: "First" },
+			[{ conceptId: "concept-first", path: conceptPath, cardsPath, title: "First" }, { conceptId: "concept-second", path: relatedPath, title: "Second" }],
+		);
+		assert.equal(prepared.status, "ready");
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		await new RecoverableConceptDeletion(vault, storage, () => "prepared-bare").delete(prepared.plan);
+		assert.doesNotMatch(await vault.read(relatedPath), /\[\[First/);
+	}
+
+	// Prepare, then recover an intent that failed after saving: a bare link to
+	// another same-name Concept survives while the qualified target is removed.
+	{
+		const before = relatedMarkdown.replace(
+			"[[Mneme/Concepts/First|First]]",
+			"[[First|Archived First]]\n- [[Mneme/Concepts/First|First]]",
+		);
+		const storage = new MemoryStorage({ save: 1, afterSave: true });
+		const vault = new MemoryVault();
+		vault.files.set(relatedPath, before);
+		vault.resolveLinkpath = (linkpath) => linkpath === "First" ? "Archive/First.md" : undefined;
+		const prepared = await new ConceptDeletionService(vault).prepare(
+			{ conceptId: "concept-first", path: conceptPath, cardsPath, title: "First" },
+			[{ conceptId: "concept-first", path: conceptPath, cardsPath, title: "First" }, { conceptId: "concept-second", path: relatedPath, title: "Second" }],
+		);
+		assert.equal(prepared.status, "ready");
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		assert.equal(prepared.plan.relatedWrites.length, 1);
+		await rejects(new RecoverableConceptDeletion(vault, storage, () => "mixed-resume").delete(prepared.plan), /save-/);
+		await new RecoverableConceptDeletion(vault, storage).resume();
+		const remaining = await vault.read(relatedPath);
+		assert.match(remaining, /\[\[First\|Archived First\]\]/);
+		assert.doesNotMatch(remaining, /Mneme\/Concepts\/First/);
+	}
+
+	// A pending intent resumes with the original matcher, and rejects if the
+	// resolver now points the same bare link at another file.
+	{
+		const before = relatedMarkdown.replace("[[Mneme/Concepts/First|First]]", "[[First|First]]");
+		const after = removeRelatedConceptLink(before, conceptPath, () => true).markdown;
+		const storage = new MemoryStorage({ save: 1, afterSave: true });
+		const vault = new MemoryVault();
+		vault.files.set(relatedPath, before);
+		vault.resolveLinkpath = (linkpath) => linkpath === "First" ? conceptPath : undefined;
+		await rejects(new RecoverableConceptDeletion(vault, storage, () => "bare-resume").delete(planWithChecks(before, after)), /save-/);
+		await new RecoverableConceptDeletion(vault, storage).resume();
+		assert.doesNotMatch(await vault.read(relatedPath), /\[\[First/);
+
+		const conflictStorage = new MemoryStorage({ save: 1, afterSave: true });
+		const conflictVault = new MemoryVault();
+		conflictVault.files.set(relatedPath, before);
+		conflictVault.resolveLinkpath = (linkpath) => linkpath === "First" ? conceptPath : undefined;
+		await rejects(new RecoverableConceptDeletion(conflictVault, conflictStorage, () => "bare-change").delete(planWithChecks(before, after)), /save-/);
+		conflictVault.resolveLinkpath = () => "Archive/First.md";
+		await rejects(new RecoverableConceptDeletion(conflictVault, conflictStorage).resume(), /changed or moved|conflict|matcher|resolve/);
+		assert.equal(await conflictVault.read(relatedPath), before);
+		assert.equal(conflictVault.trashCount, 0);
+	}
+
+	// If the related process applied successfully but reported after=true, the
+	// receipt hash lets Resume skip the matcher after resolution becomes unavailable.
+	{
+		const before = relatedMarkdown.replace("[[Mneme/Concepts/First|First]]", "[[First|First]]");
+		const after = removeRelatedConceptLink(before, conceptPath, () => true).markdown;
+		const storage = new MemoryStorage();
+		const vault = new MemoryVault({ kind: "process", call: 1, after: true });
+		vault.files.set(relatedPath, before);
+		vault.resolveLinkpath = (linkpath) => linkpath === "First" ? conceptPath : undefined;
+		await rejects(new RecoverableConceptDeletion(vault, storage, () => "after-process").delete(planWithChecks(before, after)), /process-after/);
+		vault.resolveLinkpath = undefined;
+		await new RecoverableConceptDeletion(vault, storage).resume();
+		assert.equal(await vault.read(relatedPath), after);
+		assert.equal(vault.trashCount, 2);
+	}
+
+	// Both adding and removing a cleanup decision invalidate the prepared plan
+	// before saving intent or writing Markdown.
+	for (const initialTarget of ["Archive/First.md", conceptPath]) {
+		const before = relatedMarkdown.replace("[[Mneme/Concepts/First|First]]", "[[First|First]]");
+		const storage = new MemoryStorage();
+		const vault = new MemoryVault();
+		vault.files.set(relatedPath, before);
+		vault.resolveLinkpath = () => initialTarget;
+		const prepared = await new ConceptDeletionService(vault).prepare(
+			{ conceptId: "concept-first", path: conceptPath, cardsPath, title: "First" },
+			[{ conceptId: "concept-first", path: conceptPath, cardsPath, title: "First" }, { conceptId: "concept-second", path: relatedPath, title: "Second" }],
+		);
+		assert.equal(prepared.status, "ready");
+		if (prepared.status !== "ready") throw new Error(prepared.message);
+		assert.equal(prepared.plan.relatedWrites.length, initialTarget === conceptPath ? 1 : 0);
+		const allFiles = new Map(vault.files);
+		const allData = structuredClone(storage.data);
+		vault.resolveLinkpath = () => initialTarget === conceptPath ? "Archive/First.md" : conceptPath;
+		await rejects(new RecoverableConceptDeletion(vault, storage, () => "noop-change").delete(prepared.plan), /changed|conflict|matcher|resolve/);
+		assert.equal(storage.data.conceptDeletions, undefined);
+		assert.equal(await vault.read(relatedPath), before);
+		assert.deepEqual(vault.files, allFiles);
+		assert.deepEqual(storage.data, allData);
 		assert.equal(vault.trashCount, 0);
 	}
 
