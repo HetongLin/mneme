@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-20 (twenty-first pass)
+Updated: 2026-09-20 (twenty-second pass)
 
 ## Scope and checkpoint
 
@@ -44,6 +44,8 @@ The twentieth pass on `fix/card-relocation-references` starts from checkpoint `8
 
 The twenty-first pass on `fix/concept-perspective-references` starts from checkpoint `436bfa1`. It applies the shared relocation guard to preserved Concept perspectives and prevents code examples from being treated as managed Card navigation.
 
+The twenty-second pass on `fix/merge-concept-structure` starts from checkpoint `fd968fd`. It preserves additional Concept headings and updates native Card navigation when the survivor adopts another group, sharing Merge-specific Markdown inspection.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication, version change, or live Vault update was performed.
 
 ## Local implementation commits
@@ -73,6 +75,7 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `5909142` — preserve former Card Group notes/custom properties and reject ambiguous Card migration.
 - `1c3c23c` — guard moved Card references and recheck Wiki resolution before Guided Merge writes.
 - `7261d28` — validate preserved Concept references, omit managed historical Card navigation, and preserve nested fence examples.
+- `4b0fac4` — preserve additional Concept headings and synchronize managed navigation with adopted Card Groups.
 
 ## Confirmed and fixed
 
@@ -454,6 +457,24 @@ remain. The perspective extractor now respects fence character/length and closin
 suffixes, keeping headings and navigation examples inside nested fences intact.
 See [ADR 0003](adr/0003-concept-merge-requires-guided-review.md).
 
+### P1 — Perspective extraction discarded additional H1 headings
+
+The extractor omitted every H1, silently losing learner-authored section headings.
+It now omits only a leading document H1 and retains later/preamble-following H1s.
+A shared shift nests retained ATX headings under the generated H3 View, preserving
+relative levels until the existing H6 ceiling. Fenced examples are excluded from
+heading inspection. The logic moved into `conceptMergeMarkdown.ts`.
+
+### P2 — Adopted Card Group navigation still pointed at the old path
+
+Adoption updated the frontmatter locator but left the survivor's generated native
+Review Cards link unchanged. The shared matcher now rewrites only navigation
+matching the former declared path directly under the template section, preserving
+aliases, whitespace and LF/CRLF. Other links, sections, subsections, comments and
+code examples remain untouched. The same matcher removes navigation from the
+historical perspective; no missing navigation section is generated. The integration
+regression uses actual Concept rendering and draft application before execution.
+
 ## Remaining boundaries
 
 Incoming/Guided Merge still lack durable completion records. Process termination or conflicting/failed compensation can leave Markdown and state partially updated; this pass does not resolve those cases.
@@ -465,6 +486,18 @@ Card and Concept ID repairs now have durable recovery records. External edits, m
 New Concept and single-Card deletions now have durable recovery metadata. Historical partial deletions without receipts still require manual inspection. External edits/moves or changed Related files deliberately stop recovery; there is no automatic conflict resolution or undo. Obsidian rename does not guarantee an atomic compare-and-rename, and local-trash semantics still need real-platform acceptance. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; their prose is preserved rather than silently discarded.
 
 ## Validation
+
+Twenty-second-pass validation (2026-09-20): full tests passed; final comment and
+indentation refinements passed the Concept suite, build, release check and diff
+check. Logs: `/private/tmp/mneme-concept-structure-all.log`,
+`/private/tmp/mneme-concept-structure-focused.log`,
+`/private/tmp/mneme-concept-structure-red.log`, and
+`/private/tmp/mneme-concept-navigation-red.log`. The original service loses an
+additional H1; a separate baseline bundle from `fd968fd` leaves native Card
+navigation at the old path after adopting another group. Regressions cover the
+actual renderer/draft/service flow, LF/CRLF, aliases, exact navigation-only edits,
+heading retention/nesting, preambles, no document title, comments, inline-code
+comment examples, indented sections and fenced examples. Review state is preserved.
 
 Twenty-first-pass validation (2026-09-20): full tests, build, release check and diff
 checks passed; strengthened fence cases subsequently passed the focused suite and
@@ -773,3 +806,14 @@ extraction, fence handling in other section helpers, native survivor Review Card
 navigation after adopting another group, and custom source Concept YAML retention
 in redirects. No real Obsidian rendering/restart acceptance or durable Merge
 recovery was added in this pass.
+
+
+Twenty-second-pass manual checks in a disposable Vault:
+
+1. Add an extra H1 and H2 subsection to the merged-away Concept, merge it, and inspect the preserved View. Both headings and their text must remain nested under Merged from. Repeat with a preamble before the first H1.
+2. Leave the survivor's declared Card Group absent while the other Concept has Cards. Complete a normal manual Merge and click the survivor's native Review Cards navigation; it must open the adopted group and agree with frontmatter. Its display alias and authored notes must remain intact.
+3. Put matching links in other sections, a subsection, fenced examples and comments. Those links must remain unchanged. Repeat with CRLF content.
+
+Other section parsers and Related preprocessing still need separate fence/comment
+review. Setext headings, complex Markdown containers, custom source YAML retention,
+real Obsidian acceptance and durable Merge recovery remain outstanding.
