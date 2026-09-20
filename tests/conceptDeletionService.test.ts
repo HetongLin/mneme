@@ -18,6 +18,17 @@ class MemoryVault implements ConceptDeletionVaultAdapter {
 
 async function run(): Promise<void> {
 	{
+		const root = { ...concept, cardsPath: undefined, path: "First.md" };
+		const other = "# Second\n## Related Concepts\n- [[Archive/First|Archived First]]\n";
+		const vault = new MemoryVault(new Map([[root.path, conceptMarkdown], [related.path, other]]));
+		const result = await new ConceptDeletionService(vault).prepare(root, [root, related]);
+		assert.equal(result.status, "ready");
+		if (result.status !== "ready") throw new Error(result.message);
+		assert.deepEqual(result.plan.relatedWrites, [], "Deleting a root Concept must not remove qualified links to another directory");
+		assert.equal(await vault.read(related.path), other);
+	}
+
+	{
 		const vault = new MemoryVault(new Map([[concept.path, conceptMarkdown], [concept.cardsPath!, validCards], [related.path, "# Second\n"]]));
 		const result = await new ConceptDeletionService(vault).prepare(concept, [concept, related]);
 		assert.equal(result.status, "ready");

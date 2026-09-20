@@ -515,7 +515,8 @@ async function prepareRelatedConceptMerge(
 		.map(([basename, matches]) => [basename, matches[0] as RelatedConceptSnapshot]));
 	const resolve = (target: string): RelatedConceptSnapshot | undefined => {
 		const comparable = comparableConceptPath(target);
-		return byPath.get(comparable) ?? byBasename.get(comparable.split("/").pop() ?? "");
+		// An explicit directory is part of the locator, never a basename hint.
+		return byPath.get(comparable) ?? (comparable.includes("/") ? undefined : byBasename.get(comparable));
 	};
 	const survivorKey = comparableConceptPath(survivor.path);
 	const mergedKey = comparableConceptPath(merged.path);

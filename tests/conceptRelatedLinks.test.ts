@@ -12,6 +12,18 @@ const beta = {
 };
 
 {
+	const original = "# Reader\n## Related Concepts\n- [[Archive/Beta|Archived Beta]]\n";
+	assert.deepEqual(removeRelatedConceptLink(original, "Beta.md"), { changed: false, markdown: original, removals: 0 });
+	assert.deepEqual(replaceRelatedConceptLink(original, "Beta.md", { path: "Gamma.md", title: "Gamma" }), { changed: false, markdown: original });
+	const added = addRelatedConceptLink(original, { path: "Beta.md", title: "Root Beta" });
+	assert.equal(added.changed, true, "A qualified link must not suppress a different root Concept");
+	assert.ok(added.markdown.includes("[[Archive/Beta|Archived Beta]]"));
+	assert.ok(added.markdown.includes("[[Beta|Root Beta]]"));
+	assert.equal(removeRelatedConceptLink(original, "Archive/Beta.md").removals, 1);
+	assert.equal(removeRelatedConceptLink("## Related Concepts\n- [[Beta]]", "Archive/Beta.md").removals, 1, "Keep existing bare-link compatibility");
+}
+
+{
 	const original = "# Alpha\n\n## Core Meaning\n\nAlpha means...\n";
 	const added = addRelatedConceptLink(original, beta);
 

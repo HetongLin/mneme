@@ -16,6 +16,52 @@ const survivor = createConcept("concept-a", "Alpha", "Mneme/Concepts/Alpha/Conce
 const merged = createConcept("concept-b", "Beta", "Mneme/Concepts/Beta/Concept.md", "Mneme/Cards/Beta/Card.md");
 
 async function runAsyncTests(): Promise<void> {
+	for (const targets of [["Missing/Beta"], ["Beta"], ["Notes/Beta"], ["Missing/Beta", "Beta"]]) {
+		const first = createConcept("concept-a", "Alpha", "Notes/Alpha.md");
+		const second = createConcept("concept-b", "Beta", "Notes/Beta.md");
+		const reader = createConcept("concept-reader", "Reader", "Notes/Reader.md");
+		const files = {
+			[first.path]: conceptMarkdown(first, "Alpha meaning"),
+			[second.path]: conceptMarkdown(second, "Beta meaning"),
+			[reader.path]: conceptMarkdown(reader, "Reader meaning") + "\n## Related Concepts\n" + targets.map((target) => `- [[${target}]]`).join("\n") + "\n",
+		};
+		const original = files[reader.path];
+		const vault = new MemoryMergeVault(files);
+		const service = new ConceptMergeService(vault, new MemoryMergeStorage(createDefaultPluginData()));
+		const result = await service.prepare({ merged: second, survivor: first, preserveMergedAsView: true });
+		if (result.status !== "ready") throw new Error(result.message);
+		const rewired = targets.some((target) => target !== "Missing/Beta");
+		assert.equal(result.plan.relatedConceptsRewired, rewired ? 1 : 0, "A missing qualified path must not resolve through its basename");
+		const final = result.plan.writes.find((write) => write.path === first.path)!.after;
+		assert.deepEqual(await service.execute(result.plan, final), { status: "merged" });
+		if (!rewired) assert.equal(vault.files[reader.path], original);
+		else assert.ok(vault.files[reader.path]!.includes("[[Notes/Alpha|Alpha]]"));
+		if (targets.includes("Missing/Beta")) assert.ok(vault.files[reader.path]!.includes("[[Missing/Beta]]"));
+	}
+
+	for (const linkOwner of ["survivor", "merged"] as const) {
+		const first = createConcept("concept-a", "Alpha", "Notes/Alpha.md");
+		const second = createConcept("concept-b", "Beta", "Notes/Beta.md");
+		const neighbor = createConcept("concept-neighbor", "Neighbor", "Elsewhere/Neighbor.md");
+		const files = {
+			[first.path]: conceptMarkdown(first, "Alpha meaning"),
+			[second.path]: conceptMarkdown(second, "Beta meaning"),
+			[neighbor.path]: conceptMarkdown(neighbor, "Neighbor meaning"),
+		};
+		const target = linkOwner === "survivor" ? "Missing/Beta" : "Missing/Neighbor";
+		files[linkOwner === "survivor" ? first.path : second.path] += `\n## Related Concepts\n- [[${target}|Unresolved]]\n`;
+		const originalNeighbor = files[neighbor.path];
+		const vault = new MemoryMergeVault(files);
+		const service = new ConceptMergeService(vault, new MemoryMergeStorage(createDefaultPluginData()));
+		const result = await service.prepare({ merged: second, survivor: first, preserveMergedAsView: true });
+		if (result.status !== "ready") throw new Error(result.message);
+		assert.equal(result.plan.relatedConceptsRewired, 0);
+		const final = result.plan.writes.find((write) => write.path === first.path)!.after;
+		assert.ok(final.includes(`[[${target}|Unresolved]]`));
+		assert.deepEqual(await service.execute(result.plan, final), { status: "merged" });
+		assert.equal(vault.files[neighbor.path], originalNeighbor);
+	}
+
 	{
 		const neighbor = createConcept("concept-neighbor", "Neighbor", "Notes/Neighbor.md");
 		const files = createFiles();

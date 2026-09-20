@@ -171,7 +171,9 @@ function sectionContainsOnlyWhitespace(section: { end: number; lines: string[]; 
 function relatedTargetMatches(candidate: string, targetComparablePath: string): boolean {
 	const candidateComparablePath = comparableConceptPath(candidate);
 	if (candidateComparablePath === targetComparablePath) return true;
-	if (candidateComparablePath.includes("/") && targetComparablePath.includes("/")) return false;
+	// Only the authored link may be shorthand. A qualified link to another
+	// directory must not match a root-level target with the same filename.
+	if (candidateComparablePath.includes("/")) return false;
 
 	return candidateComparablePath.split("/").pop() === targetComparablePath.split("/").pop();
 }

@@ -56,3 +56,24 @@ identity matching, persisted formats, transaction ordering or recovery protocols
 This remains scoped syntax inspection, not a complete Markdown parser. Setext and
 complex container/HTML semantics, multiline code spans, multiple Related sections,
 and path-resolution ambiguity require separate review and real Obsidian acceptance.
+
+## Explicit directory paths — 2026-09-20
+
+A directory-qualified Related target is a locator, not a filename hint. Guided
+Merge first looks for an exact normalized Concept path. If a qualified target is
+unknown, preserve it as unresolved; do not discard the directory and bind it to a
+different Concept with the same basename. Only bare targets retain the existing
+unique-basename lookup fallback. This applies to participant links and discovery
+of incoming neighbors, so unresolved links cannot cause unrelated files to be
+rewired or participant-looking links to be silently removed.
+
+The shared add/remove matcher is directional: an authored bare link retains its
+existing shorthand compatibility, but a qualified authored link only matches an
+exact normalized target. In particular, `Archive/Beta` must not prevent adding a
+separate root `Beta.md` relation, or be removed when that root Concept is unlinked
+or deleted. Matching aliases and omitted `.md` extensions still work.
+
+This closes directory-discarding matches without changing persisted formats or
+transaction protocols. Bare-link ambiguity, relative paths, case collisions and
+Obsidian's source-context resolution remain a separate audit; this is not a full
+resolver replacement or an automatic rewrite of unresolved links.
