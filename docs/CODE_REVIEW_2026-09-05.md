@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-20 (twentieth pass)
+Updated: 2026-09-20 (twenty-first pass)
 
 ## Scope and checkpoint
 
@@ -42,6 +42,8 @@ The nineteenth pass on `fix/merge-card-group-content` starts from checkpoint `b8
 
 The twentieth pass on `fix/card-relocation-references` starts from checkpoint `8d6b0d6`. It guards Card relocation against source-path and document-reference dependencies, and rechecks Wiki resolution before execution.
 
+The twenty-first pass on `fix/concept-perspective-references` starts from checkpoint `436bfa1`. It applies the shared relocation guard to preserved Concept perspectives and prevents code examples from being treated as managed Card navigation.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication, version change, or live Vault update was performed.
 
 ## Local implementation commits
@@ -70,6 +72,7 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `d93c26f` — block Merge writes that invalidate pending authoring recovery paths, hashes or Card ownership.
 - `5909142` — preserve former Card Group notes/custom properties and reject ambiguous Card migration.
 - `1c3c23c` — guard moved Card references and recheck Wiki resolution before Guided Merge writes.
+- `7261d28` — validate preserved Concept references, omit managed historical Card navigation, and preserve nested fence examples.
 
 ## Confirmed and fixed
 
@@ -434,6 +437,23 @@ resource attributes. It is not a full Markdown parser or link migration. Incomin
 backlinks, arbitrary plugin embeds, heading/block-ID collisions, and external edits
 after the final metadata-cache observation remain separate concerns.
 
+### P1 — Preserved Concept perspectives bypassed relocation checks
+
+Guided Merge preserved the merged Concept body as a View at the survivor path,
+but only Card relocation had reference guards. Relative attachments and local
+anchors could therefore change target. Card and Concept checks now share
+`markdownRelocationSafety`; the perspective is checked after deterministic Related
+rewiring and again against final edited Markdown before execution. This also catches
+new destination reference definitions and Wiki resolution changes after preview.
+The preservation choice is carried only in the in-memory plan.
+
+Generated Card navigation directly under Review Cards is omitted from the copied
+perspective when it exactly matches the declared group. This prevents a missing,
+not-yet-created group from blocking normal Concept merges; authored section notes
+remain. The perspective extractor now respects fence character/length and closing
+suffixes, keeping headings and navigation examples inside nested fences intact.
+See [ADR 0003](adr/0003-concept-merge-requires-guided-review.md).
+
 ## Remaining boundaries
 
 Incoming/Guided Merge still lack durable completion records. Process termination or conflicting/failed compensation can leave Markdown and state partially updated; this pass does not resolve those cases.
@@ -445,6 +465,19 @@ Card and Concept ID repairs now have durable recovery records. External edits, m
 New Concept and single-Card deletions now have durable recovery metadata. Historical partial deletions without receipts still require manual inspection. External edits/moves or changed Related files deliberately stop recovery; there is no automatic conflict resolution or undo. Obsidian rename does not guarantee an atomic compare-and-rename, and local-trash semantics still need real-platform acceptance. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; their prose is preserved rather than silently discarded.
 
 ## Validation
+
+Twenty-first-pass validation (2026-09-20): full tests, build, release check and diff
+checks passed; strengthened fence cases subsequently passed the focused suite and
+build. Logs: `/private/tmp/mneme-concept-perspective-all.log`,
+`/private/tmp/mneme-concept-perspective-focused.log`,
+`/private/tmp/mneme-concept-perspective-red.log` and
+`/private/tmp/mneme-concept-perspective-fence-red.log`. Bundles using the service
+from `436bfa1` separately reproduce accepted relative-image relocation and modified
+fenced examples. Tests cover LF/CRLF, local references/anchors/footnotes/HTML,
+stable Wiki and external links, absent or existing declared Card Groups, retained
+notes, short/mixed/trailing-text fence runs, post-preview Wiki changes and final
+edited reference definitions. Blocked operations leave files/state untouched.
+The earlier Card and pending-authoring recovery regressions still pass.
 
 Twentieth-pass validation (2026-09-20): full tests, build, release check and diff
 checks passed. Logs: `/private/tmp/mneme-card-relocation-all.log`,
@@ -727,3 +760,16 @@ Twentieth-pass manual checks in a disposable Vault:
 
 This pass does not rewrite references, validate every Markdown/plugin construct,
 repair incoming backlinks or implement durable Merge recovery.
+
+
+Twenty-first-pass manual checks in a disposable Vault:
+
+1. Merge two Concepts when the merged-away body contains a relative attachment, same-file anchor or reference definition. Preparation must stop before showing a writable preview and identify the Concept and both paths.
+2. Repeat with a stable explicit Wiki target or external URL, then verify the preserved View resolves to the intended resource. Introduce a same-named target after preview; differing resolution must stop confirmation without writes.
+3. Merge ordinary newly created Concepts before creating any Cards. Template Card navigation must not block the merge; authored notes in Review Cards must remain in the preserved View. Use four-character fenced examples containing shorter/different fence runs and headings; their text must stay intact.
+
+Next structural audit candidates: extra H1 headings discarded by perspective
+extraction, fence handling in other section helpers, native survivor Review Cards
+navigation after adopting another group, and custom source Concept YAML retention
+in redirects. No real Obsidian rendering/restart acceptance or durable Merge
+recovery was added in this pass.

@@ -4,6 +4,11 @@ Updated: 2026-09-20
 
 ## 2026-09-05 至 09-20 代码审查后续
 
+- 第二十一轮从已提交检查点 `436bfa1` 继续，代码/测试/ADR 提交为 `7261d28`，分支为 `fix/concept-perspective-references`。补上 Guided Merge 保留原 Concept 为 View 时的引用检查：抽出共用 `markdownRelocationSafety.ts`，Card 保持原规则；Concept perspective 在去除确定性 Related 导航后，比较源 Concept 和目标文件的引用上下文。预览前和执行前均检查，后者使用最终编辑后的 Markdown，覆盖新增引用定义改变原 literal label 的情况。
+- 模板 `## Review Cards` 直属的 `Cards: [[...]]` 若精确匹配源 frontmatter 声明的 Card Group，不再复制到历史 View，避免尚未创建 Card Group 的正常 Concept 被新 guard 误拦截。保留同章节用户笔记、其他位置的链接和 fenced 示例。提取正文时跟踪围栏字符/长度，仅匹配足够长且无尾随文本的闭合行，防止短围栏或另一种围栏使代码中的标题/导航被改写。
+- 第二十一轮验证：全量测试、构建、发布检查、diff 检查通过；最后补强围栏反例后专项和构建再次通过。旧服务分别复现相对图片返回 ready，以及代码围栏内文本被改写。覆盖 LF/CRLF、相对附件/anchors/reference/footnote/HTML、稳定 Wiki/外部链接、空 Card Group 导航、原文保留、执行前 Wiki 变化与最终草稿引入定义，阻止时文件/状态零写入。日志 `/private/tmp/mneme-concept-perspective-all.log`、`/private/tmp/mneme-concept-perspective-focused.log`、`/private/tmp/mneme-concept-perspective-red.log`、`/private/tmp/mneme-concept-perspective-fence-red.log`。本轮仅在内存 plan 增加 preserve 标记，无持久 schema/事务协议变化。
+- **下一轮审查线索**：继续复现 Concept 正文结构保留边界，包括额外 H1 被当作标题删除、其他 section parsers 对围栏长度的处理，以及 survivor 采用另一 Card Group 时原正文 Review Cards 导航是否同步。源 Concept 的自定义 YAML/redirect 保留策略也仍需独立审查。真实 Obsidian 附件/缓存/渲染验收、Incoming/Guided Merge 持久化恢复仍待完成；本轮保守语法检查不等于完整 Markdown 语义迁移。
+
 - 第二十轮从已提交检查点 `8d6b0d6` 继续，代码/测试/ADR 提交为 `1c3c23c`，分支为 `fix/card-relocation-references`。确认 Review 用 Card 当前文件路径渲染，因此原样搬移 Card blocks 仍会改变相对附件、同文件锚点和文档引用定义的含义。提取 `cardRelocationSafety.ts`：预览前拒绝已知依赖，报告 Card ID/源路径/目标路径；Wiki links/embeds 通过 Obsidian metadata cache 比较两处解析目标，仅放行相同且非源 group 的已解析文件。常见绝对外部 URL 允许；直接采用源 group、不改变路径时不做搬迁拦截。
 - 执行前在原有文件/状态快照校验后再次检查，覆盖预览后其他文件改变 Wiki 解析的情况。相对 Markdown links/images、同文件 Wiki anchors、引用/脚注/定义、源或目标存在定义的 shortcut、HTML href/src/srcset 会保守阻止；代码示例也可能被阻止。不改 Card raw bytes、ID、Review 状态或持久 schema。
 - 第二十轮验证：全量测试、构建、发布检查、diff 检查通过并完成复审。旧服务 bundle 对 `![image](./asset.png)` 仍返回 ready，回归要求 blocked；验证阻止时全部文件/状态零写入、稳定 Wiki 和外部链接成功、原组采用、缺少 resolver、预览后解析变化等。日志 `/private/tmp/mneme-card-relocation-all.log`、`/private/tmp/mneme-card-relocation-focused.log`、`/private/tmp/mneme-card-relocation-red.log`。行为与边界见 [ADR 0003](adr/0003-concept-merge-requires-guided-review.md)。
@@ -76,7 +81,7 @@ Updated: 2026-09-20
 - 继续时重点关注真实 Obsidian 的中断/重启/本地回收站验收，以及删除后残留提案的显式整理策略。外部改动冲突、旧的无记录部分删除不会自动修复；不要直接删除 journal 或把手动恢复文件当作撤销 tombstone。
 
 - 已先构建并提交审查前备份：`83deb3f`，其父提交 `9cd98ad` 是原产品代码。
-- 当前审查/重构分支：`fix/merge-card-group-content`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，文档检查点为 `d125577`；第六轮代码提交为 `f66bd16`（索引同步）和 `3a9f321`（删除校验），之后另有本交接/审查文档提交。
+- 当前审查/重构分支：`fix/concept-perspective-references`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，文档检查点为 `d125577`；第六轮代码提交为 `f66bd16`（索引同步）和 `3a9f321`（删除校验），之后另有本交接/审查文档提交。
 - 第一轮修复合并/Related 的并发覆盖、Card 并发追加丢失、Review 重复动作跳卡，并提取共用 Markdown 事务与 Review 动作保护。
 - 第二轮让所有当前 `data.json` 写入共用完整读/检查/改/存队列，覆盖 Review、Settings、Proposal、草稿、来源索引及 Merge 回滚；来源重连/移除也已接入原子 Markdown 事务；诊断开关现在只重绘，不重置复习进度。数据格式与版本不变。队列的共享 storage owner 和禁止嵌套获取规则见 [ADR 0022](adr/0022-plugin-state-mutations-share-one-queue.md)。
 - 第二轮 `npm run test:all`、`npm run build`、`npm run check:release -- 1.0.0`、`git diff --check` 均已通过。新增确定性交错测试覆盖共享状态、真实 `saveSettings()` 方法、Merge 回滚、来源写入/回滚冲突。详细证据见 [CODE_REVIEW_2026-09-05.md](CODE_REVIEW_2026-09-05.md)。
