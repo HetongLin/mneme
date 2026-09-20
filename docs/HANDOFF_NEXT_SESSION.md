@@ -4,6 +4,11 @@ Updated: 2026-09-20
 
 ## 2026-09-05 至 09-20 代码审查后续
 
+- 第二十三轮从已提交检查点 `da1028b` 继续，代码/测试/ADR 提交为 `2d9b958`，分支为 `fix/related-markdown-literals`。修复 Related Concepts 把短围栏后的代码示例、HTML 注释、单行 inline code 和 escaped Wiki 文本当成真实关系的问题；原行为会误识别邻居，并在 Merge/关系移除时改写示例。
+- 将正文检查从 Merge 专用模块提取为 `markdownLineInspector.ts`，Related 章节查找/读取/删除使用同一份 active ranges；代码/注释/转义按等长空格屏蔽，仅对与原文完全一致的真实链接范围逆序删除。保留 frontmatter、示例、无关正文及非目标章节；含注释或示例的章节不会按空白删除。添加关系不会把示例当成重复；若追加位置落在未闭合 fence/comment 内则报错并要求先闭合，较早的独立已闭合 Related 章节仍可编辑。
+- 第二十三轮验证：全量测试、构建、发布检查、diff 检查通过。旧 helper 复现示例被解析为 Beta；单独替换旧 helper 的真实 Merge bundle 又复现仅含示例的笔记被计作 1 个待重连邻居（预期 0）。新回归覆盖 LF/CRLF、短/带尾随文本的围栏、伪章节/伪结束标题、行内注释与 code、转义/缩进示例、同一行多个真实/示例链接、Unicode offset，以及真实 Merge 对示例邻居零改写、真实邻居重连后示例不变、未闭合内容阻止时文件/状态零写入。日志 `/private/tmp/mneme-related-literals-all.log`、`/private/tmp/mneme-related-literals-focused.log`、`/private/tmp/mneme-related-literals-red.log`、`/private/tmp/mneme-related-merge-red.log`。
+- 规则见 [ADR 0016](adr/0016-related-concepts-are-symmetric-links.md)。本轮覆盖共享 Related helpers 的调用者，包括手工关系、Merge、删除清理；不改持久 schema、路径匹配策略或事务/恢复协议。**后续边界**：继续审查 Related 的路径解析歧义、多个同名章节，以及其他 section helpers；Setext/复杂容器/HTML/跨行 code span 不是本轮完整支持的 Markdown 语义。真实 Obsidian、源 Concept 自定义 YAML/redirect 保留与 Merge 持久化恢复仍待完成。
+
 - 第二十二轮从已提交检查点 `fd968fd` 继续，代码/测试/ADR 提交为 `4b0fac4`，分支为 `fix/merge-concept-structure`。修复 Concept perspective 提取删除全部 H1 的问题：仅省略正文第一个非空行上的文档 H1 标题；额外 H1 和前言后的 H1 保留。存在额外 H1 时整体下移三级，否则维持原来的两级，使 ATX 标题留在生成的 H3 View 内；超过 Markdown H6 的层级仍按既有上限处理。
 - 提取 `conceptMergeMarkdown.ts` 共用正文结构检查、路径比较和模板导航处理。survivor 采用源 Card Group 时同时更新 frontmatter 与原正文 Review Cards 导航，匹配旧声明路径才更新，保留原显示别名/空白/换行；同一匹配器用于移除历史 View 中的模板导航。跳过其他章节、子章节、其他目标/锚点、代码与注释，不创建原本不存在的导航区。
 - 第二十二轮验证：全量测试通过；最后注释/缩进调整后 Concept 专项、构建、发布检查和 diff 检查再次通过。旧版分别复现额外 H1 丢失和 adopted group 的正文导航未更新。覆盖真实 renderManualConcept → prepare → applyConceptMergeDraft → execute、LF/CRLF、别名保留、前言/无标题/额外标题、围栏/注释/缩进保护及代码中的 comment 示例。日志 `/private/tmp/mneme-concept-structure-all.log`、`/private/tmp/mneme-concept-structure-focused.log`、`/private/tmp/mneme-concept-structure-red.log`、`/private/tmp/mneme-concept-navigation-red.log`。Card 内容、ID、复习状态和持久 schema/事务协议未改。
@@ -86,7 +91,7 @@ Updated: 2026-09-20
 - 继续时重点关注真实 Obsidian 的中断/重启/本地回收站验收，以及删除后残留提案的显式整理策略。外部改动冲突、旧的无记录部分删除不会自动修复；不要直接删除 journal 或把手动恢复文件当作撤销 tombstone。
 
 - 已先构建并提交审查前备份：`83deb3f`，其父提交 `9cd98ad` 是原产品代码。
-- 当前审查/重构分支：`fix/merge-concept-structure`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，文档检查点为 `d125577`；第六轮代码提交为 `f66bd16`（索引同步）和 `3a9f321`（删除校验），之后另有本交接/审查文档提交。
+- 当前审查/重构分支：`fix/related-markdown-literals`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，文档检查点为 `d125577`；第六轮代码提交为 `f66bd16`（索引同步）和 `3a9f321`（删除校验），之后另有本交接/审查文档提交。
 - 第一轮修复合并/Related 的并发覆盖、Card 并发追加丢失、Review 重复动作跳卡，并提取共用 Markdown 事务与 Review 动作保护。
 - 第二轮让所有当前 `data.json` 写入共用完整读/检查/改/存队列，覆盖 Review、Settings、Proposal、草稿、来源索引及 Merge 回滚；来源重连/移除也已接入原子 Markdown 事务；诊断开关现在只重绘，不重置复习进度。数据格式与版本不变。队列的共享 storage owner 和禁止嵌套获取规则见 [ADR 0022](adr/0022-plugin-state-mutations-share-one-queue.md)。
 - 第二轮 `npm run test:all`、`npm run build`、`npm run check:release -- 1.0.0`、`git diff --check` 均已通过。新增确定性交错测试覆盖共享状态、真实 `saveSettings()` 方法、Merge 回滚、来源写入/回滚冲突。详细证据见 [CODE_REVIEW_2026-09-05.md](CODE_REVIEW_2026-09-05.md)。

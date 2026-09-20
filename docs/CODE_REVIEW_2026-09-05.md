@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-20 (twenty-second pass)
+Updated: 2026-09-20 (twenty-third pass)
 
 ## Scope and checkpoint
 
@@ -46,6 +46,8 @@ The twenty-first pass on `fix/concept-perspective-references` starts from checkp
 
 The twenty-second pass on `fix/merge-concept-structure` starts from checkpoint `fd968fd`. It preserves additional Concept headings and updates native Card navigation when the survivor adopts another group, sharing Merge-specific Markdown inspection.
 
+The twenty-third pass on `fix/related-markdown-literals` starts from checkpoint `da1028b`. It protects literal Markdown examples from Related discovery and edits, sharing the line inspector with Merge transformations.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication, version change, or live Vault update was performed.
 
 ## Local implementation commits
@@ -76,6 +78,7 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `1c3c23c` — guard moved Card references and recheck Wiki resolution before Guided Merge writes.
 - `7261d28` — validate preserved Concept references, omit managed historical Card navigation, and preserve nested fence examples.
 - `4b0fac4` — preserve additional Concept headings and synchronize managed navigation with adopted Card Groups.
+- `2d9b958` — exclude literal examples from Related discovery and preserve them during deterministic edits.
 
 ## Confirmed and fixed
 
@@ -475,6 +478,22 @@ code examples remain untouched. The same matcher removes navigation from the
 historical perspective; no missing navigation section is generated. The integration
 regression uses actual Concept rendering and draft application before execution.
 
+### P1 — Related discovery and edits treated literal examples as relationships
+
+The old fence tracker accepted a shorter closing run, and Related parsing did not
+exclude comments or inline code. A note containing only an example could become a
+Merge neighbor, and removal/rewiring could alter that example. Related heading
+inspection and link operations now share `markdownLineInspector` with the Merge
+body transforms. An equal-length masked view excludes literal spans; active ranges
+are checked against original text and removed in reverse order. Frontmatter,
+comments, nonmatching prose and code examples remain intact. Purely literal
+sections are retained, and example links do not prevent adding a real relation.
+
+Adding inside an unclosed fence/comment now fails before any service write. An
+existing earlier Related section remains editable when a later section contains
+the open block. Matching identities, path resolution, schemas and transaction
+protocols are unchanged. See [ADR 0016](adr/0016-related-concepts-are-symmetric-links.md).
+
 ## Remaining boundaries
 
 Incoming/Guided Merge still lack durable completion records. Process termination or conflicting/failed compensation can leave Markdown and state partially updated; this pass does not resolve those cases.
@@ -486,6 +505,20 @@ Card and Concept ID repairs now have durable recovery records. External edits, m
 New Concept and single-Card deletions now have durable recovery metadata. Historical partial deletions without receipts still require manual inspection. External edits/moves or changed Related files deliberately stop recovery; there is no automatic conflict resolution or undo. Obsidian rename does not guarantee an atomic compare-and-rename, and local-trash semantics still need real-platform acceptance. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; their prose is preserved rather than silently discarded.
 
 ## Validation
+
+Twenty-third-pass validation (2026-09-20): full tests, build, release check and diff
+check passed. Logs: `/private/tmp/mneme-related-literals-all.log`,
+`/private/tmp/mneme-related-literals-focused.log`,
+`/private/tmp/mneme-related-literals-red.log`, and
+`/private/tmp/mneme-related-merge-red.log`. The original helper reads Beta from a
+fenced example; a bundle substituting only that helper from `da1028b` identifies a
+literal-only note as a Merge neighbor. Tests cover LF/CRLF, fence character/length
+and suffixes, fake headings/section ends, comments, single-line code spans,
+escapes, indentation, Unicode range offsets, mixed active/literal links and
+unclosed append targets. Real Merge execution preserves literal-only neighbors
+byte-for-byte and retains examples while rewiring a real relation. Blocked
+preparation preserves all files/state with zero writes. The full suite includes
+existing relationship, deletion and Merge recovery checks.
 
 Twenty-second-pass validation (2026-09-20): full tests passed; final comment and
 indentation refinements passed the Concept suite, build, release check and diff
@@ -817,3 +850,15 @@ Twenty-second-pass manual checks in a disposable Vault:
 Other section parsers and Related preprocessing still need separate fence/comment
 review. Setext headings, complex Markdown containers, custom source YAML retention,
 real Obsidian acceptance and durable Merge recovery remain outstanding.
+
+
+Twenty-third-pass manual checks in a disposable Vault:
+
+1. Put Wiki-link examples inside four-character code fences containing shorter runs, HTML comments and inline code under Related Concepts. They must not appear as real relationships or make the note a Merge neighbor.
+2. Add one real relationship beside those examples and merge its target. Only the real relation should point to the survivor; example text and other sections must remain unchanged. Repeat with CRLF and a real link plus example on the same line.
+3. Add a relation where the insertion point is inside an unclosed fence/comment. The operation must request closure without writing either Concept. A closed Related section before an unrelated unclosed later section should still work.
+
+Path-resolution ambiguity, duplicate Related headings and other section helpers
+remain separate audits. The shared inspector does not provide complete Setext,
+container/HTML or multiline code-span parsing. Real Obsidian acceptance, custom
+source Concept YAML retention and durable Merge recovery remain outstanding.
