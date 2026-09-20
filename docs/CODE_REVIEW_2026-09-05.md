@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-20 (twenty-third pass)
+Updated: 2026-09-20 (twenty-fourth pass)
 
 ## Scope and checkpoint
 
@@ -48,6 +48,8 @@ The twenty-second pass on `fix/merge-concept-structure` starts from checkpoint `
 
 The twenty-third pass on `fix/related-markdown-literals` starts from checkpoint `da1028b`. It protects literal Markdown examples from Related discovery and edits, sharing the line inspector with Merge transformations.
 
+The twenty-fourth pass on `fix/related-explicit-paths` starts from checkpoint `385df15`. It preserves explicit directories during Related resolution and makes shorthand matching directional across Merge, relationship edits and deletion cleanup.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication, version change, or live Vault update was performed.
 
 ## Local implementation commits
@@ -79,6 +81,7 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `7261d28` — validate preserved Concept references, omit managed historical Card navigation, and preserve nested fence examples.
 - `4b0fac4` — preserve additional Concept headings and synchronize managed navigation with adopted Card Groups.
 - `2d9b958` — exclude literal examples from Related discovery and preserve them during deterministic edits.
+- `ce9c8d0` — honor explicit Related directories and prevent root-level targets from matching qualified links elsewhere.
 
 ## Confirmed and fixed
 
@@ -494,7 +497,25 @@ existing earlier Related section remains editable when a later section contains
 the open block. Matching identities, path resolution, schemas and transaction
 protocols are unchanged. See [ADR 0016](adr/0016-related-concepts-are-symmetric-links.md).
 
+### P1 — Related path fallback could rewire or remove a different Concept's links
+
+Guided Merge discarded the directory of an unresolved target before trying its
+unique-basename map. `Missing/Beta` could therefore resolve to `Notes/Beta.md`,
+rewire an unrelated reader, disappear as a survivor self-link, or pull a different
+same-named neighbor into the merge. Resolution now tries the normalized exact path
+and permits basename fallback only for an authored target without a directory.
+Unknown qualified links remain unresolved and retain their authored text.
+
+The shared Related matcher also treated shorthand symmetrically: removing root
+`Beta.md` could remove `Archive/Beta`, and adding the root relation could be
+incorrectly suppressed. Only an authored bare link may now be shorthand; a
+qualified link must match the normalized full target path. Bare-link compatibility,
+aliases and optional `.md` handling remain. See
+[ADR 0016](adr/0016-related-concepts-are-symmetric-links.md).
+
 ## Remaining boundaries
+
+Related bare-link ambiguity, relative-path and case-collision semantics, source-context resolution in Obsidian, and duplicate Related sections remain separate audits. Explicit-directory matching does not provide full Wiki resolution.
 
 Incoming/Guided Merge still lack durable completion records. Process termination or conflicting/failed compensation can leave Markdown and state partially updated; this pass does not resolve those cases.
 
@@ -505,6 +526,19 @@ Card and Concept ID repairs now have durable recovery records. External edits, m
 New Concept and single-Card deletions now have durable recovery metadata. Historical partial deletions without receipts still require manual inspection. External edits/moves or changed Related files deliberately stop recovery; there is no automatic conflict resolution or undo. Obsidian rename does not guarantee an atomic compare-and-rename, and local-trash semantics still need real-platform acceptance. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; their prose is preserved rather than silently discarded.
 
 ## Validation
+
+Twenty-fourth-pass validation (2026-09-20): `npm run test:all`, `npm run build`,
+`npm run check:release -- 1.0.0` and diff checks passed. Logs:
+`/private/tmp/mneme-related-paths-all.log`,
+`/private/tmp/mneme-related-paths-focused.log`,
+`/private/tmp/mneme-related-paths-red.log`, and
+`/private/tmp/mneme-related-root-delete-red.log`. The old Merge counts one neighbor
+for an unresolved qualified link where zero is expected. A deletion bundle
+substituting only the old Related helper plans removal of `Archive/First` when
+deleting root `First.md`. Regressions exercise successful Merge execution with
+unknown, bare, exact and mixed links; survivor self-link preservation; unresolved
+source relations with a same-named real neighbor; and root-target deletion,
+addition and replacement without touching qualified links elsewhere.
 
 Twenty-third-pass validation (2026-09-20): full tests, build, release check and diff
 check passed. Logs: `/private/tmp/mneme-related-literals-all.log`,
@@ -862,3 +896,14 @@ Path-resolution ambiguity, duplicate Related headings and other section helpers
 remain separate audits. The shared inspector does not provide complete Setext,
 container/HTML or multiline code-span parsing. Real Obsidian acceptance, custom
 source Concept YAML retention and durable Merge recovery remain outstanding.
+
+
+Twenty-fourth-pass manual checks in a disposable Vault:
+
+1. Keep `Notes/Beta.md` and an unrelated reader linking only to `Missing/Beta`. Merge Beta into Alpha; the reader must remain unchanged and must not count as a rewired neighbor. Repeat with both a real Beta link and the unresolved link; only the real relationship should change.
+2. Keep root `Beta.md` and `Archive/Beta.md`. Remove the root relationship or delete the root Concept; a link explicitly targeting `Archive/Beta` must remain. Adding the root relationship must create a separate link.
+3. Preserve an unresolved qualified link on the survivor and on the merged-away Concept. Verify it stays unresolved after Merge and does not create a relationship with a same-named file in another directory.
+
+Bare-link ambiguity, relative paths, case collisions and source-context Wiki
+resolution remain outstanding, alongside real Obsidian acceptance and durable
+Merge recovery. No persisted schema or transaction protocol changed in this pass.

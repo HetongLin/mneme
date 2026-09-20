@@ -4,6 +4,11 @@ Updated: 2026-09-20
 
 ## 2026-09-05 至 09-20 代码审查后续
 
+- 第二十四轮从已提交检查点 `385df15` 继续，代码/测试/ADR 提交为 `ce9c8d0`，分支为 `fix/related-explicit-paths`。修复带目录的 Related 链接无法精确匹配时退回文件名的问题：`Missing/Beta` 不再被 Guided Merge 当成 `Notes/Beta.md`，避免重连无关笔记、删除 survivor 的原有链接或引入其他目录的同名邻居。
+- 共享 Related matcher 改为单向简写匹配：只有正文链接本身不带目录时才允许按文件名匹配。删除/替换根目录 `Beta.md` 不再误删 `Archive/Beta`，添加根目录关系也不会被该链接错误去重。带目录路径要求规范化后精确一致；未解析链接保留原文。裸链接继续沿用既有兼容规则，Merge 的 basename lookup 仍要求唯一。
+- 第二十四轮验证：全量测试、构建、发布检查、diff 检查通过。旧 Merge 复现未知目录链接被计作 1 个重连邻居（预期 0）；仅替换旧 helper 的删除 bundle 复现删除根目录 First 时计划删除 `Archive/First`。回归覆盖未知/精确/裸路径、混合真实与未知关系、survivor 自链接误删、源关系错误迁移，以及根目录删除清理/添加/替换。日志 `/private/tmp/mneme-related-paths-all.log`、`/private/tmp/mneme-related-paths-focused.log`、`/private/tmp/mneme-related-paths-red.log`、`/private/tmp/mneme-related-root-delete-red.log`。
+- 规则见 [ADR 0016](adr/0016-related-concepts-are-symmetric-links.md)。本轮不改 schema 或事务协议。**后续边界**：裸链接歧义、相对路径和大小写冲突、Obsidian 源文件上下文解析、多个 Related 章节及其他 section helpers；真实 Obsidian 验收、源 Concept 自定义 YAML/redirect 保留与 Merge 持久化恢复仍待完成。
+
 - 第二十三轮从已提交检查点 `da1028b` 继续，代码/测试/ADR 提交为 `2d9b958`，分支为 `fix/related-markdown-literals`。修复 Related Concepts 把短围栏后的代码示例、HTML 注释、单行 inline code 和 escaped Wiki 文本当成真实关系的问题；原行为会误识别邻居，并在 Merge/关系移除时改写示例。
 - 将正文检查从 Merge 专用模块提取为 `markdownLineInspector.ts`，Related 章节查找/读取/删除使用同一份 active ranges；代码/注释/转义按等长空格屏蔽，仅对与原文完全一致的真实链接范围逆序删除。保留 frontmatter、示例、无关正文及非目标章节；含注释或示例的章节不会按空白删除。添加关系不会把示例当成重复；若追加位置落在未闭合 fence/comment 内则报错并要求先闭合，较早的独立已闭合 Related 章节仍可编辑。
 - 第二十三轮验证：全量测试、构建、发布检查、diff 检查通过。旧 helper 复现示例被解析为 Beta；单独替换旧 helper 的真实 Merge bundle 又复现仅含示例的笔记被计作 1 个待重连邻居（预期 0）。新回归覆盖 LF/CRLF、短/带尾随文本的围栏、伪章节/伪结束标题、行内注释与 code、转义/缩进示例、同一行多个真实/示例链接、Unicode offset，以及真实 Merge 对示例邻居零改写、真实邻居重连后示例不变、未闭合内容阻止时文件/状态零写入。日志 `/private/tmp/mneme-related-literals-all.log`、`/private/tmp/mneme-related-literals-focused.log`、`/private/tmp/mneme-related-literals-red.log`、`/private/tmp/mneme-related-merge-red.log`。
@@ -91,7 +96,7 @@ Updated: 2026-09-20
 - 继续时重点关注真实 Obsidian 的中断/重启/本地回收站验收，以及删除后残留提案的显式整理策略。外部改动冲突、旧的无记录部分删除不会自动修复；不要直接删除 journal 或把手动恢复文件当作撤销 tombstone。
 
 - 已先构建并提交审查前备份：`83deb3f`，其父提交 `9cd98ad` 是原产品代码。
-- 当前审查/重构分支：`fix/related-markdown-literals`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，文档检查点为 `d125577`；第六轮代码提交为 `f66bd16`（索引同步）和 `3a9f321`（删除校验），之后另有本交接/审查文档提交。
+- 当前审查/重构分支：`fix/related-explicit-paths`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，文档检查点为 `d125577`；第六轮代码提交为 `f66bd16`（索引同步）和 `3a9f321`（删除校验），之后另有本交接/审查文档提交。
 - 第一轮修复合并/Related 的并发覆盖、Card 并发追加丢失、Review 重复动作跳卡，并提取共用 Markdown 事务与 Review 动作保护。
 - 第二轮让所有当前 `data.json` 写入共用完整读/检查/改/存队列，覆盖 Review、Settings、Proposal、草稿、来源索引及 Merge 回滚；来源重连/移除也已接入原子 Markdown 事务；诊断开关现在只重绘，不重置复习进度。数据格式与版本不变。队列的共享 storage owner 和禁止嵌套获取规则见 [ADR 0022](adr/0022-plugin-state-mutations-share-one-queue.md)。
 - 第二轮 `npm run test:all`、`npm run build`、`npm run check:release -- 1.0.0`、`git diff --check` 均已通过。新增确定性交错测试覆盖共享状态、真实 `saveSettings()` 方法、Merge 回滚、来源写入/回滚冲突。详细证据见 [CODE_REVIEW_2026-09-05.md](CODE_REVIEW_2026-09-05.md)。
