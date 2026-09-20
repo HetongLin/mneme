@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-20 (twenty-fifth pass)
+Updated: 2026-09-21 (twenty-sixth pass)
 
 ## Scope and checkpoint
 
@@ -52,6 +52,8 @@ The twenty-fourth pass on `fix/related-explicit-paths` starts from checkpoint `3
 
 The twenty-fifth pass on `fix/merge-related-match-consistency` starts from checkpoint `68d2abb`. It aligns Guided Merge removal and deduplication with the same Concept resolver used for relationship discovery.
 
+The twenty-sixth pass on `fix/related-source-context` starts from checkpoint `8394c5a`. It resolves bare Related links from their source file during manual edits, deletion preparation and deletion recovery, with decision rechecks before writes.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication, version change, or live Vault update was performed.
 
 ## Local implementation commits
@@ -85,6 +87,7 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `2d9b958` — exclude literal examples from Related discovery and preserve them during deterministic edits.
 - `ce9c8d0` — honor explicit Related directories and prevent root-level targets from matching qualified links elsewhere.
 - `b6e2261` — preserve unresolved same-basename links and use resolved identities consistently for Guided Merge edits.
+- `e13daa7` — resolve manual/deletion Related links in source context and preserve reviewed decisions through execution and recovery.
 
 ## Confirmed and fixed
 
@@ -532,9 +535,34 @@ are added and actual participant links are removed. Unique resolved shorthand
 continues to work. No persisted schema, plan fields or transaction protocol
 changed. See [ADR 0016](adr/0016-related-concepts-are-symmetric-links.md).
 
+### P1 — Manual Related edits and deletion guessed bare-link ownership
+
+The default basename matcher treated a bare `[[Beta]]` as the selected Beta even
+when Obsidian resolved it to another directory. This could remove an unrelated
+relationship or suppress addition of the selected one. These workflows now share
+`relatedConceptResolution.ts` and receive metadataCache at all production entry
+points. Bare links use the owning note's path; resolved canonical targets must
+match the selected file. Unresolved same-basename links stop rather than guess.
+Qualified locators retain the preceding exact-path rule. Root-level additions
+must also verify that the newly emitted bare link resolves to the selected file.
+
+Manual execution recomputes both sides after all awaited reads and inside every
+forward transform. This includes unchanged sides; a no-op regression caught a
+resolution change while reading the second note. Compensation still restores
+reviewed bytes with content guards independently of resolution.
+
+Deletion plans keep optional in-memory checks for unchanged notes. Before saving
+intent, verify snapshots and recompute all cleanup decisions. Recovery uses the
+same matcher and original afterHash, then rechecks inside process. Applied hashes
+are recognized before resolving links, so already-applied cleanup can finish even
+if the target no longer resolves. No durable receipt fields changed. Older pending
+receipts with different broad-matching results stop for inspection. See
+[ADR 0016](adr/0016-related-concepts-are-symmetric-links.md) and
+[ADR 0026](adr/0026-concept-deletion-resumes-from-durable-staging.md).
+
 ## Remaining boundaries
 
-Manual Related edits and Concept deletion still use the default context-free basename matcher. A bare link intended for a same-named file elsewhere can still be removed or suppress an addition in those workflows. Their adapters need source-path resolution and an explicit unavailable/ambiguous-resolution policy, including changes after preparation. This is the next focused repair; the twenty-fifth pass only unifies matching inside Guided Merge.
+Manual Related edits and deletion now use source context for bare links. Guided Merge and UI relationship discovery still use separate index/matching rules. Qualified relative/suffix paths, existing qualified-path case folding, cache freshness and multiple sections remain separate work. Deletion no-op checks are only in-memory pre-intent checks: they do not reserve resolution after persistence or expand the saved receipt to newly discovered notes.
 
 Related bare-link ambiguity, relative-path and case-collision semantics, source-context resolution in Obsidian, and duplicate Related sections remain separate audits. Explicit-directory matching does not provide full Wiki resolution.
 
@@ -547,6 +575,18 @@ Card and Concept ID repairs now have durable recovery records. External edits, m
 New Concept and single-Card deletions now have durable recovery metadata. Historical partial deletions without receipts still require manual inspection. External edits/moves or changed Related files deliberately stop recovery; there is no automatic conflict resolution or undo. Obsidian rename does not guarantee an atomic compare-and-rename, and local-trash semantics still need real-platform acceptance. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; their prose is preserved rather than silently discarded.
 
 ## Validation
+
+Twenty-sixth-pass validation (2026-09-21): full tests, build, release check and diff
+checks passed. The original manual matcher suppressed an explicit addition despite
+a bare link resolving elsewhere. Separate red/green checks caught resolution
+changes before atomic transformation, incorrect root-level generated links, and
+two no-op sides invalidated during the second read. Deletion regressions cover
+mixed qualified/bare cleanup, unavailable resolution, both directions of changed
+preparation decisions, real prepare/delete execution, uncertain intent-save
+recovery and already-applied cleanup with an unavailable resolver. The independent
+reviewer's no-op finding was fixed and reviewed again. After the interrupted turn's
+temporary sessions/logs became unavailable, final verification was rerun; the
+current full-suite log is `/private/tmp/mneme-related-context-all.log`.
 
 Twenty-fifth-pass validation (2026-09-20): `npm run test:all`, `npm run build`,
 `npm run check:release -- 1.0.0`, diff checks and focused review passed. Logs:
@@ -953,3 +993,14 @@ Twenty-fifth-pass manual checks in a disposable Vault:
 Native source-context interpretation and manual relationship/deletion behavior
 remain the next audit boundary. The automated tests validate Merge text/state
 behavior, not real Obsidian rendering or restart recovery.
+
+
+Twenty-sixth-pass manual checks in a disposable Vault:
+
+1. Create two Beta Concepts in different directories. From a reader whose bare `[[Beta]]` opens the other file, add/remove a relationship with the selected Beta. Keep the bare link and add/remove only the correct explicit relationship. Verify aliases remain intact.
+2. Remove the resolver's target or alter same-name resolution between preparation and execution. A changed cleanup/deduplication decision must stop without writing. An unresolved same-name bare link must request an explicit locator; a root-level addition resolving elsewhere must stop.
+3. Delete a Concept when another note contains both a bare link to a different same-named Concept and an explicit link to the deleted Concept. Retain the bare link. Inject an intent-save-after-write failure and Resume Concept Deletion; verify the same result. Repeat after the Related edit applied but process rejected, with resolution unavailable; recovery must recognize afterHash and finish.
+
+No real Obsidian cache/restart acceptance is claimed by these fixtures. Do not
+rewrite a conflicting saved deletion hash or use broad fallback matching to force
+recovery. Merge's native-resolution audit and durable recovery remain outstanding.
