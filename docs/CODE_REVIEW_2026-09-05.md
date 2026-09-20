@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-20 (twenty-fourth pass)
+Updated: 2026-09-20 (twenty-fifth pass)
 
 ## Scope and checkpoint
 
@@ -50,6 +50,8 @@ The twenty-third pass on `fix/related-markdown-literals` starts from checkpoint 
 
 The twenty-fourth pass on `fix/related-explicit-paths` starts from checkpoint `385df15`. It preserves explicit directories during Related resolution and makes shorthand matching directional across Merge, relationship edits and deletion cleanup.
 
+The twenty-fifth pass on `fix/merge-related-match-consistency` starts from checkpoint `68d2abb`. It aligns Guided Merge removal and deduplication with the same Concept resolver used for relationship discovery.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication, version change, or live Vault update was performed.
 
 ## Local implementation commits
@@ -82,6 +84,7 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `4b0fac4` — preserve additional Concept headings and synchronize managed navigation with adopted Card Groups.
 - `2d9b958` — exclude literal examples from Related discovery and preserve them during deterministic edits.
 - `ce9c8d0` — honor explicit Related directories and prevent root-level targets from matching qualified links elsewhere.
+- `b6e2261` — preserve unresolved same-basename links and use resolved identities consistently for Guided Merge edits.
 
 ## Confirmed and fixed
 
@@ -513,7 +516,25 @@ qualified link must match the normalized full target path. Bare-link compatibili
 aliases and optional `.md` handling remain. See
 [ADR 0016](adr/0016-related-concepts-are-symmetric-links.md).
 
+### P1 — Merge edits used broader matching than relationship discovery
+
+With both `Notes/Beta.md` and `Archive/Beta.md`, Merge discovery leaves `[[Beta]]`
+unresolved. But removing a resolved `[[Notes/Beta]]` participant link then called
+the default basename matcher and also removed `[[Beta]]`. The same mismatch in
+addition suppressed explicit survivor/neighbor links, or unresolved qualified
+source links, when a same-named ambiguous bare link already existed.
+
+Related add/remove helpers now accept an optional matcher. Every Guided Merge
+call uses one matcher backed by its existing resolver: identical normalized
+spellings match; otherwise both targets must resolve to the same Concept path.
+Unresolved authored links and their aliases survive, while explicit relationships
+are added and actual participant links are removed. Unique resolved shorthand
+continues to work. No persisted schema, plan fields or transaction protocol
+changed. See [ADR 0016](adr/0016-related-concepts-are-symmetric-links.md).
+
 ## Remaining boundaries
+
+Manual Related edits and Concept deletion still use the default context-free basename matcher. A bare link intended for a same-named file elsewhere can still be removed or suppress an addition in those workflows. Their adapters need source-path resolution and an explicit unavailable/ambiguous-resolution policy, including changes after preparation. This is the next focused repair; the twenty-fifth pass only unifies matching inside Guided Merge.
 
 Related bare-link ambiguity, relative-path and case-collision semantics, source-context resolution in Obsidian, and duplicate Related sections remain separate audits. Explicit-directory matching does not provide full Wiki resolution.
 
@@ -526,6 +547,20 @@ Card and Concept ID repairs now have durable recovery records. External edits, m
 New Concept and single-Card deletions now have durable recovery metadata. Historical partial deletions without receipts still require manual inspection. External edits/moves or changed Related files deliberately stop recovery; there is no automatic conflict resolution or undo. Obsidian rename does not guarantee an atomic compare-and-rename, and local-trash semantics still need real-platform acceptance. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; their prose is preserved rather than silently discarded.
 
 ## Validation
+
+Twenty-fifth-pass validation (2026-09-20): `npm run test:all`, `npm run build`,
+`npm run check:release -- 1.0.0`, diff checks and focused review passed. Logs:
+`/private/tmp/mneme-related-consistency-all.log`,
+`/private/tmp/mneme-related-consistency-focused.log`,
+`/private/tmp/mneme-related-consistency-remove-red.log`, and
+`/private/tmp/mneme-related-consistency-add-red.log`. The original implementation
+loses an unresolved bare link while removing a resolved participant. With only
+removal fixed, a second regression independently demonstrates a suppressed
+explicit addition. Five prepare/execute cases cover survivor and reader removal,
+survivor/neighbor/unresolved-source additions, retained aliases and unchanged
+unrelated same-named files. Existing unique bare-link rewiring coverage passes.
+The primary thread ran all checks; the independent reviewer provided read-only
+code analysis, not additional test evidence.
 
 Twenty-fourth-pass validation (2026-09-20): `npm run test:all`, `npm run build`,
 `npm run check:release -- 1.0.0` and diff checks passed. Logs:
@@ -907,3 +942,14 @@ Twenty-fourth-pass manual checks in a disposable Vault:
 Bare-link ambiguity, relative paths, case collisions and source-context Wiki
 resolution remain outstanding, alongside real Obsidian acceptance and durable
 Merge recovery. No persisted schema or transaction protocol changed in this pass.
+
+
+Twenty-fifth-pass manual checks in a disposable Vault:
+
+1. Create `Notes/Beta.md` and `Archive/Beta.md`. Put both `[[Beta|Ambiguous]]` and `[[Notes/Beta]]` under Related Concepts on the survivor or a reader. Merge Notes/Beta into Notes/Alpha: retain the ambiguous spelling and alias, remove the explicit participant link, and add the reader's explicit Alpha relationship.
+2. Repeat with two Alpha or Reader files. A bare ambiguous link must not suppress an explicit survivor or neighbor relationship added by Merge.
+3. Add `[[Missing/Reader|Authored reader]]` to the source while the survivor has ambiguous `[[Reader]]`. Both authored relationships must remain after Merge; unrelated same-named Concept files must remain unchanged.
+
+Native source-context interpretation and manual relationship/deletion behavior
+remain the next audit boundary. The automated tests validate Merge text/state
+behavior, not real Obsidian rendering or restart recovery.

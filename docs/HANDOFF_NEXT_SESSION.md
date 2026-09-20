@@ -4,6 +4,11 @@ Updated: 2026-09-20
 
 ## 2026-09-05 至 09-20 代码审查后续
 
+- 第二十五轮从已提交检查点 `68d2abb` 继续，代码/测试/ADR 提交为 `b6e2261`，分支为 `fix/merge-related-match-consistency`。修复 Guided Merge 识别与改写的匹配规则不一致：存在 `Notes/Beta.md` 和 `Archive/Beta.md` 时，discovery 跳过歧义 `[[Beta]]`，但旧 remove helper 在删除明确的 `[[Notes/Beta]]` 时仍连带删掉它；旧 add helper 也会让歧义裸链接抑制应新增的明确关系。
+- 共享 Related add/remove 接受可选 matcher；Merge 全部调用使用同一个准备期 resolver。规范化文本相同可去重；不同文本只有都解析到同一 Concept 路径才匹配。survivor/邻居上的歧义链接保持原文和别名，明确关系正常重连；源 Concept 上未解析的限定路径也不会被 survivor 的同名裸链接吞掉。其他调用者保持原默认行为，无 schema/plan 字段/事务协议变更。
+- 第二十五轮验证：全量测试、构建、发布检查、diff 检查和限定复审通过。旧实现复现歧义链接丢失；仅修复删除后又独立复现新增明确关系被抑制。五个真实 prepare → execute 场景覆盖 survivor/reader 上误删、添加 survivor/neighbor/未解析来源关系及无关同名文件零改动，既有唯一裸链接重连测试继续通过。日志 `/private/tmp/mneme-related-consistency-all.log`、`/private/tmp/mneme-related-consistency-focused.log`、`/private/tmp/mneme-related-consistency-remove-red.log`、`/private/tmp/mneme-related-consistency-add-red.log`。规则见 [ADR 0016](adr/0016-related-concepts-are-symmetric-links.md)。
+- **下一轮明确修复项**：`RelatedConceptService` 和 `ConceptDeletionService` 仍直接使用无上下文的默认 basename matcher；手动添加/移除及删除清理可能误操作指向另一同名文件的裸链接。前者 adapter 虽可用 ObsidianVaultAdapter 的 resolver，但 main 创建时未传 metadataCache；后者独立 adapter 尚无 resolver。需要把源文件路径与解析结果接入这些流程，并明确解析不可用/歧义及预览后目标变化时的阻止策略。不要把本轮 Merge 内部一致性当作完整 Obsidian Wiki 解析。根目录优先、大小写、扫描后外部变更、多个 Related 章节、真实 Obsidian 验收及 Merge 持久化恢复仍待完成。
+
 - 第二十四轮从已提交检查点 `385df15` 继续，代码/测试/ADR 提交为 `ce9c8d0`，分支为 `fix/related-explicit-paths`。修复带目录的 Related 链接无法精确匹配时退回文件名的问题：`Missing/Beta` 不再被 Guided Merge 当成 `Notes/Beta.md`，避免重连无关笔记、删除 survivor 的原有链接或引入其他目录的同名邻居。
 - 共享 Related matcher 改为单向简写匹配：只有正文链接本身不带目录时才允许按文件名匹配。删除/替换根目录 `Beta.md` 不再误删 `Archive/Beta`，添加根目录关系也不会被该链接错误去重。带目录路径要求规范化后精确一致；未解析链接保留原文。裸链接继续沿用既有兼容规则，Merge 的 basename lookup 仍要求唯一。
 - 第二十四轮验证：全量测试、构建、发布检查、diff 检查通过。旧 Merge 复现未知目录链接被计作 1 个重连邻居（预期 0）；仅替换旧 helper 的删除 bundle 复现删除根目录 First 时计划删除 `Archive/First`。回归覆盖未知/精确/裸路径、混合真实与未知关系、survivor 自链接误删、源关系错误迁移，以及根目录删除清理/添加/替换。日志 `/private/tmp/mneme-related-paths-all.log`、`/private/tmp/mneme-related-paths-focused.log`、`/private/tmp/mneme-related-paths-red.log`、`/private/tmp/mneme-related-root-delete-red.log`。
@@ -96,7 +101,7 @@ Updated: 2026-09-20
 - 继续时重点关注真实 Obsidian 的中断/重启/本地回收站验收，以及删除后残留提案的显式整理策略。外部改动冲突、旧的无记录部分删除不会自动修复；不要直接删除 journal 或把手动恢复文件当作撤销 tombstone。
 
 - 已先构建并提交审查前备份：`83deb3f`，其父提交 `9cd98ad` 是原产品代码。
-- 当前审查/重构分支：`fix/related-explicit-paths`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，文档检查点为 `d125577`；第六轮代码提交为 `f66bd16`（索引同步）和 `3a9f321`（删除校验），之后另有本交接/审查文档提交。
+- 当前审查/重构分支：`fix/merge-related-match-consistency`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，文档检查点为 `d125577`；第六轮代码提交为 `f66bd16`（索引同步）和 `3a9f321`（删除校验），之后另有本交接/审查文档提交。
 - 第一轮修复合并/Related 的并发覆盖、Card 并发追加丢失、Review 重复动作跳卡，并提取共用 Markdown 事务与 Review 动作保护。
 - 第二轮让所有当前 `data.json` 写入共用完整读/检查/改/存队列，覆盖 Review、Settings、Proposal、草稿、来源索引及 Merge 回滚；来源重连/移除也已接入原子 Markdown 事务；诊断开关现在只重绘，不重置复习进度。数据格式与版本不变。队列的共享 storage owner 和禁止嵌套获取规则见 [ADR 0022](adr/0022-plugin-state-mutations-share-one-queue.md)。
 - 第二轮 `npm run test:all`、`npm run build`、`npm run check:release -- 1.0.0`、`git diff --check` 均已通过。新增确定性交错测试覆盖共享状态、真实 `saveSettings()` 方法、Merge 回滚、来源写入/回滚冲突。详细证据见 [CODE_REVIEW_2026-09-05.md](CODE_REVIEW_2026-09-05.md)。
