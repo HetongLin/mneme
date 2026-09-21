@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-21 (twenty-sixth pass)
+Updated: 2026-09-21 (twenty-seventh pass)
 
 ## Scope and checkpoint
 
@@ -54,6 +54,8 @@ The twenty-fifth pass on `fix/merge-related-match-consistency` starts from check
 
 The twenty-sixth pass on `fix/related-source-context` starts from checkpoint `8394c5a`. It resolves bare Related links from their source file during manual edits, deletion preparation and deletion recovery, with decision rechecks before writes.
 
+The twenty-seventh pass on `fix/related-scan-resolution` starts from checkpoint `58e8bcd`. It aligns the scanner-provided Related relationships shown in Concept details and management with source-context resolution.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication, version change, or live Vault update was performed.
 
 ## Local implementation commits
@@ -88,6 +90,7 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `ce9c8d0` — honor explicit Related directories and prevent root-level targets from matching qualified links elsewhere.
 - `b6e2261` — preserve unresolved same-basename links and use resolved identities consistently for Guided Merge edits.
 - `e13daa7` — resolve manual/deletion Related links in source context and preserve reviewed decisions through execution and recovery.
+- `8380f2d` — resolve scanner Related relationships from the source note and remove guessed basename edges.
 
 ## Confirmed and fixed
 
@@ -560,9 +563,27 @@ receipts with different broad-matching results stop for inspection. See
 [ADR 0016](adr/0016-related-concepts-are-symmetric-links.md) and
 [ADR 0026](adr/0026-concept-deletion-resumes-from-durable-staging.md).
 
+### P2 — The UI's shared scan result could show a different Related Concept
+
+ConceptScanner discarded an unknown qualified target's directory before basename
+lookup, creating a false symmetric relationship. It also preferred a root Concept
+or a unique Concept basename over the actual file opened by a bare link. Regular
+notes were absent from that index, and identical names could resolve differently
+from each source note. These incorrect IDs fed detail navigation, relationship
+counts and the manager's existing/addable lists.
+
+The scanner now resolves bare links through its Obsidian adapter with the owning
+note's path, then looks up the canonical target among identity-valid Concepts.
+Unavailable resolution and ordinary/excluded files produce no edge; qualified
+paths require the prior exact normalized match. The basename index is removed.
+Symmetric presentation and self-link filtering remain. A scan after real manual
+add/remove agrees with the selected relationship and preserves another same-named
+bare relationship. No UI DOM or persisted schema change is needed. See
+[ADR 0016](adr/0016-related-concepts-are-symmetric-links.md).
+
 ## Remaining boundaries
 
-Manual Related edits and deletion now use source context for bare links. Guided Merge and UI relationship discovery still use separate index/matching rules. Qualified relative/suffix paths, existing qualified-path case folding, cache freshness and multiple sections remain separate work. Deletion no-op checks are only in-memory pre-intent checks: they do not reserve resolution after persistence or expand the saved receipt to newly discovered notes.
+Manual Related edits and deletion now use source context for bare links. Scanner-provided UI relationship discovery now follows source context for bare links; Guided Merge still uses a separate Concept-only index. Qualified relative/suffix paths, existing qualified-path case folding, cache freshness and multiple sections remain separate work. Deletion no-op checks are only in-memory pre-intent checks: they do not reserve resolution after persistence or expand the saved receipt to newly discovered notes.
 
 Related bare-link ambiguity, relative-path and case-collision semantics, source-context resolution in Obsidian, and duplicate Related sections remain separate audits. Explicit-directory matching does not provide full Wiki resolution.
 
@@ -575,6 +596,17 @@ Card and Concept ID repairs now have durable recovery records. External edits, m
 New Concept and single-Card deletions now have durable recovery metadata. Historical partial deletions without receipts still require manual inspection. External edits/moves or changed Related files deliberately stop recovery; there is no automatic conflict resolution or undo. Obsidian rename does not guarantee an atomic compare-and-rename, and local-trash semantics still need real-platform acceptance. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; their prose is preserved rather than silently discarded.
 
 ## Validation
+
+Twenty-seventh-pass validation (2026-09-21): full tests, build, release check and
+diff checks passed. The pre-fix scanner creates an edge for `Missing/Beta` and
+chooses root Beta when native resolution returns Archive/Beta. Regressions cover
+native directory/root/ordinary/unresolved targets, absent resolvers even with a
+unique Concept basename, symmetric results, and a real scan → manual Related
+add/remove → rescan sequence preserving the other same-named relationship and
+its original alias. Logs: `/private/tmp/mneme-related-scan-all.log`,
+`/private/tmp/mneme-related-scan-focused.log`,
+`/private/tmp/mneme-related-scan-directory-red.log`, and
+`/private/tmp/mneme-related-scan-context-red.log`.
 
 Twenty-sixth-pass validation (2026-09-21): full tests, build, release check and diff
 checks passed. The original manual matcher suppressed an explicit addition despite
@@ -1004,3 +1036,17 @@ Twenty-sixth-pass manual checks in a disposable Vault:
 No real Obsidian cache/restart acceptance is claimed by these fixtures. Do not
 rewrite a conflicting saved deletion hash or use broad fallback matching to force
 recovery. Merge's native-resolution audit and durable recovery remain outstanding.
+
+
+Twenty-seventh-pass manual checks in a disposable Vault:
+
+1. Create root Beta and Archive/Beta Concepts plus a reader whose bare Beta opens Archive/Beta. Refresh Concept Library and open the reader's details/relationship manager: show Archive/Beta, with symmetric navigation from it. A bare link opening an ordinary note must not display an unrelated same-named Concept.
+2. Add `[[Missing/Beta]]` to Related Concepts and refresh: it must not create an Archive/Beta relationship. Unresolved bare links also must not be guessed from the Concept list.
+3. Add another explicit Beta relationship through the manager, refresh, then remove it. Keep the original bare relationship and alias; the other Concept remains available for addition afterward.
+
+Guided Merge still needs native source-context integration and execution checks.
+A concrete next fixture merges `Concepts/Topic.md` while root `Topic.md` is an
+ordinary note: Reader's bare Topic must not be rewired when it opens the ordinary
+note. Migrated Related spellings also need source/destination context checks.
+Open UI snapshots require refresh after external changes. No native rendering,
+cache-freshness or real Obsidian restart acceptance is claimed by these tests.
