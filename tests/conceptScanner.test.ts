@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import type { ConceptSourceLink } from "../src/models/conceptSource";
 import { ConceptScanner, type ConceptVaultAdapter } from "../src/services/conceptScanner";
+import { RelatedConceptService } from "../src/services/relatedConceptService";
 import { createConceptSourceLink } from "./knowledgeProposalTestUtils";
 
 class MemoryConceptVaultAdapter implements ConceptVaultAdapter {
+	resolveLinkpath?: (linkpath: string, sourcePath: string) => string | undefined;
 	constructor(
 		private readonly files: Record<string, {
 			frontmatter?: unknown;
@@ -39,6 +41,98 @@ class MemoryConceptSourceLinkReader {
 }
 
 async function runAsyncTests(): Promise<void> {
+	{
+		const readerPath = "Archive/Reader.md";
+		const localPath = "Archive/Beta.md";
+		const selectedPath = "Concepts/Beta.md";
+		const note = (id: string, title: string) => ({ markdown: `---\nmneme_type: concept\nmneme_id: ${id}\n---\n# ${title}\n` });
+		const files = {
+			[readerPath]: note("reader", "Reader"),
+			[localPath]: note("local", "Local Beta"),
+			[selectedPath]: note("selected", "Selected Beta"),
+		};
+		files[readerPath]!.markdown += "\n## Related Concepts\n- [[Beta|Local Beta]]\n";
+		const vault = new MemoryConceptVaultAdapter(files);
+		vault.resolveLinkpath = (link, source) => link === "Beta" && source === readerPath ? localPath : undefined;
+		const scanner = new ConceptScanner({ vault });
+		const initial = await scanner.scanConcepts();
+		const reader = initial.find((concept) => concept.path === readerPath)!;
+		const selected = initial.find((concept) => concept.path === selectedPath)!;
+		assert.deepEqual(reader.relatedConceptIds, ["local"]);
+		const service = new RelatedConceptService({
+			read: (path) => vault.readMarkdown(path),
+			resolveLinkpath: (link, source) => vault.resolveLinkpath?.(link, source),
+			process: async (path, transform) => { files[path]!.markdown = transform(files[path]!.markdown); },
+		});
+		const add = await service.prepareAdd(reader, selected);
+		if (add.status !== "ready") throw new Error(add.message);
+		assert.deepEqual(await service.execute(add.plan), { status: "linked" });
+		const afterAdd = await scanner.scanConcepts();
+		assert.deepEqual(afterAdd.find((concept) => concept.path === readerPath)!.relatedConceptIds, ["local", "selected"]);
+		assert.deepEqual(afterAdd.find((concept) => concept.path === selectedPath)!.relatedConceptIds, ["reader"]);
+		const remove = await service.prepareRemove(reader, selected);
+		if (remove.status !== "ready") throw new Error(remove.message);
+		assert.deepEqual(await service.execute(remove.plan), { status: "unlinked" });
+		const afterRemove = await scanner.scanConcepts();
+		assert.deepEqual(afterRemove.find((concept) => concept.path === readerPath)!.relatedConceptIds, ["local"]);
+		assert.deepEqual(afterRemove.find((concept) => concept.path === selectedPath)!.relatedConceptIds, []);
+		assert.ok(files[readerPath]!.markdown.includes("[[Beta|Local Beta]]"));
+		assert.equal(files[localPath]!.markdown, note("local", "Local Beta").markdown);
+	}
+
+	for (const hasResolver of [false, true]) {
+		const vault = new MemoryConceptVaultAdapter({
+			"Reader.md": {
+				frontmatter: { mneme_id: "reader", mneme_type: "concept" }, markdown: "# Reader\n## Related Concepts\n- [[Beta]]\n",
+			},
+			"Notes/Beta.md": { frontmatter: { mneme_id: "beta", mneme_type: "concept" }, markdown: "# Beta" },
+		});
+		if (hasResolver) vault.resolveLinkpath = () => undefined;
+		const concepts = await new ConceptScanner({ vault }).scanConcepts();
+		assert.ok(concepts.every((concept) => concept.relatedConceptIds?.length === 0), "Unavailable resolution must not fall back even to a unique Concept basename");
+	}
+
+	for (const resolvedPath of ["Archive/Beta.md", "Notes/Beta.md", "Beta.md", undefined]) {
+		const vault = new MemoryConceptVaultAdapter({
+			"Archive/Reader.md": {
+				frontmatter: { mneme_id: "concept-reader", mneme_type: "concept" },
+				markdown: "# Reader\n## Related Concepts\n- [[Beta|Local choice]]\n",
+			},
+			"Archive/Beta.md": {
+				frontmatter: { mneme_id: "concept-archive", mneme_type: "concept" }, markdown: "# Archived Beta",
+			},
+			"Notes/Beta.md": { markdown: "# Ordinary note" },
+			"Beta.md": {
+				frontmatter: { mneme_id: "concept-root", mneme_type: "concept" }, markdown: "# Root Beta",
+			},
+		});
+		vault.resolveLinkpath = (link, source) => {
+			assert.equal(link, "Beta");
+			assert.equal(source, "Archive/Reader.md");
+			return resolvedPath;
+		};
+		const concepts = await new ConceptScanner({ vault }).scanConcepts();
+		const expected = resolvedPath === "Archive/Beta.md" ? "concept-archive" : resolvedPath === "Beta.md" ? "concept-root" : undefined;
+		assert.deepEqual(concepts.find((concept) => concept.conceptId === "concept-reader")!.relatedConceptIds, expected ? [expected] : [], "Display must follow the source file's actual target, including ordinary or unresolved notes");
+		for (const target of concepts.filter((concept) => concept.conceptId !== "concept-reader")) {
+			assert.deepEqual(target.relatedConceptIds, target.conceptId === expected ? ["concept-reader"] : []);
+		}
+	}
+
+	{
+		const vault = new MemoryConceptVaultAdapter({
+			"Notes/Reader.md": {
+				frontmatter: { mneme_id: "concept-reader", mneme_type: "concept" },
+				markdown: "# Reader\n## Related Concepts\n- [[Missing/Beta|Unresolved]]\n",
+			},
+			"Archive/Beta.md": {
+				frontmatter: { mneme_id: "concept-beta", mneme_type: "concept" }, markdown: "# Beta",
+			},
+		});
+		const concepts = await new ConceptScanner({ vault }).scanConcepts();
+		assert.ok(concepts.every((concept) => concept.relatedConceptIds?.length === 0), "An unresolved qualified target must not display a same-named Concept");
+	}
+
 	{
 		const scanner = new ConceptScanner({
 			vault: new MemoryConceptVaultAdapter({

@@ -7,6 +7,8 @@ import type {
 	ConceptSummary,
 } from "../models/conceptLibrary";
 import type { ConceptSourceLink } from "../models/conceptSource";
+import { normalizeVaultPath } from "../utils/markdownPath";
+import type { RelatedConceptResolver } from "./relatedConceptResolution";
 import {
 	getConceptEnglishNameFromFrontmatter,
 	getCardGroupPathFromConceptFrontmatter,
@@ -32,7 +34,7 @@ export interface ConceptVaultFile {
 	path: string;
 }
 
-export interface ConceptVaultAdapter {
+export interface ConceptVaultAdapter extends RelatedConceptResolver {
 	getFrontmatter(path: string): Promise<unknown | undefined>;
 	listMarkdownFiles(): Promise<ConceptVaultFile[]>;
 	readMarkdown(path: string): Promise<string>;
@@ -146,13 +148,19 @@ export class ConceptScanner {
 		}
 
 		const conceptsByPath = new Map(concepts.map((concept) => [comparableConceptPath(concept.path), concept]));
-		const conceptsByBasename = createUniqueBasenameIndex(concepts);
+		const conceptsByCanonicalPath = new Map(concepts.map((concept) => [normalizeVaultPath(concept.path), concept]));
 		const relatedIdsByConceptId = new Map(concepts.map((concept) => [concept.conceptId, new Set<string>()]));
 		for (const concept of concepts) {
 			const markdown = markdownByConceptId.get(concept.conceptId) ?? "";
 			const relatedConcepts = parseRelatedConceptLinks(markdown)
-				.map((link) => conceptsByPath.get(comparableConceptPath(link.target))
-					?? conceptsByBasename.get(comparableConceptPath(link.target).split("/").pop() ?? ""))
+				.map((link) => {
+					const key = comparableConceptPath(link.target);
+					if (key.includes("/")) return conceptsByPath.get(key);
+					// Match manual edits/deletion: a bare link (including a root
+					// filename) belongs to its source context, not the Concept index.
+					const resolved = this.options.vault.resolveLinkpath?.(link.target, concept.path);
+					return resolved === undefined ? undefined : conceptsByCanonicalPath.get(normalizeVaultPath(resolved));
+				})
 				.filter((related): related is ConceptSummary => !!related && related.conceptId !== concept.conceptId);
 			for (const related of relatedConcepts) {
 				relatedIdsByConceptId.get(concept.conceptId)?.add(related.conceptId);
@@ -180,18 +188,6 @@ export class ConceptScanner {
 
 		return this.options.conceptSourceLinkStore.listByConceptId(conceptId);
 	}
-}
-
-function createUniqueBasenameIndex(concepts: ConceptSummary[]): Map<string, ConceptSummary> {
-	const candidates = new Map<string, ConceptSummary[]>();
-	for (const concept of concepts) {
-		const basename = comparableConceptPath(concept.path).split("/").pop() ?? "";
-		candidates.set(basename, [...(candidates.get(basename) ?? []), concept]);
-	}
-
-	return new Map([...candidates.entries()]
-		.filter(([, matches]) => matches.length === 1)
-		.map(([basename, matches]) => [basename, matches[0] as ConceptSummary]));
 }
 
 function getLearningMode(frontmatter: Record<string, unknown>): ConceptLearningMode | undefined {

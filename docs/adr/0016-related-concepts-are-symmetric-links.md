@@ -129,3 +129,28 @@ This decision does not change Guided Merge's separate Concept-index resolver or
 UI relationship discovery. Cache freshness, external changes after a check,
 qualified relative/suffix paths, existing case folding for qualified locators,
 and multiple Related sections need separate review and native Obsidian acceptance.
+
+## Related relationships shown by the scanner — 2026-09-21
+
+ConceptScanner supplies `relatedConceptIds` to Concept details and the relationship
+manager. It must not guess a relationship by dropping an unknown target's directory
+or looking for a unique basename only among Concepts. A regular note can own that
+basename, and Obsidian can resolve identical bare links differently by source path.
+
+The scanner adapter now exposes native source-context resolution. Bare links,
+including apparent root filenames, use that result and map its canonical path only
+to an identity-valid Concept from the current scan. Unresolved targets, non-Concept
+files and targets excluded for missing/duplicate IDs create no displayed relation.
+Without a resolver there is no basename fallback. Qualified authored paths retain
+the earlier normalized exact-path rule; unresolved directories are not discarded.
+
+Symmetric presentation, self-link exclusion and ID deduplication are retained.
+The UI continues to consume the common scan result, and native resolution does not
+rewrite Markdown. A scan after manual add/remove must report the same selected
+relationship while preserving another same-named bare relationship. This change
+adds no persistent data and removes the scanner's unique-basename index.
+
+Cached/open UI snapshots still require refresh after external changes. This is not
+a live graph subscription or proof of cache freshness. Guided Merge's separate
+index resolver, qualified relative/suffix paths, case-folded qualified collisions,
+multiple Related sections and real Obsidian acceptance remain separate work.

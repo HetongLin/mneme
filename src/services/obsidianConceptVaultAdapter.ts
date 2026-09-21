@@ -5,6 +5,10 @@ export class ObsidianConceptVaultAdapter implements ConceptVaultAdapter {
 	constructor(private readonly app: App) {
 	}
 
+	resolveLinkpath(linkpath: string, sourcePath: string): string | undefined {
+		return this.app.metadataCache.getFirstLinkpathDest(linkpath, sourcePath)?.path;
+	}
+
 	async listMarkdownFiles(): Promise<ConceptVaultFile[]> {
 		return this.app.vault.getMarkdownFiles().map((file) => ({
 			mtime: file.stat.mtime,
