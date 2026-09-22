@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-22 (twenty-eighth pass)
+Updated: 2026-09-22 (twenty-ninth pass)
 
 ## Scope and checkpoint
 
@@ -58,6 +58,8 @@ The twenty-seventh pass on `fix/related-scan-resolution` starts from checkpoint 
 
 The twenty-eighth pass on `fix/merge-related-source-context` starts from checkpoint `a05d506`. It applies native source-context resolution to Guided Merge Related preparation and rechecks reviewed decisions before and during execution.
 
+The twenty-ninth pass on `fix/merge-concept-redirect-content` starts from checkpoint `1de69c8`. It preserves source Concept Markdown and custom YAML when retiring the note as a redirect.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication, version change, or live Vault update was performed.
 
 ## Local implementation commits
@@ -95,6 +97,8 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `8380f2d` — resolve scanner Related relationships from the source note and remove guessed basename edges.
 
 - `64472f3` — resolve Guided Merge Related links in source context, guard migrated spellings and recheck prepared decisions.
+
+- `3d3affc` — preserve source Concept content and properties in redirect notes while retiring their active identity.
 
 ## Confirmed and fixed
 
@@ -607,6 +611,22 @@ the existing content guards without requiring the now-changed resolver result.
 No durable receipt schema is introduced. See
 [ADR 0016](adr/0016-related-concepts-are-symmetric-links.md).
 
+### P1 — Source Concept redirects discarded custom YAML and original content
+
+Guided Merge replaced the entire source note with a small redirect template.
+Custom aliases, properties and comments were lost even when a perspective was
+copied into Views; without that copy, the source body was lost as well.
+
+`conceptMergeRedirect.ts` now edits only managed identity metadata, retaining the
+original body and unrelated YAML at the original path. The active ID becomes
+`former_mneme_id`, the type becomes `concept_redirect`, and a leading notice links
+to the survivor before any original fence/comment. Historical Card links and
+learning properties remain readable but do not activate a Concept association.
+Existing redirect metadata collisions and unsupported managed fields block
+preparation. The optional View copy retains its separate relocation checks.
+Snapshot/transaction/compensation rules and plugin-data schemas are unchanged.
+See [ADR 0003](adr/0003-concept-merge-requires-guided-review.md).
+
 ## Remaining boundaries
 
 Manual Related edits and deletion now use source context for bare links. Scanner-provided UI discovery and Guided Merge now also follow source context for bare links. Merge rechecks its in-memory plan but does not provide an atomic Vault-wide snapshot; external identity/content changes after preflight remain possible. Qualified relative/suffix paths, existing qualified-path case folding, cache freshness and multiple sections remain separate work. Deletion no-op checks are only in-memory pre-intent checks: they do not reserve resolution after persistence or expand the saved receipt to newly discovered notes.
@@ -622,6 +642,17 @@ Card and Concept ID repairs now have durable recovery records. External edits, m
 New Concept and single-Card deletions now have durable recovery metadata. Historical partial deletions without receipts still require manual inspection. External edits/moves or changed Related files deliberately stop recovery; there is no automatic conflict resolution or undo. Obsidian rename does not guarantee an atomic compare-and-rename, and local-trash semantics still need real-platform acceptance. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; their prose is preserved rather than silently discarded.
 
 ## Validation
+
+Twenty-ninth-pass validation (2026-09-22): full tests, build, release and diff checks passed.
+A pre-fix bundle reproduces missing aliases. Regressions cover LF/CRLF and both
+View-preservation settings, exact custom YAML/body retention, local references,
+retired identity, quoted values/comments, conflicting redirect metadata,
+unsupported version values, unclosed fences/comments, missing EOF newline,
+post-preview edits and state-save failure compensation. Independent production
+review found no blocking issue. Logs: `/private/tmp/mneme-concept-redirect-all.log`
+and `/private/tmp/mneme-concept-redirect-build.log`; pre-fix bundle:
+`/private/tmp/mneme-concept-merge-redirect-red2.mjs`.
+
 
 Twenty-eighth-pass validation (2026-09-22): full tests, build, release check and
 diff checks passed. Regressions cover native Concept rewiring, ordinary same-name
@@ -1099,3 +1130,12 @@ Twenty-eighth-pass manual checks in a disposable Vault:
 These automated adapter fixtures do not constitute real Obsidian cache/rendering
 acceptance. Qualified relative/suffix paths, case collisions, multiple Related
 sections, source custom YAML preservation and durable Merge recovery remain work.
+
+
+Twenty-ninth-pass manual checks in a disposable Vault:
+
+1. Give a source Concept aliases, nested properties, multiline YAML, extra headings and authored notes. Merge it and open its old path: the leading notice must navigate to the survivor, with original properties/body retained below. The old Concept must disappear from Concept Library.
+2. Check the survivor's preserved View independently. Historical source Card navigation remains at the old path, while active Cards and FSRS state belong to the survivor as before.
+3. Add an existing `redirect_to` field to an active source or edit it after preview. Preparation or execution must stop without discarding its contents. Confirm that cancelling the preview also leaves the original file unchanged.
+
+Real Obsidian rendering/cache acceptance and durable Merge recovery remain pending.
