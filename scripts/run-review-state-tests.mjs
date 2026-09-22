@@ -4,12 +4,12 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import esbuild from "esbuild";
 
-for (const test of ["reviewStateStore", "pluginDataMutation", "pluginSettingsConcurrency"]) {
+for (const test of ["reviewStateStore", "pluginDataMutation", "pluginSettingsConcurrency", "pluginConceptDetail"]) {
 	const outfile = path.join(tmpdir(), `mneme-${test}-tests-${Date.now()}.mjs`);
 	await esbuild.build({
 		bundle: true,
 		entryPoints: [`tests/${test}.test.ts`],
-		...(test === "pluginSettingsConcurrency"
+		...(test === "pluginSettingsConcurrency" || test === "pluginConceptDetail"
 			? { alias: { obsidian: "./tests/helpers/obsidianPluginStub.ts" } }
 			: {}),
 		format: "esm",

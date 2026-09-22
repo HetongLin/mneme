@@ -1389,11 +1389,18 @@ export default class MnemePlugin extends Plugin {
 	}
 
 	private openConceptDetail(concept: ConceptSummary, concepts: ConceptSummary[]): void {
+		const current = concepts.find((candidate) => (
+			candidate.conceptId === concept.conceptId && candidate.path === concept.path
+		));
+		if (!current) {
+			new Notice("Mneme: Concept was not found. Refresh the view and try again.");
+			return;
+		}
 		new ConceptEditModal(this.app, {
-			concept,
+			concept: current,
 			concepts,
-			createCard: () => this.openCardComposerView(concept.conceptId),
-			deleteConcept: () => this.deleteConcept(concept),
+			createCard: () => this.openCardComposerView(current.conceptId),
+			deleteConcept: () => this.deleteConcept(current),
 			globalRetentionTarget: this.settings.fsrsRequestRetention,
 			onOpenRelated: (related) => this.openConceptDetail(related, concepts),
 			onSaved: () => this.refreshOpenConceptLibraryViews(),
