@@ -55,6 +55,7 @@ function plan(input: PrepareConceptMergeInput): ConceptMergePlan {
 	return {
 		...input, cardsMoved: 0, cardsPreserved: 0, dataSnapshot: "", duplicateDismissalsMigrated: 0,
 		nextData: createDefaultPluginData(), pauseMigrated: false, relatedConceptsRewired: 0,
+		relatedChecks: { scanSignature: "[]", resolutions: [] },
 		sourceLinkChanges: [], sourceLinksMigrated: 0, sourceLinksPreserved: 0,
 		writes: [{ path: input.survivor.path, label: "Survivor", before: "before",
 			after: `---\nmneme_type: concept\nmneme_id: ${input.survivor.conceptId}\n---\n# Original\n` }],

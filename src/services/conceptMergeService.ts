@@ -1,3 +1,4 @@
+import { assertRelatedConceptMergeCurrent, assertRelatedConceptResolutionsCurrent, prepareRelatedConceptMerge, type RelatedConceptMergeChecks } from "./conceptMergeRelated";
 import { extractMergedPerspective, normalizeLinkedMarkdownPath, rewriteManagedCardNavigation } from "./conceptMergeMarkdown";
 import { assertMergeHasNoPendingWrites } from "./mergePendingWrites";
 import { assertCardRelocationSafe, type ResolveCardLink } from "./cardRelocationSafety";
@@ -19,12 +20,9 @@ import { toObsidianInternalLink } from "../utils/markdownPath";
 import { parseMnemeCards } from "./cardMarkerParser";
 import { appendConceptSourceNote } from "./conceptSourceNoteAppender";
 import { createConceptDuplicatePairKey } from "./conceptDuplicateDetector";
-import { parseConceptTitle } from "./conceptMarkdownParser";
 import {
-	addRelatedConceptLink,
 	comparableConceptPath,
 	parseRelatedConceptLinks,
-	removeRelatedConceptLink,
 } from "./conceptRelatedLinks";
 import { createConceptSourceLinkId } from "./conceptSourceLinking";
 import { appendConceptView } from "./conceptViewAppender";
@@ -70,6 +68,7 @@ export interface ConceptMergePlan {
 	pauseMigrated: boolean;
 	preserveMergedAsView: boolean;
 	relatedConceptsRewired: number;
+	relatedChecks: RelatedConceptMergeChecks;
 	sourceLinkChanges: Array<{
 		relationType: ConceptSourceLink["relationType"];
 		sourcePath: string;
@@ -233,6 +232,7 @@ export class ConceptMergeService {
 					pauseMigrated: !!data.pausedConcepts[input.merged.conceptId],
 					preserveMergedAsView: input.preserveMergedAsView,
 					relatedConceptsRewired: relatedPlan.relatedConceptsRewired,
+					relatedChecks: relatedPlan.checks,
 					sourceLinkChanges: Object.values(data.conceptSourceLinks)
 						.filter((link) => link.conceptId === input.merged.conceptId)
 						.map((link) => ({
@@ -303,7 +303,19 @@ export class ConceptMergeService {
 					}
 				}
 
-				await executeMarkdownWriteTransaction(this.vault, writes, {
+				if (!plan.relatedChecks) return { message: "Related checks are missing. Rebuild the merge preview.", status: "invalid" };
+				await assertRelatedConceptMergeCurrent(this.vault, plan.relatedChecks);
+				const forwardPaths = new Set(writes.map((write) => write.path));
+				await executeMarkdownWriteTransaction({
+					read: (path) => this.vault.read(path),
+					process: (path, transform) => {
+						const forward = forwardPaths.delete(path);
+						return this.vault.process(path, (current) => {
+							if (forward) assertRelatedConceptResolutionsCurrent(this.vault, plan.relatedChecks);
+							return transform(current);
+						});
+					},
+				}, writes, {
 					commit: () => this.storage.saveData(plan.nextData),
 					rollback: () => this.storage.saveData(latestData),
 				});
@@ -460,143 +472,6 @@ export class ConceptMergeService {
 			writes,
 		};
 	}
-}
-
-interface RelatedConceptSnapshot {
-	conceptId: string;
-	markdown: string;
-	path: string;
-	title: string;
-}
-
-async function prepareRelatedConceptMerge(
-	vault: ConceptMergeVaultAdapter,
-	survivor: ConceptSummary,
-	merged: ConceptSummary,
-	survivorBefore: string,
-	mergedBefore: string,
-	preparedSurvivorMarkdown: string,
-): Promise<{
-	relatedConceptsRewired: number;
-	survivorMarkdown: string;
-	writes: ConceptMergeWrite[];
-}> {
-	const snapshots: RelatedConceptSnapshot[] = [];
-	for (const file of await vault.listMarkdownFiles()) {
-		const key = comparableConceptPath(file.path);
-		let markdown: string;
-		if (key === comparableConceptPath(survivor.path)) {
-			markdown = survivorBefore;
-		} else if (key === comparableConceptPath(merged.path)) {
-			markdown = mergedBefore;
-		} else {
-			markdown = await vault.read(file.path);
-		}
-		const conceptId = readFrontmatterScalar(markdown, "mneme_id");
-		if (readFrontmatterScalar(markdown, "mneme_type") !== "concept" || !conceptId) {
-			continue;
-		}
-		snapshots.push({
-			conceptId,
-			markdown,
-			path: file.path,
-			title: parseConceptTitle(markdown, file.path),
-		});
-	}
-
-	const byPath = new Map(snapshots.map((snapshot) => [comparableConceptPath(snapshot.path), snapshot]));
-	const basenameCandidates = new Map<string, RelatedConceptSnapshot[]>();
-	for (const snapshot of snapshots) {
-		const basename = comparableConceptPath(snapshot.path).split("/").pop() ?? "";
-		basenameCandidates.set(basename, [...(basenameCandidates.get(basename) ?? []), snapshot]);
-	}
-	const byBasename = new Map([...basenameCandidates.entries()]
-		.filter(([, matches]) => matches.length === 1)
-		.map(([basename, matches]) => [basename, matches[0] as RelatedConceptSnapshot]));
-	const resolve = (target: string): RelatedConceptSnapshot | undefined => {
-		const comparable = comparableConceptPath(target);
-		// An explicit directory is part of the locator, never a basename hint.
-		return byPath.get(comparable) ?? (comparable.includes("/") ? undefined : byBasename.get(comparable));
-	};
-	const matchesTarget = (candidate: string, targetPath: string): boolean => {
-		// Preserve unresolved spellings and never let basename-only edits broaden
-		// the participant / neighbor identities established by this same resolver.
-		if (comparableConceptPath(candidate) === comparableConceptPath(targetPath)) return true;
-		const candidateConcept = resolve(candidate);
-		const targetConcept = resolve(targetPath);
-		return !!candidateConcept && !!targetConcept
-			&& comparableConceptPath(candidateConcept.path) === comparableConceptPath(targetConcept.path);
-	};
-	const survivorKey = comparableConceptPath(survivor.path);
-	const mergedKey = comparableConceptPath(merged.path);
-	const isMergeParticipant = (snapshot: RelatedConceptSnapshot | undefined): boolean => {
-		if (!snapshot) return false;
-		const key = comparableConceptPath(snapshot.path);
-		return key === survivorKey || key === mergedKey;
-	};
-
-	const neighbors = new Map<string, RelatedConceptSnapshot>();
-	const addNeighbor = (snapshot: RelatedConceptSnapshot): void => {
-		const existing = neighbors.get(snapshot.conceptId);
-		if (existing && comparableConceptPath(existing.path) !== comparableConceptPath(snapshot.path)) {
-			throw new Error(`Related Concept ID ${snapshot.conceptId} appears in more than one file. Repair it before merging.`);
-		}
-		neighbors.set(snapshot.conceptId, snapshot);
-	};
-	let nextSurvivor = preparedSurvivorMarkdown;
-	for (const link of parseRelatedConceptLinks(nextSurvivor)) {
-		const target = resolve(link.target);
-		if (isMergeParticipant(target)) {
-			nextSurvivor = removeRelatedConceptLink(nextSurvivor, link.target, matchesTarget).markdown;
-		} else if (target) {
-			addNeighbor(target);
-		}
-	}
-	for (const link of parseRelatedConceptLinks(mergedBefore)) {
-		const target = resolve(link.target);
-		if (target && !isMergeParticipant(target)) {
-			addNeighbor(target);
-		} else if (!target) {
-			nextSurvivor = addRelatedConceptLink(nextSurvivor, {
-				path: link.target,
-				title: link.display ?? link.target.split("/").pop() ?? link.target,
-			}, matchesTarget).markdown;
-		}
-	}
-	for (const snapshot of snapshots) {
-		if (isMergeParticipant(snapshot)) continue;
-		const linksParticipant = parseRelatedConceptLinks(snapshot.markdown)
-			.some((link) => isMergeParticipant(resolve(link.target)));
-		if (linksParticipant) {
-			addNeighbor(snapshot);
-		}
-	}
-
-	const writes: ConceptMergeWrite[] = [];
-	for (const neighbor of neighbors.values()) {
-		let after = neighbor.markdown;
-		for (const link of parseRelatedConceptLinks(after)) {
-			if (isMergeParticipant(resolve(link.target))) {
-				after = removeRelatedConceptLink(after, link.target, matchesTarget).markdown;
-			}
-		}
-		after = addRelatedConceptLink(after, survivor, matchesTarget).markdown;
-		nextSurvivor = addRelatedConceptLink(nextSurvivor, neighbor, matchesTarget).markdown;
-		if (after !== neighbor.markdown) {
-			writes.push({
-				after,
-				before: neighbor.markdown,
-				label: "Related Concept Rewire",
-				path: neighbor.path,
-			});
-		}
-	}
-
-	return {
-		relatedConceptsRewired: neighbors.size,
-		survivorMarkdown: nextSurvivor,
-		writes,
-	};
 }
 
 interface RawCardBlock {

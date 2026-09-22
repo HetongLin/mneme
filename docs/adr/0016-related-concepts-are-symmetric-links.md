@@ -154,3 +154,37 @@ Cached/open UI snapshots still require refresh after external changes. This is n
 a live graph subscription or proof of cache freshness. Guided Merge's separate
 index resolver, qualified relative/suffix paths, case-folded qualified collisions,
 multiple Related sections and real Obsidian acceptance remain separate work.
+
+## Guided Merge source context and reviewed decisions — 2026-09-21
+
+`conceptMergeRelated.ts` owns Related preparation and its execution checks. Bare
+links use native resolution with the owning Concept path; only a result matching
+a scanned Concept path can become a participant or neighbor. Ordinary notes are
+not ignored when resolving names. A missing resolver blocks bare-link processing;
+a native unresolved result is retained as unresolved. Qualified targets retain
+the previous exact-path rule. The Concept-only unique-basename fallback is removed.
+
+Removal edits only an authored spelling already selected as a participant link.
+Adding a resolved Concept deduplicates against candidate links resolved from the
+receiving note. Source Concept neighbors are emitted using canonical paths. An
+ordinary or unresolved bare source link can be copied only when its source and
+destination native resolutions agree; otherwise require an explicit path before
+Merge. Generated root-level bare links must resolve to the intended Concept in
+the receiving note, or preparation stops. No automatic ordinary-link rewrite is
+performed.
+
+The in-memory plan now records the Markdown inventory, type/ID fields, Concept
+Related targets and every observed native source/target resolution, including
+unresolved and non-Concept results. Execution re-reads the inventory and relevant
+fields, then checks native resolutions together after all reads. New/deleted files,
+changed identities or relationships, and changed native results invalidate the
+preview. Ordinary body edits outside planned writes and these fields are allowed;
+planned writes still require the original full-content snapshot.
+
+Every forward atomic transform rechecks native results. Compensation bypasses
+those checks and restores reviewed bytes under the existing content guards. The
+new checks are not persisted and do not provide durable Merge recovery. They
+also do not provide an atomic Vault-wide snapshot or cross-process lock: external
+identity/content edits after preflight and stale metadata remain limitations.
+Qualified relative/suffix paths, case-folded qualified collisions, multiple
+Related sections and full Markdown link syntax remain separate audits.

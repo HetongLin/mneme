@@ -73,6 +73,7 @@ async function runAsyncTests(): Promise<void> {
 		};
 		const original = files[reader.path];
 		const vault = new MemoryMergeVault(files);
+		vault.resolveLinkpath = (target) => target === "Beta" ? second.path : undefined;
 		const service = new ConceptMergeService(vault, new MemoryMergeStorage(createDefaultPluginData()));
 		const result = await service.prepare({ merged: second, survivor: first, preserveMergedAsView: true });
 		if (result.status !== "ready") throw new Error(result.message);
@@ -927,7 +928,9 @@ async function runAsyncTests(): Promise<void> {
 }
 
 class MemoryMergeVault implements ConceptMergeVaultAdapter {
-	resolveLinkpath?: (linkpath: string, sourcePath: string) => string | undefined;
+	// Default fixture links are explicitly unresolved; tests of native resolution
+	// supply the source-context result instead of relying on Concept basename guesses.
+	resolveLinkpath?: (linkpath: string, sourcePath: string) => string | undefined = () => undefined;
 	commitCount = 0;
 	throwAfterProcessAt?: number;
 	throwAfterProcessEdit?: string;
