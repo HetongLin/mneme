@@ -1,8 +1,13 @@
 # Mneme Next-Session Hand-off
 
-Updated: 2026-09-22
+Updated: 2026-09-23
 
-## 2026-09-05 至 09-22 代码审查后续
+## 2026-09-05 至 09-23 代码审查后续
+
+- 第三十轮从检查点 `c192e8f` 继续，在 `test/native-merge-acceptance` 完成一次真实 macOS Obsidian 1.13.7 专项验收；发现并修复完成页详情使用旧 Concept summary 的问题，代码/测试提交 `49f53d1`。`openConceptDetail` 从传入扫描列表按 ID + exact path 取当前对象，详情及创建/删除回调保持一致；找不到则提示刷新，不按 ID 或路径单独回退。
+- 隔离 Vault 为 `release-artifacts/Mneme_Release_Candidate`；当前构建已安装并重载，仅新增 `Refactor Acceptance 20260922/` 测试笔记。旧插件/data、旧 Markdown hashes、初始 fixtures、构建哈希和核验结果保存在 `release-artifacts/refactor-acceptance-20260922/`。保留这些文件；没有修改个人 Vault 或旧录制 Vault。
+- 真实 native resolver 确认普通 Reader 的 Topic 与 Concept Neighbor 的 Topic 指向不同文件；通过原生 popout UI 验证取消预览零写入、确认合并仅重连真正邻居、redirect 属性/正文与阅读模式导航保留。旧实现完成页 Related(0) 而刷新 Library Related(1)；修复后第二次合并完成页立即显示 Related(2)，2026-09-23 插件重载后仍为2，两个源 Concept 已从活跃列表排除。旧 Markdown、提案、草稿和复习状态核对未变。全量测试、构建、发布检查、diff 检查与独立复审通过。
+- 详细证据见 [原生验收报告](NATIVE_MERGE_ACCEPTANCE_2026-09-22.md)。最终 main.js SHA-256 为 `721de42384e62e392c8a71d4a1b4bb0de3b0213ad1c397f36fe48b9d016ee402`。本轮无 Card/AI 请求，插件重载不等于进程重启；不得据此标记整个发布清单通过。**下一步**：Incoming/Guided Merge 持久化恢复设计与实现；补 Card/FSRS 和创建/删除/身份修复的真实中断重启矩阵；Related 相对/后缀路径、大小写、多个章节仍待独立审查。
 
 - 第二十九轮从已提交检查点 `1de69c8` 继续，代码/测试/ADR 提交为 `3d3affc`，分支为 `fix/merge-concept-redirect-content`。确认并修复源 Concept 被整份 redirect 模板覆盖的问题：自定义 YAML 全丢，未复制到 View 的正文也消失。新增 `conceptMergeRedirect.ts` 基于原文做局部身份编辑，保留自定义属性、别名、列表/嵌套/块值、注释及全部原正文；正文留在原路径，两种 preserveMergedAsView 设置都保留。
 - `mneme_type` 改为 `concept_redirect`，`mneme_id` 改键为 `former_mneme_id` 并保留原值/注释，规范化版本并添加合并目标/时间/导航。顶部 notice 先于原正文，避免被未闭合围栏或注释隐藏。旧 cards/learning 等属性作为历史内容保留，当前 scanner 依类型排除 redirect；survivor 的 View 复制仍独立受原引用检查约束。已有 redirect 元数据、重复/复杂/多行受管字段阻止准备，不静默覆盖。
@@ -121,7 +126,7 @@ Updated: 2026-09-22
 - 继续时重点关注真实 Obsidian 的中断/重启/本地回收站验收，以及删除后残留提案的显式整理策略。外部改动冲突、旧的无记录部分删除不会自动修复；不要直接删除 journal 或把手动恢复文件当作撤销 tombstone。
 
 - 已先构建并提交审查前备份：`83deb3f`，其父提交 `9cd98ad` 是原产品代码。
-- 当前审查/重构分支：`fix/merge-concept-redirect-content`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，文档检查点为 `d125577`；第六轮代码提交为 `f66bd16`（索引同步）和 `3a9f321`（删除校验），之后另有本交接/审查文档提交。
+- 当前审查/重构分支：`test/native-merge-acceptance`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，文档检查点为 `d125577`；第六轮代码提交为 `f66bd16`（索引同步）和 `3a9f321`（删除校验），之后另有本交接/审查文档提交。
 - 第一轮修复合并/Related 的并发覆盖、Card 并发追加丢失、Review 重复动作跳卡，并提取共用 Markdown 事务与 Review 动作保护。
 - 第二轮让所有当前 `data.json` 写入共用完整读/检查/改/存队列，覆盖 Review、Settings、Proposal、草稿、来源索引及 Merge 回滚；来源重连/移除也已接入原子 Markdown 事务；诊断开关现在只重绘，不重置复习进度。数据格式与版本不变。队列的共享 storage owner 和禁止嵌套获取规则见 [ADR 0022](adr/0022-plugin-state-mutations-share-one-queue.md)。
 - 第二轮 `npm run test:all`、`npm run build`、`npm run check:release -- 1.0.0`、`git diff --check` 均已通过。新增确定性交错测试覆盖共享状态、真实 `saveSettings()` 方法、Merge 回滚、来源写入/回滚冲突。详细证据见 [CODE_REVIEW_2026-09-05.md](CODE_REVIEW_2026-09-05.md)。

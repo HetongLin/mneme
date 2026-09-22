@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-22 (twenty-ninth pass)
+Updated: 2026-09-23 (thirtieth pass)
 
 ## Scope and checkpoint
 
@@ -60,7 +60,9 @@ The twenty-eighth pass on `fix/merge-related-source-context` starts from checkpo
 
 The twenty-ninth pass on `fix/merge-concept-redirect-content` starts from checkpoint `1de69c8`. It preserves source Concept Markdown and custom YAML when retiring the note as a redirect.
 
-The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication, version change, or live Vault update was performed.
+The thirtieth pass on `test/native-merge-acceptance` starts from checkpoint `c192e8f`. It performs native Obsidian Merge acceptance and fixes stale Concept details exposed by the completion action.
+
+The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication or version change was performed. Pass 30 updated the plugin in the disposable release-candidate Vault after backing it up; personal Vaults and the recorded-acceptance Vault were not updated.
 
 ## Local implementation commits
 
@@ -99,6 +101,8 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `64472f3` — resolve Guided Merge Related links in source context, guard migrated spellings and recheck prepared decisions.
 
 - `3d3affc` — preserve source Concept content and properties in redirect notes while retiring their active identity.
+
+- `49f53d1` — resolve Concept details against the supplied current scan result after Merge.
 
 ## Confirmed and fixed
 
@@ -627,6 +631,16 @@ preparation. The optional View copy retains its separate relocation checks.
 Snapshot/transaction/compensation rules and plugin-data schemas are unchanged.
 See [ADR 0003](adr/0003-concept-merge-requires-guided-review.md).
 
+### P2 — Merge completion opened details with an obsolete Concept summary
+
+Native acceptance found that View Merged Concept displayed zero Related Concepts
+while refreshed Library details displayed the correctly written relationship.
+The completion callback rescanned but still supplied the pre-merge survivor as
+the modal's selected object. The shared detail entry now resolves ID and exact
+path against the supplied list, and uses that object for the modal and actions.
+Missing/moved/changed identities request a refresh instead of opening stale data.
+This keeps one snapshot consistent; it is not a live-update subscription.
+
 ## Remaining boundaries
 
 Manual Related edits and deletion now use source context for bare links. Scanner-provided UI discovery and Guided Merge now also follow source context for bare links. Merge rechecks its in-memory plan but does not provide an atomic Vault-wide snapshot; external identity/content changes after preflight remain possible. Qualified relative/suffix paths, existing qualified-path case folding, cache freshness and multiple sections remain separate work. Deletion no-op checks are only in-memory pre-intent checks: they do not reserve resolution after persistence or expand the saved receipt to newly discovered notes.
@@ -635,13 +649,24 @@ Relative-path and case-collision semantics, native cache freshness in Obsidian, 
 
 Incoming/Guided Merge still lack durable completion records. Process termination or conflicting/failed compensation can leave Markdown and state partially updated; this pass does not resolve those cases.
 
-The confirmed findings above have implementation fixes. This is still a focused audit, not proof that every workflow is correct. Historical partial writes without recovery metadata, corrupted external state, conflicting target edits, and external writers remain outside automatic recovery. Real Obsidian restart, UI rendering, and platform acceptance remain outstanding.
+The confirmed findings above have implementation fixes. This is still a focused audit, not proof that every workflow is correct. Historical partial writes without recovery metadata, corrupted external state, conflicting target edits, and external writers remain outside automatic recovery. Pass 30 verifies a narrow macOS Merge UI/content/plugin-reload path; full Obsidian restart, broader UI rendering and cross-platform acceptance remain outstanding.
 
 Card and Concept ID repairs now have durable recovery records. External edits, malformed records and historical partial repairs without receipts still stop automatic recovery. Completed provenance retains identity reservations; migrated fallback/orphan IDs cannot be silently reused. External writers do not participate in the queue or its ID reservations. Concept repair preserves existing Source/Proposal/history provenance rather than globally rekeying it. Resync now protects links associated with repair records, including historical identities later removed externally; explicit ownership resolution and history-reference coordination remain future work. Normal Review startup still clears legacy Concept pauses after pending repairs finish, as required by the existing review policy.
 
 New Concept and single-Card deletions now have durable recovery metadata. Historical partial deletions without receipts still require manual inspection. External edits/moves or changed Related files deliberately stop recovery; there is no automatic conflict resolution or undo. Obsidian rename does not guarantee an atomic compare-and-rename, and local-trash semantics still need real-platform acceptance. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; their prose is preserved rather than silently discarded.
 
 ## Validation
+
+Thirtieth-pass validation (2026-09-22/23): full tests, build, release check, diff
+checks and independent review passed. A real macOS Obsidian 1.13.7 popout workflow
+verified native same-name resolution, cancellation, successful Merge, preserved
+redirect properties/body and navigation, and retired-source exclusion from Library.
+A stale completion-detail bug was reproduced in UI and in a real-plugin-method
+regression test; after repair, completion details and post-reload Library both
+showed the two actual Related Concepts. Existing test Markdown and proposal/draft/
+review data remained unchanged. See the bounded evidence and remaining limits in
+[NATIVE_MERGE_ACCEPTANCE_2026-09-22.md](NATIVE_MERGE_ACCEPTANCE_2026-09-22.md).
+
 
 Twenty-ninth-pass validation (2026-09-22): full tests, build, release and diff checks passed.
 A pre-fix bundle reproduces missing aliases. Regressions cover LF/CRLF and both
