@@ -516,7 +516,7 @@ export class MnemeConceptMergeView extends ItemView {
 					after: write.path === plan.survivor.path ? finalMarkdown : write.after,
 					before: write.before, label: write.label, path: write.path,
 				})),
-				description: `${plan.merged.title} becomes a Redirect Note. Card IDs and FSRS history remain unchanged.`,
+				description: `${plan.merged.title} becomes a Redirect Note retaining its original content. Card IDs and FSRS history remain unchanged.`,
 				impact: `${plan.sourceLinksPreserved} Source Notes · ${plan.relatedConceptsRewired} Related links updated · ${plan.cardsPreserved} Cards preserved`,
 			});
 			if (!this.isCurrentOperation(revision)) return;

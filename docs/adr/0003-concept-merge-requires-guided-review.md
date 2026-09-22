@@ -179,3 +179,26 @@ bytes, IDs, FSRS state, schemas, the write transaction, or other section parsers
 This is a scoped ATX/fence/comment inspector, not a complete Markdown parser;
 Setext headings, complex containers/HTML and deeper heading nesting retain their
 existing limitations. Native Obsidian rendering still requires manual acceptance.
+
+## Concept redirect content retention — 2026-09-22
+
+Build a Concept redirect from the original Markdown instead of replacing it with
+a template. Retain custom frontmatter, comments, aliases, nested/list/block values
+and the original body at its original path. Keep its original line endings. This
+historical copy is retained whether or not a perspective is also copied into the
+survivor's Views. Existing View relocation checks still govern that separate copy.
+
+Change the Mneme type to `concept_redirect`, retire `mneme_id` as `former_mneme_id`,
+and write version/merge destination/time metadata. Put the merge notice before
+the retained body so an unclosed example or comment cannot hide it. The original
+body is historical content; its Card navigation and other properties are not
+active Concept associations. The scanner excludes the redirect by type and the
+content-free Merge Record continues to reserve the old ID. Source metadata is not
+merged into or used to overwrite survivor metadata.
+
+Do not silently overwrite pre-existing redirect metadata on an active Concept.
+Such collisions, duplicate managed keys and unsupported multiline managed scalars
+block preparation. Unrelated complex YAML stays untouched; this is targeted scalar
+editing, not a new general YAML parser. Existing reviewed snapshots and atomic
+write/compensation guards protect the retained content. No persisted plugin-data
+schema or durable Merge recovery protocol is added.

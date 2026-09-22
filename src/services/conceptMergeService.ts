@@ -1,3 +1,4 @@
+import { renderConceptRedirect } from "./conceptMergeRedirect";
 import { assertRelatedConceptMergeCurrent, assertRelatedConceptResolutionsCurrent, prepareRelatedConceptMerge, type RelatedConceptMergeChecks } from "./conceptMergeRelated";
 import { extractMergedPerspective, normalizeLinkedMarkdownPath, rewriteManagedCardNavigation } from "./conceptMergeMarkdown";
 import { assertMergeHasNoPendingWrites } from "./mergePendingWrites";
@@ -204,7 +205,7 @@ export class ConceptMergeService {
 				path: input.survivor.path,
 			});
 			writes.push({
-				after: renderConceptRedirect(input.survivor, input.merged, mergedAt),
+				after: renderConceptRedirect(mergedMarkdown, input.survivor, input.merged, mergedAt),
 				before: mergedMarkdown,
 				label: "Redirect Note",
 				path: input.merged.path,
@@ -717,26 +718,6 @@ function isActionableProposal(proposal: KnowledgeProposal): boolean {
 		|| proposal.status === "opened"
 		|| proposal.status === "edited"
 		|| proposal.status === "approved";
-}
-
-function renderConceptRedirect(survivor: ConceptSummary, merged: ConceptSummary, mergedAt: string): string {
-	const link = toObsidianInternalLink(survivor.path, survivor.title);
-	return [
-		"---",
-		"mneme_type: concept_redirect",
-		"mneme_version: 1",
-		`former_mneme_id: ${merged.conceptId}`,
-		`merged_into: ${survivor.conceptId}`,
-		`merged_at: ${mergedAt}`,
-		`redirect_to: ${quoteYaml(link)}`,
-		"---",
-		"",
-		`# ${merged.title}`,
-		"",
-		"> [!info] Merged Concept",
-		`> This Concept was merged into ${link}.`,
-		"",
-	].join("\n");
 }
 
 function removeCardBlocks(markdown: string, blocks: readonly RawCardBlock[]): string {
