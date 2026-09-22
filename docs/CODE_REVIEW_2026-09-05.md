@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-21 (twenty-seventh pass)
+Updated: 2026-09-22 (twenty-eighth pass)
 
 ## Scope and checkpoint
 
@@ -56,6 +56,8 @@ The twenty-sixth pass on `fix/related-source-context` starts from checkpoint `83
 
 The twenty-seventh pass on `fix/related-scan-resolution` starts from checkpoint `58e8bcd`. It aligns the scanner-provided Related relationships shown in Concept details and management with source-context resolution.
 
+The twenty-eighth pass on `fix/merge-related-source-context` starts from checkpoint `a05d506`. It applies native source-context resolution to Guided Merge Related preparation and rechecks reviewed decisions before and during execution.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication, version change, or live Vault update was performed.
 
 ## Local implementation commits
@@ -91,6 +93,8 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `b6e2261` — preserve unresolved same-basename links and use resolved identities consistently for Guided Merge edits.
 - `e13daa7` — resolve manual/deletion Related links in source context and preserve reviewed decisions through execution and recovery.
 - `8380f2d` — resolve scanner Related relationships from the source note and remove guessed basename edges.
+
+- `64472f3` — resolve Guided Merge Related links in source context, guard migrated spellings and recheck prepared decisions.
 
 ## Confirmed and fixed
 
@@ -581,11 +585,33 @@ add/remove agrees with the selected relationship and preserves another same-name
 bare relationship. No UI DOM or persisted schema change is needed. See
 [ADR 0016](adr/0016-related-concepts-are-symmetric-links.md).
 
+### P1 — Guided Merge could rewire ordinary-note links and change copied destinations
+
+Merge's Concept-only basename index could treat Reader's bare `[[Topic]]` as a
+link to the merged `Concepts/Topic.md`, even when native resolution opens ordinary
+`Topic.md`. Copying a bare source relationship to the survivor could also change
+its destination with the source context.
+
+Related preparation now lives in `conceptMergeRelated.ts`. Bare links use the
+native resolver with their owning path, and only actual scanned Concept targets
+become neighbors. Missing resolvers block bare-link processing; unresolved results
+remain unresolved. Copied ordinary/unresolved links must retain their destination
+under the emitted spelling, including `.md` removal. Generated root-level Concept
+links must resolve to the intended file in the receiving note.
+
+An in-memory plan signature tracks the Markdown inventory, type/ID fields and
+Concept relationship targets. All recorded native decisions, including skipped
+readers, are checked after execution preflight reads and inside each forward
+atomic transform. Changed decisions stop the operation; compensation preserves
+the existing content guards without requiring the now-changed resolver result.
+No durable receipt schema is introduced. See
+[ADR 0016](adr/0016-related-concepts-are-symmetric-links.md).
+
 ## Remaining boundaries
 
-Manual Related edits and deletion now use source context for bare links. Scanner-provided UI relationship discovery now follows source context for bare links; Guided Merge still uses a separate Concept-only index. Qualified relative/suffix paths, existing qualified-path case folding, cache freshness and multiple sections remain separate work. Deletion no-op checks are only in-memory pre-intent checks: they do not reserve resolution after persistence or expand the saved receipt to newly discovered notes.
+Manual Related edits and deletion now use source context for bare links. Scanner-provided UI discovery and Guided Merge now also follow source context for bare links. Merge rechecks its in-memory plan but does not provide an atomic Vault-wide snapshot; external identity/content changes after preflight remain possible. Qualified relative/suffix paths, existing qualified-path case folding, cache freshness and multiple sections remain separate work. Deletion no-op checks are only in-memory pre-intent checks: they do not reserve resolution after persistence or expand the saved receipt to newly discovered notes.
 
-Related bare-link ambiguity, relative-path and case-collision semantics, source-context resolution in Obsidian, and duplicate Related sections remain separate audits. Explicit-directory matching does not provide full Wiki resolution.
+Relative-path and case-collision semantics, native cache freshness in Obsidian, and duplicate Related sections remain separate audits. Explicit-directory matching does not provide full Wiki resolution.
 
 Incoming/Guided Merge still lack durable completion records. Process termination or conflicting/failed compensation can leave Markdown and state partially updated; this pass does not resolve those cases.
 
@@ -596,6 +622,18 @@ Card and Concept ID repairs now have durable recovery records. External edits, m
 New Concept and single-Card deletions now have durable recovery metadata. Historical partial deletions without receipts still require manual inspection. External edits/moves or changed Related files deliberately stop recovery; there is no automatic conflict resolution or undo. Obsidian rename does not guarantee an atomic compare-and-rename, and local-trash semantics still need real-platform acceptance. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; their prose is preserved rather than silently discarded.
 
 ## Validation
+
+Twenty-eighth-pass validation (2026-09-22): full tests, build, release check and
+diff checks passed. Regressions cover native Concept rewiring, ordinary same-name
+notes left untouched, unresolved links, copied `.md` spellings, changed destination
+contexts, absent resolvers, and correct/wrong/unresolved generated root links.
+Execution cases cover changed resolution and relationships on unwritten readers,
+ordinary-to-Concept identity changes, new files, allowed ordinary body edits, and
+resolution changes at the first or second forward write with compensation.
+Logs: `/private/tmp/mneme-merge-native-focused.log`,
+`/private/tmp/mneme-merge-native-all.log`, and
+`/private/tmp/mneme-merge-native-build.log`.
+
 
 Twenty-seventh-pass validation (2026-09-21): full tests, build, release check and
 diff checks passed. The pre-fix scanner creates an edge for `Missing/Beta` and
@@ -1044,9 +1082,20 @@ Twenty-seventh-pass manual checks in a disposable Vault:
 2. Add `[[Missing/Beta]]` to Related Concepts and refresh: it must not create an Archive/Beta relationship. Unresolved bare links also must not be guessed from the Concept list.
 3. Add another explicit Beta relationship through the manager, refresh, then remove it. Keep the original bare relationship and alias; the other Concept remains available for addition afterward.
 
-Guided Merge still needs native source-context integration and execution checks.
-A concrete next fixture merges `Concepts/Topic.md` while root `Topic.md` is an
+The following Guided Merge fixture identified in pass 27 is automated in pass 28.
+The fixture merges `Concepts/Topic.md` while root `Topic.md` is an
 ordinary note: Reader's bare Topic must not be rewired when it opens the ordinary
-note. Migrated Related spellings also need source/destination context checks.
+note. Pass 28 also checks source/destination contexts of migrated bare spellings.
 Open UI snapshots require refresh after external changes. No native rendering,
 cache-freshness or real Obsidian restart acceptance is claimed by these tests.
+
+
+Twenty-eighth-pass manual checks in a disposable Vault:
+
+1. Merge `Concepts/Topic.md` into `Concepts/Alpha.md` with ordinary `Topic.md` present. A reader's bare Topic opening the ordinary note must remain unchanged; a reader actually opening the merged Concept must be rewired to Alpha.
+2. Copy a source bare Related link whose native target differs in the survivor's directory. Preparation must stop. With the same target in both contexts, the copied link must keep its alias and destination. Include an authored `.md` suffix and root-level Concept targets.
+3. After preview, change a skipped reader's Related targets or native resolution, change an ordinary target into a Concept, or add a Markdown file. Execution must request a new preview without writing. An ordinary-note body edit alone must survive a successful Merge.
+
+These automated adapter fixtures do not constitute real Obsidian cache/rendering
+acceptance. Qualified relative/suffix paths, case collisions, multiple Related
+sections, source custom YAML preservation and durable Merge recovery remain work.

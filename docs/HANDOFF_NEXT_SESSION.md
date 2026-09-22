@@ -1,13 +1,18 @@
 # Mneme Next-Session Hand-off
 
-Updated: 2026-09-21
+Updated: 2026-09-22
 
-## 2026-09-05 至 09-21 代码审查后续
+## 2026-09-05 至 09-22 代码审查后续
+
+- 第二十八轮从已提交检查点 `a05d506` 继续，代码/测试/ADR 提交为 `64472f3`，分支为 `fix/merge-related-source-context`。抽出 `conceptMergeRelated.ts`，修复 Guided Merge 用 Concept-only basename 索引误认关系：裸 Related 按所在笔记调用 native resolver，解析到普通笔记或未解析目标时不认作 Concept；缺 resolver 时阻止裸链接处理。明确目录继续保留原精确规则。
+- 迁移 source 的普通/未解析裸链接时，比较原来源与 survivor 中实际输出拼写的目标（包括去掉 `.md` 后的拼写）；目标不同则停止。生成根目录 Concept 链接也须在接收笔记解析到所选文件。plan 新增仅内存的 `relatedChecks`：记录 Markdown 文件清单、类型/ID、Concept Related targets 及观察到的 native 解析结果。execute 全部读取结束后复查，包括未写入的 reader；每次正向 atomic transform 再查 native 结果，补偿仍使用原字节保护。
+- 第二十八轮验证（2026-09-22）：全量测试、构建、发布检查、diff 检查通过；新增回归覆盖普通同名目标不重连、正常 Concept 重连、未解析关系保留、源/目标上下文不同和缺 resolver 阻止、根目录链接成功/错误/未解析、预览后未写 reader 的关系或解析变化、普通目标变成 Concept、新增文件、无关普通正文编辑保留，以及首/第二次写入时变化与回滚。日志 `/private/tmp/mneme-merge-native-focused.log`、`/private/tmp/mneme-merge-native-all.log`、`/private/tmp/mneme-merge-native-build.log`。规则见 [ADR 0016](adr/0016-related-concepts-are-symmetric-links.md)。
+- **下一步审查边界**：qualified 相对/后缀路径、大小写冲突、多个 Related 章节、源 Concept 自定义 YAML/redirect 保留策略。真实 Obsidian 缓存/渲染验收与 Incoming/Guided Merge 持久化恢复仍待完成。本轮检查不构成 Vault 全局原子快照；preflight 后外部身份/内容变化及缓存延迟仍有限制，未新增持久 schema 或跨进程锁。
 
 - 第二十七轮从已提交检查点 `58e8bcd` 继续，代码/测试/ADR 提交为 `8380f2d`，分支为 `fix/related-scan-resolution`。修复界面共用 ConceptScanner 的错误关系识别：未知 `Missing/Beta` 不再丢目录后匹配 `Archive/Beta.md`；裸链接不再优先绑定根目录 Concept 或仅按 Concept 集合中的唯一 basename 猜测。
 - ObsidianConceptVaultAdapter 接入 metadataCache source-context resolver；scanner 对裸链接（含根目录文件名）按实际 canonical 目标查当前有效 Concept 集合，普通笔记、未解析目标、被身份校验排除的文件不产生关系。缺 resolver 时不回退猜测。明确目录保留既有精确规则，对称显示、自链接过滤和 ID 去重保持；移除旧 basename index。详情导航、关系计数和管理列表继续使用同一 `relatedConceptIds` 数据，无 Markdown/持久字段修改。
 - 第二十七轮验证：全量测试、构建、发布检查、diff 检查通过。旧 scanner 分别复现未知目录产生虚假双向关系，以及 native 指向 Archive/Beta 却显示 root Beta；回归覆盖其他目录/根目录/普通笔记/未解析目标、resolver 缺失，即便唯一同名 Concept 也不猜测。真实 scan → RelatedConceptService 添加/移除 → rescan 验证两个同名关系可并存，移除选中关系后另一裸链接、别名和目标文件保持不变。日志 `/private/tmp/mneme-related-scan-all.log`、`/private/tmp/mneme-related-scan-focused.log`、`/private/tmp/mneme-related-scan-directory-red.log`、`/private/tmp/mneme-related-scan-context-red.log`。规则见 [ADR 0016](adr/0016-related-concepts-are-symmetric-links.md)。
-- **下一轮明确修复项**：Guided Merge 仍绕过 native resolver，用仅含 Concept 的索引识别 Related。具体风险：待合并的是 `Concepts/Topic.md`，另有普通笔记 `Topic.md`，Reader 的 `[[Topic]]` 实际打开普通笔记，却会被 Merge 识别为参与者关系并重连。迁移 source 的裸 Related 到 survivor 还可能改变解析上下文；不能仅替换一个 matcher，需要记录/复查解析决策（包括未写文件、普通目标和来源/目标上下文）并保护预览后的变化。界面仍是扫描快照，外部修改后需刷新；qualified 相对/后缀路径、大小写冲突、多个 Related 章节、真实 Obsidian 验收与 Merge 持久化恢复继续待办。
+- **当时的下一轮修复项（已由第二十八轮处理）**：Guided Merge 仍绕过 native resolver，用仅含 Concept 的索引识别 Related。具体风险：待合并的是 `Concepts/Topic.md`，另有普通笔记 `Topic.md`，Reader 的 `[[Topic]]` 实际打开普通笔记，却会被 Merge 识别为参与者关系并重连。迁移 source 的裸 Related 到 survivor 还可能改变解析上下文；不能仅替换一个 matcher，需要记录/复查解析决策（包括未写文件、普通目标和来源/目标上下文）并保护预览后的变化。界面仍是扫描快照，外部修改后需刷新；qualified 相对/后缀路径、大小写冲突、多个 Related 章节、真实 Obsidian 验收与 Merge 持久化恢复继续待办。
 
 - 第二十六轮从已提交检查点 `8394c5a` 继续，代码/测试/ADR 提交为 `e13daa7`，分支为 `fix/related-source-context`。手动 Related 和 Concept 删除不再按文件名猜测裸链接归属：共用 `relatedConceptResolution.ts`，用链接所在 Markdown 路径调用 Obsidian metadataCache resolver。解析到其他同名文件时保留原文且不抑制明确关系；同名裸链接无法解析时阻止并提示使用完整路径。新生成的根目录裸链接也须解析到所选目标。
 - 两个手动关联入口、删除准备与恢复入口均注入 metadataCache。手动 execute 在全部读取结束后同步复查两侧（含 no-op），并在每次正向 atomic transform 内再检查；补偿仍按原字节快照恢复，不依赖新解析。删除 plan 新增可选内存 `relatedChecks`，含未改动笔记，保存 intent 前核对内容并重算；恢复用同一 matcher 且必须符合已保存 afterHash，process 内也复查，已达到 afterHash 的文件直接跳过。
@@ -111,7 +116,7 @@ Updated: 2026-09-21
 - 继续时重点关注真实 Obsidian 的中断/重启/本地回收站验收，以及删除后残留提案的显式整理策略。外部改动冲突、旧的无记录部分删除不会自动修复；不要直接删除 journal 或把手动恢复文件当作撤销 tombstone。
 
 - 已先构建并提交审查前备份：`83deb3f`，其父提交 `9cd98ad` 是原产品代码。
-- 当前审查/重构分支：`fix/related-scan-resolution`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，文档检查点为 `d125577`；第六轮代码提交为 `f66bd16`（索引同步）和 `3a9f321`（删除校验），之后另有本交接/审查文档提交。
+- 当前审查/重构分支：`fix/merge-related-source-context`；第一轮代码提交为 `04bc46f`、`4e16141`、`95cf030`，文档检查点为 `0377c60`；第二轮代码提交为 `37d3533`，文档检查点为 `30bcce7`；第三轮代码提交为 `3100b9b`、`5617b23`，文档检查点为 `4e57766`；第四轮代码/ADR 提交为 `f2dbec4`，文档检查点为 `59ddfd2`；第五轮从该已提交检查点继续，代码/ADR 提交为 `ecd462c`，文档检查点为 `d125577`；第六轮代码提交为 `f66bd16`（索引同步）和 `3a9f321`（删除校验），之后另有本交接/审查文档提交。
 - 第一轮修复合并/Related 的并发覆盖、Card 并发追加丢失、Review 重复动作跳卡，并提取共用 Markdown 事务与 Review 动作保护。
 - 第二轮让所有当前 `data.json` 写入共用完整读/检查/改/存队列，覆盖 Review、Settings、Proposal、草稿、来源索引及 Merge 回滚；来源重连/移除也已接入原子 Markdown 事务；诊断开关现在只重绘，不重置复习进度。数据格式与版本不变。队列的共享 storage owner 和禁止嵌套获取规则见 [ADR 0022](adr/0022-plugin-state-mutations-share-one-queue.md)。
 - 第二轮 `npm run test:all`、`npm run build`、`npm run check:release -- 1.0.0`、`git diff --check` 均已通过。新增确定性交错测试覆盖共享状态、真实 `saveSettings()` 方法、Merge 回滚、来源写入/回滚冲突。详细证据见 [CODE_REVIEW_2026-09-05.md](CODE_REVIEW_2026-09-05.md)。
