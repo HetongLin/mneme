@@ -65,8 +65,8 @@ The optional field keeps schema version 1 and existing Markdown formats. Old
 data without this field needs no migration. Historical partial operations that
 predate receipts cannot be inferred or repaired automatically.
 
-This is a single-file completion protocol. Multi-file Guided Merge still uses
-its existing compensation transaction and needs separate durable recovery work.
+This is a single-file completion protocol. Multi-file Guided Merge uses the separate journal protocol introduced by
+[ADR 0031](0031-guided-merge-resumes-reviewed-file-writes.md) on 2026-09-24.
 The queue coordinates participating Mneme state mutations, not external editors,
 sync clients or other plugins. A file change after the final read cannot be made
 atomic with the plugin-data save. Direct edits or other Markdown workflows can

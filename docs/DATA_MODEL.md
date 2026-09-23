@@ -390,7 +390,23 @@ A `conceptMergeRecords` entry stores `mergedConceptId`, `survivorConceptId`, `me
 
 Guided Merge moves complete stable-ID Card blocks into the surviving Card Group without rewriting their IDs or Card-keyed FSRS state. If the survivor has no Card Group, it adopts the merged Concept's group and updates that group's association. A vacated Card Group remains as an empty `card_group` redirect so old vault links resolve without creating a phantom Card. Legacy per-Card folders must be explicitly consolidated before Guided Merge; Mneme does not guess a destructive migration.
 
-An ordinary two-written-Concept Merge draft is transient UI state. An exact-name conflict Merge may persist its editable draft in `conceptConflictMergeDrafts` so closing the workspace does not lose work; the Inbox Proposal or `manualConceptDraft` remains the authoritative incoming source until confirmation. Manual Draft deterministically unions tags, selects the stronger importance, and uses `reviewable` when either side is reviewable. Optional AI draft output is limited to Title, Core Meaning, Why It Matters, and English Alias only when that setting is enabled. A prepared Merge plan is always a non-persisted zero-write snapshot. Confirmation requires unchanged Markdown and plugin-data snapshots. Guided Merge retains the complete next plugin-data value in memory and compensates partial writes; it does not yet have a durable multi-file recovery protocol.
+An ordinary two-written-Concept Merge draft is transient UI state. An exact-name conflict Merge may persist its editable draft in `conceptConflictMergeDrafts` so closing the workspace does not lose work; the Inbox Proposal or `manualConceptDraft` remains the authoritative incoming source until confirmation. Manual Draft deterministically unions tags, selects the stronger importance, and uses `reviewable` when either side is reviewable. Optional AI draft output is limited to Title, Core Meaning, Why It Matters, and English Alias only when that setting is enabled. A prepared Merge plan is always a non-persisted zero-write snapshot. Confirmation requires unchanged Markdown and plugin-data snapshots. Guided Merge uses the durable multi-file protocol in ADR 0031: persist and verify a separate journal, save a content-free intent, continue approved file writes, then migrate current state and mark completion together. Partial failures preserve progress and require explicit recovery; they do not trigger rollback.
+
+`guidedConceptMerge` is an optional version-1 receipt with `operationId`,
+`status: pending | written`, `createdAt`, `survivor`/`merged` IDs and paths,
+`protectedPaths`, `cardIds`, per-file `beforeHash`/`afterHash`, `journalHash`, and
+`sourceLinksHash`. It contains no Concept/Card Markdown or replacement state.
+The separate `<plugin directory>/guided-merge-recovery/<operationId>.json` journal
+contains reviewed before/after Markdown and Related verification data. It is a
+transient recovery copy outside content scans, not an alternative content source
+of truth. Resume verifies all targets as before/after before continuing, then
+migrates current state so intervening reviews/settings survive. Written receipts
+prevent replay; normal completion deletes the journal. Failed cleanup retries on
+Resume, while a journal left before an intent-save failure is retained for
+inspection; there is no automatic orphan collection. Missing/corrupt snapshots,
+changed files or dependencies stop recovery without overwriting content. Schema
+version remains 1. See [ADR 0031](adr/0031-guided-merge-resumes-reviewed-file-writes.md)
+for retention, external-edit and crash-durability limits.
 
 Incoming Merge instead persists optional `incomingConceptMerge` before its single Concept write. Version 1 records contain `operationId`, `status` (`pending` / `written` / `not-applied`), target `conceptId` and exact `path`, byte-sensitive `beforeHash` / `afterHash`, `createdAt`, and an `origin`. Inbox origins contain `proposalId` and an `inputHash`; manual origins contain `inputHash`, optional `draftId`, and optional Source metadata (`path`, `contentHash`, `mtime`, `size`). Origin fingerprints cover the normalized saved Proposal or manual draft plus its persistent identity. The receipt contains no approved Markdown, merged prose, or replacement plugin-data snapshot.
 

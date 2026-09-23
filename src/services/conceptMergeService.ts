@@ -30,13 +30,19 @@ import { appendConceptView } from "./conceptViewAppender";
 import { normalizePluginData } from "./reviewStateStore";
 import { runPluginDataMutation } from "./pluginDataMutation";
 import {
-	executeMarkdownWriteTransaction,
 	MarkdownWriteConflict,
 	type TransactionalMarkdownVault,
 } from "./markdownWriteTransaction";
 
+import {
+	getPendingGuidedConceptMerge, GUIDED_MERGE_RESUME_MESSAGE, guidedMergeHash, guidedMergeSourceLinksHash,
+	readGuidedConceptMergeReceipt, readGuidedMergeJournal,
+	type GuidedConceptMergeReceipt, type GuidedMergeJournal, type GuidedMergeJournalRecord,
+} from "./guidedConceptMergeRecovery";
+
 export interface ConceptMergeVaultAdapter extends TransactionalMarkdownVault {
 	resolveLinkpath?: ResolveCardLink;
+	readFresh?(path: string): Promise<string>;
 	exists(path: string): Promise<boolean>;
 	listMarkdownFiles(): Promise<Array<{ path: string }>>;
 }
@@ -60,6 +66,7 @@ export interface ConceptMergeWrite {
 }
 
 export interface ConceptMergePlan {
+	operationId: string;
 	cardsMoved: number;
 	cardsPreserved: number;
 	dataSnapshot: string;
@@ -90,6 +97,11 @@ export type ExecuteConceptMergeResult =
 	| { status: "merged" }
 	| { message: string; status: "conflict" | "failed" | "invalid" };
 
+export type ResumeGuidedMergeResult =
+	| { status: "merged"; receipt: GuidedConceptMergeReceipt }
+	| { status: "none" }
+	| { status: "conflict" | "failed"; message: string };
+
 export class ConceptMergeService {
 	private readonly now: () => string;
 
@@ -97,6 +109,7 @@ export class ConceptMergeService {
 		private readonly vault: ConceptMergeVaultAdapter,
 		private readonly storage: ConceptMergeStorage,
 		now: () => string = () => new Date().toISOString(),
+		private readonly journal?: GuidedMergeJournal,
 	) {
 		this.now = now;
 	}
@@ -108,6 +121,7 @@ export class ConceptMergeService {
 
 		try {
 			const data = normalizePluginData(await this.storage.loadData());
+			if (getPendingGuidedConceptMerge(data)) throw new Error(GUIDED_MERGE_RESUME_MESSAGE);
 			assertConceptNotDeleting(data.conceptDeletions, input.survivor.conceptId);
 			assertConceptNotDeleting(data.conceptDeletions, input.merged.conceptId);
 			assertConceptIdRepairAllowsConcept(data.conceptIdRepairs, input.survivor.conceptId);
@@ -223,6 +237,7 @@ export class ConceptMergeService {
 			}
 			return {
 				plan: {
+					operationId: globalThis.crypto.randomUUID(),
 					cardsMoved: cardPlanResult.cardsMoved,
 					cardsPreserved: cardPlanResult.cardsPreserved,
 					dataSnapshot: JSON.stringify(data),
@@ -276,12 +291,22 @@ export class ConceptMergeService {
 				? { ...write, after: finalSurvivorMarkdown }
 				: write);
 			try {
+				if (!this.journal) throw new Error("Guided Merge recovery storage is unavailable.");
+				const latestData = normalizePluginData(await this.storage.loadData());
+				const previous = latestData.guidedConceptMerge === undefined ? undefined : readGuidedConceptMergeReceipt(latestData.guidedConceptMerge);
+				if (previous?.operationId === plan.operationId) {
+					if (await guidedMergeHash(finalSurvivorMarkdown) !== previous.writes.find((w) => w.path === previous.survivor.path)?.afterHash) {
+						throw new Error("The confirmed Merge content changed. Resume the original Guided Merge first.");
+					}
+					await this.finishGuidedMerge(latestData, previous);
+					return { status: "merged" };
+				}
+				if (previous?.status === "pending") throw new Error(GUIDED_MERGE_RESUME_MESSAGE);
 				for (const write of writes) {
 					if (await this.vault.read(write.path) !== write.before) {
 						return { message: `${write.path} changed after preview.`, status: "conflict" };
 					}
 				}
-				const latestData = normalizePluginData(await this.storage.loadData());
 				if (JSON.stringify(latestData) !== plan.dataSnapshot) {
 					return { message: "Mneme state changed after preview. Rebuild the merge preview.", status: "conflict" };
 				}
@@ -306,29 +331,130 @@ export class ConceptMergeService {
 
 				if (!plan.relatedChecks) return { message: "Related checks are missing. Rebuild the merge preview.", status: "invalid" };
 				await assertRelatedConceptMergeCurrent(this.vault, plan.relatedChecks);
-				const forwardPaths = new Set(writes.map((write) => write.path));
-				await executeMarkdownWriteTransaction({
-					read: (path) => this.vault.read(path),
-					process: (path, transform) => {
-						const forward = forwardPaths.delete(path);
-						return this.vault.process(path, (current) => {
-							if (forward) assertRelatedConceptResolutionsCurrent(this.vault, plan.relatedChecks);
-							return transform(current);
-						});
-					},
-				}, writes, {
-					commit: () => this.storage.saveData(plan.nextData),
-					rollback: () => this.storage.saveData(latestData),
+				const record: GuidedMergeJournalRecord = {
+					version: 1, operationId: plan.operationId, writes, relatedChecks: plan.relatedChecks,
+					preserveMergedAsView: plan.preserveMergedAsView,
+					mergedCardsPath: plan.merged.cardsPath, targetCardsPath: plan.targetCardsPath,
+				};
+				const contents = JSON.stringify(record);
+				const receipt = readGuidedConceptMergeReceipt({
+					version: 1, status: "pending", operationId: plan.operationId,
+					createdAt: plan.nextData.conceptMergeRecords[plan.merged.conceptId]?.mergedAt,
+					survivor: { conceptId: plan.survivor.conceptId, path: plan.survivor.path },
+					merged: { conceptId: plan.merged.conceptId, path: plan.merged.path },
+					protectedPaths: [...new Set([...writes.map((w) => w.path),
+						...[plan.survivor.cardsPath, plan.merged.cardsPath, plan.targetCardsPath].filter((path): path is string => !!path)])],
+					cardIds: [...new Set(writes.filter((w) => readFrontmatterScalar(w.before, "mneme_type") === "card_group")
+						.flatMap((w) => parseMnemeCards(w.before).flatMap((card) => card.explicitCardId ? [card.explicitCardId] : [])))],
+					writes: await Promise.all(writes.map(async (w) => ({ path: w.path,
+						beforeHash: await guidedMergeHash(w.before), afterHash: await guidedMergeHash(w.after) }))),
+					journalHash: await guidedMergeHash(contents),
+					sourceLinksHash: await guidedMergeSourceLinksHash(latestData, [plan.survivor.conceptId, plan.merged.conceptId]),
 				});
+				// A complete, verified journal must exist before the intent or any live file changes.
+				await this.journal.write(receipt.operationId, contents);
+				await readGuidedMergeJournal(await this.journal.read(receipt.operationId), receipt);
+				const pendingData = { ...latestData, guidedConceptMerge: receipt };
+				await this.storage.saveData(pendingData);
+				await this.finishGuidedMerge(pendingData, receipt);
 
 				return { status: "merged" };
 			} catch (error) {
 				return {
-					message: error instanceof Error ? error.message : "Guided Merge failed.",
+					message: `${error instanceof Error ? error.message : "Guided Merge failed."} ${GUIDED_MERGE_RESUME_MESSAGE}`,
 					status: error instanceof MarkdownWriteConflict ? "conflict" : "failed",
 				};
 			}
 		});
+	}
+
+	async resume(): Promise<ResumeGuidedMergeResult> {
+		return runPluginDataMutation(this.storage, async () => {
+			try {
+				const data = normalizePluginData(await this.storage.loadData());
+				if (data.guidedConceptMerge === undefined) return { status: "none" };
+				const receipt = readGuidedConceptMergeReceipt(data.guidedConceptMerge);
+				await this.finishGuidedMerge(data, receipt);
+				return { status: "merged", receipt: { ...receipt, status: "written" } };
+			} catch (error) {
+				return { status: error instanceof MarkdownWriteConflict ? "conflict" : "failed",
+					message: `${error instanceof Error ? error.message : "Guided Merge recovery failed."} ${GUIDED_MERGE_RESUME_MESSAGE}` };
+			}
+		});
+	}
+
+	private readCurrent(path: string): Promise<string> {
+		return this.vault.readFresh ? this.vault.readFresh(path) : this.vault.read(path);
+	}
+
+	private async finishGuidedMerge(data: MnemePluginData, receipt: GuidedConceptMergeReceipt): Promise<void> {
+		if (!this.journal) throw new Error("Guided Merge recovery storage is unavailable.");
+		if (receipt.status === "written") { await this.cleanJournal(receipt.operationId); return; }
+		const record = await readGuidedMergeJournal(await this.journal.read(receipt.operationId), receipt);
+		const ids = [receipt.survivor.conceptId, receipt.merged.conceptId];
+		assertMergeHasNoPendingWrites({ ...data, guidedConceptMerge: undefined }, receipt.protectedPaths, ids);
+		for (const id of ids) {
+			assertConceptNotDeleting(data.conceptDeletions, id);
+			assertConceptIdRepairAllowsConcept(data.conceptIdRepairs, id);
+			if (data.conceptMergeRecords[id]) throw new Error("A pending Guided Merge participant was already retired by another operation.");
+		}
+		for (const path of receipt.protectedPaths) {
+			assertCardDeletionAllowsPath(data.cardDeletion, path);
+			assertCardIdRepairAllowsPath(data.cardIdRepairs, path);
+			assertConceptIdRepairAllowsPath(data.conceptIdRepairs, path);
+		}
+		if (await guidedMergeSourceLinksHash(data, ids) !== receipt.sourceLinksHash) {
+			throw new Error("Source links changed during Guided Merge. Recovery snapshots were preserved.");
+		}
+		if (Object.values(data.knowledgeProposals).some((p) => isActionableProposal(p) && proposalReferencesConcept(p, receipt.merged.conceptId))) {
+			throw new Error("Resolve the retiring Concept's Inbox proposals before resuming Guided Merge.");
+		}
+		// Check the entire write set before making any further change; third content is never overwritten.
+		for (const write of record.writes) {
+			const current = await this.readCurrent(write.path);
+			if (current !== write.before && current !== write.after) throw new MarkdownWriteConflict(write.path);
+		}
+		const originals = new Map(record.writes.map((w) => [w.path, w.before]));
+		const overlay: ConceptMergeVaultAdapter = {
+			read: (path) => originals.has(path) ? Promise.resolve(originals.get(path)!) : this.readCurrent(path),
+			process: (path, transform) => this.vault.process(path, transform),
+			exists: (path) => this.vault.exists(path),
+			listMarkdownFiles: () => this.vault.listMarkdownFiles(),
+			resolveLinkpath: this.vault.resolveLinkpath?.bind(this.vault),
+		};
+		// Partly applied files use their original relationship metadata for the inventory comparison.
+		await assertRelatedConceptMergeCurrent(overlay, record.relatedChecks);
+		const source = record.writes.find((w) => w.path === record.mergedCardsPath);
+		const target = record.writes.find((w) => w.path === record.targetCardsPath);
+		if (source && target && source.path !== target.path) this.assertRelocationSafe(inspectCardGroup(source.before, source.path), source, target);
+		if (record.preserveMergedAsView) {
+			const mergedWrite = record.writes.find((w) => w.path === receipt.merged.path)!;
+			const survivorWrite = record.writes.find((w) => w.path === receipt.survivor.path)!;
+			this.assertPerspectiveRelocationSafe({ ...receipt.merged, title: "" }, mergedWrite.before, receipt.survivor.path, survivorWrite.after);
+		}
+		for (const write of record.writes) {
+			if (await this.readCurrent(write.path) === write.after) continue;
+			await this.vault.process(write.path, (current) => {
+				assertRelatedConceptResolutionsCurrent(this.vault, record.relatedChecks);
+				if (current === write.after) return current;
+				if (current !== write.before) throw new MarkdownWriteConflict(write.path);
+				return write.after;
+			});
+		}
+		for (const write of record.writes) {
+			if (await this.readCurrent(write.path) !== write.after) throw new MarkdownWriteConflict(write.path);
+		}
+		await assertRelatedConceptMergeCurrent(overlay, record.relatedChecks);
+		const links = migrateConceptSourceLinks(data.conceptSourceLinks, receipt.merged.conceptId, receipt.survivor.conceptId);
+		const nextData = migratePluginDataForConceptMerge(data, { ...receipt.survivor, title: "" },
+			{ ...receipt.merged, title: "" }, links.links, receipt.createdAt);
+		await this.storage.saveData({ ...nextData, guidedConceptMerge: { ...receipt, status: "written" } });
+		await this.cleanJournal(receipt.operationId);
+	}
+
+	private async cleanJournal(operationId: string): Promise<void> {
+		try { await this.journal?.remove(operationId); }
+		catch (error) { console.warn("Mneme: Guided Merge completed; recovery snapshot cleanup will retry on Resume Guided Merge", error); }
 	}
 
 	private assertPerspectiveRelocationSafe(

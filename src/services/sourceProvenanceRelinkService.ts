@@ -14,6 +14,7 @@ import {
 } from "./markdownWriteTransaction";
 import { runPluginDataMutation } from "./pluginDataMutation";
 import { normalizePluginData } from "./reviewStateStore";
+import { assertGuidedMergeAllowsTarget } from "./guidedConceptMergeRecovery";
 
 export interface SourceRelinkFileSnapshot {
 	content: string;
@@ -75,6 +76,7 @@ export class SourceProvenanceRelinkService {
 
 		try {
 			const data = normalizePluginData(await this.storage.loadData());
+			assertGuidedMergeAllowsTarget(data, [issue.conceptPath, issue.link.sourcePath, newSourcePath], [issue.conceptId]);
 			const currentLink = data.conceptSourceLinks[issue.link.id];
 			if (!currentLink
 				|| currentLink.status !== "stale"
@@ -156,6 +158,7 @@ export class SourceProvenanceRelinkService {
 					return { message: "The replacement Source Note changed after preview.", status: "conflict" };
 				}
 				const latestData = normalizePluginData(await this.storage.loadData());
+				assertGuidedMergeAllowsTarget(latestData, [plan.issue.conceptPath, plan.issue.link.sourcePath, plan.newSource.path], [plan.issue.conceptId]);
 				if (JSON.stringify(latestData) !== plan.dataSnapshot) {
 					return { message: "Mneme state changed after preview.", status: "conflict" };
 				}

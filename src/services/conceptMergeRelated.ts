@@ -14,7 +14,7 @@ interface RelatedSnapshot {
 }
 
 export interface RelatedConceptMergeChecks {
-	/** Inventory, Concept identities and authored relationship targets; never persisted. */
+	/** Inventory, Concept identities and authored relationship targets; included only in the recovery journal. */
 	scanSignature: string;
 	resolutions: Array<{ sourcePath: string; target: string; resolvedPath?: string }>;
 }

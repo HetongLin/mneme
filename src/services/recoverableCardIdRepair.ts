@@ -14,6 +14,7 @@ import { withRekeyedCardState } from "./cardIdRepairState";
 import { runPluginDataMutation, type PluginDataStorage } from "./pluginDataMutation";
 import { normalizePluginData } from "./reviewStateStore";
 import { computeContentHash } from "../utils/sourceHash";
+import { assertGuidedMergeAllowsTarget } from "./guidedConceptMergeRecovery";
 
 export interface CardIdRepairVault {
 	parseFrontmatter(markdown: string): unknown;
@@ -102,6 +103,7 @@ export class RecoverableCardIdRepair {
 
 	private assertStateAvailable(data: MnemePluginData, receipt: CardIdRepairReceipt): void {
 		assertCardDeletionAllowsPath(data.cardDeletion, receipt.path);
+		assertGuidedMergeAllowsTarget(data, [receipt.path], [], [receipt.oldCardId, receipt.newCardId]);
 		assertConceptIdRepairAllowsPath(data.conceptIdRepairs, receipt.path);
 		for (const id of [receipt.oldCardId, receipt.newCardId]) {
 			assertCardDeletionAllowsCard(data.cardDeletion, id);

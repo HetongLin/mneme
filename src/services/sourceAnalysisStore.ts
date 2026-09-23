@@ -2,6 +2,8 @@ import type { MnemePluginData } from "../models/reviewState";
 import type { SourceAnalysisRecord } from "../models/sourceAnalysis";
 import { runPluginDataMutation } from "./pluginDataMutation";
 import { normalizePluginData } from "./reviewStateStore";
+import { getPendingGuidedConceptMerge } from "./guidedConceptMergeRecovery";
+import { normalizeVaultPath } from "../utils/markdownPath";
 
 export interface SourceAnalysisStorage {
 	loadData(): Promise<unknown>;
@@ -78,12 +80,21 @@ export class SourceAnalysisStore {
 		return runPluginDataMutation(this.storage, async () => {
 			const data = await this.loadPluginData();
 			const records = { ...data.sourceAnalysisRecords };
+			const guided = getPendingGuidedConceptMerge(data);
+			const guidedPath = (path: string) => guided?.protectedPaths.some((protectedPath) =>
+				normalizeVaultPath(protectedPath) === normalizeVaultPath(path)) ?? false;
+			const guidedConcept = (ids: string[], sourcePath: string) => guided !== undefined
+				&& (ids.some((id) => id === guided.survivor.conceptId || id === guided.merged.conceptId)
+					|| Object.values(data.conceptSourceLinks).some((link) =>
+						normalizeVaultPath(link.sourcePath) === normalizeVaultPath(sourcePath)
+							&& (link.conceptId === guided.survivor.conceptId || link.conceptId === guided.merged.conceptId)));
 			const removedPaths: string[] = [];
 			let changed = false;
 			for (const { record: expected, sourceExists } of observations) {
 				const current = records[expected.sourcePath];
 				if (!current || JSON.stringify(current) !== JSON.stringify(expected)) continue;
 				if (!sourceExists) {
+					if (guidedPath(current.sourcePath) || guidedConcept(current.linkedConceptIds, current.sourcePath)) continue;
 					delete records[current.sourcePath];
 					removedPaths.push(current.sourcePath);
 					changed = true;

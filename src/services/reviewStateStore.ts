@@ -44,6 +44,7 @@ import { createConceptDuplicatePairKey } from "./conceptDuplicateDetector";
 import { withDeletedConceptState } from "./conceptDeletionState";
 import { runPluginDataMutation } from "./pluginDataMutation";
 import type { ConceptConflictMergeDraftRecord } from "../models/conceptConflictMergeDraft";
+import { assertGuidedMergeAllowsTarget } from "./guidedConceptMergeRecovery";
 
 const CURRENT_SCHEMA_VERSION = 1;
 
@@ -259,6 +260,7 @@ export class ReviewStateStore {
 
 			const uniqueCardIds = [...new Set(cardIds.map((cardId) => cardId.trim()).filter(Boolean))];
 			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			assertGuidedMergeAllowsTarget(latestData, [], [conceptId], uniqueCardIds);
 			assertConceptIdRepairAllowsConcept(latestData.conceptIdRepairs, conceptId);
 			for (const cardId of uniqueCardIds) assertCardIdRepairAllowsCard(latestData.cardIdRepairs, cardId);
 			const deletedAt = now.toISOString();
@@ -454,6 +456,7 @@ export class ReviewStateStore {
 			}
 
 			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			assertGuidedMergeAllowsTarget(latestData, [], [], [oldCardId, newCardId]);
 			assertCardIdRepairAllowsCard(latestData.cardIdRepairs, oldCardId);
 			assertCardIdRepairAllowsCard(latestData.cardIdRepairs, newCardId);
 			const nextData = withRekeyedCardState(latestData, oldCardId, newCardId);
@@ -503,6 +506,7 @@ export class ReviewStateStore {
 			}
 
 			const latestData = this.mergePendingSettings(normalizePluginData(await this.storage.loadData()));
+			assertGuidedMergeAllowsTarget(latestData, [], [oldConceptId, newConceptId]);
 			assertConceptIdRepairAllowsConcept(latestData.conceptIdRepairs, oldConceptId);
 			assertConceptIdRepairAllowsConcept(latestData.conceptIdRepairs, newConceptId);
 			const nextData = withRekeyedConceptPause(latestData, oldConceptId, newConceptId);

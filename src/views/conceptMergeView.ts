@@ -15,6 +15,7 @@ import {
 } from "../services/conceptMergeDraft";
 import type { ConceptMergePlan } from "../services/conceptMergeService";
 import { ConceptMergeService } from "../services/conceptMergeService";
+import type { GuidedConceptMergeReceipt } from "../services/guidedConceptMergeRecovery";
 import { rankConceptMergeCandidates } from "../services/conceptDuplicateDetector";
 import type { ConceptScanner } from "../services/conceptScanner";
 import {
@@ -70,6 +71,19 @@ export class MnemeConceptMergeView extends ItemView {
 
 	getIcon(): string {
 		return "git-merge";
+	}
+
+	completeRecoveredMerge(receipt: GuidedConceptMergeReceipt): void {
+		if (this.isClosed || receipt.status !== "written"
+			|| ![this.firstConceptId, this.secondConceptId].includes(receipt.merged.conceptId)
+			|| ![this.firstConceptId, this.secondConceptId].includes(receipt.survivor.conceptId)) return;
+		const survivor = this.concepts.find((c) => c.conceptId === receipt.survivor.conceptId && c.path === receipt.survivor.path);
+		if (!survivor || !this.concepts.some((c) => c.conceptId === receipt.merged.conceptId && c.path === receipt.merged.path)) return;
+		this.completed = true;
+		this.draft = undefined;
+		this.operationRevision++;
+		this.isWorking = false;
+		this.renderSuccess(survivor);
 	}
 
 	protected async onOpen(): Promise<void> {
@@ -567,7 +581,7 @@ export class MnemeConceptMergeView extends ItemView {
 		} catch (error) {
 			if (!this.isCurrentOperation(revision)) return;
 			console.error("Mneme: Merge failed", error);
-			this.statusMessage = formatUserFacingError(error, "No partial Merge was kept if rollback succeeded.");
+			this.statusMessage = formatUserFacingError(error, "Run Resume Guided Merge to recover the confirmed operation.");
 			new Notice(`Mneme: ${this.statusMessage}`);
 		}
 	}

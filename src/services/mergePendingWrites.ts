@@ -4,6 +4,7 @@ import { readApprovedWriteReceipt } from "./approvedWriteRecovery";
 import { readManualCardWriteReceipt } from "./manualCardWriteRecovery";
 import { readManualConceptWriteReceipt } from "./manualConceptWriteRecovery";
 import { assertIncomingMergeAllowsTarget } from "./incomingConceptMergeRecovery";
+import { assertGuidedMergeAllowsTarget } from "./guidedConceptMergeRecovery";
 
 /** Preserve the paths, hashes and owners required by unfinished authoring operations. */
 export function assertMergeHasNoPendingWrites(
@@ -11,10 +12,12 @@ export function assertMergeHasNoPendingWrites(
 	paths: Iterable<string>,
 	// Guided Merge changes Concept/Card ownership; Incoming Merge only edits its target file.
 	conceptIds: Iterable<string> = [],
+	cardIds: Iterable<string> = [],
 ): void {
 	const affectedPaths = new Set(Array.from(paths, normalizeVaultPath));
 	const affectedIds = new Set(conceptIds);
 	assertIncomingMergeAllowsTarget(data, affectedPaths, affectedIds);
+	assertGuidedMergeAllowsTarget(data, affectedPaths, affectedIds, cardIds);
 	const touchesPath = (path: string) => affectedPaths.has(normalizeVaultPath(path));
 	const touchesId = (id: string | undefined) => id !== undefined && affectedIds.has(id);
 	const card = data.manualCardWrite === undefined ? undefined : readManualCardWriteReceipt(data.manualCardWrite);

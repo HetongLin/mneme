@@ -6,6 +6,8 @@ import type { MnemePluginData } from "../models/reviewState";
 import { runPluginDataMutation } from "./pluginDataMutation";
 import { normalizePluginData } from "./reviewStateStore";
 import { readConceptIdRepairs } from "./conceptIdRepairReceipt";
+import { assertGuidedMergeAllowsTarget, getPendingGuidedConceptMerge } from "./guidedConceptMergeRecovery";
+import { normalizeVaultPath } from "../utils/markdownPath";
 
 export interface ConceptSourceLinkReconciliationChange {
 	expected: ConceptSourceLink;
@@ -36,6 +38,12 @@ export class ConceptSourceLinkStore {
 	async upsertLink(link: ConceptSourceLink): Promise<void> {
 		return runPluginDataMutation(this.storage, async () => {
 			const data = await this.loadPluginData();
+			const current = data.conceptSourceLinks[link.id];
+			if (!current || JSON.stringify(current) !== JSON.stringify(link)) {
+				assertGuidedMergeAllowsTarget(data,
+					[current?.sourcePath, link.sourcePath].filter((path): path is string => !!path),
+					[current?.conceptId, link.conceptId].filter((id): id is string => !!id));
+			}
 
 			await this.storage.saveData({
 				...data,
@@ -61,9 +69,16 @@ export class ConceptSourceLinkStore {
 			const removedLinks: ConceptSourceLink[] = [];
 			const staleLinkIds: string[] = [];
 			const deferredLinkIds: string[] = [];
+			const guided = getPendingGuidedConceptMerge(data);
 			for (const { expected, action } of changes) {
 				const current = links[expected.id];
 				if (!current || JSON.stringify(current) !== JSON.stringify(expected)) continue;
+				if (guided && (guided.protectedPaths.some((path) => normalizeVaultPath(path) === normalizeVaultPath(current.sourcePath))
+					|| guided.merged.conceptId === current.conceptId
+					|| guided.survivor.conceptId === current.conceptId)) {
+					deferredLinkIds.push(current.id);
+					continue;
+				}
 				if (action === "remove_missing_concept" && repairConceptIds.has(current.conceptId)) {
 					deferredLinkIds.push(current.id);
 					continue;
@@ -114,6 +129,11 @@ export class ConceptSourceLinkStore {
 	async clearLinks(): Promise<void> {
 		return runPluginDataMutation(this.storage, async () => {
 			const data = await this.loadPluginData();
+			const guided = getPendingGuidedConceptMerge(data);
+			if (guided) {
+				assertGuidedMergeAllowsTarget(data, guided.protectedPaths,
+					[guided.survivor.conceptId, guided.merged.conceptId], guided.cardIds);
+			}
 
 			await this.storage.saveData({
 				...data,

@@ -15,6 +15,7 @@ import { readManualCardWriteReceipt } from "./manualCardWriteRecovery";
 import { runPluginDataMutation, type PluginDataStorage } from "./pluginDataMutation";
 import { normalizePluginData } from "./reviewStateStore";
 import { parseSimpleFrontmatter } from "./simpleFrontmatter";
+import { assertGuidedMergeAllowsTarget } from "./guidedConceptMergeRecovery";
 
 export interface CardDeletionVault {
 	readFresh(path: string): Promise<string>;
@@ -47,6 +48,7 @@ export class RecoverableCardDeletion {
 				throw new Error("The saved Card is not in recognized Card Markdown. Refresh the view.");
 			}
 			const owner = getCardGroupConceptIdFromFrontmatter(frontmatter);
+			assertGuidedMergeAllowsTarget(data, [input.path], [owner ?? ""].filter(Boolean), [input.cardId]);
 			if (owner) assertConceptNotDeleting(data.conceptDeletions, owner);
 			this.assertNoPendingWrites(data, input.path);
 			const result = deleteCardBlock(input.content, {
@@ -79,6 +81,7 @@ export class RecoverableCardDeletion {
 		assertCardIdRepairAllowsCard(data.cardIdRepairs, receipt.cardId);
 		assertCardIdRepairAllowsPath(data.cardIdRepairs, receipt.path);
 		assertConceptIdRepairAllowsPath(data.conceptIdRepairs, receipt.path);
+		assertGuidedMergeAllowsTarget(data, [receipt.path], [], [receipt.cardId]);
 		const before = await this.vault.readFresh(receipt.path);
 		const hash = await hashMarkdown(before);
 		if (hash !== receipt.afterHash) {
@@ -109,6 +112,7 @@ export class RecoverableCardDeletion {
 		if (manual?.status === "pending" && manual.cardsPath === path) {
 			throw new Error("Resume Card creation before deleting from this Card Group.");
 		}
+		assertGuidedMergeAllowsTarget(data, [path]);
 		for (const proposal of Object.values(data.knowledgeProposals)) {
 			if (proposal.status === "written" || proposal.writeReceipt === undefined) continue;
 			if (readApprovedWriteReceipt(proposal.writeReceipt).targetPath === path) {

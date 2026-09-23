@@ -15,6 +15,7 @@ import { renderManualConcept } from "../src/services/manualConceptService";
 import { parseMnemeCards } from "../src/services/cardMarkerParser";
 import { createDefaultPluginData } from "../src/services/reviewStateStore";
 import { assertMergeHasNoPendingWrites } from "../src/services/mergePendingWrites";
+import { MemoryGuidedMergeJournal } from "./helpers/memoryGuidedMergeJournal";
 
 const now = "2026-09-19T10:00:00.000Z";
 function concept(name: string): ConceptSummary & { cardsPath: string } {
@@ -134,7 +135,7 @@ async function run(): Promise<void> {
 			assert.doesNotThrow(() => assertMergeHasNoPendingWrites(storage.data, [unrelated.path], [unrelated.conceptId]));
 			seedIncoming(storage);
 			assert.equal((await prepareIncoming(vault, storage, owner)).status, "ready", "Incoming Merge does not move this pending Card");
-			const service = new ConceptMergeService(vault, storage);
+			const service = new ConceptMergeService(vault, storage, undefined, new MemoryGuidedMergeJournal());
 			await assertBlocked(() => service.prepare({ survivor, merged, preserveMergedAsView: true }), vault, storage, /pending Card creation/);
 			const writesBeforeResume = vault.writes;
 			await write();
@@ -161,7 +162,7 @@ async function run(): Promise<void> {
 		await assert.rejects(write(), /Injected completion/);
 		const receipt = storage.data.manualConceptWrite!;
 		const created = { conceptId: receipt.conceptId, path: receipt.path, cardsPath: receipt.cardsPath, title: "New" };
-		const service = new ConceptMergeService(vault, storage);
+		const service = new ConceptMergeService(vault, storage, undefined, new MemoryGuidedMergeJournal());
 		await assertBlocked(() => service.prepare({ survivor, merged: created, preserveMergedAsView: true }), vault, storage, /pending Concept creation/);
 		await assertBlocked(() => prepareIncoming(vault, storage, created), vault, storage, /pending Concept creation/);
 		const beforeResume = { ...vault.files };
@@ -191,7 +192,7 @@ async function run(): Promise<void> {
 		});
 		assert.equal((await writer.writeApprovedProposal(proposal.id)).status, "failed");
 		assert.ok(storage.data.knowledgeProposals[proposal.id]?.writeReceipt);
-		const service = new ConceptMergeService(vault, storage);
+		const service = new ConceptMergeService(vault, storage, undefined, new MemoryGuidedMergeJournal());
 		if (target !== unrelated) {
 			await assertBlocked(() => service.prepare({ survivor, merged, preserveMergedAsView: true }), vault, storage, /Complete Inbox write pending-update/);
 		} else {
@@ -210,7 +211,7 @@ async function run(): Promise<void> {
 	{
 		const vault = new Vault();
 		const storage = new Storage();
-		const service = new ConceptMergeService(vault, storage);
+		const service = new ConceptMergeService(vault, storage, undefined, new MemoryGuidedMergeJournal());
 		const prepared = await service.prepare({ survivor, merged, preserveMergedAsView: true });
 		if (prepared.status !== "ready") throw new Error(prepared.message);
 		const cardDraft = { ...createEmptyManualCardDraft(merged.conceptId, now, "later-card"), front: "Later?", back: "Yes" };

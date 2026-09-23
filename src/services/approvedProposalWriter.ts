@@ -40,6 +40,7 @@ import { createRandomCardId, createRandomConceptId } from "./entityId";
 import { readManualCardWriteReceipt } from "./manualCardWriteRecovery";
 import { readManualConceptWriteReceipt } from "./manualConceptWriteRecovery";
 import { assertIncomingMergeAllowsOrigin, assertIncomingMergeAllowsTarget } from "./incomingConceptMergeRecovery";
+import { assertGuidedMergeAllowsTarget } from "./guidedConceptMergeRecovery";
 
 export interface MnemeVaultAdapter {
 	append(path: string, content: string): Promise<void>;
@@ -109,6 +110,7 @@ export class ApprovedProposalWriter {
 				let proposal = data.knowledgeProposals[proposalId];
 				if (!proposal) return this.failedResult(proposalId, `Proposal not found: ${proposalId}`);
 				assertIncomingMergeAllowsOrigin(data, { kind: "inbox", proposalId });
+				assertGuidedMergeAllowsTarget(data, [], proposal.conceptId ? [proposal.conceptId] : []);
 				let receipt = proposal.writeReceipt === undefined ? undefined : readApprovedWriteReceipt(proposal.writeReceipt);
 				if (receipt) targetPaths = [receipt.targetPath];
 				if (proposal.status === "written" && receipt) return this.writtenResult(proposalId, targetPaths);
@@ -124,6 +126,8 @@ export class ApprovedProposalWriter {
 					: proposal.payload && "conceptId" in proposal.payload ? proposal.payload.conceptId : undefined;
 				assertIncomingMergeAllowsTarget(data, receipt ? [receipt.targetPath] : [],
 					[proposal.conceptId, targetConceptId].filter((id): id is string => !!id));
+				assertGuidedMergeAllowsTarget(data, receipt ? [receipt.targetPath] : [],
+					[proposal.conceptId, targetConceptId].filter((id): id is string => !!id), receipt?.entityId ? [receipt.entityId] : []);
 				if (targetConceptId) assertConceptNotDeleting(data.conceptDeletions, targetConceptId);
 				if (targetConceptId) assertConceptIdRepairAllowsConcept(data.conceptIdRepairs, targetConceptId);
 				// A shared old ID becoming unique does not establish an older proposal's target.
@@ -177,6 +181,7 @@ export class ApprovedProposalWriter {
 					}
 					const plan = await this.prepareWrite(proposal, receipt, reservedIds, reservedPaths, requiredConceptPath);
 					assertIncomingMergeAllowsTarget(data, [plan.draft.targetPath], plan.entityId ? [plan.entityId] : []);
+					assertGuidedMergeAllowsTarget(data, [plan.draft.targetPath], plan.entityId ? [plan.entityId] : []);
 					assertCardDeletionAllowsPath(data.cardDeletion, plan.draft.targetPath);
 					assertCardIdRepairAllowsPath(data.cardIdRepairs, plan.draft.targetPath);
 					assertConceptIdRepairAllowsPath(data.conceptIdRepairs, plan.draft.targetPath);

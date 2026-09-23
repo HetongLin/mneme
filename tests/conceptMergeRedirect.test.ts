@@ -8,6 +8,7 @@ import {
 } from "../src/services/conceptMergeService";
 import { createDefaultPluginData } from "../src/services/reviewStateStore";
 import { getConceptId } from "../src/services/conceptIdEditor";
+import { MemoryGuidedMergeJournal } from "./helpers/memoryGuidedMergeJournal";
 
 const survivor = concept("concept-a", "Alpha", "Notes/Alpha.md");
 const merged = concept("concept-b", "Beta", "Notes/Beta.md");
@@ -42,7 +43,7 @@ async function runAsyncTests(): Promise<void> {
 			};
 			const vault = new MemoryVault(files);
 			const storage = new MemoryStorage();
-			const service = new ConceptMergeService(vault, storage, () => "2026-09-22T10:00:00.000Z");
+			const service = new ConceptMergeService(vault, storage, () => "2026-09-22T10:00:00.000Z", new MemoryGuidedMergeJournal());
 			const prepared = await service.prepare({ merged, preserveMergedAsView, survivor });
 			assert.equal(prepared.status, "ready", prepared.status === "blocked" ? prepared.message : undefined);
 			if (prepared.status !== "ready") continue;
@@ -93,7 +94,7 @@ async function runAsyncTests(): Promise<void> {
 			.replace("mneme_id: concept-b", 'mneme_id: "concept-b" # identity comment')
 			.replace("# custom YAML comment", 'mneme_version: "1" # version comment\n# custom YAML comment');
 		const vault = new MemoryVault(files);
-		const service = new ConceptMergeService(vault, new MemoryStorage(), () => "2026-09-22T10:00:00.000Z");
+		const service = new ConceptMergeService(vault, new MemoryStorage(), () => "2026-09-22T10:00:00.000Z", new MemoryGuidedMergeJournal());
 		const prepared = await service.prepare({ merged, preserveMergedAsView: false, survivor });
 		assert.equal(prepared.status, "ready", prepared.status === "blocked" ? prepared.message : undefined);
 		if (prepared.status !== "ready") return;
@@ -125,7 +126,7 @@ async function runAsyncTests(): Promise<void> {
 		const body = "# Beta\n\n```markdown\nAn example that intentionally has no closing fence.\n\n<!-- an unclosed comment";
 		const files = baseFiles("\n", body);
 		const vault = new MemoryVault(files);
-		const service = new ConceptMergeService(vault, new MemoryStorage(), () => "2026-09-22T10:00:00.000Z");
+		const service = new ConceptMergeService(vault, new MemoryStorage(), () => "2026-09-22T10:00:00.000Z", new MemoryGuidedMergeJournal());
 		const prepared = await service.prepare({ merged, preserveMergedAsView: false, survivor });
 		assert.equal(prepared.status, "ready");
 		if (prepared.status !== "ready") return;
@@ -140,7 +141,7 @@ async function runAsyncTests(): Promise<void> {
 		const source = "---\nmneme_type: concept\nmneme_id: concept-b\n---";
 		const files = { [survivor.path]: conceptMarkdown(survivor, "\n"), [merged.path]: source };
 		const vault = new MemoryVault(files);
-		const service = new ConceptMergeService(vault, new MemoryStorage(), () => "2026-09-22T10:00:00.000Z");
+		const service = new ConceptMergeService(vault, new MemoryStorage(), () => "2026-09-22T10:00:00.000Z", new MemoryGuidedMergeJournal());
 		const prepared = await service.prepare({ merged, preserveMergedAsView: false, survivor });
 		assert.equal(prepared.status, "ready");
 		if (prepared.status !== "ready") return;
@@ -153,7 +154,7 @@ async function runAsyncTests(): Promise<void> {
 		const files = baseFiles("\n", "# Beta\n\nOriginal body");
 		const vault = new MemoryVault(files);
 		const storage = new MemoryStorage();
-		const service = new ConceptMergeService(vault, storage);
+		const service = new ConceptMergeService(vault, storage, undefined, new MemoryGuidedMergeJournal());
 		const prepared = await service.prepare({ merged, preserveMergedAsView: false, survivor });
 		assert.equal(prepared.status, "ready");
 		if (prepared.status !== "ready") return;
@@ -169,7 +170,7 @@ async function runAsyncTests(): Promise<void> {
 		const files = baseFiles("\n", "# Beta\n\nOriginal body");
 		const vault = new MemoryVault(files);
 		const storage = new MemoryStorage();
-		const service = new ConceptMergeService(vault, storage);
+		const service = new ConceptMergeService(vault, storage, undefined, new MemoryGuidedMergeJournal());
 		const prepared = await service.prepare({ merged, preserveMergedAsView: false, survivor });
 		assert.equal(prepared.status, "ready");
 		if (prepared.status !== "ready") return;
@@ -188,7 +189,7 @@ async function assertRedirectPreparationBlocked(extraYaml: string): Promise<void
 	files[merged.path] = files[merged.path]!.replace(marker, `${extraYaml}\n${marker}`);
 	const before = { ...files };
 	const storage = new MemoryStorage();
-	const prepared = await new ConceptMergeService(new MemoryVault(files), storage).prepare({
+	const prepared = await new ConceptMergeService(new MemoryVault(files), storage, undefined, new MemoryGuidedMergeJournal()).prepare({
 		merged,
 		preserveMergedAsView: false,
 		survivor,

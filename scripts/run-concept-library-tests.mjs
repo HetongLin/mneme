@@ -16,6 +16,10 @@ const tests = [
 	"tests/conceptIdRepairWriteGuards.test.ts",
 	"tests/conceptDuplicateDetector.test.ts",
 	"tests/conceptMergeService.test.ts",
+	"tests/guidedConceptMergeRecovery.test.ts",
+	"tests/guidedConceptMergeGuards.test.ts",
+	"tests/obsidianGuidedMergeJournal.test.ts",
+	"tests/guidedMergeViewRecovery.test.ts",
 	"tests/conceptMergeRelatedResolution.test.ts",
 	"tests/conceptMergeRedirect.test.ts",
 	"tests/conceptMergeMarkdown.test.ts",
@@ -47,7 +51,7 @@ for (const test of tests) {
 		"--platform=node",
 		"--format=esm",
 		...(test === "tests/conceptIdRepairModal.test.ts" ? ["--alias:obsidian=./tests/helpers/obsidianIdentityRepairStub.ts"] : []),
-		...(test === "tests/incomingConceptMergeViewRecovery.test.ts" ? ["--alias:obsidian=./tests/helpers/obsidianPluginStub.ts"] : []),
+		...(["tests/incomingConceptMergeViewRecovery.test.ts", "tests/guidedMergeViewRecovery.test.ts"].includes(test) ? ["--alias:obsidian=./tests/helpers/obsidianPluginStub.ts"] : []),
 		`--outfile=${outfile}`,
 	], { stdio: "inherit" });
 

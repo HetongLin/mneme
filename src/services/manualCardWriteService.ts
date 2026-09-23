@@ -12,6 +12,7 @@ import { applyManualCard, prepareManualCard, renderManualCard, type ManualCardRe
 import { isDraftId, manualCardDraftHash, readCurrentManualCardDraft, readManualCardWriteReceipt } from "./manualCardWriteRecovery";
 import { runPluginDataMutation, type PluginDataStorage } from "./pluginDataMutation";
 import { normalizePluginData } from "./reviewStateStore";
+import { assertGuidedMergeAllowsTarget } from "./guidedConceptMergeRecovery";
 
 export interface ManualCardCreationResult extends ManualCardResult {
 	nextDraft: ManualCardDraft;
@@ -29,6 +30,7 @@ export function createManualCardWithRecovery(
 ): Promise<ManualCardCreationResult> {
 	return runPluginDataMutation(storage, async () => {
 		const data = normalizePluginData(await storage.loadData());
+		assertGuidedMergeAllowsTarget(data, [], draft.conceptId ? [draft.conceptId] : [], []);
 		let receipt = data.manualCardWrite === undefined ? undefined : readManualCardWriteReceipt(data.manualCardWrite);
 		if (!isDraftId(draft.draftId)) throw new Error("Reopen Card Composer before creating a Card.");
 		const inputHash = await manualCardDraftHash(draft);
@@ -62,6 +64,7 @@ export function createManualCardWithRecovery(
 			const prepared = await prepareManualCard({ ...draft, concept }, settings, vault, reservedIds, createId);
 			assertCardDeletionAllowsPath(data.cardDeletion, prepared.cardsPath);
 			assertCardIdRepairAllowsPath(data.cardIdRepairs, prepared.cardsPath);
+			assertGuidedMergeAllowsTarget(data, [prepared.cardsPath], [prepared.conceptId], [prepared.cardId]);
 			assertConceptIdRepairAllowsPath(data.conceptIdRepairs, prepared.cardsPath);
 			assertCardIdRepairAllowsCard(data.cardIdRepairs, prepared.cardId);
 			const afterHash = await writtenContentHash("upsert_card_group", prepared.markdown, prepared.cardId);
@@ -80,6 +83,7 @@ export function createManualCardWithRecovery(
 		const existing = await vault.exists(receipt.cardsPath) ? await vault.read(receipt.cardsPath) : undefined;
 		assertCardIdRepairAllowsPath(data.cardIdRepairs, receipt.cardsPath);
 		assertConceptIdRepairAllowsPath(data.conceptIdRepairs, receipt.cardsPath);
+		assertGuidedMergeAllowsTarget(data, [receipt.cardsPath], [receipt.conceptId], [receipt.cardId]);
 		assertCardIdRepairAllowsCard(data.cardIdRepairs, receipt.cardId);
 		const currentHash = existing === undefined ? undefined : await writtenContentHash("upsert_card_group", existing, receipt.cardId);
 		if (currentHash !== receipt.afterHash) {

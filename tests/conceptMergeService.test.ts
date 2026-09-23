@@ -3,7 +3,7 @@ import type { ConceptSummary } from "../src/models/conceptLibrary";
 import type { MnemePluginData } from "../src/models/reviewState";
 import { DEFAULT_SETTINGS } from "../src/models/settings";
 import {
-	ConceptMergeService,
+	ConceptMergeService as BaseConceptMergeService,
 	type ConceptMergeStorage,
 	type ConceptMergeVaultAdapter,
 } from "../src/services/conceptMergeService";
@@ -14,6 +14,14 @@ import { applyConceptMergeDraft, createManualConceptMergeDraft } from "../src/se
 
 const survivor = createConcept("concept-a", "Alpha", "Mneme/Concepts/Alpha/Concept.md", "Mneme/Cards/Alpha/Card.md");
 const merged = createConcept("concept-b", "Beta", "Mneme/Concepts/Beta/Concept.md", "Mneme/Cards/Beta/Card.md");
+
+import { MemoryGuidedMergeJournal } from "./helpers/memoryGuidedMergeJournal";
+
+class ConceptMergeService extends BaseConceptMergeService {
+	constructor(vault: ConceptMergeVaultAdapter, storage: ConceptMergeStorage, now?: () => string) {
+		super(vault, storage, now, new MemoryGuidedMergeJournal());
+	}
+}
 
 async function runAsyncTests(): Promise<void> {
 	for (const targetKind of ["survivor", "neighbor", "unresolved"] as const) {
@@ -477,7 +485,8 @@ async function runAsyncTests(): Promise<void> {
 
 		assert.equal(result.status, "conflict");
 		assert.match(vault.files[survivor.path] ?? "", /Edit made after the initial check/);
-		assert.equal(storage.saveCount, 0);
+		assert.equal(storage.saveCount, 1);
+		assert.equal(storage.data.guidedConceptMerge?.status, "pending");
 	}
 
 	{
@@ -589,25 +598,9 @@ async function runAsyncTests(): Promise<void> {
 
 		assert.equal(result.status, "failed");
 		assert.deepEqual(vault.files, before);
-		assert.equal(JSON.stringify(storage.data), dataBefore);
-	}
-
-	{
-		const vault = new MemoryMergeVault(createFiles());
-		const storage = new MemoryMergeStorage(createData());
-		const service = new ConceptMergeService(vault, storage);
-		const prepared = await service.prepare({ merged, preserveMergedAsView: true, survivor });
-		assert.equal(prepared.status, "ready");
-		if (prepared.status !== "ready") throw new Error(prepared.message);
-		storage.partialFailOnce = true;
-		vault.rollbackRaceAfter = prepared.plan.writes.filter((write) => write.after !== write.before).length;
-		vault.rollbackRacePath = survivor.path;
-		const finalConcept = prepared.plan.writes.find((write) => write.path === survivor.path)?.after ?? "";
-		const result = await service.execute(prepared.plan, finalConcept);
-
-		assert.equal(result.status, "failed");
-		assert.match(vault.files[survivor.path] ?? "", /Edit made during rollback/);
-		assert.equal(JSON.stringify(storage.data), JSON.stringify(createData()));
+		assert.equal(JSON.stringify({ ...storage.data, guidedConceptMerge: undefined }), dataBefore);
+		assert.equal(storage.data.guidedConceptMerge?.status, "pending");
+		assert.equal((await service.resume()).status, "merged");
 	}
 
 	{
@@ -625,9 +618,12 @@ async function runAsyncTests(): Promise<void> {
 		const result = await service.execute(prepared.plan, finalConcept);
 
 		assert.equal(result.status, "conflict");
-		assert.equal(vault.files[survivor.path], createFiles()[survivor.path]);
 		assert.match(vault.files[changedPath] ?? "", /Edit made during execution/);
-		assert.equal(JSON.stringify(storage.data), JSON.stringify(createData()));
+		assert.equal(JSON.stringify({ ...storage.data, guidedConceptMerge: undefined }), JSON.stringify(createData()));
+		assert.equal(storage.data.guidedConceptMerge?.status, "pending");
+		const partialFiles = { ...vault.files };
+		assert.equal((await service.resume()).status, "conflict");
+		assert.deepEqual(vault.files, partialFiles);
 	}
 
 	{
@@ -748,9 +744,10 @@ async function runAsyncTests(): Promise<void> {
 		vault.throwAfterProcessAt = 2;
 		const result = await service.execute(prepared.plan, finalConcept);
 		assert.equal(result.status, "failed");
-		assert.deepEqual(vault.files, beforeFiles);
-		assert.deepEqual(storage.data, beforeData);
-		assert.equal(storage.saveCount, 0);
+		assert.notDeepEqual(vault.files, beforeFiles);
+		assert.equal(JSON.stringify({ ...storage.data, guidedConceptMerge: undefined }), JSON.stringify(beforeData));
+		assert.equal(storage.saveCount, 1);
+		assert.equal((await service.resume()).status, "merged");
 	}
 
 	{
@@ -769,13 +766,16 @@ async function runAsyncTests(): Promise<void> {
 		vault.throwAfterProcessEdit = "\nLearner edit during rollback\n";
 		const result = await service.execute(prepared.plan, finalConcept);
 		assert.equal(result.status, "failed");
-		assert.match(result.message, /Rollback also failed/i);
+		assert.match(result.message, /Resume Guided Merge/);
 		assert.deepEqual(vault.files, {
 			...beforeFiles,
 			[racedWrite.path]: `${racedWrite.after}\nLearner edit during rollback\n`,
 		});
-		assert.deepEqual(storage.data, beforeData);
-		assert.equal(storage.saveCount, 0);
+		assert.equal(JSON.stringify({ ...storage.data, guidedConceptMerge: undefined }), JSON.stringify(beforeData));
+		assert.equal(storage.saveCount, 1);
+		const partialFiles = { ...vault.files };
+		assert.equal((await service.resume()).status, "conflict");
+		assert.deepEqual(vault.files, partialFiles);
 	}
 
 	for (const side of ["survivor", "merged"] as const) {
@@ -936,8 +936,6 @@ class MemoryMergeVault implements ConceptMergeVaultAdapter {
 	throwAfterProcessEdit?: string;
 	racePath?: string;
 	raceEdit?: string;
-	rollbackRaceAfter?: number;
-	rollbackRacePath?: string;
 	changeAfterCommit?: number;
 	changeAfterCommitPath?: string;
 
@@ -959,7 +957,6 @@ class MemoryMergeVault implements ConceptMergeVaultAdapter {
 	}
 
 	async process(path: string, transform: (current: string) => string): Promise<void> {
-		this.maybeRaceDuringRollback(path);
 		if (this.racePath === path && this.raceEdit) {
 			this.files[path] += this.raceEdit;
 			this.racePath = undefined;
@@ -981,12 +978,6 @@ class MemoryMergeVault implements ConceptMergeVaultAdapter {
 		}
 	}
 
-	private maybeRaceDuringRollback(path: string): void {
-		if (path === this.rollbackRacePath && this.rollbackRaceAfter !== undefined && this.commitCount >= this.rollbackRaceAfter) {
-			this.rollbackRaceAfter = undefined;
-			this.files[path] = `${this.files[path] ?? ""}\nEdit made during rollback\n`;
-		}
-	}
 }
 
 class MemoryMergeStorage implements ConceptMergeStorage {

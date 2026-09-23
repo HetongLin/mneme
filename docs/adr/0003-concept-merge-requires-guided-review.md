@@ -202,3 +202,13 @@ block preparation. Unrelated complex YAML stays untouched; this is targeted scal
 editing, not a new general YAML parser. Existing reviewed snapshots and atomic
 write/compensation guards protect the retained content. No persisted plugin-data
 schema or durable Merge recovery protocol is added.
+
+
+## Durable Guided Merge recovery — 2026-09-24
+
+[ADR 0031](0031-guided-merge-resumes-reviewed-file-writes.md) supersedes the earlier
+in-memory compensation behavior for confirmed Guided Merge. Keep preview
+zero-write; persist verified recovery snapshots outside `data.json`, record a
+content-free intent, and resume only the remaining exact reviewed file writes.
+State migration uses current data, and a written receipt prevents replay. Conflicts
+preserve current files and snapshots for inspection; there is no automatic rollback.

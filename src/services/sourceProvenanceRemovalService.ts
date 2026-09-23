@@ -9,6 +9,7 @@ import {
 import { runPluginDataMutation } from "./pluginDataMutation";
 import { removeConceptSourceEntry } from "./conceptSourceRemover";
 import { normalizePluginData } from "./reviewStateStore";
+import { assertGuidedMergeAllowsTarget } from "./guidedConceptMergeRecovery";
 
 export interface SourceProvenanceRemovalVault extends TransactionalMarkdownVault {}
 
@@ -40,6 +41,7 @@ export class SourceProvenanceRemovalService {
 	async prepare(issue: ConceptStaleSourceIssue): Promise<PrepareSourceRemovalResult> {
 		try {
 			const data = normalizePluginData(await this.storage.loadData());
+			assertGuidedMergeAllowsTarget(data, [issue.conceptPath, issue.link.sourcePath], [issue.conceptId]);
 			const current = data.conceptSourceLinks[issue.link.id];
 			if (!current || current.status !== "stale" || current.conceptId !== issue.conceptId
 				|| comparablePath(current.sourcePath) !== comparablePath(issue.link.sourcePath)) {
@@ -93,6 +95,7 @@ export class SourceProvenanceRemovalService {
 					return { message: "Concept.md changed after preview.", status: "conflict" };
 				}
 				const latestData = normalizePluginData(await this.storage.loadData());
+				assertGuidedMergeAllowsTarget(latestData, [plan.issue.conceptPath, plan.issue.link.sourcePath], [plan.issue.conceptId]);
 				if (JSON.stringify(latestData) !== plan.dataSnapshot) {
 					return { message: "Mneme state changed after preview.", status: "conflict" };
 				}

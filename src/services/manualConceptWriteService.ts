@@ -11,6 +11,7 @@ import { isConceptDraftId, manualConceptDraftHash, readCurrentManualConceptDraft
 import { runPluginDataMutation, type PluginDataStorage } from "./pluginDataMutation";
 import { normalizePluginData } from "./reviewStateStore";
 import { assertIncomingMergeAllowsOrigin } from "./incomingConceptMergeRecovery";
+import { assertGuidedMergeAllowsTarget } from "./guidedConceptMergeRecovery";
 
 export interface ManualConceptCreationResult extends ManualConceptResult {
 	nextDraft: ManualConceptDraft;
@@ -33,6 +34,7 @@ export function createManualConceptWithRecovery(
 	return runPluginDataMutation(storage, async () => {
 		let data = normalizePluginData(await storage.loadData());
 		assertIncomingMergeAllowsOrigin(data, { kind: "manual" });
+		assertGuidedMergeAllowsTarget(data, draft.sourcePath ? [draft.sourcePath] : []);
 		let receipt = data.manualConceptWrite === undefined ? undefined : readManualConceptWriteReceipt(data.manualConceptWrite);
 		if (!isConceptDraftId(draft.draftId)) throw new Error("Reopen Concept Composer before creating a Concept.");
 		const inputHash = await manualConceptDraftHash(draft);
@@ -73,6 +75,7 @@ export function createManualConceptWithRecovery(
 			assertConceptIdRepairAllowsPath(data.conceptIdRepairs, prepared.path);
 			if (prepared.cardsPath) assertConceptIdRepairAllowsPath(data.conceptIdRepairs, prepared.cardsPath);
 			assertConceptIdRepairAllowsConcept(data.conceptIdRepairs, prepared.conceptId);
+			assertGuidedMergeAllowsTarget(data, [prepared.path, ...(prepared.cardsPath ? [prepared.cardsPath] : [])], [prepared.conceptId]);
 			receipt = {
 				version: 1, draftId: draft.draftId, inputHash, conceptId: prepared.conceptId,
 				path: prepared.path, cardsPath: prepared.cardsPath,
@@ -87,6 +90,7 @@ export function createManualConceptWithRecovery(
 		assertConceptNotDeleting(data.conceptDeletions, receipt.conceptId);
 		assertConceptIdRepairAllowsConcept(data.conceptIdRepairs, receipt.conceptId);
 		assertConceptIdRepairAllowsPath(data.conceptIdRepairs, receipt.path);
+		assertGuidedMergeAllowsTarget(data, [receipt.path, ...(receipt.cardsPath ? [receipt.cardsPath] : [])], [receipt.conceptId]);
 		if (receipt.cardsPath) assertConceptIdRepairAllowsPath(data.conceptIdRepairs, receipt.cardsPath);
 		if ((receipt.source?.path ?? "") !== (draft.sourcePath?.trim() ?? "")) throw new Error("The saved Concept source has changed. Existing Markdown was preserved.");
 		if (await vault.exists(receipt.path)) {

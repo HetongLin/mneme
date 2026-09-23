@@ -7,6 +7,7 @@ import {
 	type ConceptMergeVaultAdapter,
 } from "../src/services/conceptMergeService";
 import { createDefaultPluginData } from "../src/services/reviewStateStore";
+import { MemoryGuidedMergeJournal } from "./helpers/memoryGuidedMergeJournal";
 
 const survivor = concept("survivor", "Alpha", "Concepts/Alpha.md");
 const merged = concept("merged", "Topic", "Concepts/Topic.md");
@@ -18,7 +19,7 @@ async function runAsyncTests(): Promise<void> {
 	await unresolvedBareLinkIsPreserved();
 	await copiedBareLinksKeepTheirDestination();
 	await rootGeneratedLinkRequiresStableResolution();
-	await nativeResolutionChangesDuringWritesRollback();
+	await nativeResolutionChangesDuringWritesStopRecovery();
 	await executeRechecksNativeRelatedState();
 	await newMarkdownFileConflictsWithoutWrites();
 }
@@ -30,7 +31,7 @@ async function unresolvedBareLinkIsPreserved(): Promise<void> {
 	});
 	vault.resolveLinkpath = () => undefined;
 	const storage = new MemoryStorage();
-	const service = new ConceptMergeService(vault, storage);
+	const service = new ConceptMergeService(vault, storage, undefined, new MemoryGuidedMergeJournal());
 	const prepared = await service.prepare({ merged, preserveMergedAsView: false, survivor });
 	assert.equal(prepared.status, "ready");
 	if (prepared.status !== "ready") return;
@@ -56,7 +57,7 @@ async function copiedBareLinksKeepTheirDestination(): Promise<void> {
 		};
 		const before = structuredClone(vault.files);
 		const storage = new MemoryStorage();
-		const service = new ConceptMergeService(vault, storage);
+		const service = new ConceptMergeService(vault, storage, undefined, new MemoryGuidedMergeJournal());
 		const prepared = await service.prepare({ merged, preserveMergedAsView: false, survivor });
 		if (context === "stable") {
 			assert.equal(prepared.status, "ready");
@@ -95,7 +96,7 @@ async function rootGeneratedLinkRequiresStableResolution(): Promise<void> {
 		};
 		const before = structuredClone(vault.files);
 		const storage = new MemoryStorage();
-		const service = new ConceptMergeService(vault, storage);
+		const service = new ConceptMergeService(vault, storage, undefined, new MemoryGuidedMergeJournal());
 		const prepared = await service.prepare({ merged: rootMerged, preserveMergedAsView: false, survivor: rootSurvivor });
 		assert.equal(prepared.status, destination === "correct" ? "ready" : "blocked", destination);
 		if (prepared.status === "ready") {
@@ -111,7 +112,7 @@ async function rootGeneratedLinkRequiresStableResolution(): Promise<void> {
 	}
 }
 
-async function nativeResolutionChangesDuringWritesRollback(): Promise<void> {
+async function nativeResolutionChangesDuringWritesStopRecovery(): Promise<void> {
 	for (const trigger of [1, 2] as const) {
 		const files = {
 			[survivor.path]: conceptMarkdown(survivor, "Alpha meaning"),
@@ -128,7 +129,7 @@ async function nativeResolutionChangesDuringWritesRollback(): Promise<void> {
 			if (processCalls === trigger) changed = true;
 		};
 		const storage = new MemoryStorage();
-		const service = new ConceptMergeService(vault, storage);
+		const service = new ConceptMergeService(vault, storage, undefined, new MemoryGuidedMergeJournal());
 		const prepared = await service.prepare({ merged, preserveMergedAsView: false, survivor });
 		assert.equal(prepared.status, "ready", `process ${trigger}`);
 		if (prepared.status !== "ready") continue;
@@ -136,9 +137,18 @@ async function nativeResolutionChangesDuringWritesRollback(): Promise<void> {
 		const final = prepared.plan.writes.find((write) => write.path === survivor.path)!.after;
 		const result = await service.execute(prepared.plan, final);
 		assert.equal(result.status, "conflict", `process ${trigger}`);
-		assert.deepEqual(vault.files, before, `process ${trigger} rollback`);
-		assert.equal(storage.saveCount, 0, `process ${trigger} state`);
-		assert.equal(vault.commitCount, trigger === 1 ? 0 : 2, "one forward write and its compensation");
+		const expected = { ...before };
+		for (const write of prepared.plan.writes.slice(0, trigger - 1)) expected[write.path] = write.after;
+		assert.deepEqual(vault.files, expected, `process ${trigger} preserves partial progress`);
+		assert.equal(storage.saveCount, 1, `process ${trigger} persists intent`);
+		assert.equal(storage.data.guidedConceptMerge?.status, "pending");
+		assert.equal(vault.commitCount, trigger - 1);
+		assert.equal((await service.resume()).status, "conflict");
+		assert.deepEqual(vault.files, expected);
+		changed = false;
+		vault.beforeProcess = undefined;
+		assert.equal((await service.resume()).status, "merged");
+		for (const write of prepared.plan.writes) assert.equal(vault.files[write.path], write.after);
 	}
 }
 
@@ -181,7 +191,7 @@ async function ordinaryNotesAreNotNeighbors(): Promise<void> {
 	vault.resolveLinkpath = (linkpath, sourcePath) =>
 		linkpath === "Topic" && sourcePath === reader.path ? "Topic.md" : undefined;
 	const before = structuredClone(vault.files);
-	const service = new ConceptMergeService(vault, new MemoryStorage());
+	const service = new ConceptMergeService(vault, new MemoryStorage(), undefined, new MemoryGuidedMergeJournal());
 	const prepared = await service.prepare({
 		merged,
 		preserveMergedAsView: false,
@@ -215,7 +225,7 @@ async function executeRechecksNativeRelatedState(): Promise<void> {
 			return undefined;
 		};
 		const storage = new MemoryStorage();
-		const service = new ConceptMergeService(vault, storage);
+		const service = new ConceptMergeService(vault, storage, undefined, new MemoryGuidedMergeJournal());
 		const prepared = await service.prepare({ merged, preserveMergedAsView: false, survivor });
 		assert.equal(prepared.status, "ready", mutation);
 		if (prepared.status !== "ready") continue;
@@ -246,7 +256,7 @@ async function newMarkdownFileConflictsWithoutWrites(): Promise<void> {
 		[merged.path]: conceptMarkdown(merged, "Topic meaning"),
 	});
 	const storage = new MemoryStorage();
-	const service = new ConceptMergeService(vault, storage);
+	const service = new ConceptMergeService(vault, storage, undefined, new MemoryGuidedMergeJournal());
 	const prepared = await service.prepare({ merged, preserveMergedAsView: false, survivor });
 	assert.equal(prepared.status, "ready");
 	if (prepared.status !== "ready") return;
@@ -261,7 +271,7 @@ async function newMarkdownFileConflictsWithoutWrites(): Promise<void> {
 
 async function merge(vault: MemoryVault) {
 	const storage = new MemoryStorage();
-	const service = new ConceptMergeService(vault, storage);
+	const service = new ConceptMergeService(vault, storage, undefined, new MemoryGuidedMergeJournal());
 	const prepared = await service.prepare({ merged, preserveMergedAsView: false, survivor });
 	if (prepared.status !== "ready") throw new Error(prepared.message);
 	const final = prepared.plan.writes.find((write) => write.path === survivor.path)!.after;

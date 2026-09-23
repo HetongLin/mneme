@@ -4,6 +4,7 @@ import { applyProposalStatus } from "./knowledgeProposalLifecycle";
 import { runPluginDataMutation } from "./pluginDataMutation";
 import { normalizePluginData } from "./reviewStateStore";
 import { getPendingIncomingConceptMerge } from "./incomingConceptMergeRecovery";
+import { getPendingGuidedConceptMerge } from "./guidedConceptMergeRecovery";
 
 const PENDING_PROPOSAL_STATUSES = new Set<KnowledgeProposalStatus>([
 	"suggested",
@@ -42,8 +43,13 @@ export class KnowledgeProposalStore {
 		return runPluginDataMutation(this.storage, async () => {
 			const data = await this.loadPluginData();
 			const incoming = getPendingIncomingConceptMerge(data);
+			const guided = getPendingGuidedConceptMerge(data);
 			const proposalsById = Object.fromEntries(proposals.map((proposal) => {
 				const current = data.knowledgeProposals[proposal.id];
+				if (guided && isActionable(proposal) && targetsConcept(proposal, guided.merged.conceptId)
+					&& (!current || JSON.stringify(current) !== JSON.stringify(proposal))) {
+					throw new Error("The merged Concept is still being retired. Resume Guided Merge before creating or editing proposals for it.");
+				}
 				if (incoming?.origin.kind === "inbox" && incoming.origin.proposalId === proposal.id
 					&& JSON.stringify(current) !== JSON.stringify(proposal)) {
 					throw new Error("Resume the pending Incoming Concept Merge before editing its source proposal.");
@@ -69,7 +75,19 @@ export class KnowledgeProposalStore {
 		return runPluginDataMutation(this.storage, async () => {
 			const data = await this.loadPluginData();
 			const incoming = getPendingIncomingConceptMerge(data);
+			const guided = getPendingGuidedConceptMerge(data);
+			if (guided && Object.values(proposals).some((proposal) => isActionable(proposal)
+				&& targetsConcept(proposal, guided.merged.conceptId)
+				&& JSON.stringify(data.knowledgeProposals[proposal.id]) !== JSON.stringify(proposal))) {
+				throw new Error("The merged Concept is still being retired. Resume Guided Merge before replacing proposals.");
+			}
 			for (const [id, current] of Object.entries(data.knowledgeProposals)) {
+				if (guided && isActionable(current) && targetsConcept(current, guided.merged.conceptId)) {
+					const replacement = proposals[id];
+					if (!replacement || JSON.stringify(replacement) !== JSON.stringify(current)) {
+						throw new Error("Resume the pending Guided Merge before replacing its source proposals.");
+					}
+				}
 				if (incoming?.origin.kind === "inbox" && incoming.origin.proposalId === id) {
 					const replacement = proposals[id];
 					if (!replacement || JSON.stringify(replacement) !== JSON.stringify(current)) {
@@ -100,6 +118,11 @@ export class KnowledgeProposalStore {
 			const proposal = data.knowledgeProposals[id];
 			if (!proposal) throw new Error(`Knowledge proposal not found: ${id}`);
 			const incoming = getPendingIncomingConceptMerge(data);
+			const guided = getPendingGuidedConceptMerge(data);
+			if (guided && isActionable({ ...proposal, status }) && targetsConcept({ ...proposal, status }, guided.merged.conceptId)
+				&& status !== proposal.status) {
+				throw new Error("The merged Concept is still being retired. Resume Guided Merge before activating proposals for it.");
+			}
 			if (incoming?.origin.kind === "inbox" && incoming.origin.proposalId === id && proposal.status !== status) {
 				throw new Error("Resume the pending Incoming Concept Merge before changing its source proposal.");
 			}
@@ -146,12 +169,14 @@ export class KnowledgeProposalStore {
 		return runPluginDataMutation(this.storage, async () => {
 			const data = await this.loadPluginData();
 			const incoming = getPendingIncomingConceptMerge(data);
+			const guided = getPendingGuidedConceptMerge(data);
 			const nextProposals = { ...data.knowledgeProposals };
 			const removedIds: string[] = [];
 			for (const expected of proposals) {
 				const current = nextProposals[expected.id];
 				if (!current || JSON.stringify(current) !== JSON.stringify(expected)) continue;
 				if (incoming?.origin.kind === "inbox" && incoming.origin.proposalId === expected.id) continue;
+				if (guided && isActionable(current) && targetsConcept(current, guided.merged.conceptId)) continue;
 				if (hasWriteReceipt(current) || current.status === "approved") continue;
 				delete nextProposals[expected.id];
 				removedIds.push(expected.id);
@@ -166,9 +191,11 @@ export class KnowledgeProposalStore {
 		return runPluginDataMutation(this.storage, async () => {
 			const data = await this.loadPluginData();
 			const incoming = getPendingIncomingConceptMerge(data);
+			const guided = getPendingGuidedConceptMerge(data);
 			if (incoming?.origin.kind === "inbox") {
 				throw new Error("Resume the pending Incoming Concept Merge before clearing its source proposal.");
 			}
+			if (guided) throw new Error("Resume the pending Guided Merge before clearing proposals for its Concepts.");
 
 			await this.storage.saveData({
 				...data,
@@ -184,4 +211,18 @@ export class KnowledgeProposalStore {
 
 export function hasWriteReceipt(proposal: KnowledgeProposal): boolean {
 	return proposal.writeReceipt !== undefined;
+}
+
+function isActionable(proposal: KnowledgeProposal): boolean {
+	return PENDING_PROPOSAL_STATUSES.has(proposal.status);
+}
+
+function targetsConcept(proposal: KnowledgeProposal, conceptId: string): boolean {
+	if (proposal.conceptId === conceptId) return true;
+	const payload = proposal.payload;
+	if (!payload) return false;
+	if ("targetConceptId" in payload && payload.targetConceptId === conceptId) return true;
+	if ("conceptId" in payload && payload.conceptId === conceptId) return true;
+	if ("sourceConceptId" in payload && payload.sourceConceptId === conceptId) return true;
+	return false;
 }

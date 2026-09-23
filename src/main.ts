@@ -45,6 +45,8 @@ import { ConceptScanner } from "./services/conceptScanner";
 import { ConceptLoader } from "./services/conceptLoader";
 import { waitForReviewableConcept } from "./services/conceptReviewAvailability";
 import { ConceptMergeService } from "./services/conceptMergeService";
+import { readGuidedConceptMergeReceipt } from "./services/guidedConceptMergeRecovery";
+import { ObsidianGuidedMergeJournal } from "./services/obsidianGuidedMergeJournal";
 import { ConceptMergeAiService } from "./services/conceptMergeAiService";
 import { ConceptConflictMergeDraftStore } from "./services/conceptConflictMergeDraftStore";
 import { ConceptEnglishNameAiService } from "./services/conceptEnglishNameAiService";
@@ -134,6 +136,7 @@ export default class MnemePlugin extends Plugin {
 	private manualCardDraftStore: ManualCardDraftStore;
 	private approvedProposalWriter: ApprovedProposalWriter;
 	private incomingConceptMergeService: IncomingConceptMergeService;
+	private guidedConceptMergeService: ConceptMergeService;
 	private isUnloading = false;
 	private readonly aiGenerationLock = new AiGenerationLock();
 	private readonly sourceGenerationKeys = new WeakMap<TFile, string>();
@@ -165,6 +168,9 @@ export default class MnemePlugin extends Plugin {
 		await this.reviewStateStore.load();
 		try {
 			const data = await this.loadData();
+			if (data?.guidedConceptMerge !== undefined && readGuidedConceptMergeReceipt(data.guidedConceptMerge).status === "pending") {
+				new Notice("Mneme: A Guided Merge is pending. Run Resume Guided Merge to finish it.");
+			}
 			if (data?.incomingConceptMerge !== undefined
 				&& readIncomingConceptMergeReceipt(data.incomingConceptMerge).status === "pending") {
 				new Notice("Mneme: An Incoming Concept Merge is pending. Run Resume Incoming Concept Merge to finish it.");
@@ -185,9 +191,12 @@ export default class MnemePlugin extends Plugin {
 			console.error("Mneme: could not read recovery records", error);
 			new Notice("Mneme: Could not read recovery records. Inspect data.json before changing Cards or Concepts.");
 		}
-		const conceptMergeService = new ConceptMergeService(
+		this.guidedConceptMergeService = new ConceptMergeService(
 			new ObsidianVaultAdapter(this.app.vault, this.app.metadataCache),
 			this,
+			undefined,
+			new ObsidianGuidedMergeJournal(this.app.vault.adapter,
+				this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`),
 		);
 		const conceptMergeAiService = new ConceptMergeAiService({
 			httpClient: new ObsidianAiHttpClient(),
@@ -259,7 +268,7 @@ export default class MnemePlugin extends Plugin {
 				aiService: conceptMergeAiService,
 				englishAliasesEnabled: () => this.settings.suggestEnglishAliases,
 				getDismissedPairKeys: () => Object.keys(this.reviewStateStore.getConceptDuplicateDismissals()),
-				mergeService: conceptMergeService,
+				mergeService: this.guidedConceptMergeService,
 				onMerged: async () => {
 					await this.reviewStateStore.load();
 					await Promise.all([
@@ -438,6 +447,12 @@ export default class MnemePlugin extends Plugin {
 			callback: () => {
 				void this.openConceptMergeView();
 			},
+		});
+
+		this.addCommand({
+			id: "mneme-resume-guided-merge",
+			name: "Resume Guided Merge",
+			callback: () => { void this.resumeGuidedMerge(); },
 		});
 
 		this.addCommand({
@@ -1294,6 +1309,8 @@ export default class MnemePlugin extends Plugin {
 
 	private async isConceptIdReserved(conceptId: string): Promise<boolean> {
 		const data = await this.loadData();
+		const merge = data?.guidedConceptMerge === undefined ? undefined : readGuidedConceptMergeReceipt(data.guidedConceptMerge);
+		if (merge?.status === "pending" && [merge.survivor.conceptId, merge.merged.conceptId].includes(conceptId)) return true;
 		if (getReservedConceptRepairIds(data?.conceptIdRepairs).includes(conceptId)) return true;
 		if (readConceptDeletions(data?.conceptDeletions)[conceptId]) return true;
 		if (this.reviewStateStore.getConceptMergeRecords()[conceptId]) {
@@ -1307,6 +1324,9 @@ export default class MnemePlugin extends Plugin {
 	}
 
 	private async isCardIdReserved(cardId: string): Promise<boolean> {
+		const data = await this.loadData();
+		const merge = data?.guidedConceptMerge === undefined ? undefined : readGuidedConceptMergeReceipt(data.guidedConceptMerge);
+		if (merge?.status === "pending" && merge.cardIds.includes(cardId)) return true;
 		if (this.getHistoricalCardIds().has(cardId)) {
 			return true;
 		}
@@ -1935,6 +1955,25 @@ export default class MnemePlugin extends Plugin {
 			this.refreshOpenInboxViews(),
 			this.refreshReviewViews(),
 		]);
+	}
+
+	private async resumeGuidedMerge(): Promise<void> {
+		try {
+			const result = await this.guidedConceptMergeService.resume();
+			if (result.status === "failed" || result.status === "conflict") { new Notice(`Mneme: ${result.message}`); return; }
+			if (result.status === "merged") {
+				for (const leaf of this.app.workspace.getLeavesOfType(CONCEPT_MERGE_VIEW_TYPE)) {
+					const view = leaf.view as Partial<MnemeConceptMergeView>;
+					if (typeof view.completeRecoveredMerge === "function") view.completeRecoveredMerge(result.receipt);
+				}
+				await this.reviewStateStore.load();
+				await Promise.all([this.refreshOpenConceptLibraryViews(), this.refreshOpenInboxViews(), this.refreshReviewViews()]);
+			}
+			new Notice(result.status === "merged" ? "Mneme: Guided Merge completed. Card IDs and review history preserved." : "Mneme: No pending Guided Merge.");
+		} catch (error) {
+			console.error("Mneme: could not resume Guided Merge", error);
+			new Notice(`Mneme: ${formatUserFacingError(error, "Could not resume Guided Merge. Reopen Mneme views after recovery.")}`);
+		}
 	}
 
 	private async resumeIncomingConceptMerge(): Promise<void> {
