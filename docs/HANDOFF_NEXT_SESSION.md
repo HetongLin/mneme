@@ -4,6 +4,13 @@ Updated: 2026-09-23
 
 ## 2026-09-05 至 09-23 代码审查后续
 
+- 第三十一轮从检查点 `ba43fba` 继续，在 `fix/incoming-merge-completion-recovery` 完成单文件 Incoming Merge 的持久化完成恢复，代码/测试/ADR 提交 `92276cc`。预览仍零写入；确认后先保存不含正文的 `incomingConceptMerge`，再以原子 process 写 Concept，最后一次保存完成 Proposal 或轮换 Manual draft、来源索引和 written 记录。
+- 新增命令 **Resume Incoming Concept Merge**，启动只提示。恢复时目标与 afterHash 相同则只补状态；与 beforeHash 相同则标记 `not-applied` 并保留草稿，要求重新预览；终止记录防止旧确认重放。目标、身份或来源改变、记录损坏时保留现场并停止。相等 before/after 按完成处理。重复恢复不追加正文、不重复轮换草稿，最后一条终止记录可由下一次确认替换。
+- Pending 来源的 Proposal/Manual draft/冲突草稿受保护，cleanup 不移除其 Proposal；重叠 Inbox 写入、Guided Merge、Concept 删除/ID repair 的入口与恢复路径会阻止。恢复按当前状态补齐，保留期间新增的复习、设置及来源分析 metadata；打开中的匹配 Merge View 显示完成，不再执行排队中的草稿保存，Composer 只刷新被消费的草稿身份。详见 [ADR 0030](adr/0030-incoming-merge-recovers-completion-without-replaying-markdown.md)。
+- 第三十一轮验证：全量测试、构建、发布检查、diff 检查通过，三份新增测试另做 TypeScript 检查通过。Inbox/Manual 各覆盖 intent save、Markdown process、completion save 的生效前后六类故障，共 12 个矩阵场景；JSON 重建存储与服务、幂等重复、not-applied 后旧 plan 拒绝、等哈希、来源/目标变更、无关状态保留、保护入口、View 与命令回归均通过。原 `ba43fba` 服务回放新测试按预期失败于缺少 completion receipt。日志 `/private/tmp/mneme-incoming-recovery-{all,build,release,focused,state,test-types,baseline}.log`。
+- **下一步**：设计多文件 Guided Merge 的持久化 intent/恢复协议；不能直接套用本轮“未写入则回预览”的单文件方案，因为 Guided 可能只完成部分 Concept、Card Group 和 Related 邻居。另需在一次性 Obsidian Vault 验收本轮命令、真实进程中断/重启与来源冲突处理。本轮没有安装新构建到已有验收 Vault，第三十轮原生证据不代表本轮恢复已做真实重启验收。
+- **边界**：未改 Card 正文/ID/FSRS；schema version 仍为 1，新增字段可选。Markdown 与 data.json 并非跨文件原子提交；外部编辑、同步及未纳入保护的其他正文操作可能使 receipt 哈希失效，此时停止而不覆盖。历史无 receipt 的部分合并不能自动认领，没有强制完成、自动回滚或 UI 手工解决冲突流程。保留未跟踪 `mneme` 和 `release-artifacts/`。
+
 - 第三十轮从检查点 `c192e8f` 继续，在 `test/native-merge-acceptance` 完成一次真实 macOS Obsidian 1.13.7 专项验收；发现并修复完成页详情使用旧 Concept summary 的问题，代码/测试提交 `49f53d1`。`openConceptDetail` 从传入扫描列表按 ID + exact path 取当前对象，详情及创建/删除回调保持一致；找不到则提示刷新，不按 ID 或路径单独回退。
 - 隔离 Vault 为 `release-artifacts/Mneme_Release_Candidate`；当前构建已安装并重载，仅新增 `Refactor Acceptance 20260922/` 测试笔记。旧插件/data、旧 Markdown hashes、初始 fixtures、构建哈希和核验结果保存在 `release-artifacts/refactor-acceptance-20260922/`。保留这些文件；没有修改个人 Vault 或旧录制 Vault。
 - 真实 native resolver 确认普通 Reader 的 Topic 与 Concept Neighbor 的 Topic 指向不同文件；通过原生 popout UI 验证取消预览零写入、确认合并仅重连真正邻居、redirect 属性/正文与阅读模式导航保留。旧实现完成页 Related(0) 而刷新 Library Related(1)；修复后第二次合并完成页立即显示 Related(2)，2026-09-23 插件重载后仍为2，两个源 Concept 已从活跃列表排除。旧 Markdown、提案、草稿和复习状态核对未变。全量测试、构建、发布检查、diff 检查与独立复审通过。

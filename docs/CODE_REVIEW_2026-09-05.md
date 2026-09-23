@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-23 (thirtieth pass)
+Updated: 2026-09-23 (thirty-first pass)
 
 ## Scope and checkpoint
 
@@ -62,6 +62,8 @@ The twenty-ninth pass on `fix/merge-concept-redirect-content` starts from checkp
 
 The thirtieth pass on `test/native-merge-acceptance` starts from checkpoint `c192e8f`. It performs native Obsidian Merge acceptance and fixes stale Concept details exposed by the completion action.
 
+The thirty-first pass on `fix/incoming-merge-completion-recovery` starts from checkpoint `ba43fba`. It adds durable completion recovery for single-file Incoming Merge, with protected source drafts and explicit command recovery.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication or version change was performed. Pass 30 updated the plugin in the disposable release-candidate Vault after backing it up; personal Vaults and the recorded-acceptance Vault were not updated.
 
 ## Local implementation commits
@@ -103,6 +105,7 @@ The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance
 - `3d3affc` — preserve source Concept content and properties in redirect notes while retiring their active identity.
 
 - `49f53d1` — resolve Concept details against the supplied current scan result after Merge.
+- `92276cc` — persist content-free Incoming Merge intent, resume state completion and protect pending sources/targets.
 
 ## Confirmed and fixed
 
@@ -641,13 +644,31 @@ path against the supplied list, and uses that object for the modal and actions.
 Missing/moved/changed identities request a refresh instead of opening stale data.
 This keeps one snapshot consistent; it is not a live-update subscription.
 
+### P1 — Incoming Merge had no durable completion boundary
+
+A terminated process could leave the existing Concept updated while its incoming
+Proposal or manual draft remained reusable. Compensation also could not establish
+whether a rejected Markdown/state operation had already applied. Incoming Merge
+now saves a content-free intent before its single atomic Concept write and commits
+source completion together with its terminal receipt. Resume recognizes the exact
+after-hash and completes current state without replaying Markdown. An untouched
+before-hash becomes `not-applied`; sources remain editable and an old confirmation
+cannot replay that operation. Invalid or conflicting records preserve the current
+content and stop. Equal hashes take the state-completion path.
+
+The pending source and overlapping authoring/deletion/repair/Guided Merge paths are
+protected. Manual recovery keeps newer Source-analysis metadata, and unrelated
+review/settings changes survive. Command recovery updates matching open Merge
+workspaces and Composers, preventing queued view saves from recreating a consumed
+draft. See [ADR 0030](adr/0030-incoming-merge-recovers-completion-without-replaying-markdown.md).
+
 ## Remaining boundaries
 
 Manual Related edits and deletion now use source context for bare links. Scanner-provided UI discovery and Guided Merge now also follow source context for bare links. Merge rechecks its in-memory plan but does not provide an atomic Vault-wide snapshot; external identity/content changes after preflight remain possible. Qualified relative/suffix paths, existing qualified-path case folding, cache freshness and multiple sections remain separate work. Deletion no-op checks are only in-memory pre-intent checks: they do not reserve resolution after persistence or expand the saved receipt to newly discovered notes.
 
 Relative-path and case-collision semantics, native cache freshness in Obsidian, and duplicate Related sections remain separate audits. Explicit-directory matching does not provide full Wiki resolution.
 
-Incoming/Guided Merge still lack durable completion records. Process termination or conflicting/failed compensation can leave Markdown and state partially updated; this pass does not resolve those cases.
+Incoming Merge now has a durable single-file completion record. Guided Merge still lacks a durable multi-file protocol: process termination or conflicting/failed compensation can leave its Markdown and state partially updated. Incoming recovery also stops on external target/source conflicts; historical operations without receipts and power-loss behavior of Obsidian storage remain outside the verified contract.
 
 The confirmed findings above have implementation fixes. This is still a focused audit, not proof that every workflow is correct. Historical partial writes without recovery metadata, corrupted external state, conflicting target edits, and external writers remain outside automatic recovery. Pass 30 verifies a narrow macOS Merge UI/content/plugin-reload path; full Obsidian restart, broader UI rendering and cross-platform acceptance remain outstanding.
 
@@ -656,6 +677,19 @@ Card and Concept ID repairs now have durable recovery records. External edits, m
 New Concept and single-Card deletions now have durable recovery metadata. Historical partial deletions without receipts still require manual inspection. External edits/moves or changed Related files deliberately stop recovery; there is no automatic conflict resolution or undo. Obsidian rename does not guarantee an atomic compare-and-rename, and local-trash semantics still need real-platform acceptance. Activities/proposals referring to a deleted Concept remain a separate reconciliation-policy question; their prose is preserved rather than silently discarded.
 
 ## Validation
+
+Thirty-first-pass validation (2026-09-23): full tests, build, release metadata/
+artifact check, diff checks and focused test typechecking passed. The new recovery
+suite runs 12 fault-matrix cases (Inbox/manual × before/after intent save, Markdown
+process and completion save), reconstructs JSON storage/services, and checks
+idempotency, retained sources, released-operation replay rejection, equal hashes,
+current review/settings preservation, manual Source metadata, conflicts and bad
+records. Guard, view/command and queued Review concurrency regressions also pass.
+A bundle substituting the original `ba43fba` service fails the new receipt assertion
+as expected. Logs: `/private/tmp/mneme-incoming-recovery-all.log`, `-build.log`,
+`-release.log`, `-focused.log`, `-state.log`, `-test-types.log` and `-baseline.log`
+with that same `mneme-incoming-recovery` prefix. No new build was installed in a
+live Vault and no real process-termination/restart acceptance is claimed.
 
 Thirtieth-pass validation (2026-09-22/23): full tests, build, release check, diff
 checks and independent review passed. A real macOS Obsidian 1.13.7 popout workflow
@@ -1164,3 +1198,15 @@ Twenty-ninth-pass manual checks in a disposable Vault:
 3. Add an existing `redirect_to` field to an active source or edit it after preview. Preparation or execution must stop without discarding its contents. Confirm that cancelling the preview also leaves the original file unchanged.
 
 Real Obsidian rendering/cache acceptance and durable Merge recovery remain pending.
+
+
+Thirty-first-pass manual checks in a disposable Vault (still outstanding):
+
+1. Exercise both an Inbox and a Manual Concept name conflict. Confirm a reviewed Merge and check one updated Concept, one source completion, and no duplicate View/Source notes. Repeating Resume Incoming Concept Merge must leave content and draft identity unchanged.
+2. Inject a completion-save failure after Markdown applies, reload the plugin or restart Obsidian, and run Resume Incoming Concept Merge. Check the startup notice, completed source/provenance, current Review state and matching open Merge/Composer views.
+3. Interrupt after intent persistence but before Markdown. Resume must retain drafts and release their locks; rebuild the preview to retry. An old confirmation must not replay the released operation.
+4. Change the pending target or source externally. Resume must preserve those edits and the receipt, reporting the conflict. Do not edit hashes or force completion merely to bypass the check.
+
+These checks require controlled fault injection in a disposable Vault; they have
+not been performed in the native acceptance Vault. Guided Merge needs its own
+multi-file recovery design before equivalent restart claims can be made.
