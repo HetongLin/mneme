@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-23 (thirty-first pass)
+Updated: 2026-09-24 (thirty-second pass)
 
 ## Scope and checkpoint
 
@@ -64,9 +64,13 @@ The thirtieth pass on `test/native-merge-acceptance` starts from checkpoint `c19
 
 The thirty-first pass on `fix/incoming-merge-completion-recovery` starts from checkpoint `ba43fba`. It adds durable completion recovery for single-file Incoming Merge, with protected source drafts and explicit command recovery.
 
+The thirty-second pass on `fix/guided-merge-durable-recovery` starts from checkpoint `14f3ff4`. It replaces Guided Merge compensation with a separate verified journal, content-free intent, guarded roll-forward recovery and current-state completion.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication or version change was performed. Pass 30 updated the plugin in the disposable release-candidate Vault after backing it up; personal Vaults and the recorded-acceptance Vault were not updated.
 
 ## Local implementation commits
+
+- `47fcbd6` — durable multi-file Guided Merge recovery, cross-workflow guards, command/View completion and ADR 0031.
 
 - `04bc46f` — preserve concurrent edits in reviewed Markdown transactions.
 - `4e16141` — append Cards atomically across authoring flows.
@@ -1210,3 +1214,51 @@ Thirty-first-pass manual checks in a disposable Vault (still outstanding):
 These checks require controlled fault injection in a disposable Vault; they have
 not been performed in the native acceptance Vault. Guided Merge needs its own
 multi-file recovery design before equivalent restart claims can be made.
+
+
+## Thirty-second pass — durable Guided Merge recovery
+
+Implementation `47fcbd6` removes Guided Merge's reliance on same-process rollback.
+Confirmed snapshots live in a separate plugin-directory journal, read back before
+saving the content-free pending receipt. Resume checks the entire write set before
+continuing, skips applied files, rechecks Related inventory/native resolution and
+relocated references, then migrates current state and records completion together.
+Written receipts never replay content; journal cleanup can retry independently.
+
+Review corrections included the Card-ID guard argument position, the existing
+Inbox write-receipt branch, Source-link old-owner checks, legacy entity ID spelling,
+non-Markdown native Related destinations, binding receipt identities/Card IDs/time
+to approved snapshots, and matching both Concept paths before updating a recovered
+View. Existing rollback tests were changed to assert preserved partial progress,
+conflict stops and successful continuation after dependencies are restored.
+
+Final validation on 2026-09-24 passed:
+
+- `npm run test:all`
+- `npm run build`
+- `npm run check:release -- 1.0.0`
+- TypeScript checking of the four new suites with a temporary config
+- `git diff --check` and staged diff/stat review
+
+The recovery matrix contains 10 before/after file-write faults across five files
+and six before/after journal/intent/completion faults. Each resumes with JSON-cloned
+state, a rebuilt Vault adapter and journal, and a new service. Additional cases
+cover no-write preview, applied-file skipping, exact expected Markdown, state
+migration, new review state/events/settings, terminal replay avoidance, missing or
+corrupted files/records, changed Source links/Related dependencies/native resolution,
+legacy IDs, failed cleanup, overlap guards and actual View/command methods.
+The disk adapter fixture checks its exact plugin-relative path, idempotent writes,
+refusal to overwrite a different journal, path validation and bounded removal.
+
+Temporary logs: `/private/tmp/mneme-guided-recovery-{all,build,release,focused,test-types}.log`.
+No native crash/restart or power-loss durability is claimed. No plugin was installed
+in an existing acceptance or personal Vault in this pass. Snapshot retention and
+external-writer limitations are explicit in ADR 0031. An orphan journal from a failed
+intent save is retained; there is no automatic garbage collection or forced repair.
+
+Thirty-second-pass manual checks in a disposable Vault (outstanding):
+
+1. Back up the disposable plugin/data and fixture Markdown. Confirm a merge with two Card Groups and at least one Related neighbor; interrupt after only some files apply. Restart Obsidian and run Resume Guided Merge. Verify each final file, unchanged Card IDs/content, current FSRS/events, one Merge Record and journal removal.
+2. Interrupt after all Markdown applies but before completion state saves, and after completion takes effect but its promise rejects. Recovery must finish missing state once; repeated Resume must not duplicate Cards/Views/links or undo subsequent edits.
+3. After a partial write, externally edit a target or alter native Related resolution. Recovery must stop without overwriting anything or deleting its journal. Check startup notices and matching open completion views; retain the fixtures for inspection.
+4. Repeat Incoming Merge's prior manual matrix independently. Its before-write outcome remains not-applied/re-preview; Guided Merge continues the saved approved multi-file writes.

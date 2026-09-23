@@ -1,8 +1,16 @@
 # Mneme Next-Session Hand-off
 
-Updated: 2026-09-23
+Updated: 2026-09-24
 
-## 2026-09-05 至 09-23 代码审查后续
+## 2026-09-05 至 09-24 代码审查后续
+
+- 第三十二轮从检查点 `14f3ff4` 继续，在 `fix/guided-merge-durable-recovery` 完成多文件 Guided Merge 的持久化恢复，代码/测试/ADR 提交 `47fcbd6`。预览仍零写入；确认后在插件目录写入并回读校验独立 JSON journal，再保存不含正文的 `guidedConceptMerge` intent。中断后保留已完成文件，不再自动回滚。
+- 新增 **Resume Guided Merge** 命令和启动提示。恢复先校验全部目标均为已确认的 before/after，跳过已写文件，继续剩余原子写入；Related 检查用受影响文件的原快照与其他文件的当前内容，并重新核对原生解析。全部完成后，从当前 data 重算来源、linked IDs、pause、duplicate dismissals 和 Merge Record，连同 written 状态一次保存。保留期间新增的设置、Card FSRS 状态与事件；重复恢复不重放内容或状态。
+- 保护重叠 Inbox/Manual/Incoming Merge、删除、ID repair、来源变更及清理，包含其恢复分支；检查旧 Source link owner，避免通过改 owner 绕过。恢复记录还校验快照中的实体身份、Card ID 清单和合并时间；兼容旧 ID 的冒号/点号。命令完成后，只更新两方 ID + path 都匹配的打开页面，并使旧异步操作失效。协议和保留规则见 [ADR 0031](adr/0031-guided-merge-resumes-reviewed-file-writes.md)。
+- 第三十二轮最终验证：`npm run test:all`、`npm run build`、`npm run check:release -- 1.0.0`、新增四份测试的 TypeScript 检查及 `git diff --check` 均通过。覆盖两个 Concept、两个 Card Group、一个 Related 邻居共 5 次写入的生效前/后 10 个故障点，以及 journal/intent/completion 的生效前/后 6 个边界；每次重建存储、journal 和服务。还覆盖冲突零追加写入、记录/快照损坏或缺失、原生解析变化、清理失败重试、幂等、状态保留和 View/命令。日志 `/private/tmp/mneme-guided-recovery-{all,build,release,focused,test-types}.log`（临时文件，不是永久证据）。
+- **下一步**：在一次性 Obsidian Vault 进行 Incoming/Guided Merge 的受控中断、真实进程终止/重启、命令与缓存时序验收；先备份测试 Vault 插件和 data，至少覆盖部分文件已写、全部文件已写但状态未保存、外部编辑冲突三类情况。还需继续 Card/FSRS、创建/删除/ID repair 的原生重启矩阵、真实 provider 内容质量及 Windows 验收。不要把第三十轮的原生证据当成本轮恢复验收。
+- **边界**：schema version 仍为 1，新增字段可选；Card 正文和 ID 未改。journal 保存确认内容的临时副本，成功后删除；清理失败可重复 Resume，intent 保存前遗留的 orphan 不自动删除。历史无 receipt/journal 的部分合并不能认领。Markdown 与 data.json 不具备跨文件原子性；外部编辑、同步、未受保护的正文操作、库存或关联解析变化会使恢复停止，保留现场。没有强制完成、自动回滚或冲突解决 UI。本轮未安装到已有验收 Vault，未修改个人 Vault；保留未跟踪 `mneme` 与 `release-artifacts/`。
+
 
 - 第三十一轮从检查点 `ba43fba` 继续，在 `fix/incoming-merge-completion-recovery` 完成单文件 Incoming Merge 的持久化完成恢复，代码/测试/ADR 提交 `92276cc`。预览仍零写入；确认后先保存不含正文的 `incomingConceptMerge`，再以原子 process 写 Concept，最后一次保存完成 Proposal 或轮换 Manual draft、来源索引和 written 记录。
 - 新增命令 **Resume Incoming Concept Merge**，启动只提示。恢复时目标与 afterHash 相同则只补状态；与 beforeHash 相同则标记 `not-applied` 并保留草稿，要求重新预览；终止记录防止旧确认重放。目标、身份或来源改变、记录损坏时保留现场并停止。相等 before/after 按完成处理。重复恢复不追加正文、不重复轮换草稿，最后一条终止记录可由下一次确认替换。
@@ -421,7 +429,7 @@ Lightweight organization may be reconsidered only if Tags, search, Related Conce
 - docs/ROADMAP.md
 - docs/V1_RELEASE_CHECKLIST.md
 
-注意：当前版本 1.0.0，审查重构分支为 `fix/concept-id-repair-recovery`，审查前备份提交为 `83deb3f`；最新提交请以 git log 为准。请先读 docs/CODE_REVIEW_2026-09-05.md 的已修复与未修复事项。另有长期存在的未跟踪 `mneme` 自链接和 `release-artifacts/`。先只读检查 git status，保留所有现有修改、验收 Vault 与录像。
+注意：当前版本 1.0.0，审查重构分支为 `fix/guided-merge-durable-recovery`，审查前备份提交为 `83deb3f`；最新提交请以 git log 为准。请先读 docs/CODE_REVIEW_2026-09-05.md 的已修复与未修复事项。另有长期存在的未跟踪 `mneme` 自链接和 `release-artifacts/`。先只读检查 git status，保留所有现有修改、验收 Vault 与录像。
 
 v1.0 功能已经完成。产品定位已调整为面向自我导向终生学习者的个人知识记忆插件，核心闭环是 Source Note → Concept → Card → Review → Concept Library。
 
