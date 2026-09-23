@@ -4,6 +4,7 @@ import type { MnemePluginData } from "../models/reviewState";
 import { runPluginDataMutation } from "./pluginDataMutation";
 import { normalizePluginData } from "./reviewStateStore";
 import { isConceptDraftId, readCurrentManualConceptDraft, readManualConceptWriteReceipt } from "./manualConceptWriteRecovery";
+import { assertIncomingMergeAllowsOrigin } from "./incomingConceptMergeRecovery";
 
 export interface ManualConceptDraftStorage {
 	loadData(): Promise<unknown>;
@@ -21,6 +22,8 @@ export class ManualConceptDraftStore {
 	async getState(): Promise<{ draft: ManualConceptDraft; pendingWrite?: ManualConceptWriteReceipt }> {
 		return runPluginDataMutation(this.storage, async () => {
 			const data = await this.loadPluginData();
+			// Check this before legacy identity migration: a pending merge owns the source draft.
+			assertIncomingMergeAllowsOrigin(data, { kind: "manual" });
 			const receipt = data.manualConceptWrite === undefined ? undefined : readManualConceptWriteReceipt(data.manualConceptWrite);
 			// Migrate legacy drafts once, before exposing editable content to a View.
 			if (data.manualConceptDraftId === undefined && !receipt) {
@@ -41,6 +44,7 @@ export class ManualConceptDraftStore {
 	async saveDraft(draft: ManualConceptDraft): Promise<void> {
 		return runPluginDataMutation(this.storage, async () => {
 			const data = await this.loadPluginData();
+			assertIncomingMergeAllowsOrigin(data, { kind: "manual" });
 			this.assertEditable(data, draft.draftId);
 			await this.storage.saveData({ ...data, manualConceptDraft: { ...draft, tags: [...draft.tags] } });
 		});
@@ -49,6 +53,7 @@ export class ManualConceptDraftStore {
 	async clearDraft(draftId: string): Promise<void> {
 		return runPluginDataMutation(this.storage, async () => {
 			const data = await this.loadPluginData();
+			assertIncomingMergeAllowsOrigin(data, { kind: "manual" });
 			this.assertEditable(data, draftId);
 			const nextData = { ...data };
 			delete nextData.manualConceptDraft;

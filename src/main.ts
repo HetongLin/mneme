@@ -64,6 +64,7 @@ import { runPluginDataMutation } from "./services/pluginDataMutation";
 import { createKnowledgeContextPack } from "./services/knowledgeContextPackExporter";
 import { ManualConceptDraftStore } from "./services/manualConceptDraftStore";
 import { IncomingConceptMergeService } from "./services/incomingConceptMergeService";
+import { readIncomingConceptMergeReceipt } from "./services/incomingConceptMergeRecovery";
 import { ManualCardDraftStore } from "./services/manualCardDraftStore";
 import type { ManualCardDraft } from "./models/manualCardDraft";
 import { createManualCardWithRecovery, type ManualCardCreationResult } from "./services/manualCardWriteService";
@@ -164,6 +165,10 @@ export default class MnemePlugin extends Plugin {
 		await this.reviewStateStore.load();
 		try {
 			const data = await this.loadData();
+			if (data?.incomingConceptMerge !== undefined
+				&& readIncomingConceptMergeReceipt(data.incomingConceptMerge).status === "pending") {
+				new Notice("Mneme: An Incoming Concept Merge is pending. Run Resume Incoming Concept Merge to finish it.");
+			}
 			if (Object.values(readConceptIdRepairs(data?.conceptIdRepairs)).some((r) => r.status === "pending")) {
 				new Notice("Mneme: A Concept ID repair is pending. Run Resume Concept ID Repair to finish it.");
 			}
@@ -433,6 +438,12 @@ export default class MnemePlugin extends Plugin {
 			callback: () => {
 				void this.openConceptMergeView();
 			},
+		});
+
+		this.addCommand({
+			id: "mneme-resume-incoming-concept-merge",
+			name: "Resume Incoming Concept Merge",
+			callback: () => { void this.resumeIncomingConceptMerge(); },
 		});
 
 		this.addCommand({
@@ -1924,6 +1935,40 @@ export default class MnemePlugin extends Plugin {
 			this.refreshOpenInboxViews(),
 			this.refreshReviewViews(),
 		]);
+	}
+
+	private async resumeIncomingConceptMerge(): Promise<void> {
+		try {
+			const result = await this.incomingConceptMergeService.resume();
+			if (result.status === "failed" || result.status === "conflict") {
+				new Notice(`Mneme: ${result.message}`);
+				return;
+			}
+			if (result.status === "merged") {
+				for (const leaf of this.app.workspace.getLeavesOfType(CONCEPT_CONFLICT_MERGE_VIEW_TYPE)) {
+					if (isConceptConflictMergeView(leaf.view)) leaf.view.completeRecoveredMerge(result.receipt);
+				}
+			}
+			if (result.status === "merged" && result.manualDraftId) {
+				for (const leaf of this.app.workspace.getLeavesOfType(CONCEPT_COMPOSER_VIEW_TYPE)) {
+					if (leaf.view instanceof MnemeConceptComposerView) {
+						await leaf.view.completeConflictMerge(result.manualDraftId);
+					}
+				}
+			}
+			await this.reviewStateStore.load();
+			await Promise.all([
+				this.refreshOpenConceptLibraryViews(),
+				this.refreshOpenInboxViews(),
+				this.refreshReviewViews(),
+			]);
+			new Notice(result.status === "merged" ? "Mneme: Incoming Concept Merge completed."
+				: result.status === "not-applied" ? "Mneme: Merge was not applied. Your draft was preserved. Reopen Merge and review the preview."
+					: "Mneme: No pending Incoming Concept Merge.");
+		} catch (error) {
+			console.error("Mneme: failed to resume Incoming Concept Merge", error);
+			new Notice(`Mneme: ${formatUserFacingError(error, "Could not resume Incoming Concept Merge.")}`);
+		}
 	}
 
 	private openMnemeWorkspaceLeaf(): WorkspaceLeaf | undefined {

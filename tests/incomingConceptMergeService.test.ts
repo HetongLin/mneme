@@ -166,7 +166,8 @@ async function runAsyncTests(): Promise<void> {
 
 		assert.equal(raceResult.status, "conflict");
 		assert.match(raceVault.files[existing.path] ?? "", /Edit made after the initial check/);
-		assert.equal(raceStorage.saveCount, 0);
+		assert.equal(raceStorage.saveCount, 1);
+		assert.equal((raceStorage.data as Record<string, unknown>).incomingConceptMerge !== undefined, true);
 	}
 
 	{
@@ -300,7 +301,7 @@ async function runAsyncTests(): Promise<void> {
 				input: manualDraft,
 				kind: "manual",
 				source: {
-					contentHash: "manual-hash",
+					contentHash: "a".repeat(64),
 					mtime: 2,
 					path: "Notes/Manual.md",
 					size: 20,
@@ -424,8 +425,8 @@ async function runAsyncTests(): Promise<void> {
 		const rollbackResult = await rollbackService.execute(rollbackPrepared.plan);
 
 		assert.equal(rollbackResult.status, "failed");
-		assert.match(rollbackVault.files[existing.path] ?? "", /Merged\./);
-		assert.match(rollbackVault.files[existing.path] ?? "", /Edit made during rollback/);
+		assert.equal(rollbackVault.files[existing.path], conceptMarkdown(existing));
+		assert.equal((rollbackStorage.data as Record<string, unknown>).incomingConceptMerge !== undefined, true);
 	}
 
 	{
@@ -448,14 +449,13 @@ async function runAsyncTests(): Promise<void> {
 		});
 		assert.equal(prepared.status, "ready");
 		if (prepared.status !== "ready") throw new Error(prepared.message);
-		const filesBefore = { ...faultVault.files };
-		const dataBefore = structuredClone(faultStorage.data);
 		faultVault.throwAfterProcessOnce = true;
 		const result = await faultService.execute(prepared.plan);
 		assert.equal(result.status, "failed");
-		assert.deepEqual(faultVault.files, filesBefore);
-		assert.deepEqual(faultStorage.data, dataBefore);
-		assert.equal(faultStorage.saveCount, 0);
+		assert.equal(faultVault.files[existing.path], prepared.plan.after);
+		assert.equal(faultStorage.data.knowledgeProposals[proposal.id]?.status, "edited");
+		assert.equal((faultStorage.data as Record<string, unknown>).incomingConceptMerge !== undefined, true);
+		assert.equal(faultStorage.saveCount, 1);
 	}
 
 	{
@@ -482,10 +482,11 @@ async function runAsyncTests(): Promise<void> {
 		raceVault.throwAfterProcessRaceEdit = "\nLearner edit during rollback\n";
 		const result = await raceService.execute(prepared.plan);
 		assert.equal(result.status, "failed");
-		assert.match(result.message, /Rollback also failed/i);
+		assert.match(result.message, /failure|resume/i);
 		assert.equal(raceVault.files[existing.path], `${prepared.plan.after}\nLearner edit during rollback\n`);
-		assert.deepEqual(raceStorage.data, completeDataFixture);
-		assert.equal(raceStorage.saveCount, 0);
+		assert.equal(raceStorage.data.knowledgeProposals[proposal.id]?.status, "edited");
+		assert.equal((raceStorage.data as Record<string, unknown>).incomingConceptMerge !== undefined, true);
+		assert.equal(raceStorage.saveCount, 1);
 	}
 }
 

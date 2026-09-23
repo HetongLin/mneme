@@ -10,6 +10,7 @@ import { withManualConceptProvenance, type ManualConceptSourceSnapshot } from ".
 import { isConceptDraftId, manualConceptDraftHash, readCurrentManualConceptDraft, readManualConceptWriteReceipt } from "./manualConceptWriteRecovery";
 import { runPluginDataMutation, type PluginDataStorage } from "./pluginDataMutation";
 import { normalizePluginData } from "./reviewStateStore";
+import { assertIncomingMergeAllowsOrigin } from "./incomingConceptMergeRecovery";
 
 export interface ManualConceptCreationResult extends ManualConceptResult {
 	nextDraft: ManualConceptDraft;
@@ -31,6 +32,7 @@ export function createManualConceptWithRecovery(
 ): Promise<ManualConceptCreationResult> {
 	return runPluginDataMutation(storage, async () => {
 		let data = normalizePluginData(await storage.loadData());
+		assertIncomingMergeAllowsOrigin(data, { kind: "manual" });
 		let receipt = data.manualConceptWrite === undefined ? undefined : readManualConceptWriteReceipt(data.manualConceptWrite);
 		if (!isConceptDraftId(draft.draftId)) throw new Error("Reopen Concept Composer before creating a Concept.");
 		const inputHash = await manualConceptDraftHash(draft);

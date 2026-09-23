@@ -2,6 +2,7 @@ import type { ConceptConflictMergeDraftRecord } from "../models/conceptConflictM
 import type { MnemePluginData } from "../models/reviewState";
 import { runPluginDataMutation } from "./pluginDataMutation";
 import { normalizePluginData } from "./reviewStateStore";
+import { assertIncomingMergeAllowsOrigin } from "./incomingConceptMergeRecovery";
 
 export interface ConceptConflictMergeDraftStorage {
 	loadData(): Promise<unknown>;
@@ -22,6 +23,7 @@ export class ConceptConflictMergeDraftStore {
 	async saveDraft(record: ConceptConflictMergeDraftRecord): Promise<void> {
 		return runPluginDataMutation(this.storage, async () => {
 			const data = normalizePluginData(await this.storage.loadData());
+			assertProtectedKeyIsEditable(data, record.key);
 
 			await this.storage.saveData({
 				...data,
@@ -36,6 +38,7 @@ export class ConceptConflictMergeDraftStore {
 	async clearDraft(key: string): Promise<void> {
 		return runPluginDataMutation(this.storage, async () => {
 			const data = normalizePluginData(await this.storage.loadData());
+			assertProtectedKeyIsEditable(data, key);
 			const conceptConflictMergeDrafts = { ...data.conceptConflictMergeDrafts };
 			delete conceptConflictMergeDrafts[key];
 
@@ -44,6 +47,16 @@ export class ConceptConflictMergeDraftStore {
 				conceptConflictMergeDrafts,
 			});
 		});
+	}
+}
+
+function assertProtectedKeyIsEditable(data: MnemePluginData, key: string): void {
+	if (key === "manual") {
+		assertIncomingMergeAllowsOrigin(data, { kind: "manual" });
+		return;
+	}
+	if (key.startsWith("inbox:")) {
+		assertIncomingMergeAllowsOrigin(data, { kind: "inbox", proposalId: key.slice("inbox:".length) });
 	}
 }
 

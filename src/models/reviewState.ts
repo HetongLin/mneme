@@ -1,4 +1,5 @@
 import type { ConceptIdRepairReceipt } from "../services/conceptIdRepairReceipt";
+import type { IncomingConceptMergeReceipt } from "../services/incomingConceptMergeRecovery";
 import type { CardIdRepairReceipt } from "../services/cardIdRepairReceipt";
 import type { CardDeletionReceipt } from "../services/cardDeletionReceipt";
 import type { ConceptDeletionReceipt } from "../services/conceptDeletionReceipt";
@@ -110,4 +111,5 @@ export interface MnemePluginData {
 	manualConceptDraft?: ManualConceptDraft;
 	manualConceptDraftId?: string;
 	manualConceptWrite?: ManualConceptWriteReceipt;
+	incomingConceptMerge?: IncomingConceptMergeReceipt;
 }

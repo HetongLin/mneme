@@ -15,6 +15,7 @@ import { runPluginDataMutation, type PluginDataStorage } from "./pluginDataMutat
 import { normalizePluginData } from "./reviewStateStore";
 import type { CardIdRepairVault } from "./recoverableCardIdRepair";
 import { computeContentHash } from "../utils/sourceHash";
+import { assertIncomingMergeAllowsTarget } from "./incomingConceptMergeRecovery";
 
 export type ConceptIdRepairVault = CardIdRepairVault;
 const hashMarkdown = (content: string): Promise<string> => computeContentHash(JSON.stringify(content));
@@ -148,6 +149,7 @@ export class RecoverableConceptIdRepair {
 	private assertAvailable(data: MnemePluginData, receipt: ConceptIdRepairReceipt): void {
 		const paths = [receipt.concept.path, ...(receipt.cards ? [receipt.cards.path] : [])];
 		const ids = [receipt.newConceptId, receipt.oldConceptId, receipt.oldReviewConceptId].filter((id): id is string => !!id);
+		assertIncomingMergeAllowsTarget(data, paths, ids);
 		for (const id of ids) {
 			assertConceptNotDeleting(data.conceptDeletions, id);
 			if (Object.prototype.hasOwnProperty.call(data.conceptMergeRecords, id)) throw new Error("Merged Concept IDs cannot be repaired or reused.");

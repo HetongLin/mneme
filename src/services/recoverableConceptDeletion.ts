@@ -13,6 +13,7 @@ import { readManualCardWriteReceipt } from "./manualCardWriteRecovery";
 import { readManualConceptWriteReceipt } from "./manualConceptWriteRecovery";
 import { runPluginDataMutation, type PluginDataStorage } from "./pluginDataMutation";
 import { normalizePluginData } from "./reviewStateStore";
+import { assertIncomingMergeAllowsTarget } from "./incomingConceptMergeRecovery";
 
 export interface RecoverableConceptDeletionVault extends RelatedConceptResolver {
 	exists(path: string): Promise<boolean>;
@@ -152,6 +153,7 @@ export class RecoverableConceptDeletion {
 		await this.storage.saveData(next);
 	}
 	private assertRepairAllowsReceipt(data: MnemePluginData, receipt: PendingConceptDeletionReceipt): void {
+		assertIncomingMergeAllowsTarget(data, [receipt.conceptPath, ...receipt.files.map((file) => file.path), ...receipt.related.map((write) => write.path)], [receipt.conceptId]);
 		assertCardIdRepairAllowsPath(data.cardIdRepairs, receipt.conceptPath);
 		assertConceptIdRepairAllowsPath(data.conceptIdRepairs, receipt.conceptPath);
 		for (const file of receipt.files) assertCardIdRepairAllowsPath(data.cardIdRepairs, file.path);
@@ -175,6 +177,7 @@ export class RecoverableConceptDeletion {
 	private assertNoPendingWrites(data: MnemePluginData, plan: ConceptDeletionPlan): void {
 		assertConceptIdRepairAllowsConcept(data.conceptIdRepairs, plan.concept.conceptId);
 		const paths = new Set([plan.conceptFile.path, plan.concept.cardsPath, ...plan.relatedWrites.map((w) => w.path)]);
+		assertIncomingMergeAllowsTarget(data, [...paths].filter((path): path is string => !!path), [plan.concept.conceptId]);
 		for (const path of paths) if (path) {
 			assertCardDeletionAllowsPath(data.cardDeletion, path);
 			assertCardIdRepairAllowsPath(data.cardIdRepairs, path);

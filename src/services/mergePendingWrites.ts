@@ -3,6 +3,7 @@ import { normalizeVaultPath } from "../utils/markdownPath";
 import { readApprovedWriteReceipt } from "./approvedWriteRecovery";
 import { readManualCardWriteReceipt } from "./manualCardWriteRecovery";
 import { readManualConceptWriteReceipt } from "./manualConceptWriteRecovery";
+import { assertIncomingMergeAllowsTarget } from "./incomingConceptMergeRecovery";
 
 /** Preserve the paths, hashes and owners required by unfinished authoring operations. */
 export function assertMergeHasNoPendingWrites(
@@ -13,6 +14,7 @@ export function assertMergeHasNoPendingWrites(
 ): void {
 	const affectedPaths = new Set(Array.from(paths, normalizeVaultPath));
 	const affectedIds = new Set(conceptIds);
+	assertIncomingMergeAllowsTarget(data, affectedPaths, affectedIds);
 	const touchesPath = (path: string) => affectedPaths.has(normalizeVaultPath(path));
 	const touchesId = (id: string | undefined) => id !== undefined && affectedIds.has(id);
 	const card = data.manualCardWrite === undefined ? undefined : readManualCardWriteReceipt(data.manualCardWrite);

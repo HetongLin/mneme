@@ -23,6 +23,7 @@ import {
 import { confirmConceptMerge } from "../modals/conceptMergeConfirmationModal";
 import { createMarkdownLivePreviewField } from "../ui/markdownLivePreviewField";
 import { formatUserFacingError } from "../utils/userFacingError";
+import type { IncomingConceptMergeReceipt } from "../services/incomingConceptMergeRecovery";
 
 export const CONCEPT_CONFLICT_MERGE_VIEW_TYPE = "mneme-concept-conflict-merge-view";
 
@@ -80,6 +81,21 @@ export class MnemeConceptConflictMergeView extends ItemView {
 
 	getSessionKey(): string | undefined {
 		return this.session?.key;
+	}
+
+	completeRecoveredMerge(receipt: IncomingConceptMergeReceipt): void {
+		const session = this.session;
+		if (this.isClosed || !session || receipt.status !== "written"
+			|| session.existing.conceptId !== receipt.conceptId || session.existing.path !== receipt.path) return;
+		if (receipt.origin.kind === "inbox") {
+			if (session.origin.kind !== "inbox" || session.origin.proposalId !== receipt.origin.proposalId) return;
+		} else if (session.origin.kind !== "manual" || session.origin.input.draftId !== receipt.origin.draftId) return;
+		this.completed = true;
+		this.sessionRevision++;
+		if (this.saveTimer !== undefined) { window.clearTimeout(this.saveTimer); this.saveTimer = undefined; }
+		this.contentEl.empty();
+		this.contentEl.createEl("h2", { text: "Merge Complete" });
+		this.contentEl.createEl("p", { text: "The incoming Concept Merge is saved. Reopen the Concept to see its current content." });
 	}
 
 	protected async onOpen(): Promise<void> {
@@ -522,7 +538,7 @@ export class MnemeConceptConflictMergeView extends ItemView {
 		};
 		this.saveQueue = this.saveQueue
 			.catch(() => undefined)
-			.then(() => this.actions.draftStore.saveDraft(record));
+			.then(() => this.completed ? undefined : this.actions.draftStore.saveDraft(record));
 		return this.saveQueue;
 	}
 }

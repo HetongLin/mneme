@@ -39,6 +39,7 @@ import {
 import { createRandomCardId, createRandomConceptId } from "./entityId";
 import { readManualCardWriteReceipt } from "./manualCardWriteRecovery";
 import { readManualConceptWriteReceipt } from "./manualConceptWriteRecovery";
+import { assertIncomingMergeAllowsOrigin, assertIncomingMergeAllowsTarget } from "./incomingConceptMergeRecovery";
 
 export interface MnemeVaultAdapter {
 	append(path: string, content: string): Promise<void>;
@@ -107,6 +108,7 @@ export class ApprovedProposalWriter {
 				let data = normalizePluginData(await this.options.storage.loadData());
 				let proposal = data.knowledgeProposals[proposalId];
 				if (!proposal) return this.failedResult(proposalId, `Proposal not found: ${proposalId}`);
+				assertIncomingMergeAllowsOrigin(data, { kind: "inbox", proposalId });
 				let receipt = proposal.writeReceipt === undefined ? undefined : readApprovedWriteReceipt(proposal.writeReceipt);
 				if (receipt) targetPaths = [receipt.targetPath];
 				if (proposal.status === "written" && receipt) return this.writtenResult(proposalId, targetPaths);
@@ -120,6 +122,8 @@ export class ApprovedProposalWriter {
 				assertConceptIdRepairAllowsConcept(data.conceptIdRepairs, proposal.conceptId ?? "");
 				const targetConceptId = proposal.kind === "link_existing_concept" ? proposal.payload?.targetConceptId
 					: proposal.payload && "conceptId" in proposal.payload ? proposal.payload.conceptId : undefined;
+				assertIncomingMergeAllowsTarget(data, receipt ? [receipt.targetPath] : [],
+					[proposal.conceptId, targetConceptId].filter((id): id is string => !!id));
 				if (targetConceptId) assertConceptNotDeleting(data.conceptDeletions, targetConceptId);
 				if (targetConceptId) assertConceptIdRepairAllowsConcept(data.conceptIdRepairs, targetConceptId);
 				// A shared old ID becoming unique does not establish an older proposal's target.
@@ -172,6 +176,7 @@ export class ApprovedProposalWriter {
 						}
 					}
 					const plan = await this.prepareWrite(proposal, receipt, reservedIds, reservedPaths, requiredConceptPath);
+					assertIncomingMergeAllowsTarget(data, [plan.draft.targetPath], plan.entityId ? [plan.entityId] : []);
 					assertCardDeletionAllowsPath(data.cardDeletion, plan.draft.targetPath);
 					assertCardIdRepairAllowsPath(data.cardIdRepairs, plan.draft.targetPath);
 					assertConceptIdRepairAllowsPath(data.conceptIdRepairs, plan.draft.targetPath);

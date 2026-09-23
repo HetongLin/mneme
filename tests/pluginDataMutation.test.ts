@@ -126,12 +126,14 @@ async function run(): Promise<void> {
 		storage.data.knowledgeProposals[proposal.id] = proposal;
 		let markdown = "---\nmneme_type: concept\nmneme_id: concept-a\n---\n# Existing\n\n## Core Meaning\n\nExisting meaning.\n";
 		const original = markdown;
+		let modifyCount = 0;
 		const written = deferred();
 		const release = deferred();
 		const vault = {
 			read: async () => markdown,
 			process: async (_path: string, transform: (content: string) => string) => {
 				markdown = transform(markdown);
+				modifyCount += 1;
 				if (markdown !== original) { written.resolve(); await release.promise; }
 			},
 		};
@@ -154,7 +156,19 @@ async function run(): Promise<void> {
 		assert.equal(result.status, failCommit ? "failed" : "merged");
 		assert.equal(storage.data.reviewStates["card-a"]?.reviewCount, 1);
 		assert.equal(storage.data.knowledgeProposals[proposal.id]?.status, failCommit ? "suggested" : "written");
-		assert.equal(markdown, failCommit ? original : prepared.plan.after);
+		assert.equal(markdown, prepared.plan.after);
+		if (failCommit) {
+			assert.equal((storage.data as Record<string, unknown>).incomingConceptMerge !== undefined, true);
+			const resumed = await new IncomingConceptMergeService(vault, storage).resume();
+			assert.equal(resumed.status, "merged");
+			assert.equal(storage.data.knowledgeProposals[proposal.id]?.status, "written");
+			assert.equal(storage.data.reviewStates["card-a"]?.reviewCount, 1, "queued review survives recovery");
+			assert.equal(modifyCount, 1, "resume does not rewrite the already applied Markdown");
+		} else {
+			assert.equal(modifyCount, 1);
+			assert.equal((await new IncomingConceptMergeService(vault, storage).resume()).status, "merged");
+			assert.equal(modifyCount, 1, "idempotent resume does not rewrite Markdown");
+		}
 	}
 	{
 		const first = new MemoryStorage();
