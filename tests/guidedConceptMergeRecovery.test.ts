@@ -127,6 +127,10 @@ async function run(): Promise<void> {
 		const files = { ...f.vault.files }; const data = jsonClone(f.storage.data); const snapshot = f.journal.get(op);
 		const result = await serviceFor(f).resume();
 		assert.ok(result.status === "conflict" || result.status === "failed", mutation);
+		if (result.status === "conflict") {
+			assert.match(result.message, /Current files and recovery snapshots were preserved/);
+			assert.doesNotMatch(result.message, /Rebuild.*preview/);
+		}
 		assert.deepEqual(f.vault.files, files); assert.deepEqual(f.storage.data, data); assert.equal(f.journal.get(op), snapshot);
 		assert.equal(f.vault.processCount, 0); assert.equal(f.storage.saveCount, 0);
 	}

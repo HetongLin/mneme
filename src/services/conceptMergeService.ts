@@ -290,11 +290,13 @@ export class ConceptMergeService {
 			const writes = plan.writes.map((write) => write.path === plan.survivor.path
 				? { ...write, after: finalSurvivorMarkdown }
 				: write);
+			let recoveryStarted = false;
 			try {
 				if (!this.journal) throw new Error("Guided Merge recovery storage is unavailable.");
 				const latestData = normalizePluginData(await this.storage.loadData());
 				const previous = latestData.guidedConceptMerge === undefined ? undefined : readGuidedConceptMergeReceipt(latestData.guidedConceptMerge);
 				if (previous?.operationId === plan.operationId) {
+					recoveryStarted = previous.status === "pending";
 					if (await guidedMergeHash(finalSurvivorMarkdown) !== previous.writes.find((w) => w.path === previous.survivor.path)?.afterHash) {
 						throw new Error("The confirmed Merge content changed. Resume the original Guided Merge first.");
 					}
@@ -356,12 +358,13 @@ export class ConceptMergeService {
 				await readGuidedMergeJournal(await this.journal.read(receipt.operationId), receipt);
 				const pendingData = { ...latestData, guidedConceptMerge: receipt };
 				await this.storage.saveData(pendingData);
+				recoveryStarted = true;
 				await this.finishGuidedMerge(pendingData, receipt);
 
 				return { status: "merged" };
 			} catch (error) {
 				return {
-					message: `${error instanceof Error ? error.message : "Guided Merge failed."} ${GUIDED_MERGE_RESUME_MESSAGE}`,
+					message: guidedMergeFailureMessage(error, recoveryStarted),
 					status: error instanceof MarkdownWriteConflict ? "conflict" : "failed",
 				};
 			}
@@ -378,7 +381,7 @@ export class ConceptMergeService {
 				return { status: "merged", receipt: { ...receipt, status: "written" } };
 			} catch (error) {
 				return { status: error instanceof MarkdownWriteConflict ? "conflict" : "failed",
-					message: `${error instanceof Error ? error.message : "Guided Merge recovery failed."} ${GUIDED_MERGE_RESUME_MESSAGE}` };
+					message: guidedMergeFailureMessage(error, true) };
 			}
 		});
 	}
@@ -943,4 +946,11 @@ function upsertWrite(writes: ConceptMergeWrite[], write: ConceptMergeWrite): Con
 		result.push(write);
 	}
 	return result;
+}
+
+function guidedMergeFailureMessage(error: unknown, recovering: boolean): string {
+	if (recovering && error instanceof MarkdownWriteConflict) {
+		return `Guided Merge recovery stopped because ${error.path} no longer matches the confirmed operation. Current files and recovery snapshots were preserved. Review the conflict before running Resume Guided Merge again.`;
+	}
+	return `${error instanceof Error ? error.message : "Guided Merge failed."} ${GUIDED_MERGE_RESUME_MESSAGE}`;
 }

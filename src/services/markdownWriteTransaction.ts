@@ -16,7 +16,7 @@ export interface MarkdownTransactionPersistence {
 }
 
 export class MarkdownWriteConflict extends Error {
-	constructor(path: string) {
+	constructor(readonly path: string) {
 		super(`${path} changed after preview. Rebuild the preview before trying again.`);
 		this.name = "MarkdownWriteConflict";
 	}
