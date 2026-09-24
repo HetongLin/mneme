@@ -1,6 +1,6 @@
 # Mneme code review and refactoring — 2026-09-05
 
-Updated: 2026-09-24 (thirty-second pass)
+Updated: 2026-09-24 (thirty-third pass)
 
 ## Scope and checkpoint
 
@@ -66,9 +66,13 @@ The thirty-first pass on `fix/incoming-merge-completion-recovery` starts from ch
 
 The thirty-second pass on `fix/guided-merge-durable-recovery` starts from checkpoint `14f3ff4`. It replaces Guided Merge compensation with a separate verified journal, content-free intent, guarded roll-forward recovery and current-state completion.
 
+The thirty-third pass on `test/native-merge-recovery` starts from checkpoint `497dd36`. It verifies bounded native macOS recovery across renderer/main-process termination and fixes misleading pending-conflict guidance.
+
 The existing `mneme` self-link, `release-artifacts/`, recordings, and acceptance Vaults were preserved. No remote push, publication or version change was performed. Pass 30 updated the plugin in the disposable release-candidate Vault after backing it up; personal Vaults and the recorded-acceptance Vault were not updated.
 
 ## Local implementation commits
+
+- `0f7d97d` — report pending Guided recovery conflicts without requiring an unavailable new preview.
 
 - `47fcbd6` — durable multi-file Guided Merge recovery, cross-workflow guards, command/View completion and ADR 0031.
 
@@ -1262,3 +1266,32 @@ Thirty-second-pass manual checks in a disposable Vault (outstanding):
 2. Interrupt after all Markdown applies but before completion state saves, and after completion takes effect but its promise rejects. Recovery must finish missing state once; repeated Resume must not duplicate Cards/Views/links or undo subsequent edits.
 3. After a partial write, externally edit a target or alter native Related resolution. Recovery must stop without overwriting anything or deleting its journal. Check startup notices and matching open completion views; retain the fixtures for inspection.
 4. Repeat Incoming Merge's prior manual matrix independently. Its before-write outcome remains not-applied/re-preview; Guided Merge continues the saved approved multi-file writes.
+
+
+## Thirty-third pass — native process interruption
+
+See [Native Merge recovery acceptance](NATIVE_MERGE_RECOVERY_2026-09-24.md) for the
+five scenarios, exact interruption points, process IDs, artifact paths and limits.
+Four cases replaced the actual macOS Obsidian main process. The initial Partial
+case replaced only its renderer and is explicitly distinguished. Real Vault APIs,
+metadata-cache resolution, data.json and journal files were used; the harness
+invoked reviewed services directly and recovered through commands/service calls.
+
+Native recovery preserved approved Markdown, existing notes and scheduling/events.
+A conflict left files, state and journal intact. Inbox completion did not duplicate
+content; Manual not-applied retained its source and prevented old confirmation
+replay. Original test-Vault drafts were restored after collecting evidence. No
+pending Merge or recovery journal remains, and all original Markdown hashes match.
+
+Fix `0f7d97d` addresses a user-facing contradiction discovered in the conflict trial:
+“Rebuild the preview” was impossible while a receipt remained pending. The recovery
+message now explains preserved data and conflict inspection. Pre-intent preview
+conflicts retain existing behavior. The exact native conflict was rechecked after
+installation of the fix. Regression coverage, full tests, build, release validation
+and diff checking passed. The installed bundle and backup are recorded in the report.
+
+Do not equate this matrix with full UI/release/platform coverage. Pending work
+includes native confirmation/open-view transitions, fresh user ratings, authoring/
+deletion/identity-repair crash matrices, remaining Incoming fault boundaries,
+provider quality and Windows/mobile acceptance. No torn-write, power-loss or
+cross-device atomicity guarantee is made.

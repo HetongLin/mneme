@@ -4,6 +4,13 @@ Updated: 2026-09-24
 
 ## 2026-09-05 至 09-24 代码审查后续
 
+- 第三十三轮从 `497dd36` 继续，在 `test/native-merge-recovery` 完成 macOS Obsidian 1.13.7 的专项中断恢复验收，并修复恢复冲突的误导提示，代码提交 `0f7d97d`。原提示要求重建预览，但 pending 会阻止新预览；现在明确保留当前文件和快照，先检查冲突再恢复。协议和文件/状态行为未改。
+- 在 `Mneme_Release_Candidate` 新增 17 个专用样例文件；旧插件/data、旧 Markdown hashes、故障脚本、每次预期写入和结果保存在 `release-artifacts/native-recovery-20260924/`。测试通过原生服务和正式 CLI 命令进行；不是点击确认 UI。Guided Partial 经 CLI restart 只更换 renderer（主 PID 未变）；其余 Completion、Conflict、Incoming Inbox、Incoming Manual 均强制终止并重开主进程，记录不同 PID。不要把第一项算作完整应用重启。
+- Guided 部分写入恢复、全部写完但状态未保存、外部编辑冲突均通过。Conflict 保留现场，撤销的仅是本轮注入句子，未改 receipt hash，随后完成。Inbox 已写正文后只补状态，View 无重复；Manual 尚未写入时返回 not-applied、保留草稿且拒绝旧确认。临时草稿测试后恢复原草稿。原有笔记、作者状态、设置、复习/来源记录全部核对保留；最终无 pending Merge，无残留 journal。详见 [原生恢复验收报告](NATIVE_MERGE_RECOVERY_2026-09-24.md)。
+- 当前构建已安装在隔离验收 Vault，main.js SHA-256 `76a0cc986118a09ee04a7050a745495ffcf17b8b18c338dc5e77d1e058baa0b2`，备份仍在；没有改个人 Vault、旧录制 Vault 或推送。全量测试、构建、发布检查及 diff 检查通过，日志 `/private/tmp/mneme-native-recovery-{all,build,release,focused}.log`。
+- **下一步**：补原生 UI 确认/启动提示/打开中 Merge View 恢复展示，以及真实 Card 评分与创建、删除、ID repair 的重启矩阵；Incoming 两种 origin 的其余中断边界、真实 provider 内容质量、Windows/mobile 验收仍未覆盖。本轮使用预置复习状态验证保留，没有通过 Review UI 产生评分；未验证写入撕裂、断电持久性或同步竞争。不要自动勾完发布清单。
+
+
 - 第三十二轮从检查点 `14f3ff4` 继续，在 `fix/guided-merge-durable-recovery` 完成多文件 Guided Merge 的持久化恢复，代码/测试/ADR 提交 `47fcbd6`。预览仍零写入；确认后在插件目录写入并回读校验独立 JSON journal，再保存不含正文的 `guidedConceptMerge` intent。中断后保留已完成文件，不再自动回滚。
 - 新增 **Resume Guided Merge** 命令和启动提示。恢复先校验全部目标均为已确认的 before/after，跳过已写文件，继续剩余原子写入；Related 检查用受影响文件的原快照与其他文件的当前内容，并重新核对原生解析。全部完成后，从当前 data 重算来源、linked IDs、pause、duplicate dismissals 和 Merge Record，连同 written 状态一次保存。保留期间新增的设置、Card FSRS 状态与事件；重复恢复不重放内容或状态。
 - 保护重叠 Inbox/Manual/Incoming Merge、删除、ID repair、来源变更及清理，包含其恢复分支；检查旧 Source link owner，避免通过改 owner 绕过。恢复记录还校验快照中的实体身份、Card ID 清单和合并时间；兼容旧 ID 的冒号/点号。命令完成后，只更新两方 ID + path 都匹配的打开页面，并使旧异步操作失效。协议和保留规则见 [ADR 0031](adr/0031-guided-merge-resumes-reviewed-file-writes.md)。
@@ -429,7 +436,7 @@ Lightweight organization may be reconsidered only if Tags, search, Related Conce
 - docs/ROADMAP.md
 - docs/V1_RELEASE_CHECKLIST.md
 
-注意：当前版本 1.0.0，审查重构分支为 `fix/guided-merge-durable-recovery`，审查前备份提交为 `83deb3f`；最新提交请以 git log 为准。请先读 docs/CODE_REVIEW_2026-09-05.md 的已修复与未修复事项。另有长期存在的未跟踪 `mneme` 自链接和 `release-artifacts/`。先只读检查 git status，保留所有现有修改、验收 Vault 与录像。
+注意：当前版本 1.0.0，审查重构分支为 `test/native-merge-recovery`，审查前备份提交为 `83deb3f`；最新提交请以 git log 为准。请先读 docs/CODE_REVIEW_2026-09-05.md 的已修复与未修复事项。另有长期存在的未跟踪 `mneme` 自链接和 `release-artifacts/`。先只读检查 git status，保留所有现有修改、验收 Vault 与录像。
 
 v1.0 功能已经完成。产品定位已调整为面向自我导向终生学习者的个人知识记忆插件，核心闭环是 Source Note → Concept → Card → Review → Concept Library。
 
