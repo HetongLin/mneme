@@ -4,6 +4,13 @@ Updated: 2026-09-26
 
 ## 2026-09-05 至 09-26 代码审查后续
 
+- 第三十六轮从 `06295e6` 继续，在 `test/native-card-review-recovery` 完成首次真实 Card 评分与创建中断重启验收；未发现需要修改产品代码的问题，本轮仅提交验收文档。隔离 Vault 新增一个 Concept 和一个 Cards.md，通过正式 Create Card 命令和实际 Composer 控件创建两张 Definition Card。
+- 首张 `card-6aafvkca` 经 Concept Library → Review Cards → Show Answer → Good，真实生成一条 FSRS Learning 状态和一条事件（reviewCount 1），两次主进程重启后完整对象不变。本次为手动 Concept Review，不是 scheduled queue 时间推进验收。
+- 第二张 `card-7ngz9bgx` 追加到已有组后，在 written receipt 保存前挂起，pending intent/draft 已落盘。核验 PID 后 SIGKILL 主进程 75673，重开主 PID 91317；正式 Create Card 打开锁定表单和 Resume Creation，点击后只补完成状态，receipt 仅 status 变化，Cards.md 字节不变、两张卡各一次。完成后再 SIGKILL/reopen 到主 PID 91890，仍 written，Composer 空表单无恢复按钮，未重复评分或追加。不是 renderer-only restart。
+- 47 份旧 Markdown hashes 保留，恰好新增两份文件；旧 reviewStates/reviewEvents 与全部无关状态保留。最终 data 只变 manualCardDraftId/manualCardWrite/reviewStates/reviewEvents；无 pending Card 草稿，空草稿身份已轮换。备份、DOM/receipt/评分对象、终止 PID 和核验脚本保存在 `release-artifacts/card-review-recovery-20260926/`，详见 [Card 评分与创建恢复报告](NATIVE_CARD_REVIEW_RECOVERY_2026-09-26.md)。
+- Markdown writer（含 Manual Card recovery）、review-state/concurrency、FSRS contract 专项及构建、发布检查、diff 检查通过，日志 `/private/tmp/mneme-card-native-{writer,review,fsrs,build,release}.log`。本轮无代码变更，未重复全量无关测试；安装构建仍为 `6aa7777393d8735456612a9c2ba8de72dcc0a9ed5dcd09ad263daa35380c0da4`。初次 harness 等错完成文案超时，实际创建成功，后续按 receipt/按钮核验；不应误记为产品故障。
+- **下一步**：补 Card 删除、Card/Concept ID repair 的真实进程重启矩阵，并按优先级补新 Card Group 首次写入中断、评分保存中断和其他评分阶段。Manual Card 无启动恢复 Notice/独立 Resume 命令，恢复入口是 Composer；本轮不代表所有生命周期或发布清单完成。此前 Incoming 剩余边界、provider 质量、Windows/mobile、同步/断电边界仍未覆盖。保留未跟踪 `mneme`/`release-artifacts/`；未推送或修改个人 Vault。
+
 - 第三十五轮从 `dc35abd` 继续，在 `test/incoming-merge-entry-ui` 完成 Inbox/Manual 的完整冲突 Merge 入口验收，修复提交 `74e021b`。发现 Manual 在未编辑内容、仅 Cancel → Back → Merge 时误报 incoming revision 变化；Composer 每次 flush 更新时间，而 UI fingerprint 包含完整 draft。现在复用 `manualConceptDraftHash`，忽略保存时间、沿用 trim 语义，仍核对内容、身份、目标及来源 hash。receipt/origin hash、预览和写入恢复校验未变；旧 fingerprint 升级首次可能保守提醒一次，原草稿保留。规则补入 ADR 0021。
 - 通过真实 DOM 控件从 Inbox Open → Accept & Next → 重名冲突 → Merge，以及 Composer 输入 → Create Concept → 冲突 → Merge，验证取消零 Markdown 写入、Back 返回后重新创建页面并保留草稿、无临时 Concept。Inbox/Manual 各注入正文已写后 completion save 单次失败；正式 Resume 均完成。Inbox pending 经插件重载捕获真实 Incoming 启动通知，保留提案且不自动完成；Manual 恢复将打开的 Composer 切为空白新身份草稿，Merge 页面完成且非忙碌。
 - 修复构建用第三个样例复测：只有 updatedAt 改变时恢复正常，真实 Core Meaning 改变仍提醒且保留旧 Merge 文本；编辑并确认后正常完成。测试脚本曾持有 Back 前已关闭的旧 View、以及取消回调尚未更新按钮时尝试点击，均已重新定位/等待后继续，未误计为产品故障。详见 [Incoming 入口 UI 验收报告](NATIVE_INCOMING_ENTRY_UI_2026-09-26.md)。
