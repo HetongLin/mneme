@@ -65,6 +65,7 @@ import { KnowledgeProposalStore } from "./services/knowledgeProposalStore";
 import { runPluginDataMutation } from "./services/pluginDataMutation";
 import { createKnowledgeContextPack } from "./services/knowledgeContextPackExporter";
 import { ManualConceptDraftStore } from "./services/manualConceptDraftStore";
+import { manualConceptDraftHash } from "./services/manualConceptWriteRecovery";
 import { IncomingConceptMergeService } from "./services/incomingConceptMergeService";
 import { readIncomingConceptMergeReceipt } from "./services/incomingConceptMergeRecovery";
 import { ManualCardDraftStore } from "./services/manualCardDraftStore";
@@ -1897,8 +1898,10 @@ export default class MnemePlugin extends Plugin {
 			},
 			this.settings.suggestEnglishAliases,
 		);
+		// The Composer autosaves updatedAt on every edit; it is not part of the merge identity.
+		const draftFingerprint = await manualConceptDraftHash(draft);
 		const incomingFingerprint = await computeContentHash(JSON.stringify({
-			draft,
+			draftFingerprint,
 			existingConceptId: existing.conceptId,
 			sourceHash: source?.contentHash,
 		}));

@@ -108,3 +108,17 @@ pending Inbox update. Completed and unrelated valid receipts are allowed. Incomi
 Merge does not move Cards or change their owner, so a pending Manual Card in a
 separate Card Group does not by itself block editing the Concept. The existing
 Manual-origin pending-creation and incoming-proposal receipt guards still apply.
+
+## Manual draft restoration identity — 2026-09-26
+
+A Manual Merge draft's restoration fingerprint uses the existing
+`manualConceptDraftHash` semantics: draft identity, trimmed learning-content
+fields, metadata, tags, and source path. It also includes the existing Concept ID
+and current Source Note content hash. Composer autosave timestamps are excluded;
+returning through conflict options without editing content must restore the same
+Merge draft without a changed-input warning.
+
+The original Manual draft, including its timestamp, still passes unchanged to the
+Merge service. Receipt origin hashes, preview snapshots, and write/recovery guards
+remain unchanged. A draft stored with the older fingerprint may show the existing
+conservative review warning once after upgrading; its authored text is preserved.
