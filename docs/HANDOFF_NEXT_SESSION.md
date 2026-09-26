@@ -1,8 +1,15 @@
 # Mneme Next-Session Hand-off
 
-Updated: 2026-09-24
+Updated: 2026-09-26
 
-## 2026-09-05 至 09-24 代码审查后续
+## 2026-09-05 至 09-26 代码审查后续
+
+- 第三十四轮从 `da38eaf` 继续，在 `test/native-merge-recovery-ui` 完成部分原生恢复 UI 验收（09-24 执行，09-26 收尾提交），修复提交 `183cb1d`。Incoming Merge 恢复成功时现在清理 `isWorking`；原实现遇到旧异步草稿操作等待，会显示完成页但残留 busy。没有证据表明它会阻止新会话或损坏内容，不应夸大为 UI 完全卡死。
+- 通过 Obsidian CLI 驱动真实 renderer DOM 的选择、草稿、预览与确认按钮，验证 Guided 取消零写入、首文件写后报错、正式 Resume 更新原完成页、重复恢复不重写。另一组 pending 经插件重载出现实际启动通知，Resume 后完成。确认框位于另一活动 popout，按实际窗口 DOM 定位。插件重载后空选择页面未被错误认领。
+- Incoming 的旧/新构建各用独立提案：确认后正文已写但 completion save 报错，开始本地延迟 AI 草稿，再执行正式 Resume。旧构建完成后 busy 仍 true；修复构建立即 false，旧结果结束后完成页不被覆盖、已消费草稿不复活。新增回归实际挂起 AI 草稿方法的 read await，并检查不匹配 receipt 不解锁；旧实现红灯、修复绿灯，独立复审无阻塞问题。
+- 六份新增测试 Markdown 的最终内容与确认内容一致，38 份旧 Markdown hashes 全部保留。最终 data 仅三个顶层字段有变化：新增两条 Guided Merge Record（旧记录保留）、两种 Merge receipt；其余作者状态、设置、提案、草稿、复习及来源数据一致。无 pending/journal；最终插件重载移除测试钩子。证据保存在 `release-artifacts/native-recovery-ui-20260924/`，详见 [原生恢复 UI 验收报告](NATIVE_MERGE_RECOVERY_UI_2026-09-24.md)。
+- 当前构建已安装到隔离 Vault，main.js SHA-256 `003b4deb701770d80a3c0fc44639689cd8e15417da745a3649dfdeda10b0e5b1`。全量测试、构建、发布检查、修改测试的独立 TypeScript 检查及 diff 检查通过，日志 `/private/tmp/mneme-recovery-ui-{all,build,release,test-types}.log`。保留未跟踪 `mneme` 与 `release-artifacts/`，没有推送或修改个人 Vault。
+- **下一步**：补 Incoming 启动提示及 Inbox/Manual 完整入口 UI 路径；随后继续真实 Card 评分与创建、删除、ID repair 的进程重启矩阵。Incoming 两种 origin 的其余中断边界、真实 provider 内容质量、Windows/mobile 仍待验收。本轮无真实 provider 调用、无新进程重启、无 Card 评分；DOM 驱动不等于物理鼠标/键盘或截图视觉验收，插件重载不等于主进程重启，不要自动勾完发布清单。
 
 - 第三十三轮从 `497dd36` 继续，在 `test/native-merge-recovery` 完成 macOS Obsidian 1.13.7 的专项中断恢复验收，并修复恢复冲突的误导提示，代码提交 `0f7d97d`。原提示要求重建预览，但 pending 会阻止新预览；现在明确保留当前文件和快照，先检查冲突再恢复。协议和文件/状态行为未改。
 - 在 `Mneme_Release_Candidate` 新增 17 个专用样例文件；旧插件/data、旧 Markdown hashes、故障脚本、每次预期写入和结果保存在 `release-artifacts/native-recovery-20260924/`。测试通过原生服务和正式 CLI 命令进行；不是点击确认 UI。Guided Partial 经 CLI restart 只更换 renderer（主 PID 未变）；其余 Completion、Conflict、Incoming Inbox、Incoming Manual 均强制终止并重开主进程，记录不同 PID。不要把第一项算作完整应用重启。
