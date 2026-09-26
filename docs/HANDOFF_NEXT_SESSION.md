@@ -4,6 +4,13 @@ Updated: 2026-09-26
 
 ## 2026-09-05 至 09-26 代码审查后续
 
+- 第三十五轮从 `dc35abd` 继续，在 `test/incoming-merge-entry-ui` 完成 Inbox/Manual 的完整冲突 Merge 入口验收，修复提交 `74e021b`。发现 Manual 在未编辑内容、仅 Cancel → Back → Merge 时误报 incoming revision 变化；Composer 每次 flush 更新时间，而 UI fingerprint 包含完整 draft。现在复用 `manualConceptDraftHash`，忽略保存时间、沿用 trim 语义，仍核对内容、身份、目标及来源 hash。receipt/origin hash、预览和写入恢复校验未变；旧 fingerprint 升级首次可能保守提醒一次，原草稿保留。规则补入 ADR 0021。
+- 通过真实 DOM 控件从 Inbox Open → Accept & Next → 重名冲突 → Merge，以及 Composer 输入 → Create Concept → 冲突 → Merge，验证取消零 Markdown 写入、Back 返回后重新创建页面并保留草稿、无临时 Concept。Inbox/Manual 各注入正文已写后 completion save 单次失败；正式 Resume 均完成。Inbox pending 经插件重载捕获真实 Incoming 启动通知，保留提案且不自动完成；Manual 恢复将打开的 Composer 切为空白新身份草稿，Merge 页面完成且非忙碌。
+- 修复构建用第三个样例复测：只有 updatedAt 改变时恢复正常，真实 Core Meaning 改变仍提醒且保留旧 Merge 文本；编辑并确认后正常完成。测试脚本曾持有 Back 前已关闭的旧 View、以及取消回调尚未更新按钮时尝试点击，均已重新定位/等待后继续，未误计为产品故障。详见 [Incoming 入口 UI 验收报告](NATIVE_INCOMING_ENTRY_UI_2026-09-26.md)。
+- 44 份旧 Markdown hashes 保持不变，恰好新增三份样例，最终字节均匹配确认计划。原设置、复习、提案和旧来源记录保留；最终 data 仅 incoming receipt、Manual draft ID、来源链接/分析索引四个顶层字段变化。Manual Composer 自动选中旧测试指南作为 Source，确认产生一条新来源链接和一条分析索引，原指南正文未变；最后无来源的空草稿在关闭时正常清理。无 pending/journal，故障包装通过最后重载移除。证据 `release-artifacts/incoming-entry-ui-20260926/`。
+- 全量测试、构建、发布检查通过；新增测试类型收窄修正及 harness 简化后，专项与独立 TypeScript 检查通过，独立复审无阻塞项。日志 `/private/tmp/mneme-incoming-entry-{all,build,release,focused,test-types}.log`。当前隔离 Vault main.js SHA-256 `6aa7777393d8735456612a9c2ba8de72dcc0a9ed5dcd09ad263daa35380c0da4`；保留 `mneme` 与 `release-artifacts/`，未推送或修改个人 Vault。
+- **下一步**：进入真实 Card 评分/创建的进程重启验收，再扩展删除与 ID repair；优先验证评分后的 FSRS/history 持久化和创建完成保存失败后的恢复。Incoming 两种 origin 的其余原生中断边界（含 Manual pending 的单独启动通知）、真实 provider、Windows/mobile 仍待覆盖。本轮启动通知使用 Inbox origin；插件重载不是进程重启，DOM 驱动不是物理操作或截图视觉 QA，不代表整个发布清单完成。
+
 - 第三十四轮从 `da38eaf` 继续，在 `test/native-merge-recovery-ui` 完成部分原生恢复 UI 验收（09-24 执行，09-26 收尾提交），修复提交 `183cb1d`。Incoming Merge 恢复成功时现在清理 `isWorking`；原实现遇到旧异步草稿操作等待，会显示完成页但残留 busy。没有证据表明它会阻止新会话或损坏内容，不应夸大为 UI 完全卡死。
 - 通过 Obsidian CLI 驱动真实 renderer DOM 的选择、草稿、预览与确认按钮，验证 Guided 取消零写入、首文件写后报错、正式 Resume 更新原完成页、重复恢复不重写。另一组 pending 经插件重载出现实际启动通知，Resume 后完成。确认框位于另一活动 popout，按实际窗口 DOM 定位。插件重载后空选择页面未被错误认领。
 - Incoming 的旧/新构建各用独立提案：确认后正文已写但 completion save 报错，开始本地延迟 AI 草稿，再执行正式 Resume。旧构建完成后 busy 仍 true；修复构建立即 false，旧结果结束后完成页不被覆盖、已消费草稿不复活。新增回归实际挂起 AI 草稿方法的 read await，并检查不匹配 receipt 不解锁；旧实现红灯、修复绿灯，独立复审无阻塞问题。
