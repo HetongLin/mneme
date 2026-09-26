@@ -15,13 +15,20 @@ const draft: ConceptMergeDraft = {
 type ViewState = {
 	completed: boolean;
 	isClosed: boolean;
+	isWorking: boolean;
 	sessionRevision: number;
 	session: ConceptConflictMergeSession;
 	draft: ConceptMergeDraft;
 	saveQueue: Promise<void>;
 	saveTimer?: number;
 	contentEl: { empty(): void; createEl(tag: string, options: { text: string }): void };
-	actions: { draftStore: { saveDraft(record: unknown): Promise<void> } };
+	actions: {
+		draftStore: { saveDraft(record: unknown): Promise<void> };
+		readMarkdown(path: string): Promise<string>;
+		aiService: { draftMerge(input: unknown): Promise<ConceptMergeDraft> };
+	};
+	render(): void;
+	draftWithAi(button: { disabled: boolean }): Promise<void>;
 	persistDraft(): Promise<void>;
 	completeRecoveredMerge(receipt: IncomingConceptMergeReceipt): void;
 };
@@ -32,6 +39,7 @@ function makeView(): { view: ViewState; rendered: string[]; saves: unknown[] } {
 	const saves: unknown[] = [];
 	view.completed = false;
 	view.isClosed = false;
+	view.isWorking = false;
 	view.sessionRevision = 1;
 	view.draft = draft;
 	view.saveQueue = Promise.resolve();
@@ -42,7 +50,12 @@ function makeView(): { view: ViewState; rendered: string[]; saves: unknown[] } {
 		origin: { kind: "inbox", proposalId: "proposal-1", proposalUpdatedAt: receipt.createdAt },
 	};
 	view.contentEl = { empty() { rendered.length = 0; }, createEl(_tag, options) { rendered.push(options.text); } };
-	view.actions = { draftStore: { async saveDraft(record) { saves.push(record); } } };
+	view.actions = {
+		draftStore: { async saveDraft(record) { saves.push(record); } },
+		async readMarkdown() { return "Existing Markdown"; },
+		aiService: { async draftMerge() { return draft; } },
+	};
+	view.render = () => { rendered.length = 0; rendered.push("Merge editor"); };
 	return { view, rendered, saves };
 }
 
@@ -54,22 +67,43 @@ async function run(): Promise<void> {
 		{ ...receipt, origin: { kind: "inbox" as const, proposalId: "other", inputHash: "c".repeat(64) } },
 	]) {
 		const { view, rendered } = makeView();
+		view.isWorking = true;
 		view.completeRecoveredMerge(mismatch);
 		assert.equal(view.completed, false);
+		assert.equal(view.isWorking, true, "a mismatched receipt must not unlock the active Merge operation");
 		assert.deepEqual(rendered, []);
 	}
 	{
 		const { view, rendered, saves } = makeView();
+		let releaseReadMarkdown!: () => void;
+		view.actions.readMarkdown = () => new Promise<string>((resolve) => { releaseReadMarkdown = () => resolve("Existing Markdown"); });
+		const staleAiOperation = view.draftWithAi({ disabled: false });
+		assert.equal(view.isWorking, true, "the real AI draft operation must own the busy state while awaiting Markdown");
+		view.completeRecoveredMerge(receipt);
+		assert.equal(view.completed, true);
+		assert.equal(view.isWorking, false);
+		releaseReadMarkdown();
+		await staleAiOperation;
+		assert.equal(view.isWorking, false, "the stale AI finally block must not restore busy state");
+		assert.equal(rendered[0], "Merge Complete", "the stale AI callback must not overwrite the completion page");
+		assert.deepEqual(saves, [], "the stale AI callback must not re-save the consumed draft");
+	}
+	{
+		const { view, rendered, saves } = makeView();
+		view.isWorking = true;
 		let release!: () => void;
 		view.saveQueue = new Promise<void>((resolve) => { release = resolve; });
 		const pendingSave = view.persistDraft();
 		view.completeRecoveredMerge(receipt);
 		assert.equal(view.completed, true);
+		assert.equal(view.isWorking, false, "recovery must release the busy state held by stale async work");
 		assert.equal(view.sessionRevision, 2, "old async work must lose its session revision");
 		assert.equal(rendered[0], "Merge Complete");
 		release();
 		await pendingSave;
 		await view.persistDraft();
+		assert.equal(view.isWorking, false, "a stale callback must not leave the completed view busy");
+		assert.equal(rendered[0], "Merge Complete", "a stale callback must not overwrite the recovery completion page");
 		assert.deepEqual(saves, [], "recovered sessions must not recreate consumed Merge drafts");
 	}
 	{

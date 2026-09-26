@@ -91,6 +91,7 @@ export class MnemeConceptConflictMergeView extends ItemView {
 			if (session.origin.kind !== "inbox" || session.origin.proposalId !== receipt.origin.proposalId) return;
 		} else if (session.origin.kind !== "manual" || session.origin.input.draftId !== receipt.origin.draftId) return;
 		this.completed = true;
+		this.isWorking = false;
 		this.sessionRevision++;
 		if (this.saveTimer !== undefined) { window.clearTimeout(this.saveTimer); this.saveTimer = undefined; }
 		this.contentEl.empty();
