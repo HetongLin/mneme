@@ -1,8 +1,15 @@
 # Mneme Next-Session Hand-off
 
-Updated: 2026-09-26
+Updated: 2026-09-27
 
-## 2026-09-05 至 09-26 代码审查后续
+## 2026-09-05 至 09-27 代码审查后续
+
+- 第三十七轮从 `e173eac` 继续，在 `test/native-deletion-identity-recovery` 完成 Card 删除、缺失 Card ID、缺失 Concept ID 的原生中断恢复验收（09-26 执行，09-27 收尾）。三个已测路径无需产品代码修改，本轮仅提交验收文档。
+- 通过 Review 诊断的 Delete Card / Assign Stable ID，以及 Concept Library Identity Repair 的实际 DOM 控件确认。分别注入：删除正文后 completion save 失败、Card 新 ID 已写后 completed receipt save 失败、Concept 已写但关联 Card Group owner 未写时失败。三个 pending 同时落盘，核验后 SIGKILL 主 PID 91890，重开到 98171（renderer 91894 → 98176），pending 均保留；不是仅 renderer 重启。
+- 依次执行正式 Resume Card Deletion / Resume Card ID Repair / Resume Concept ID Repair：删除补墓碑、保留事件；Card fallback 状态和事件迁移到 `r37-repaired-card`；Concept 只补剩余 Group owner 到 `r37-repaired-concept`。已完成 Markdown 不重写，三条 Resume 再执行后 data.json 和六份样例字节全部不变，无 pending。预置复习数据用于验证迁移，不是本轮新评分；旧 Concept pause 在修复前被 Review 兼容清理，因此不计入迁移通过项。未捕获启动通知。
+- 49 份旧 Markdown hashes、全部旧复习/修复记录及无关数据保留，恰好新增六份隔离样例；custom YAML、学习者正文及删除目标的邻卡保留。data 仅 cardIdRepairs/cardTombstones/conceptIdRepairs/reviewEvents/reviewStates 变化；诊断设置只在内存开启，重启后恢复原 false。证据 `release-artifacts/deletion-identity-recovery-20260926/`，详见 [删除与身份修复恢复报告](NATIVE_DELETION_IDENTITY_RECOVERY_2026-09-26.md)。
+- Card editor、Concept Library 专项及构建、发布检查、diff 检查通过，日志 `/private/tmp/mneme-identity-native-{card,concept,build,release}.log`；无代码变更，未重跑全量无关测试。构建 SHA-256 仍为 `6aa7777393d8735456612a9c2ba8de72dcc0a9ed5dcd09ad263daa35380c0da4`。准备阶段曾遇 rename 链接弹窗及过早启用的故障钩子，已完成受控整理并重新保存基线、重装钩子后才执行验收；不要把准备阶段计作产品故障。
+- **下一步**：优先审查 `ConceptLoader` 同目录多显式 owner 的分组。初始样例在同一目录时 Review 混在一个标题下，代码按 folder 分组并取首 Card 元数据；需结合声明 Cards 路径的归属规则、Library/Review 独立复现决定修复，不应直接认定布局不受支持。之后补重复 ID、删除/修复更早中断点、新 Card Group 首写中断、评分保存中断及其他评分阶段。DOM 驱动不代表物理操作或视觉 QA；跨平台、同步/断电与其余发布验收仍待完成。保留未跟踪 `mneme`/`release-artifacts/`，未推送或修改个人 Vault。
 
 - 第三十六轮从 `06295e6` 继续，在 `test/native-card-review-recovery` 完成首次真实 Card 评分与创建中断重启验收；未发现需要修改产品代码的问题，本轮仅提交验收文档。隔离 Vault 新增一个 Concept 和一个 Cards.md，通过正式 Create Card 命令和实际 Composer 控件创建两张 Definition Card。
 - 首张 `card-6aafvkca` 经 Concept Library → Review Cards → Show Answer → Good，真实生成一条 FSRS Learning 状态和一条事件（reviewCount 1），两次主进程重启后完整对象不变。本次为手动 Concept Review，不是 scheduled queue 时间推进验收。
