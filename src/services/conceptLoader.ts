@@ -23,6 +23,15 @@ interface ConceptMetadata {
 interface CardGroupMetadata {
 	conceptId?: string;
 	conceptPath?: string;
+	isCardGroup?: boolean;
+}
+
+interface ConceptCardGroup {
+	cards: LoadedMnemeCard[];
+	conceptFile: TFile | null;
+	folderPath: string;
+	hasConceptLink: boolean;
+	id: string;
 }
 
 export class ConceptLoader {
@@ -34,9 +43,8 @@ export class ConceptLoader {
 
 	async loadConcepts(): Promise<LoadedMnemeConcepts> {
 		const cards = await this.cardFileLoader.loadCardFiles();
-		const groupedCards = groupCardsByFolder(cards);
-		const concepts = await Promise.all(Array.from(groupedCards.entries())
-			.map(([folderPath, conceptCards]) => this.createConcept(folderPath, conceptCards)));
+		const groupedCards = this.groupCardsByOwner(cards);
+		const concepts = await Promise.all(groupedCards.map((group) => this.createConcept(group)));
 
 		return {
 			concepts,
@@ -50,12 +58,50 @@ export class ConceptLoader {
 		};
 	}
 
-	private async createConcept(folderPath: string, cards: LoadedMnemeCard[]): Promise<MnemeConcept> {
-		const cardGroupMetadata = this.getCardGroupMetadata(cards[0]);
-		const legacyConceptPath = getConceptPath(folderPath);
-		const conceptFile = cardGroupMetadata.conceptPath
-			? this.resolveMarkdownFile(cardGroupMetadata.conceptPath, cards[0]?.path ?? "")
-			: this.getConceptFile(legacyConceptPath);
+	private groupCardsByOwner(cards: LoadedMnemeCard[]): ConceptCardGroup[] {
+		const groups = new Map<string, ConceptCardGroup>();
+		const groupsByFile = new Map<string, ConceptCardGroup>();
+		for (const card of cards) {
+			const existingFileGroup = groupsByFile.get(card.path);
+			if (existingFileGroup) {
+				existingFileGroup.cards.push(card);
+				continue;
+			}
+
+			const folderPath = getFolderPath(card.path);
+			const metadata = this.getCardGroupMetadata(card);
+			const hasOwner = !!(metadata.conceptId || metadata.conceptPath);
+			const isLegacyFolder = !hasOwner && !metadata.isCardGroup;
+			const conceptFile = metadata.conceptPath
+				? this.resolveMarkdownFile(metadata.conceptPath, card.path)
+				: this.getConceptFile(getConceptPath(folderPath));
+			// Keep stable owners separate even in a shared folder. A link is the
+			// grouping fallback only when a stable owner ID is unavailable.
+			const key = JSON.stringify(metadata.conceptId
+				? ["owner", folderPath, metadata.conceptId]
+				: metadata.conceptPath
+					? ["link", folderPath, conceptFile?.path ?? metadata.conceptPath]
+					: [isLegacyFolder ? "folder" : "file", isLegacyFolder ? folderPath : card.path]);
+			let group = groups.get(key);
+			if (!group) {
+				group = {
+					cards: [], conceptFile, folderPath, hasConceptLink: !!metadata.conceptPath,
+					id: metadata.conceptId ?? (isLegacyFolder ? folderPath || card.path : card.path),
+				};
+				groups.set(key, group);
+			} else if (metadata.conceptPath && (!group.hasConceptLink || (!group.conceptFile && conceptFile))) {
+				// Prefer a resolving explicit link when legacy declarations are
+				// partial or stale, independent of file enumeration order.
+				group.conceptFile = conceptFile;
+				group.hasConceptLink = true;
+			}
+			group.cards.push(card);
+			groupsByFile.set(card.path, group);
+		}
+		return [...groups.values()];
+	}
+
+	private async createConcept({ folderPath, cards, conceptFile, id }: ConceptCardGroup): Promise<MnemeConcept> {
 		const metadata = conceptFile
 			? await this.loadConceptMetadata(conceptFile)
 			: { warnings: [] };
@@ -68,7 +114,7 @@ export class ConceptLoader {
 			conceptPath: conceptFile?.path,
 			errors: [],
 			folderPath,
-			id: cardGroupMetadata.conceptId ?? (folderPath || cards[0]?.path || fallbackTitle),
+			id,
 			importance: metadata.importance,
 			isReviewable: validCards.length > 0 && metadata.learningMode !== "exploratory",
 			learningMode: metadata.learningMode,
@@ -97,6 +143,7 @@ export class ConceptLoader {
 		return {
 			conceptId: getCardGroupConceptIdFromFrontmatter(frontmatter),
 			conceptPath: conceptLink ? parseObsidianLinkPath(conceptLink) : undefined,
+			isCardGroup: frontmatter?.mneme_type === "card_group",
 		};
 	}
 
@@ -153,20 +200,6 @@ export class ConceptLoader {
 			};
 		}
 	}
-}
-
-function groupCardsByFolder(cards: LoadedMnemeCard[]): Map<string, LoadedMnemeCard[]> {
-	const groupedCards = new Map<string, LoadedMnemeCard[]>();
-
-	for (const card of cards) {
-		const folderPath = getFolderPath(card.path);
-		const cardsInFolder = groupedCards.get(folderPath) ?? [];
-
-		cardsInFolder.push(card);
-		groupedCards.set(folderPath, cardsInFolder);
-	}
-
-	return groupedCards;
 }
 
 function getConceptPath(folderPath: string): string {

@@ -4,6 +4,12 @@ Updated: 2026-09-27
 
 ## 2026-09-05 至 09-27 代码审查后续
 
+- 第三十八轮从 `b19d16d` 继续，在 `fix/review-card-group-ownership` 修复同目录多 owner 混组。旧 `ConceptLoader` 将同目录所有 Card 归给首文件，造成另一 Concept 的 Library 计数、Review 入口和学习模式/retention target 错用；真实 loader + scanner + queue 回归在旧代码下明确复现应为 2 组、实际 1 组。
+- 现在同目录内优先按稳定 Concept ID 分组，缺 ID 时按解析后的 Concept 链接分组；无关联的旧单卡维持目录分组，无关联 `card_group` 各自按文件分组并使用路径 fallback。每份 Card 文件只解析一次分组元数据，保留所有 Card ID 和正文，不写 Markdown 或迁移 data。规则补入 ADR 0013。
+- 保留无 Concept 链接时读取同目录 `Concept.md` 的兼容行为。复审补齐同 owner“有链接 + 仅 ID”旧格式，避免生成重复同 ID 队列入口；显式链接优先于目录默认元数据，可解析链接优先于失效链接，顺序反转结果一致。旧单卡聚合、根目录、孤立组、缺 owner ID、失效链接、Library 计数、exploratory 排除、retention target 和全 Vault 重复 Card ID 保护均有回归。
+- 最终全量测试、构建、发布检查、新增测试独立 TypeScript 检查及 diff 检查通过；复审发现的同 owner 混合格式与失效链接顺序问题已修复，最终补充跨目录 link-only fallback ID 不碰撞回归。日志 `/private/tmp/mneme-owner-group-{all,build,release,test-types}.log`，失败对照 `/private/tmp/mneme-concept-loader-{red,mixed-id-red,stale-link-red}.log`。未安装本轮构建到隔离 Vault，前轮原生验收不能算作新分组逻辑的 UI 验收。保留 `mneme`/`release-artifacts/`，未推送或修改个人 Vault。
+- **下一步**：在隔离 Vault 用同目录两个显式 owner 对照 Library → Review，分别设 exploratory/reviewable 与不同 retention target；应各显示自己的卡，切换顺序不改变结果。随后审查同稳定 ID 跨目录重复队列、ID 与显式链接相互冲突时的处理，以及 metadata cache 时序。这些既有歧义未在本轮扩大处理；删除/repair 更早中断点、重复 ID 的原生恢复、新组首写和评分中断、跨平台等验收仍待补。
+
 - 第三十七轮从 `e173eac` 继续，在 `test/native-deletion-identity-recovery` 完成 Card 删除、缺失 Card ID、缺失 Concept ID 的原生中断恢复验收（09-26 执行，09-27 收尾）。三个已测路径无需产品代码修改，本轮仅提交验收文档。
 - 通过 Review 诊断的 Delete Card / Assign Stable ID，以及 Concept Library Identity Repair 的实际 DOM 控件确认。分别注入：删除正文后 completion save 失败、Card 新 ID 已写后 completed receipt save 失败、Concept 已写但关联 Card Group owner 未写时失败。三个 pending 同时落盘，核验后 SIGKILL 主 PID 91890，重开到 98171（renderer 91894 → 98176），pending 均保留；不是仅 renderer 重启。
 - 依次执行正式 Resume Card Deletion / Resume Card ID Repair / Resume Concept ID Repair：删除补墓碑、保留事件；Card fallback 状态和事件迁移到 `r37-repaired-card`；Concept 只补剩余 Group owner 到 `r37-repaired-concept`。已完成 Markdown 不重写，三条 Resume 再执行后 data.json 和六份样例字节全部不变，无 pending。预置复习数据用于验证迁移，不是本轮新评分；旧 Concept pause 在修复前被 Review 兼容清理，因此不计入迁移通过项。未捕获启动通知。
