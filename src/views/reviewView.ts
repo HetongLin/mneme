@@ -32,6 +32,7 @@ import {
 import { formatUserFacingError } from "../utils/userFacingError";
 import type { ConceptSummary } from "../models/conceptLibrary";
 import { ReviewActionGuard } from "../services/reviewActionGuard";
+import { assertReviewRatingSnapshot } from "../services/reviewRatingSnapshot";
 
 export const REVIEW_VIEW_TYPE = "mneme-review-view";
 
@@ -1372,6 +1373,13 @@ export class MnemeReviewView extends ItemView {
 		try {
 			let updatedReviewState: CardReviewState;
 			try {
+				const current = await this.loader.loadConcepts();
+				// Closing, refreshing, or replacing the selection while the scan is
+				// pending must cancel the old action before it starts a state write.
+				if (!this.actionGuard.isCurrent(action)
+					|| this.selectedConcept !== concept
+					|| this.getCurrentReviewableCard() !== card) return;
+				assertReviewRatingSnapshot(concept.concept, card.card, current.concepts);
 				updatedReviewState = await this.reviewStateStore.recordReview(card.cardId, rating, {
 					requestRetention: concept.concept.retentionTarget,
 				});

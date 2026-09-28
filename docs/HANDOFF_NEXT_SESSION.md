@@ -4,6 +4,12 @@ Updated: 2026-09-28
 
 ## 2026-09-05 至 09-28 代码审查后续
 
+- 第四十一轮从已提交检查点 `58286e7` 继续，在 `fix/review-rating-ownership` 为已打开 Review 会话补评分前快照校验。旧实现直接用 `selectedCards` 和旧 Concept retention 写入；真实 View + loader 回归复现修改 Card owner 后仍调用评分，日志 `/private/tmp/mneme-rating-ownership-red.log`；扫描阶段动作锁缺口的失败对照为 `/private/tmp/mneme-rating-guard-red.log`。
+- 新增 `reviewRatingSnapshot.ts`，评分前重新扫描，要求 Card ID 唯一、有效且有显式 ID，仍属于原 Concept；同时核对 Card 路径/Front/Back/Rubric/类型，以及 Concept 路径/学习模式/retention。冲突、删除、移动、内容/策略变化及扫描失败不提交评分，保留当前位置并提示刷新重看。仅其他 Card 正文变化不阻止当前卡；手动 exploratory 复习规则保留。
+- 现有动作锁覆盖扫描与持久化两阶段。扫描期间 reset/close/替换选中项会在调用 `recordReview` 前取消旧操作；重复点击及 Skip 不推进。持久化已经开始后的关闭仍只阻止旧 UI 更新，不撤销既有写入。测试 runner 显式等待异步 suite 完成，避免未完成 Promise 被当作成功退出；规则与边界补入 ADR 0013。
+- 全量测试、最终 Review navigation 专项、构建、发布检查、两份相关测试独立 strict TypeScript 检查及 diff 检查通过。日志 `/private/tmp/mneme-rating-ownership-{all,final,build,release,test-types}.log`。Luna 限定复审无阻塞项；其最初对无显式 ID 的 exploratory 兼容性疑问经真实 queue 验证后撤回，该卡原本就归 invalid，不会进入手动队列。集成回归覆盖跨目录同 owner、会话中新增冲突/重复 ID、移除/移动 Card、各正文片段及策略变化、读取失败、修复重开、无关 Card 编辑和真实手动 exploratory 入口。
+- **下一步**：审查自定义文件名因 metadata cache 类型缺失而漏扫的路径；评分前全扫描也受该发现边界影响。可在隔离 Vault 打开 Review/Show Answer 后外部修改 owner、Card 正文或 retention，再点 Good，应提示刷新且无新增评分；刷新重开后应可按新内容正常评分。本轮不覆盖扫描后再变化、等待 Store mutation queue 时变化或跨进程锁；每次评分读取全部已发现 Card 文件，大 Vault 耗时尚未原生测量。本轮未安装构建或做原生 UI 验收；隔离 Vault 仍为第三十八轮构建。保留 `mneme`/`release-artifacts/`，未推送或修改个人 Vault。
+
 - 第四十轮从检查点 `9d7a326` 继续，在 `fix/review-owner-conflicts` 完成跨目录稳定 owner 分组及归属冲突保护。同一稳定 owner ID 现在跨 Vault 聚合为一个 Review 入口，按 Card 路径排序选取稳定代表；不搬迁 Markdown、不合并实体 Card Group、不改 Card ID 或复习历史。
 - 同一 owner 解析到多个显式 Concept 路径、无显式链接但对应多个默认 `Concept.md`，或选中的 Concept 声明不同稳定 ID 时，保留全部 Card 内容并标记不可复习，显示诊断；其他 owner 不受影响，修正文档后重新扫描可恢复。显式链接仍优先于目录默认；仅失效链接保留原兼容行为，不借用默认 Concept；无 ID 的旧 Concept 仍可读。规则补入 ADR 0013。
 - Card 归属从当前正文快照用 Obsidian YAML parser 解析，Concept 用 `vault.read` 新读取；读取/解析失败及非 mapping YAML 会阻止受影响组。裸 Concept 链接按 Obsidian source context 解析，避免同名根目录文件抢占。自定义文件名的发现阶段仍依赖 metadata cache，链接解析仍非原子快照，不宣称消除全部缓存时序问题。

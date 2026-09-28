@@ -37,23 +37,28 @@ function deferred() {
 // replaced, so the test observes actual queue advancement and button recovery.
 function createHarness(write: PendingWrite) {
 	const calls: string[] = [];
+	const started = deferred();
 	let buttons = [{ disabled: false }, { disabled: false }];
 	const view = Object.create(MnemeReviewView.prototype) as ReviewHarness;
 	const persist = (cardId: string) => {
 		calls.push(cardId);
+		started.resolve({});
 		return write.promise;
 	};
-	const concept = { title: "Concept", concept: { retentionTarget: 0.9 } };
 	const cards = ["card-a", "card-b", "card-c"].map((cardId) => ({
 		cardId,
-		card: { hasExplicitCardId: true, path: "Cards.md" },
+		card: { cardId, hasExplicitCardId: true, isValid: true, path: "Cards.md", front: "Front", back: "Back" },
 	}));
+	const concept = { conceptId: "owner", title: "Concept", concept: {
+		id: "owner", retentionTarget: 0.9, errors: [], cards: cards.map((card) => card.card),
+	} };
 	Object.assign(view, {
 		actionGuard: new ReviewActionGuard(),
 		activeDeferrals: {}, activeRetirements: {}, activeSuspensions: {},
 		deferredCardCount: 0, suspendedCardCount: 0, skippedCardCount: 0,
 		isReviewComplete: false, selectedCardIndex: 0,
 		selectedCards: cards, selectedConcept: concept,
+		loader: { loadConcepts: async () => ({ concepts: [concept.concept] }) },
 		contentEl: {
 			querySelectorAll: () => buttons,
 			empty: () => { buttons = []; },
@@ -66,16 +71,17 @@ function createHarness(write: PendingWrite) {
 			buttons = [{ disabled: view.actionGuard.isBusy }, { disabled: view.actionGuard.isBusy }];
 		},
 	});
-	return { view, calls, concept, buttons: () => buttons };
+	return { view, calls, concept, started: started.promise, buttons: () => buttons };
 }
 
 async function run(): Promise<void> {
 	for (const method of ["rateCurrentCard", "deferCurrentCard", "suspendCurrentCard", "retireCurrentCard"] as const) {
 		const write = deferred();
-		const { view, calls, buttons } = createHarness(write);
+		const { view, calls, buttons, started } = createHarness(write);
 		const pending = invoke(view, method);
 		const duplicate = invoke(view, method);
 		const competing = view.suspendCurrentCard();
+		await started;
 		assert.deepEqual(calls, ["card-a"], `${method}: persist exactly once`);
 		assert.ok(buttons().every((button) => button.disabled), `${method}: disable immediately`);
 		view.skipCurrentCard();
@@ -90,8 +96,9 @@ async function run(): Promise<void> {
 
 	{
 		const write = deferred();
-		const { view, calls, buttons } = createHarness(write);
+		const { view, calls, buttons, started } = createHarness(write);
 		const pending = view.rateCurrentCard("good");
+		await started;
 		write.reject(new Error("Disk unavailable"));
 		await pending;
 		assert.equal(view.selectedCardIndex, 0);
@@ -103,8 +110,9 @@ async function run(): Promise<void> {
 
 	{
 		const write = deferred();
-		const { view, calls, concept, buttons } = createHarness(write);
+		const { view, calls, concept, buttons, started } = createHarness(write);
 		const pending = view.rateCurrentCard("good");
+		await started;
 		view.resetReviewState();
 		view.selectedCards = [{ cardId: "card-new-session" }];
 		view.selectedConcept = concept;
@@ -132,13 +140,42 @@ async function run(): Promise<void> {
 
 	{
 		const write = deferred();
-		const { view, buttons } = createHarness(write);
+		const { view, buttons, started } = createHarness(write);
 		const pending = view.rateCurrentCard("good");
+		await started;
 		await view.onClose();
 		write.resolve({});
 		await pending;
 		assert.equal(view.selectedCardIndex, 0, "closed View must not advance or render");
 		assert.deepEqual(buttons(), []);
+	}
+	{
+		const { view, calls, buttons } = createHarness(deferred());
+		Object.assign(view, { loader: { loadConcepts: async () => { throw new Error("Scan unavailable"); } } });
+		await view.rateCurrentCard("good");
+		assert.deepEqual(calls, [], "a failed scan must not fall back to the stale session");
+		assert.equal(view.selectedCardIndex, 0);
+		assert.match(view.statusMessage, /Scan unavailable/);
+		assert.equal(view.actionGuard.isBusy, false);
+		assert.ok(buttons().every((button) => !button.disabled));
+	}
+	for (const cancel of ["reset", "close", "replace-selection"] as const) {
+		const scan = deferred();
+		const { view, calls, concept, buttons } = createHarness(deferred());
+		Object.assign(view, { loader: { loadConcepts: () => scan.promise } });
+		const pending = view.rateCurrentCard("good");
+		await view.rateCurrentCard("good");
+		view.skipCurrentCard();
+		assert.equal(view.selectedCardIndex, 0, "scan holds the action lock");
+		assert.deepEqual(calls, []);
+		if (cancel === "close") await view.onClose();
+		else if (cancel === "reset") view.resetReviewState();
+		else view.selectedCards = [{ cardId: "replacement" }];
+		scan.resolve({ concepts: [concept.concept] });
+		await pending;
+		assert.deepEqual(calls, [], `${cancel}: stale scan must not start persistence`);
+		assert.equal(view.actionGuard.isBusy, false);
+		assert.ok(buttons().every((button) => !button.disabled));
 	}
 	console.log("Review View asynchronous action tests passed.");
 }
@@ -147,4 +184,4 @@ function invoke(view: ReviewHarness, method: ActionMethod): Promise<void> {
 	return method === "rateCurrentCard" ? view.rateCurrentCard("good") : view[method]();
 }
 
-void run();
+export const done = run();

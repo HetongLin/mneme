@@ -69,3 +69,29 @@ rating an already-open review session, or remove metadata-cache dependence from
 discovery of custom-named Card files. Link resolution still uses Obsidian's cache,
 and reads are snapshots rather than a Vault-wide transaction. Those boundaries
 require separate review and native acceptance testing.
+
+## Rating an open session after Markdown edits — 2026-09-28
+
+Before Review View submits a rating, it performs a fresh Concept/Card scan.
+The displayed Card ID must occur exactly once, remain valid with an explicit
+stable ID, and belong to the same unambiguous Concept. Its path, Front, Back,
+Rubric, and Card Type must match what the session loaded. The Concept path,
+learning mode, and retention target must also match. Differences or scan failures
+leave the rating unwritten and the position unchanged, with a message directing
+the learner to refresh and review again. Unrelated Card edits do not invalidate
+the displayed Card solely because the surrounding file bytes changed.
+
+The existing action lock spans both scan and persistence. Closing, resetting,
+or replacing the selected Card/Concept during the scan cancels the old action
+before it can call the review store. An unchanged manual Concept session may
+still review exploratory Concepts; this check does not impose scheduled queue
+eligibility on manual review. There are no new persisted fields or Markdown writes.
+
+This supersedes the preceding open-session boundary only for the pre-submission
+snapshot. The scan is read-only and does not refresh the visible question behind
+the learner's back. It currently reads all discovered Card files for duplicate
+and ownership checks on each rating; large-Vault latency needs native measurement.
+Filesystem edits after the reads, metadata-cache omissions during discovery,
+and changes while waiting for the review store's mutation queue remain outside
+this snapshot guarantee. Ratings whose persistence has already begun retain the
+existing behavior: closing the View prevents stale UI updates, not the state write.
