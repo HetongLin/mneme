@@ -4,6 +4,13 @@ Updated: 2026-09-28
 
 ## 2026-09-05 至 09-28 代码审查后续
 
+- 第四十轮从检查点 `9d7a326` 继续，在 `fix/review-owner-conflicts` 完成跨目录稳定 owner 分组及归属冲突保护。同一稳定 owner ID 现在跨 Vault 聚合为一个 Review 入口，按 Card 路径排序选取稳定代表；不搬迁 Markdown、不合并实体 Card Group、不改 Card ID 或复习历史。
+- 同一 owner 解析到多个显式 Concept 路径、无显式链接但对应多个默认 `Concept.md`，或选中的 Concept 声明不同稳定 ID 时，保留全部 Card 内容并标记不可复习，显示诊断；其他 owner 不受影响，修正文档后重新扫描可恢复。显式链接仍优先于目录默认；仅失效链接保留原兼容行为，不借用默认 Concept；无 ID 的旧 Concept 仍可读。规则补入 ADR 0013。
+- Card 归属从当前正文快照用 Obsidian YAML parser 解析，Concept 用 `vault.read` 新读取；读取/解析失败及非 mapping YAML 会阻止受影响组。裸 Concept 链接按 Obsidian source context 解析，避免同名根目录文件抢占。自定义文件名的发现阶段仍依赖 metadata cache，链接解析仍非原子快照，不宣称消除全部缓存时序问题。
+- Library 显示 `Review unavailable` 与原因，并在点击处理器阻止 Review/生成。诊断除按 owner ID 关联外，还按 Concept 声明的 Card 路径关联，覆盖 Card 写错 owner ID 时错误显示 Generate to Review 的复审问题；修复后清除派生诊断，正常空 Concept 仍可生成。
+- 全量 `npm run test:all`、构建、发布检查及四份相关测试的独立 TypeScript 检查通过；Luna 限定复审确认 ID 不匹配的 Library 诊断遗漏已修复。日志 `/private/tmp/mneme-owner-conflict-{all,build,release,test-types}.log`；旧逻辑失败对照 `/private/tmp/mneme-owner-conflicts-crossfolder-red.log`、`/private/tmp/mneme-owner-conflicts-bare-link-red.log`、`/private/tmp/mneme-owner-conflict-id-red.log`。回归覆盖正反扫描顺序、跨目录、冲突隔离与修复重扫、旧缓存、读取/解析失败、队列及 Library 入口。
+- **下一步**：优先审查已打开 Review 会话在外部编辑改变归属后仍持有旧 `selectedCards`、评分前不重新核验归属的路径；其次审查自定义文件名因缓存类型缺失而漏扫的问题。原生验收可在隔离 Vault 构造跨目录同 owner、多个 Concept 路径与 ID 不匹配，检查 Library/Review 阻止及修复后恢复。本轮未安装构建或做原生 UI 验收，隔离 Vault 仍为第三十八轮构建 `9287050608063d76bbdf9eb7f65dd605d6dc0aae96bd50940d841572270563c1`。既有删除/repair 更早中断点、重复 ID 原生恢复、新组首写和评分中断、跨平台仍待覆盖。保留 `mneme`/`release-artifacts/`；未推送或修改个人 Vault。
+
 - 第三十九轮从 `3a5d96b` 继续，在 `test/native-review-owner-grouping` 完成同目录双 owner 的原生对照验收，无新增产品代码改动。先备份隔离 Vault 插件/data 和 55 份旧 Markdown，再新增同目录 Alpha/Beta 两个 Concept 及各自 Card Group，共四份文件；Alpha 为 exploratory/0.80/1 张卡，Beta 为 reviewable/0.95/2 张卡。
 - 旧版正常扫描把三张卡全部归给 Beta，Library 计数 Alpha 0 / Beta 3；反转只读文件枚举后全部归给 Alpha，计数 3 / 0，所有卡随 Alpha 被排除出 scheduled queue。零计数项错误显示 Generate to Review，未点击生成。新版两种顺序均为 1 / 2，owner/path/学习模式/retention target 保持各自归属。
 - 通过实际 Library → Review Cards → Show Answer → Back 入口，以及原生 More ▾ → Skip for Now 菜单，核对 Alpha 一张与 Beta 两张卡的 Front/Back；反序扫描下用原生辅助功能控件重复验收。Alpha 仍可从 Library 手动复习，只从 scheduled queue 排除。未提交评分；retention 仅核对加载/会话参数，不计作新 FSRS 状态转换验收。DOM 焦点等待和原生菜单定位曾需修正，详见 [原生 owner 分组报告](NATIVE_REVIEW_OWNER_GROUPING_2026-09-28.md)，不计为产品故障。

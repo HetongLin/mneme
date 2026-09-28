@@ -5,6 +5,7 @@ import { ConceptScanner } from "../src/services/conceptScanner";
 import { attachValidCardCounts } from "../src/services/conceptCardAvailability";
 import { buildReviewQueue } from "../src/services/reviewQueueBuilder";
 import { parseSimpleFrontmatter } from "../src/services/simpleFrontmatter";
+import { yamlFixtures } from "./helpers/obsidianConceptLoaderStub";
 
 function card(id: string): string {
 	return `<!-- MNEME:CARD:start id=${id} -->\n<!-- MNEME:FRONT:start -->\nQuestion ${id}\n<!-- MNEME:FRONT:end -->\n<!-- MNEME:BACK:start -->\nAnswer ${id}\n<!-- MNEME:BACK:end -->\n<!-- MNEME:CARD:end -->\n`;
@@ -15,6 +16,10 @@ function group(owner: string, link: string, ...ids: string[]): string {
 }
 
 function fixture(markdown: Record<string, string>) {
+	for (const content of Object.values(markdown)) {
+		const yaml = /^\uFEFF?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(content)?.[1];
+		if (yaml !== undefined) yamlFixtures.set(yaml, parseSimpleFrontmatter(content.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n")));
+	}
 	const files = Object.keys(markdown).map((path) => Object.assign(new TFile(), {
 		path, name: path.split("/").pop()!, basename: path.split("/").pop()!.replace(/\.md$/, ""), extension: "md",
 	}));
@@ -34,6 +39,35 @@ function fixture(markdown: Record<string, string>) {
 }
 
 async function run(): Promise<void> {
+	for (const reverse of [false, true]) {
+		const entries: Array<[string, string]> = [
+			["First/Cards.md", group("shared-owner", "Notes/Shared", "first")],
+			["Second/Cards.md", group("shared-owner", "Notes/Shared", "second")],
+			["Notes/Shared.md", "---\nmneme_type: concept\nmneme_id: shared-owner\nretention_target: 0.91\n---\n# Shared\n"],
+		];
+		const { loader } = fixture(Object.fromEntries(reverse ? entries.reverse() : entries));
+		const loaded = await loader.loadConcepts();
+		assert.equal(loaded.concepts.length, 1, "One stable owner must not create duplicate cross-folder queue IDs");
+		assert.deepEqual(loaded.concepts[0]!.cards.map((c) => c.cardId).sort(), ["first", "second"]);
+		assert.equal(buildReviewQueue(loaded.concepts, {}, new Date()).summary.newCards, 2);
+	}
+	{
+		// A bare link belongs to its source context, even when a root file with
+		// the same name exists. Identity validation must not reject a valid link
+		// because a direct root lookup selected the wrong Concept.
+		const { app, loader } = fixture({
+			"Local/Cards.md": group("local-owner", "Concept", "local-card"),
+			"Local/Concept.md": "---\nmneme_type: concept\nmneme_id: local-owner\n---\n# Local\n",
+			"Concept.md": "---\nmneme_type: concept\nmneme_id: other-owner\n---\n# Root\n",
+		});
+		app.metadataCache.getFirstLinkpathDest = (link, source) => {
+			assert.equal(link, "Concept"); assert.equal(source, "Local/Cards.md");
+			return app.vault.getAbstractFileByPath("Local/Concept.md") as TFile;
+		};
+		const loaded = await loader.loadConcepts();
+		assert.equal(loaded.concepts[0]!.conceptPath, "Local/Concept.md");
+		assert.equal(loaded.concepts[0]!.cards[0]!.isValid, true);
+	}
 	// Two valid, explicitly linked groups may share a folder. Their Concept
 	// learning modes and retention targets must never leak across that folder.
 	for (const reverse of [false, true]) {

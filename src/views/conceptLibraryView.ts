@@ -547,11 +547,15 @@ export class MnemeConceptLibraryView extends ItemView {
 			text: isGeneratingCards ? "Generating Cards..." : getReviewCardsActionLabel(concept),
 		}, (buttonEl) => {
 			buttonEl.addClass("mneme-concept-library-review-button");
-			buttonEl.disabled = isGeneratingCards;
+			buttonEl.disabled = isGeneratingCards || !!concept.cardReviewError;
 			buttonEl.addEventListener("click", () => {
 				void this.reviewConceptCards(concept);
 			});
 		});
+
+		if (concept.cardReviewError) {
+			footerEl.createEl("p", { cls: "mneme-review-status", text: concept.cardReviewError });
+		}
 
 		const sourceFilesEl = footerEl.createEl("details", { cls: "mneme-concept-library-source-files" });
 		sourceFilesEl.createEl("summary", { text: "Source Files" });
@@ -577,6 +581,10 @@ export class MnemeConceptLibraryView extends ItemView {
 	}
 
 	private async reviewConceptCards(concept: ConceptSummary): Promise<void> {
+		if (concept.cardReviewError) {
+			new Notice(`Mneme: ${concept.cardReviewError}`);
+			return;
+		}
 		if (!hasValidReviewCards(concept)) {
 			await this.generateConceptCardsForReview(concept);
 			return;
@@ -766,6 +774,7 @@ function formatDuplicateCore(value: string | undefined): string {
 }
 
 function getReviewCardsActionLabel(concept: ConceptSummary): string {
+	if (concept.cardReviewError) return "Review unavailable";
 	return hasValidReviewCards(concept) ? "Review Cards" : "Generate to Review";
 }
 

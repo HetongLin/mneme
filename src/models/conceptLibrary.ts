@@ -3,6 +3,8 @@ export type ConceptImportance = "low" | "normal" | "high" | "critical";
 
 export interface ConceptSummary {
 	cardCount?: number;
+	/** Derived review-scan diagnostic; never persisted as Concept metadata. */
+	cardReviewError?: string;
 	cardsPath?: string;
 	conceptId: string;
 	coreMeaning?: string;

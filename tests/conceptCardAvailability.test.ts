@@ -49,4 +49,24 @@ const gamma: ConceptSummary = {
 	assert.equal(hasValidReviewCards({ cardCount: undefined }), false);
 }
 
+{
+	const blocked = attachValidCardCounts([alpha], [{
+		id: alpha.conceptId, cards: [{ isValid: false }], errors: ["Conflicting Concept paths for owner concept-alpha"],
+	}])[0]!;
+	assert.equal(blocked.cardCount, 0);
+	assert.match(blocked.cardReviewError!, /Conflicting Concept paths/);
+	const repaired = attachValidCardCounts([blocked], [{ id: alpha.conceptId, cards: [{ isValid: true }] }])[0]!;
+	assert.equal(repaired.cardCount, 1);
+	assert.equal(repaired.cardReviewError, undefined, "Refreshing a repaired owner clears the derived diagnostic");
+}
+
+{
+	const [concept] = attachValidCardCounts([alpha], [{
+		id: "wrong-owner", cards: [{ isValid: false, path: alpha.cardsPath }],
+		errors: ["Card owner wrong-owner conflicts with Concept ID concept-alpha"],
+	}]);
+	assert.equal(concept!.cardCount, 0);
+	assert.match(concept!.cardReviewError!, /wrong-owner/, "The declared Cards path reports conflicts even when its owner ID is wrong");
+}
+
 console.log("Concept Card availability tests passed.");
