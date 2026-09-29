@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 
 const tests = [
 	"tests/cardFileRecognition.test.ts",
+	"tests/cardFileLoader.test.ts",
 	"tests/conceptMarkdownParser.test.ts",
 	"tests/conceptCardAvailability.test.ts",
 	"tests/conceptReviewAvailability.test.ts",
@@ -54,7 +55,7 @@ for (const test of tests) {
 		"--bundle",
 		"--platform=node",
 		"--format=esm",
-		...(["tests/conceptLoader.test.ts", "tests/conceptOwnerConflicts.test.ts"].includes(test) ? ["--alias:obsidian=./tests/helpers/obsidianConceptLoaderStub.ts"] : []),
+		...(["tests/cardFileLoader.test.ts", "tests/conceptLoader.test.ts", "tests/conceptOwnerConflicts.test.ts"].includes(test) ? ["--alias:obsidian=./tests/helpers/obsidianConceptLoaderStub.ts"] : []),
 		...(test === "tests/conceptReviewOwnershipGate.test.ts" ? ["--alias:obsidian=./tests/helpers/obsidianPluginStub.ts"] : []),
 		...(test === "tests/conceptIdRepairModal.test.ts" ? ["--alias:obsidian=./tests/helpers/obsidianIdentityRepairStub.ts"] : []),
 		...(["tests/incomingConceptMergeViewRecovery.test.ts", "tests/guidedMergeViewRecovery.test.ts", "tests/manualConflictMergeFingerprint.test.ts"].includes(test) ? ["--alias:obsidian=./tests/helpers/obsidianPluginStub.ts"] : []),

@@ -3,21 +3,29 @@ import { LoadedMnemeCard } from "../models/card";
 import type { CardDraftType } from "../models/knowledgeProposal";
 import { ParsedCardMarkers, parseMnemeCards } from "./cardMarkerParser";
 import { isCardFile } from "./cardFileRecognition";
+import { ObsidianVaultAdapter } from "./obsidianVaultAdapter";
 
 export { isCardFile } from "./cardFileRecognition";
 
 const FALLBACK_ID_WARNING = "Card has no explicit id; using fallback identity.";
+const SCAN_BATCH_SIZE = 8;
 
 export class CardFileLoader {
+	private readonly vaultAdapter: ObsidianVaultAdapter;
+
 	constructor(private readonly app: App) {
+		this.vaultAdapter = new ObsidianVaultAdapter(app.vault);
 	}
 
 	async loadCardFiles(): Promise<LoadedMnemeCard[]> {
-		const cardFiles = this.app.vault
-			.getMarkdownFiles()
-			.filter((file) => isCardFile(file, this.app.metadataCache.getFileCache(file)?.frontmatter));
-
-		const loadedCardGroups = await Promise.all(cardFiles.map((file) => this.loadCardFile(file)));
+		// Cache misses and stale types cannot decide whether a custom-named file
+		// contains Cards. Inspect current Markdown with bounded I/O instead.
+		const files = this.app.vault.getMarkdownFiles();
+		const loadedCardGroups: LoadedMnemeCard[][] = [];
+		for (let index = 0; index < files.length; index += SCAN_BATCH_SIZE) {
+			loadedCardGroups.push(...await Promise.all(files.slice(index, index + SCAN_BATCH_SIZE)
+				.map((file) => this.loadCardFile(file))));
+		}
 
 		return markDuplicateCardIds(loadedCardGroups.flat());
 	}
@@ -28,12 +36,32 @@ export class CardFileLoader {
 			// cachedRead() may still expose the pre-write Card Group at that point, so
 			// review scans must read the current vault contents directly.
 			const content = await this.app.vault.read(file);
+			let frontmatter: unknown;
+			let metadataError: string | undefined;
+			try {
+				frontmatter = this.vaultAdapter.parseFrontmatter(content);
+				if (frontmatter != null && !isRecord(frontmatter)) {
+					throw new Error("Frontmatter must be a YAML mapping.");
+				}
+			} catch (error) {
+				// A cached type may retain diagnostics for a broken known Card file,
+				// but must never make stale Markdown eligible for review or export.
+				if (!this.isKnownCardFile(file)) return [];
+				metadataError = `Failed to read Card frontmatter: ${error instanceof Error ? error.message : String(error)}`;
+			}
+			if (!metadataError && !isCardFile(file, frontmatter)) return [];
 			const parsedCards = parseMnemeCards(content);
-			const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
 
-			return parsedCards.map((parsed, index) => createLoadedCard(file, content, parsed, index, getLegacyCardType(frontmatter)));
+			return parsedCards.map((parsed, index) => {
+				const card = createLoadedCard(file, content, parsed, index, getLegacyCardType(frontmatter));
+				return metadataError ? { ...card, isValid: false, errors: [...card.errors, metadataError] } : card;
+			});
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
+			if (!this.isKnownCardFile(file)) {
+				console.warn("Mneme: could not inspect Markdown for Cards", { path: file.path, error });
+				return [];
+			}
 
 			console.error("Mneme: failed to load Card Markdown file", {
 				error,
@@ -55,6 +83,10 @@ export class CardFileLoader {
 				warnings: [],
 			}];
 		}
+	}
+
+	private isKnownCardFile(file: TFile): boolean {
+		return isCardFile(file, this.app.metadataCache.getFileCache(file)?.frontmatter);
 	}
 }
 

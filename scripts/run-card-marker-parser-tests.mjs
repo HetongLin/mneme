@@ -9,6 +9,7 @@ const outfile = path.join(tmpdir(), `mneme-card-marker-parser-tests-${Date.now()
 await esbuild.build({
 	bundle: true,
 	entryPoints: ["tests/cardMarkerParser.test.ts"],
+	alias: { obsidian: "./tests/helpers/obsidianReviewStub.ts" },
 	format: "esm",
 	logLevel: "silent",
 	outfile,

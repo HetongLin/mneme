@@ -1,8 +1,14 @@
 # Mneme Next-Session Hand-off
 
-Updated: 2026-09-28
+Updated: 2026-09-29
 
-## 2026-09-05 至 09-28 代码审查后续
+## 2026-09-05 至 09-29 代码审查后续
+
+- 第四十二轮从检查点 `d4bc638` 继续，在 `fix/fresh-card-discovery` 修复自定义 Card 文件因 metadata cache 类型缺失/过期而漏扫。`CardFileLoader` 改为读取每份 Markdown 后用 Obsidian YAML parser 的当前 frontmatter 识别；保留标准 Card.md/Cards.md 文件名兼容，当前已非 Card 的自定义文件不被旧正向缓存重新纳入，普通笔记仅包含 Card markers 不会被当作 Card 文件。
+- 每个 Card 扫描中每份 Markdown 仅新读一次，按最多 8 个文件并发分批，保持枚举次序；legacy `card_type` 同样来自该正文快照。已知 Card 的 YAML 错误/non-mapping 保留解析出的 Card IDs 和正文，标为 invalid，身份保留集合仍可见但不复习/导出；无法读取的已知 Card 保留原错误占位。未知坏 YAML 跳过，未知读失败警告后跳过，不保证这类不可识别文件中没有隐藏重复 ID。
+- 真实 loader 旧实现漏掉未缓存自定义文件的失败对照 `/private/tmp/mneme-fresh-discovery-red.log`；真实 View 会话中新增未缓存重复 ID 后仍写评分的失败对照 `/private/tmp/mneme-discovery-rating-red.log`。修复后未缓存的新重复 ID/同 owner 异路径冲突会阻止评分，fresh legacy 类型变化也会触发前轮快照保护。Parser 测试 runner 因新原生 YAML 依赖补上 import-only Obsidian alias；不改外部参考仓库。
+- 全量测试、最终 Concept Library 专项、parser 专项、构建、发布检查、两份相关测试独立 strict TypeScript 检查及 diff 检查通过。日志 `/private/tmp/mneme-fresh-discovery-{all,focused,parser,build,release,test-types}.log`；Luna 限定复审无阻塞项。单测用显式 YAML fixture 映射，不重实现 Obsidian YAML parser；覆盖缓存正反向过期、legacy 类型、quoted key/BOM/CRLF、跨文件重复 ID、错误诊断内容保留、普通笔记排除、分批顺序、读取次数及并发上限，原生 parser/性能验收仍待补。
+- **下一步**：在隔离 Vault 原生验收第四十至四十二轮，重点是自定义文件创建/改类型后的 Library/Review 计数、已打开会话外部修改后的评分阻止与刷新恢复，并测量每次评分全 Markdown 扫描的耗时。本轮没有安装构建或原生 UI/大 Vault 性能验收；新扫描不代表读后外部修改、未知坏文件、Store mutation queue 等待期变化受到保护。更早删除/repair 中断矩阵、新组首写/评分保存中断与跨平台仍待完成。保留 `mneme`/`release-artifacts/`，未推送或修改个人 Vault。
 
 - 第四十一轮从已提交检查点 `58286e7` 继续，在 `fix/review-rating-ownership` 为已打开 Review 会话补评分前快照校验。旧实现直接用 `selectedCards` 和旧 Concept retention 写入；真实 View + loader 回归复现修改 Card owner 后仍调用评分，日志 `/private/tmp/mneme-rating-ownership-red.log`；扫描阶段动作锁缺口的失败对照为 `/private/tmp/mneme-rating-guard-red.log`。
 - 新增 `reviewRatingSnapshot.ts`，评分前重新扫描，要求 Card ID 唯一、有效且有显式 ID，仍属于原 Concept；同时核对 Card 路径/Front/Back/Rubric/类型，以及 Concept 路径/学习模式/retention。冲突、删除、移动、内容/策略变化及扫描失败不提交评分，保留当前位置并提示刷新重看。仅其他 Card 正文变化不阻止当前卡；手动 exploratory 复习规则保留。

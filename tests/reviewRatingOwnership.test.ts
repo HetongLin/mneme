@@ -11,6 +11,7 @@ interface Fixture {
 	markdown: Record<string, string>;
 	loader: ConceptLoader;
 	readErrors: Set<string>;
+	missingCache: Set<string>;
 }
 
 interface ReviewHarness {
@@ -45,6 +46,7 @@ function createFixture(initialMarkdown?: Record<string, string>): Fixture {
 		"Notes/Owner.md": concept("owner-a"),
 	};
 	const readErrors = new Set<string>();
+	const missingCache = new Set<string>();
 	registerYaml(markdown);
 	const makeFile = (path: string) => Object.assign(new TFile(), {
 		path,
@@ -63,11 +65,12 @@ function createFixture(initialMarkdown?: Record<string, string>): Fixture {
 			cachedRead: async (file: TFile) => markdown[file.path]!,
 		},
 		metadataCache: {
-			getFileCache: (file: TFile) => ({ frontmatter: parseSimpleFrontmatter(markdown[file.path]!) }),
+			getFileCache: (file: TFile) => missingCache.has(file.path)
+				? undefined : { frontmatter: parseSimpleFrontmatter(markdown[file.path]!) },
 			getFirstLinkpathDest: (link: string) => Object.prototype.hasOwnProperty.call(markdown, `${link}.md`) ? makeFile(`${link}.md`) : null,
 		},
 	} as unknown as App;
-	return { markdown, loader: new ConceptLoader(app), readErrors };
+	return { markdown, loader: new ConceptLoader(app), readErrors, missingCache };
 }
 
 function registerYaml(markdown: Record<string, string>): void {
@@ -107,6 +110,28 @@ async function createHarness(fixture: Fixture): Promise<{ view: ReviewHarness; c
 }
 
 async function run(): Promise<void> {
+	for (const change of ["duplicate", "owner-conflict"] as const) {
+		const changed = createFixture();
+		const harness = await createHarness(changed);
+		changed.markdown["New/Uncached.md"] = cardGroupAt("owner-a",
+			change === "duplicate" ? "Notes/Owner" : "Notes/Other",
+			[change === "duplicate" ? "first" : "third"]);
+		changed.markdown["Notes/Other.md"] = concept("owner-a");
+		changed.missingCache.add("New/Uncached.md");
+		registerYaml(changed.markdown);
+		await harness.view.rateCurrentCard("good");
+		assert.deepEqual(harness.calls, [], `${change}: an uncached custom file must block the stale rating`);
+		assert.equal(harness.view.selectedCardIndex, 0);
+	}
+	{
+		const changed = createFixture();
+		const harness = await createHarness(changed);
+		changed.markdown["Cards.md"] = cardGroup("owner-a").replace("mneme_type: card_group", "mneme_type: card_group\ncard_type: definition");
+		changed.missingCache.add("Cards.md");
+		registerYaml(changed.markdown);
+		await harness.view.rateCurrentCard("good");
+		assert.deepEqual(harness.calls, [], "fresh legacy card_type changes must invalidate the displayed snapshot");
+	}
 	const fixture = createFixture();
 	const { view, calls } = await createHarness(fixture);
 	fixture.markdown["Cards.md"] = cardGroup("owner-b");

@@ -95,3 +95,34 @@ Filesystem edits after the reads, metadata-cache omissions during discovery,
 and changes while waiting for the review store's mutation queue remain outside
 this snapshot guarantee. Ratings whose persistence has already begun retain the
 existing behavior: closing the View prevents stale UI updates, not the state write.
+
+## Fresh discovery of custom-named Card files — 2026-09-29
+
+Card discovery now reads each Markdown file before deciding whether it contains
+Cards. It uses the current frontmatter parsed by Obsidian, not the metadata
+cache's type. Custom names require `mneme_type: card` or `card_group`; the legacy
+`Card.md` and `Cards.md` filename rules remain. A readable custom file whose
+current type is no longer Card is excluded even if its cached type says Card.
+Ordinary notes with Card marker examples are not sufficient evidence of a Card
+file. Legacy `card_type` is read from that same current content snapshot.
+
+Reads run in batches of at most eight and preserve enumeration order. Each file
+is read once per Card scan, and duplicate Card IDs are checked across all discovered
+files. This closes the valid, readable custom-file cache gap in review, rating
+prechecks, export, and Card ID reservation without changing Markdown or state.
+Concept metadata may still be read separately by ConceptLoader.
+
+A known Card file (conventional filename or cached Card type) whose frontmatter
+parser throws or returns non-mapping YAML retains its parsed Card IDs and original content for diagnostics
+and identity reservation, but all of its Cards are invalid and cannot be exported
+or reviewed. The cached type is only a diagnostic hint on failure. Known Card read
+failures retain the existing invalid placeholder. Unrecognized malformed YAML
+is skipped; an unreadable unrecognized file is logged and skipped. These unknown
+files cannot supply reliable Card identity or ownership information, so the scan
+does not prove absence of hidden duplicate IDs inside them.
+
+This extends each existing scan to all Markdown reads, including rating prechecks;
+bounded concurrency limits I/O pressure but does not eliminate large-Vault latency.
+No background watcher or persistent discovery cache is added. Native timing,
+read failures, external edits after a read, and later state-queue waiting windows
+remain separate validation boundaries.
