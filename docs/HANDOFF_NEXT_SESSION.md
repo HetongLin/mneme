@@ -1,8 +1,15 @@
 # Mneme Next-Session Hand-off
 
-Updated: 2026-09-29
+Updated: 2026-09-30
 
-## 2026-09-05 至 09-29 代码审查后续
+## 2026-09-05 至 09-30 代码审查后续
+
+- 第四十三轮从 `9813d91` 继续，在 `test/native-fresh-card-discovery` 完成第四十至四十二轮的隔离 Vault 原生验收（09-29 执行，09-30 补齐中断后的 Beta 检查并收尾），无新增产品代码修改。旧安装版复现 Alpha 同 owner 跨目录拆为两个入口、Library 只计 1 张，以及自定义文件 cache 缺失时漏掉 Card；新版聚合为 Alpha 2 / Beta 1，强制缺失 fixture metadata cache 后结果相同，普通笔记不被旧正向类型缓存重新纳入。
+- 通过真实 Library → Review Cards → Show Answer → Good，分别验收已打开会话后的 owner、Back、retention 修改，以及新增未缓存重复 ID/同 owner 异 Concept 路径。五次均显示错误、保留当前位置、零次调用 recordReview，完整 data.json 字节不变；冲突 Library 显示禁用的 Review unavailable，Beta 不受影响。恢复 fixture 后只对 `r43-alpha-one` 提交一次 Good，新增一份 FSRS state 和一条 event，并前进到第二张 Card。
+- Beta 的 exploratory/0.94 手动入口及 Front/Back 正确，scheduled queue 为 0；把当前 Card 文件类型改为普通 note 后 Library 计数降至 0，恢复并刷新后回到 1，未点击生成或新增评分。原生 UI 操作用辅助功能控件；CLI 仅用于 fixture 修改、真实方法观测及诊断，cache miss 使用临时注入，不代表自然 cache race 已复现。详见 [原生发现与评分保护报告](NATIVE_FRESH_CARD_DISCOVERY_2026-09-29.md)。
+- `release-artifacts/native-fresh-discovery-20260929/verify-final.py` 核验 59 份旧 Markdown 字节不变，恰好六份新 fixture 且正文/BOM/CRLF 全部恢复；data.json 仅新增上述一次评分，旧状态和其他字段不变。插件重载后 Alpha 2 / Beta 1、state/event 各 1，临时包装及 helper 已清理。已安装 bundle 与仓库构建一致，SHA-256 `a6f5f90cccb97f1b3345a43d18f5b9fa3b754b65e62094d23fa15f793fae0714`。
+- 65 份 Markdown 的五次完整 loader 扫描为 9.7–22.3 ms；成功评分 handler 14.1 ms（扫描 11.6 ms）。仅为本地小 Vault 热扫描样本，不外推大 Vault/冷 I/O/画面延迟。Review navigation、Concept Library 专项、构建、发布检查与 diff 检查通过，日志 `/private/tmp/mneme-native-discovery-{rating,focused,build,release}.log`；本轮未重复无关全量测试，未执行受控主进程重启。
+- **下一步**：继续审查评分扫描结束后到 Store 实际 mutation 的窗口，尤其等待 mutation queue 期间文档或会话再变化的路径。未知坏 YAML/不可读文件中的隐藏 ID、真实大 Vault 性能、更早删除/repair 中断矩阵、新组首写/评分保存中断、跨平台仍待完成；本轮不代表全部发布验收结束。保留 `mneme`/`release-artifacts/`，未推送或修改个人 Vault。
 
 - 第四十二轮从检查点 `d4bc638` 继续，在 `fix/fresh-card-discovery` 修复自定义 Card 文件因 metadata cache 类型缺失/过期而漏扫。`CardFileLoader` 改为读取每份 Markdown 后用 Obsidian YAML parser 的当前 frontmatter 识别；保留标准 Card.md/Cards.md 文件名兼容，当前已非 Card 的自定义文件不被旧正向缓存重新纳入，普通笔记仅包含 Card markers 不会被当作 Card 文件。
 - 每个 Card 扫描中每份 Markdown 仅新读一次，按最多 8 个文件并发分批，保持枚举次序；legacy `card_type` 同样来自该正文快照。已知 Card 的 YAML 错误/non-mapping 保留解析出的 Card IDs 和正文，标为 invalid，身份保留集合仍可见但不复习/导出；无法读取的已知 Card 保留原错误占位。未知坏 YAML 跳过，未知读失败警告后跳过，不保证这类不可识别文件中没有隐藏重复 ID。
