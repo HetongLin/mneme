@@ -1,8 +1,14 @@
 # Mneme Next-Session Hand-off
 
-Updated: 2026-10-01
+Updated: 2026-10-02
 
-## 2026-09-05 至 10-01 代码审查后续
+## 2026-09-05 至 10-02 代码审查后续
+
+- 第四十五轮从 `3622c65` 继续，在 `test/native-review-rating-queue` 完成第四十四轮的原生队列验收（10-01 开始，10-02 收尾），无新增产品代码修改。先备份隔离 Vault 插件/data 和 65 份 Markdown，再添加三个新 fixture；用真实 `clearConceptPauses` 的读阶段暂停占住共享 queue，该 Vault 无 pause，因此释放后不写状态。通过原生 Library → Review Cards → Show Answer → Good 确认评分已入队后才施加变化。
+- 排队期间修改 Back、owner、retention 或加入未缓存重复 ID，四次均在放行后显示错误、保留 Card 位置、零 FSRS/保存，完整 data.json 字节不变。原生 Back to Concept Library 和关闭 Review 标签两种取消均在扫描前终止，零写入；临时方法包装随后恢复。详见 [原生评分队列报告](NATIVE_REVIEW_RATING_QUEUE_2026-10-02.md)。
+- 增加 2,000 份普通合成 Markdown（8,559,780 bytes，无额外 Cards），总数 68 → 2,068，Cards 保持 20。真实 Store validation callback 内运行 loader、主动终止于 FSRS 前的只读探针，五次小样本扫描 9.3–18.4 ms，大样本 230.0–301.8 ms；跟随的无写入 Store 操作等待到扫描结束，大样本完成耗时 230.4–302.4 ms。后续一次真实 Good 成功保存并前进到第二张卡，但扫描耗时 1,548.1 ms，释放队列到完成 1,563.3 ms；保留该波动，不能将较快样本当稳定上限或声称已定位原因。
+- 最终核验 65 份旧 Markdown 字节不变、三个新 fixture 全部恢复、2,000 份合成文件 hashes 正确；data.json 只新增 `r45-one` 的一次 Good state/event，其他字段与旧记录不变。插件重载后两张 fixture Card 有效、state/event 各 1，无包装残留，helper 已删除。安装 bundle 与仓库一致：`f1c9b9823b79b88e044dc0da4ecfc52480d8fa2b70483b98aefe44c334924fd6`。证据和主线程最终验证脚本位于 `release-artifacts/native-review-queue-20261001/`；构建、发布检查、Review navigation 专项和 diff 检查通过，日志 `/private/tmp/mneme-native-queue-{build,release,focused}.log`。
+- **下一步**：先对 native loader 分阶段计时，解释实际评分 1.55 秒的波动，并用 Card 较多的工作负载评估持锁延迟，再决定优化方案，保持当前新鲜读取/重复 ID 保护。外部读后变化、未知坏文件、新组首写/评分保存中断、更早删除/repair 矩阵、跨平台仍待补。本轮无主进程重启或保存中断验收；保留合成样例、`mneme`/`release-artifacts/`，未推送或修改个人 Vault。
 
 - 第四十四轮从已提交检查点 `6fb6851` 继续，在 `fix/review-rating-queue` 修复评分排队窗口。旧 View 在调用 Store 前完成扫描，但 `recordReview` 可能等待前序 mutation；真实 View + loader + Store + FSRS 回归复现等待时修改 Back 后仍保存评分，失败证据 `/private/tmp/mneme-rating-queue-red-case.log`。
 - `recordReview` 新增可选只读 `validateBeforeRecord` 回调，在共享 mutation queue 内、读取最新 data 和既有删除/repair guards 后执行，再计算 FSRS 与保存。View 把原来的一次 fresh scan 移入该回调，扫描前后检查 action token 与选中的 Concept/Card；等待或扫描时关闭、reset、替换会话会取消旧评分，不写旧状态或更新新会话 UI。未增加扫描次数、持久字段或 Markdown 写入；规则补入 ADR 0013。
