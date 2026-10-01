@@ -126,3 +126,29 @@ bounded concurrency limits I/O pressure but does not eliminate large-Vault laten
 No background watcher or persistent discovery cache is added. Native timing,
 read failures, external edits after a read, and later state-queue waiting windows
 remain separate validation boundaries.
+
+## Validate ratings inside the state mutation queue — 2026-10-01
+
+Review View supplies a read-only validation callback to `recordReview`. The Store
+runs it after acquiring the shared plugin-data mutation queue and reading current
+state, immediately before calculating the rating. The callback performs the one
+fresh Concept/Card scan and the same displayed-snapshot comparison described above.
+There is no additional pre-queue scan. This supersedes the earlier queue-wait
+boundary: Markdown changes made while the rating waits must be observed before
+it can schedule or save. Previous queued state writes remain part of the latest
+state used for scheduling.
+
+The View checks its action token and selected Card/Concept before and after the
+scan. Closing, resetting, or replacing the session while queued or scanning
+cancels the rating without scheduling, saving, or changing the replacement UI.
+A rejected validation releases the queue for later operations. The callback must
+not write state or acquire the same mutation queue, which would deadlock.
+Store callers without a displayed Markdown session retain the existing API behavior.
+
+This serializes validation with participating Mneme state mutations, not with all
+Vault edits. Files are still read at different times, and external edits after a
+read or while persistence is underway are not made atomic. Once scheduling and
+save have begun, closing the View still suppresses stale UI updates rather than
+rolling back the write. The scan now holds the shared state queue; slow Vault reads
+can delay other state writes. Large-Vault contention and native interruption
+acceptance remain separate work. No persisted fields or Markdown format change.

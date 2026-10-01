@@ -6,6 +6,11 @@ import { buildReviewQueue } from "../src/services/reviewQueueBuilder";
 import { MnemeReviewView } from "../src/views/reviewView";
 import { parseSimpleFrontmatter } from "../src/services/simpleFrontmatter";
 import { yamlFixtures } from "./helpers/obsidianReviewLoaderStub";
+import { createDefaultPluginData, ReviewStateStore } from "../src/services/reviewStateStore";
+import { FsrsReviewScheduler } from "../src/services/fsrsReviewScheduler";
+import { runPluginDataMutation } from "../src/services/pluginDataMutation";
+import type { MnemePluginData } from "../src/models/reviewState";
+import type { ReviewScheduleInput } from "../src/models/reviewScheduler";
 
 interface Fixture {
 	markdown: Record<string, string>;
@@ -22,6 +27,36 @@ interface ReviewHarness {
 	selectedConcept: unknown;
 	statusMessage: string;
 	rateCurrentCard(rating: "good"): Promise<void>;
+}
+
+function deferred() {
+	let resolve!: () => void;
+	const promise = new Promise<void>((onResolve) => {
+		resolve = onResolve;
+	});
+	return { promise, resolve };
+}
+
+class CountingScheduler extends FsrsReviewScheduler {
+	calls = 0;
+	schedule(input: ReviewScheduleInput) {
+		this.calls += 1;
+		return super.schedule(input);
+	}
+}
+
+class QueueStorage {
+	data: MnemePluginData = createDefaultPluginData();
+	saveCount = 0;
+
+	async loadData(): Promise<unknown> {
+		return structuredClone(this.data);
+	}
+
+	async saveData(data: MnemePluginData): Promise<void> {
+		this.saveCount += 1;
+		this.data = structuredClone(data);
+	}
 }
 
 function card(id: string): string {
@@ -96,11 +131,12 @@ async function createHarness(fixture: Fixture): Promise<{ view: ReviewHarness; c
 		mode: "flashcard",
 		activeRetirements: {},
 		activeSuspensions: {},
-		contentEl: { querySelectorAll: () => [] },
+		contentEl: { querySelectorAll: () => [], empty: () => {} },
 		render: () => {},
 		setReviewActionButtonsDisabled: () => {},
 		reviewStateStore: {
-			recordReview: async (cardId: string) => {
+			recordReview: async (cardId: string, _rating: "good", options?: { validateBeforeRecord?: () => Promise<void> }) => {
+				if (options?.validateBeforeRecord) await options.validateBeforeRecord();
 				calls.push(cardId);
 				return {};
 			},
@@ -248,6 +284,128 @@ async function run(): Promise<void> {
 		const newSession = await createHarness(repaired);
 		await newSession.view.rateCurrentCard("good");
 		assert.deepEqual(newSession.calls, ["first"], "a fresh session after repair can rate normally");
+	}
+
+	{
+		for (const [label, mutate] of [
+			["owner", (fixture: Fixture) => { fixture.markdown["Cards.md"] = cardGroup("owner-b"); }],
+			["back", (fixture: Fixture) => { fixture.markdown["Cards.md"] = cardGroup("owner-a").replace("Answer first", "Changed while rating waits"); }],
+			["retention", (fixture: Fixture) => { fixture.markdown["Notes/Owner.md"] = concept("owner-a", "reviewable", "0.8"); }],
+			["uncached duplicate", (fixture: Fixture) => {
+				fixture.markdown["New/Uncached.md"] = cardGroupAt("owner-a", "Notes/Owner", ["first"]);
+				fixture.missingCache.add("New/Uncached.md");
+			}],
+			["Concept read failure", (fixture: Fixture) => { fixture.readErrors.add("Notes/Owner.md"); }],
+		] as const) {
+			const changed = createFixture();
+			const originalMarkdown = { ...changed.markdown };
+			const harness = await createHarness(changed);
+			const storage = new QueueStorage();
+			const scheduler = new CountingScheduler({ enableFuzz: false });
+			const reviews = new ReviewStateStore(storage, scheduler);
+			Object.assign(harness.view, { reviewStateStore: reviews });
+			const enqueued = deferred();
+			const recordReview = reviews.recordReview.bind(reviews);
+			reviews.recordReview = async (...args) => {
+				const pending = recordReview(...args);
+				enqueued.resolve();
+				return pending;
+			};
+			const release = deferred();
+			const blocker = runPluginDataMutation(storage, async () => {
+				await release.promise;
+			});
+
+			const pending = harness.view.rateCurrentCard("good");
+			await enqueued.promise;
+			mutate(changed);
+			registerYaml(changed.markdown);
+			release.resolve();
+			await Promise.all([pending, blocker]);
+
+			assert.equal(storage.saveCount, 0, `${label}: a queued rating must re-scan before save`);
+			assert.equal(scheduler.calls, 0, `${label}: invalid ratings must not reach FSRS`);
+			assert.deepEqual(storage.data, createDefaultPluginData(), `${label}: all persisted data remains unchanged`);
+			assert.equal(storage.data.reviewStates.first, undefined, `${label}: stale rating must not create state`);
+			assert.equal(Object.keys(storage.data.reviewEvents).length, 0, `${label}: stale rating must not create an event`);
+			assert.equal(harness.view.selectedCardIndex, 0, `${label}: stale rating must keep the current Card`);
+			assert.match(harness.view.statusMessage, /Could not record review/, `${label}: stale rating reports failure`);
+			assert.equal(harness.view.actionGuard.isBusy, false);
+
+			for (const path of Object.keys(changed.markdown)) delete changed.markdown[path];
+			Object.assign(changed.markdown, originalMarkdown);
+			changed.readErrors.clear();
+			changed.missingCache.clear();
+			registerYaml(changed.markdown);
+			await harness.view.rateCurrentCard("good");
+			assert.equal(storage.saveCount, 1, `${label}: failed validation releases the queue for retry`);
+			assert.equal(scheduler.calls, 1);
+			assert.equal(reviews.getState("first")?.reviewCount, 1);
+			assert.equal(Object.keys(storage.data.reviewEvents).length, 1);
+			assert.equal(harness.view.selectedCardIndex, 1);
+		}
+
+		for (const cancel of ["reset", "close", "replace-selection"] as const) {
+			const fixture = createFixture();
+			const harness = await createHarness(fixture);
+			const storage = new QueueStorage();
+			const scheduler = new CountingScheduler({ enableFuzz: false });
+			const reviews = new ReviewStateStore(storage, scheduler);
+			Object.assign(harness.view, { reviewStateStore: reviews });
+			const enqueued = deferred();
+			const recordReview = reviews.recordReview.bind(reviews);
+			reviews.recordReview = async (...args) => {
+				const pending = recordReview(...args);
+				enqueued.resolve();
+				return pending;
+			};
+			const release = deferred();
+			const blocker = runPluginDataMutation(storage, async () => {
+				await release.promise;
+			});
+
+			const pending = harness.view.rateCurrentCard("good");
+			await enqueued.promise;
+			const view = harness.view as ReviewHarness & {
+				resetReviewState(): void;
+				onClose(): Promise<void>;
+			};
+			if (cancel === "reset") view.resetReviewState();
+			else if (cancel === "close") await view.onClose();
+			else view.selectedCards = [{ cardId: "replacement" }];
+			view.statusMessage = "Replacement session";
+			release.resolve();
+			await Promise.all([pending, blocker]);
+
+			assert.equal(storage.saveCount, 0, `${cancel}: cancelled queued rating must not save`);
+			assert.equal(scheduler.calls, 0, `${cancel}: cancelled ratings must not reach FSRS`);
+			assert.deepEqual(storage.data, createDefaultPluginData());
+			assert.equal(view.statusMessage, "Replacement session", `${cancel}: old operation must not change replacement UI`);
+			assert.equal(view.selectedCardIndex, 0);
+			assert.equal(view.actionGuard.isBusy, false);
+			assert.equal(storage.data.reviewStates.first, undefined, `${cancel}: cancelled queued rating must not create state`);
+			assert.equal(Object.keys(storage.data.reviewEvents).length, 0, `${cancel}: cancelled queued rating must not create an event`);
+		}
+
+		const stable = createFixture();
+		const stableHarness = await createHarness(stable);
+		const stableStorage = new QueueStorage();
+		const stableReviews = new ReviewStateStore(stableStorage, new FsrsReviewScheduler({ enableFuzz: false }));
+		await stableReviews.load();
+		const priorReviews = new ReviewStateStore(stableStorage, new FsrsReviewScheduler({ enableFuzz: false }));
+		Object.assign(stableHarness.view, { reviewStateStore: stableReviews });
+		const stableRelease = deferred();
+		const stableBlocker = runPluginDataMutation(stableStorage, async () => {
+			await stableRelease.promise;
+		});
+		const priorMutation = priorReviews.recordReview("first", "hard");
+		const stableRating = stableHarness.view.rateCurrentCard("good");
+		stableRelease.resolve();
+		await Promise.all([priorMutation, stableRating, stableBlocker]);
+		assert.equal(stableStorage.saveCount, 2, "a stable rating after a prior mutation must save once");
+		assert.equal(stableStorage.data.reviewStates.first?.reviewCount, 2, "rating must use the preceding mutation's latest state");
+		assert.equal(Object.keys(stableStorage.data.reviewEvents).length, 2);
+		assert.equal(stableHarness.view.selectedCardIndex, 1);
 	}
 	console.log("Review rating ownership regression tests passed.");
 }

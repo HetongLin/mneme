@@ -76,7 +76,11 @@ export class ReviewStateStore {
 	async recordReview(
 		cardId: string,
 		rating: ReviewRating,
-		options: { requestRetention?: number } = {},
+		options: {
+			requestRetention?: number;
+			/** Read-only check under the mutation lock; must not acquire it again. */
+			validateBeforeRecord?: () => Promise<void>;
+		} = {},
 	): Promise<CardReviewState> {
 		return runPluginDataMutation(this.storage, async () => {
 			await this.ensureLoaded();
@@ -87,6 +91,8 @@ export class ReviewStateStore {
 			if (latestData.cardTombstones[cardId]) {
 				throw new Error("Deleted Card IDs cannot receive reviews.");
 			}
+			// Validate after queue waiting and state reads, before scheduling or saving.
+			if (options.validateBeforeRecord) await options.validateBeforeRecord();
 			const reviewedAt = new Date().toISOString();
 			const scheduleResult = this.scheduler.schedule({
 				cardId,

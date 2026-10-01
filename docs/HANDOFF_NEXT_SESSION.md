@@ -1,8 +1,14 @@
 # Mneme Next-Session Hand-off
 
-Updated: 2026-09-30
+Updated: 2026-10-01
 
-## 2026-09-05 至 09-30 代码审查后续
+## 2026-09-05 至 10-01 代码审查后续
+
+- 第四十四轮从已提交检查点 `6fb6851` 继续，在 `fix/review-rating-queue` 修复评分排队窗口。旧 View 在调用 Store 前完成扫描，但 `recordReview` 可能等待前序 mutation；真实 View + loader + Store + FSRS 回归复现等待时修改 Back 后仍保存评分，失败证据 `/private/tmp/mneme-rating-queue-red-case.log`。
+- `recordReview` 新增可选只读 `validateBeforeRecord` 回调，在共享 mutation queue 内、读取最新 data 和既有删除/repair guards 后执行，再计算 FSRS 与保存。View 把原来的一次 fresh scan 移入该回调，扫描前后检查 action token 与选中的 Concept/Card；等待或扫描时关闭、reset、替换会话会取消旧评分，不写旧状态或更新新会话 UI。未增加扫描次数、持久字段或 Markdown 写入；规则补入 ADR 0013。
+- 回调必须保持只读且不得重新获取同一 mutation queue；真实 ConceptLoader 路径不写 Store。后续状态写入会等扫描完成，因此大 Vault 的扫描延迟现在也影响其他 mutation。仍不承诺逐文件扫描的原子性、读后外部编辑或跨进程锁；已经进入实际保存阶段的评分仍不因关闭 View 而回滚。
+- 全量测试、最终 Review navigation 专项、Store 专项、构建、发布检查、两份相关测试独立 strict TypeScript 检查及 diff 检查通过；Luna 产品代码限定复审无阻塞项。日志 `/private/tmp/mneme-rating-queue-{all,final,state,build,release,test-types}.log`。真实 Store 测试用入队 barrier 验证等待期的 owner/Back/retention/未缓存重复 ID/Concept 读取失败：零次 FSRS、零次保存、完整状态不变；每种失败恢复后同一会话可重试一次。另覆盖 reset/close/替换选中项取消、旧操作不改新 UI、前序另一 Store 的评分写入被新评分保留。用最终测试替换回旧 View/Store 的只读 bundle 对照仍复现非法保存，日志 `/private/tmp/mneme-rating-queue-final-red.log`。
+- **下一步**：在隔离 Vault 原生验收真实队列等待期间的文档变化与会话取消，并测量较大 Vault 中扫描持锁对其他状态写入的影响。本轮未安装新构建或执行原生验收，隔离 Vault 仍为第四十三轮验收的构建。未知坏文件隐藏 ID、更早删除/repair 中断矩阵、新组首写/评分保存中断与跨平台仍待补。保留 `mneme`/`release-artifacts/`，未推送或修改个人 Vault。
 
 - 第四十三轮从 `9813d91` 继续，在 `test/native-fresh-card-discovery` 完成第四十至四十二轮的隔离 Vault 原生验收（09-29 执行，09-30 补齐中断后的 Beta 检查并收尾），无新增产品代码修改。旧安装版复现 Alpha 同 owner 跨目录拆为两个入口、Library 只计 1 张，以及自定义文件 cache 缺失时漏掉 Card；新版聚合为 Alpha 2 / Beta 1，强制缺失 fixture metadata cache 后结果相同，普通笔记不被旧正向类型缓存重新纳入。
 - 通过真实 Library → Review Cards → Show Answer → Good，分别验收已打开会话后的 owner、Back、retention 修改，以及新增未缓存重复 ID/同 owner 异 Concept 路径。五次均显示错误、保留当前位置、零次调用 recordReview，完整 data.json 字节不变；冲突 Library 显示禁用的 Review unavailable，Beta 不受影响。恢复 fixture 后只对 `r43-alpha-one` 提交一次 Good，新增一份 FSRS state 和一条 event，并前进到第二张 Card。

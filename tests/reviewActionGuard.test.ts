@@ -64,7 +64,11 @@ function createHarness(write: PendingWrite) {
 			empty: () => { buttons = []; },
 		},
 		reviewStateStore: {
-			recordReview: persist, deferReviewUntil: persist,
+			recordReview: async (cardId: string, _rating: "good", options?: { validateBeforeRecord?: () => Promise<void> }) => {
+				if (options?.validateBeforeRecord) await options.validateBeforeRecord();
+				return persist(cardId);
+			},
+			deferReviewUntil: persist,
 			suspendCard: persist, retireCard: persist,
 		},
 		render: () => {

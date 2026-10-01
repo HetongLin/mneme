@@ -1368,23 +1368,30 @@ export class MnemeReviewView extends ItemView {
 		}
 		const action = this.actionGuard.begin("rating", card.cardId);
 		if (!action) return;
+		const isCurrent = () => this.actionGuard.isCurrent(action)
+			&& this.selectedConcept === concept
+			&& this.getCurrentReviewableCard() === card;
+		const assertCurrent = () => {
+			if (!isCurrent()) throw new Error("The review session changed before the rating could be recorded.");
+		};
 		this.setReviewActionButtonsDisabled(true);
 
 		try {
 			let updatedReviewState: CardReviewState;
 			try {
-				const current = await this.loader.loadConcepts();
-				// Closing, refreshing, or replacing the selection while the scan is
-				// pending must cancel the old action before it starts a state write.
-				if (!this.actionGuard.isCurrent(action)
-					|| this.selectedConcept !== concept
-					|| this.getCurrentReviewableCard() !== card) return;
-				assertReviewRatingSnapshot(concept.concept, card.card, current.concepts);
 				updatedReviewState = await this.reviewStateStore.recordReview(card.cardId, rating, {
 					requestRetention: concept.concept.retentionTarget,
+					validateBeforeRecord: async () => {
+						// The Store holds the mutation queue here. Recheck the session
+						// after waiting, and again after the read-only Markdown scan.
+						assertCurrent();
+						const current = await this.loader.loadConcepts();
+						assertCurrent();
+						assertReviewRatingSnapshot(concept.concept, card.card, current.concepts);
+					},
 				});
 			} catch (error) {
-				if (!this.actionGuard.isCurrent(action)) return;
+				if (!isCurrent()) return;
 				console.error("Mneme: failed to record review rating", {
 					cardId: card.cardId,
 					conceptTitle: concept.title,
@@ -1397,7 +1404,7 @@ export class MnemeReviewView extends ItemView {
 				this.render();
 				return;
 			}
-			if (!this.actionGuard.isCurrent(action)) return;
+			if (!isCurrent()) return;
 
 			console.info("Mneme: review rating selected", {
 				cardId: card.cardId,
