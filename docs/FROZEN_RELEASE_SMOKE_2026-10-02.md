@@ -1,6 +1,6 @@
-# Frozen release smoke — 2026-10-02
+# Frozen release smoke — 2026-10-02 至 2026-10-03
 
-第四十八轮基线 `4a42a06`，分支 `test/frozen-release-smoke`。有限收口清单第 3 项进行中：干净安装与核心闭环通过，重启后验证尚未执行。没有修改产品代码。
+第四十八轮基线 `4a42a06`，分支 `test/frozen-release-smoke`。有限收口清单第 3 项全部通过：干净安装、核心闭环及完整主进程重启后的数据核对均完成。本轮审查重构验收已收口。没有修改产品代码。
 
 ## 冻结产物
 
@@ -32,12 +32,24 @@
 
 > A stable identity stays unchanged when a title or file location changes, preserving links and review history.
 
-## 唯一剩余步骤
+## 完整重启与最终核对（2026-10-03）
 
-重启后核对三份 Markdown hashes、完整 data.json、产物 hashes，并观察 Mneme 页面正常加载；不再提交评分或重复审批。
+用户明确授权退出并重开整个 Obsidian。多次原生 Quit 后旧主进程仍存在；TERM 请求最初被自动审批拒绝。用户随后明确授权“允许 TERM 终止后重开”，才向核实的主进程 `98171` 发送 TERM。`ps -p 98171` 返回无进程后重新启动应用，新主进程为 `92975`，测试 Vault renderer 为 `92986`。这次是真正的主进程重启，退出方式是经授权的 TERM，不记为正常 Quit 成功或断电测试。
 
-原计划用 `--user-data-dir` 独立实例执行主进程重启；实例 PID 82783 确认使用专属 profile，但原生操作工具仍绑定原 Obsidian 实例，无法操作新实例。该空测试实例已定向 SIGTERM 关闭，没有打开任何 Vault，没有作为重启验收证据。随后所有实际闭环操作在原实例的新隔离 Vault 完成。
+重启后官方 CLI 确认测试 Vault 路径正确，Mneme 1.0.0 已加载。原生 Library 显示一个 Stable Identity；Review Cards 显示 `Card 1 of 1 · Reviewed 1 time`，Show Answer 显示审批后的正确答案。没有再次评分或审批。
 
-已询问用户是否允许退出/重开整个 Obsidian，或改为仅测试 Vault 关闭重开。个人 Vault 仍在使用，未获答复前不执行整个应用退出，不将 Vault reload 记为完整应用重启。最后一次 CLI 诊断返回无法找到 Obsidian，未获得 PID 证据；原生 UI 和磁盘核对正常。后续只解决这一个重启步骤，不重跑安装或核心闭环。
+`verify-final.py` 和 `final-verification.json` 核对通过：
 
-本地证据：`artifact-manifest.json`、`concept-before-approval.json`、`card-before-approval.json`、`before-restart-data.json`、`before-restart-markdown.json`。构建日志 `/private/tmp/mneme-frozen-build.log`。已通过构建、发布文件检查与 diff 检查；本轮没有重复历史故障专项或全量测试。
+- 三份 Markdown 的路径集合和 SHA-256 与重启前完全一致，无新增重复文件。
+- 完整 data.json 对象与重启前完全一致，不仅比较评分数量。
+- 两条提案均 written；恰好一份 FSRS state、一条 Good event，reviewCount=1；Card ID 在整个测试 Vault 只出现一次。
+- 冻结目录、已安装目录、仓库三份发布产物的 SHA-256 均匹配冻结 manifest。
+- 仅启用 Mneme 一个社区插件；Provider 为内置 Mock，没有外部模型请求。
+
+本地证据目录 `release-artifacts/frozen-smoke-20261002/` 保存产物 manifest、两次审批前状态、重启前 data/Markdown hashes、`restart-processes.json`、最终 verifier 和结果。准备阶段独立 profile 实例 PID 82783 因 UI 工具无法选中而退出，未参与上述闭环或重启证据；所有实际验收使用新隔离 Vault。没有主动编辑个人 Vault 内容。
+
+## 收口结论
+
+构建、发布文件检查、最终数据与产物断言及 diff 检查通过。构建日志 `/private/tmp/mneme-frozen-build.log`。本轮没有修改产品代码，没有重复历史故障专项或全量测试。
+
+有限清单三项全部关闭，本轮代码审查与重构验收结束。性能优化、真实 provider 输出质量、Windows/mobile 和断电/同步竞争仍属于独立优化或发布任务；不自动追加为本轮验收，也不把本次结果解释为跨平台发布认证。

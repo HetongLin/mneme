@@ -1,6 +1,6 @@
 # Mneme Next-Session Hand-off
 
-Updated: 2026-10-02
+Updated: 2026-10-03
 
 ## 本轮重构的有限收口门槛（2026-10-02）
 
@@ -8,16 +8,16 @@ Updated: 2026-10-02
 
 1. **已完成：评分保存失败/中断。** 第四十六轮完成保存前失败后重试、保存前 Vault 重载、保存成功但尚未返回 UI 时 Vault 重载。详见 [评分持久化报告](NATIVE_RATING_PERSISTENCE_2026-10-02.md)。
 2. **已完成：首次创建 Card Group 的中断恢复。** 第四十七轮通过 Manual Composer 验证首次文件创建前、文件已创建但完成状态保存前两个中断边界；原 ID/path/草稿保留，恢复后恰好一个组且无重复 Card，旧提案/作者状态不变。详见 [首次 Card Group 恢复报告](NATIVE_FIRST_CARD_GROUP_2026-10-02.md)。
-3. **进行中：冻结产物的干净安装和核心闭环已通过，仅剩重启后核对。** 第四十八轮新建 `Mneme_Frozen_Smoke`，从无 data.json 安装冻结的 1.0.0，完成 Mock 来源分析 → Concept 审批 → Card 审批 → 一次 Good。重启前完整状态和三份 Markdown hashes 已保存。等待用户选择允许重启整个 Obsidian 或仅测试 Vault 关闭重开；不重跑已完成步骤。详见 [冻结产物冒烟记录](FROZEN_RELEASE_SMOKE_2026-10-02.md)。
+3. **已完成：冻结产物的干净安装、核心闭环和完整主进程重启。** 第四十八轮新建 `Mneme_Frozen_Smoke`，从无 data.json 安装冻结的 1.0.0，完成 Mock 来源分析 → Concept 审批 → Card 审批 → 一次 Good。10-03 经用户明确授权 TERM 后重开，主 PID `98171 → 92975`；三份 Markdown hashes、完整 data.json 及三份产物 hashes 全部保持一致，原生页面显示正确内容和 Reviewed 1 time。详见 [冻结产物冒烟记录](FROZEN_RELEASE_SMOKE_2026-10-02.md)。
 
 已通过的 ownership、discovery、queue、取消、Merge、append、删除和 ID repair 不重复验收，除非后续修改影响其行为。发现缺陷只补受影响路径的回归，不重跑整套历史矩阵。大 Vault 性能（含 1.55 秒波动）、穷举故障矩阵、断电/同步竞争、Windows/mobile 属于另行安排的优化或发布工作，不阻塞上述 macOS 重构收口；这不等于跨平台发布清单已经通过。
 
-**只剩第 3 项中的重启后核对；通过即结束本轮收口，不追加验收矩阵。**
+**三项全部通过，本轮代码审查与重构验收已结束。没有剩余阻塞验收，不再自动启动新一轮审查或测试；历史“下一步”仅保留为过程记录。**
 
 ## 2026-09-05 至 10-02 代码审查后续
 
 - 第四十八轮从 `4a42a06` 继续，在 `test/frozen-release-smoke` 冻结 1.0.0 三份产物，新隔离 Vault 原生安装与完整 Mock 核心闭环通过，没有产品代码修改。两次审批前分别确认不存在目标 Markdown；审批后恰好三份笔记、两个 written 提案、一次 Good state/event（`card-8xu9q3kt`）。重启前快照保存在 `release-artifacts/frozen-smoke-20261002/`。
-- **未完成且唯一下一步**：重启后核对。独立 profile 测试实例因原生工具仍绑定原实例而无法操作，已关闭空实例；没有把它记为通过。已请求用户选择整个应用退出重开或仅测试 Vault 关闭重开，尚未收到答复；不得未经确认关闭个人 Vault。详见 [冻结产物冒烟记录](FROZEN_RELEASE_SMOKE_2026-10-02.md)。构建、发布文件检查和 diff 检查通过，未重复其他验收。
+- 第四十八轮于 10-03 收尾：正常 Quit 未结束旧主进程，经用户进一步明确授权发送 TERM 后确认 `98171` 消失，再启动到主 PID `92975`、测试 renderer `92986`。Mneme 1.0.0 正常加载，原生 Library/Review 内容正确且显示 Reviewed 1 time；没有再评分。最终 verifier 确认三份 Markdown hashes、完整 data.json、冻结/安装/仓库产物全部一致。第 3 项关闭，三项有限验收全部完成；不再安排本轮“下一步”。详见 [冻结产物冒烟记录](FROZEN_RELEASE_SMOKE_2026-10-02.md)。构建、发布文件检查和 diff 检查通过，未重复其他验收。
 
 
 - 第四十七轮从 `9d98644` 继续，在 `test/native-first-card-group` 完成首次 Card Group 创建中断恢复，没有产品代码修改。原生 Composer 输入、Create Card、重载后 Resume Creation 覆盖两个固定边界；详见 [首次 Card Group 恢复报告](NATIVE_FIRST_CARD_GROUP_2026-10-02.md)。
