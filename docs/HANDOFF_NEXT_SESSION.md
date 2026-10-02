@@ -8,13 +8,17 @@ Updated: 2026-10-02
 
 1. **已完成：评分保存失败/中断。** 第四十六轮完成保存前失败后重试、保存前 Vault 重载、保存成功但尚未返回 UI 时 Vault 重载。详见 [评分持久化报告](NATIVE_RATING_PERSISTENCE_2026-10-02.md)。
 2. **已完成：首次创建 Card Group 的中断恢复。** 第四十七轮通过 Manual Composer 验证首次文件创建前、文件已创建但完成状态保存前两个中断边界；原 ID/path/草稿保留，恢复后恰好一个组且无重复 Card，旧提案/作者状态不变。详见 [首次 Card Group 恢复报告](NATIVE_FIRST_CARD_GROUP_2026-10-02.md)。
-3. **待完成：冻结产物的一次干净安装及核心闭环/重启冒烟。** 使用同一产物确认安装、核心使用闭环与重启后内容/评分保留；通过后结束本轮审查重构验收。
+3. **进行中：冻结产物的干净安装和核心闭环已通过，仅剩重启后核对。** 第四十八轮新建 `Mneme_Frozen_Smoke`，从无 data.json 安装冻结的 1.0.0，完成 Mock 来源分析 → Concept 审批 → Card 审批 → 一次 Good。重启前完整状态和三份 Markdown hashes 已保存。等待用户选择允许重启整个 Obsidian 或仅测试 Vault 关闭重开；不重跑已完成步骤。详见 [冻结产物冒烟记录](FROZEN_RELEASE_SMOKE_2026-10-02.md)。
 
 已通过的 ownership、discovery、queue、取消、Merge、append、删除和 ID repair 不重复验收，除非后续修改影响其行为。发现缺陷只补受影响路径的回归，不重跑整套历史矩阵。大 Vault 性能（含 1.55 秒波动）、穷举故障矩阵、断电/同步竞争、Windows/mobile 属于另行安排的优化或发布工作，不阻塞上述 macOS 重构收口；这不等于跨平台发布清单已经通过。
 
-**仅剩第 3 项；通过后即结束本轮收口，不追加验收矩阵。**
+**只剩第 3 项中的重启后核对；通过即结束本轮收口，不追加验收矩阵。**
 
 ## 2026-09-05 至 10-02 代码审查后续
+
+- 第四十八轮从 `4a42a06` 继续，在 `test/frozen-release-smoke` 冻结 1.0.0 三份产物，新隔离 Vault 原生安装与完整 Mock 核心闭环通过，没有产品代码修改。两次审批前分别确认不存在目标 Markdown；审批后恰好三份笔记、两个 written 提案、一次 Good state/event（`card-8xu9q3kt`）。重启前快照保存在 `release-artifacts/frozen-smoke-20261002/`。
+- **未完成且唯一下一步**：重启后核对。独立 profile 测试实例因原生工具仍绑定原实例而无法操作，已关闭空实例；没有把它记为通过。已请求用户选择整个应用退出重开或仅测试 Vault 关闭重开，尚未收到答复；不得未经确认关闭个人 Vault。详见 [冻结产物冒烟记录](FROZEN_RELEASE_SMOKE_2026-10-02.md)。构建、发布文件检查和 diff 检查通过，未重复其他验收。
+
 
 - 第四十七轮从 `9d98644` 继续，在 `test/native-first-card-group` 完成首次 Card Group 创建中断恢复，没有产品代码修改。原生 Composer 输入、Create Card、重载后 Resume Creation 覆盖两个固定边界；详见 [首次 Card Group 恢复报告](NATIVE_FIRST_CARD_GROUP_2026-10-02.md)。
 - 文件创建前挂起：pending receipt/草稿已保存，文件不存在；重载恢复沿用 `card-e4vvgvjc`，恰好创建一次。文件创建后、完成状态保存前挂起：`card-aa3hzuyt` 已写入；重载后恢复零 create/process，仅补 written 状态，文件字节不变。两例原 ID/path/草稿均跨重载保留，完成后草稿清除、draft ID 轮换，UI 恢复可用。临时包装/helper 已清理。
