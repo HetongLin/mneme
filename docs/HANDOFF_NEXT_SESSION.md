@@ -2,7 +2,25 @@
 
 Updated: 2026-10-02
 
+## 本轮重构的有限收口门槛（2026-10-02）
+
+用户明确要求验收有终点。以下清单取代历史各轮的“下一步”，历史未覆盖项不再自动扩成本轮阻塞项。
+
+1. **已完成：评分保存失败/中断。** 第四十六轮完成保存前失败后重试、保存前 Vault 重载、保存成功但尚未返回 UI 时 Vault 重载。详见 [评分持久化报告](NATIVE_RATING_PERSISTENCE_2026-10-02.md)。
+2. **待完成：首次创建 Card Group 的中断恢复。** 限定首次文件创建及完成状态保存边界，检查恢复/重试后恰好一个组、无重复 Card、提案/作者内容保留；已验收的追加 Card 路径不重开。
+3. **待完成：冻结产物的一次干净安装及核心闭环/重启冒烟。** 使用同一产物确认安装、核心使用闭环与重启后内容/评分保留；通过后结束本轮审查重构验收。
+
+已通过的 ownership、discovery、queue、取消、Merge、append、删除和 ID repair 不重复验收，除非后续修改影响其行为。发现缺陷只补受影响路径的回归，不重跑整套历史矩阵。大 Vault 性能（含 1.55 秒波动）、穷举故障矩阵、断电/同步竞争、Windows/mobile 属于另行安排的优化或发布工作，不阻塞上述 macOS 重构收口；这不等于跨平台发布清单已经通过。
+
+**下一步只有第 2 项；完成后执行第 3 项，然后收口。**
+
 ## 2026-09-05 至 10-02 代码审查后续
+
+- 第四十六轮从 `75cbd38` 继续，在 `test/native-rating-persistence` 完成评分持久化边界的原生验收，没有修改产品代码。开始前已备份隔离 Vault 插件/data 和 2,068 份 Markdown；新增六份专用 fixture。原生 Review → Show Answer → Good 触发真实评分，CLI 仅装载单次故障/挂起钩子、记录证据及定向重载隔离 Vault。
+- 保存前单次报错时，整份 data.json 字节不变、显示错误且停留第一张 Card；同一会话重试只实际保存一次并前进。写入前挂起后 Vault 重载，没有对应 state/event；真实保存后、Promise 返回前挂起再重载，对应 state/event 各保留一份，没有自动重复评分。两次重载后 helper 都不存在，原生 Today’s Focus 正常恢复。
+- 最终验证 2,068 份旧 Markdown 和六份 fixture 全部字节不变，data.json 仅新增 `r46-failure-one`、`r46-after-one` 各一次 Good state/event，其他字段及旧记录完整保留。当前 bundle 与备份/安装一致，SHA-256 `f1c9b9823b79b88e044dc0da4ecfc52480d8fa2b70483b98aefe44c334924fd6`。证据及校验脚本：`release-artifacts/native-rating-persistence-20261002/`；详见 [评分持久化报告](NATIVE_RATING_PERSISTENCE_2026-10-02.md)。
+- 本轮只重载隔离 Vault 的运行环境，renderer PID 仍为 3598；不声称完整应用崩溃、主进程重启或断电持久性已验证。个人 Vault 未修改，未推送，保留 `mneme` 与 `release-artifacts/`。按上方有限清单，第 1 项关闭，仅剩第 2、3 项。
+
 
 - 第四十五轮从 `3622c65` 继续，在 `test/native-review-rating-queue` 完成第四十四轮的原生队列验收（10-01 开始，10-02 收尾），无新增产品代码修改。先备份隔离 Vault 插件/data 和 65 份 Markdown，再添加三个新 fixture；用真实 `clearConceptPauses` 的读阶段暂停占住共享 queue，该 Vault 无 pause，因此释放后不写状态。通过原生 Library → Review Cards → Show Answer → Good 确认评分已入队后才施加变化。
 - 排队期间修改 Back、owner、retention 或加入未缓存重复 ID，四次均在放行后显示错误、保留 Card 位置、零 FSRS/保存，完整 data.json 字节不变。原生 Back to Concept Library 和关闭 Review 标签两种取消均在扫描前终止，零写入；临时方法包装随后恢复。详见 [原生评分队列报告](NATIVE_REVIEW_RATING_QUEUE_2026-10-02.md)。
