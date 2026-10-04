@@ -35,7 +35,7 @@ Mneme is currently distributed through GitHub Releases. The first release was ve
 
 ### Manual installation
 
-1. Download **`mneme-1.0.0.zip`** from the [latest release](https://github.com/HetongLin/mneme/releases/latest). Use the plugin ZIP, rather than GitHub's automatically generated source-code ZIP.
+1. Download **`mneme-1.0.1.zip`** from the [latest release](https://github.com/HetongLin/mneme/releases/latest). Use the plugin ZIP, rather than GitHub's automatically generated source-code ZIP.
 2. Extract the `mneme` folder into your vault's plugin folder: `<vault>/.obsidian/plugins/`. If your vault uses a custom configuration folder, use that folder instead of `.obsidian`.
 3. Reload Obsidian, then enable **Mneme** in **Settings → Community plugins**.
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1 — 2026-10-04
+
+- Embed Mneme, ts-fsrs, Zod, and inherited scaffold license notices directly in `main.js`, so BRAT and individual-file installations retain the required notices as well as ZIP installations.
+- Make the release check reject bundles missing notices or third-party notices that do not match the installed dependencies.
+
+This is a license-distribution patch. The executable plugin code, FSRS implementation, and styles are unchanged from the accepted 1.0.0 build.
+
 ## 1.0.0 — 2026-10-04
 
 First public GitHub release of Mneme.

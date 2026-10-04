@@ -23,7 +23,7 @@ Mneme 是一个以概念为中心的 Obsidian 学习插件。它把你的笔记�
 
 **BRAT 安装**：从 Obsidian 社区插件安装 [BRAT](https://github.com/TfTHacker/obsidian42-brat)，添加仓库 `HetongLin/mneme`，然后在社区插件中启用 Mneme。
 
-**手动安装**：从 [最新 Release](https://github.com/HetongLin/mneme/releases/latest) 下载 `mneme-1.0.0.zip`，将其中的 `mneme` 文件夹放到 `<vault>/.obsidian/plugins/` 下，重载 Obsidian 后启用插件。使用自定义配置目录时，将 `.obsidian` 替换为你的配置目录。安装包包含 `main.js`、`manifest.json` 和 `styles.css`，无需编译。
+**手动安装**：从 [最新 Release](https://github.com/HetongLin/mneme/releases/latest) 下载 `mneme-1.0.1.zip`，将其中的 `mneme` 文件夹放到 `<vault>/.obsidian/plugins/` 下，重载 Obsidian 后启用插件。使用自定义配置目录时，将 `.obsidian` 替换为你的配置目录。安装包包含 `main.js`、`manifest.json` 和 `styles.css`，无需编译。
 
 ## 第一次使用
 

@@ -13,6 +13,28 @@ for (const artifact of ["main.js", "manifest.json", "styles.css"]) {
 	}
 }
 
+if (existsSync("main.js")) {
+	const bundle = readFileSync("main.js", "utf8");
+	for (const path of ["LICENSE", "THIRD_PARTY_NOTICES.md"]) {
+		if (!existsSync(path)) {
+			issues.push(`Required license notice is missing: ${path}`);
+		} else if (!bundle.includes(readFileSync(path, "utf8").trim())) {
+			issues.push(`The standalone main.js must include the complete notice from ${path}.`);
+		}
+	}
+	if (existsSync("THIRD_PARTY_NOTICES.md")) {
+		const notices = readFileSync("THIRD_PARTY_NOTICES.md", "utf8");
+		for (const dependency of ["ts-fsrs", "zod"]) {
+			const path = `node_modules/${dependency}/LICENSE`;
+			if (!existsSync(path)) {
+				issues.push(`Install dependencies before checking licenses: ${path}`);
+			} else if (!notices.includes(readFileSync(path, "utf8").trim())) {
+				issues.push(`THIRD_PARTY_NOTICES.md must retain the installed ${dependency} license.`);
+			}
+		}
+	}
+}
+
 if (issues.length > 0) {
 	for (const issue of issues) console.error(`Release check failed: ${issue}`);
 	process.exit(1);
