@@ -101,6 +101,89 @@ assert.throws(
 }
 
 {
+	const request = buildConceptEnglishNameRequest({
+		...DEFAULT_SETTINGS,
+		aiCaptureEnabled: true,
+		aiProvider: "anthropic",
+		aiProviderProfiles: {
+			...DEFAULT_SETTINGS.aiProviderProfiles,
+			anthropic: {
+				...DEFAULT_SETTINGS.aiProviderProfiles.anthropic,
+				apiKey: "anthropic-secret",
+				baseUrl: "https://claude.example/v1",
+				model: "claude-test",
+			},
+		},
+	}, "间隔效应", "把学习活动分散到多个时间点，以促进长期记忆。");
+	assert.equal(request.url, "https://claude.example/v1/messages");
+	assert.equal((request.body as { max_tokens?: number }).max_tokens, 256);
+	assert.equal(JSON.stringify(request.body).includes("anthropic-secret"), false);
+	assert.equal(JSON.stringify(request.body).includes("englishName"), true);
+}
+
+{
+	const service = new ConceptEnglishNameAiService({
+		httpClient: {
+			postJson: async () => ({
+				candidates: [{ content: { parts: [{ text: JSON.stringify({ englishName: "Spacing Effect" }) }] } }],
+			}),
+		},
+		settingsProvider: () => ({
+			...DEFAULT_SETTINGS,
+			aiCaptureEnabled: true,
+			aiProvider: "gemini",
+			suggestEnglishAliases: true,
+			aiProviderProfiles: {
+				...DEFAULT_SETTINGS.aiProviderProfiles,
+				gemini: {
+					...DEFAULT_SETTINGS.aiProviderProfiles.gemini,
+					apiKey: "gemini-secret",
+					model: "gemini-test",
+				},
+			},
+		}),
+	});
+	assert.deepEqual(await service.suggest(
+		"间隔效应",
+		"把学习活动分散到多个时间点，以促进长期记忆。",
+	), { englishName: "Spacing Effect" });
+}
+
+{
+	const settings = {
+		...DEFAULT_SETTINGS,
+		aiCaptureEnabled: true,
+		aiProvider: "anthropic" as const,
+		suggestEnglishAliases: true,
+		aiProviderProfiles: {
+			...DEFAULT_SETTINGS.aiProviderProfiles,
+			anthropic: {
+				...DEFAULT_SETTINGS.aiProviderProfiles.anthropic,
+				apiKey: "anthropic-secret",
+				model: "claude-test",
+			},
+		},
+	};
+	const service = new ConceptEnglishNameAiService({
+		httpClient: {
+			postJson: async () => {
+				settings.aiProvider = "gemini";
+				settings.aiProviderProfiles.gemini.model = "changed-during-request";
+				return {
+					content: [{ type: "text", text: JSON.stringify({ englishName: "Spacing Effect" }) }],
+					stop_reason: "end_turn",
+				};
+			},
+		},
+		settingsProvider: () => settings,
+	});
+	assert.deepEqual(await service.suggest(
+		"间隔效应",
+		"把学习活动分散到多个时间点，以促进长期记忆。",
+	), { englishName: "Spacing Effect" });
+}
+
+{
 	const service = new ConceptEnglishNameAiService({
 		httpClient: {
 			postJson: async () => ({

@@ -19,6 +19,7 @@ import {
 			allowedAiCardTypes: ["application", "trap", "nonsense"],
 			aiMaxInputChars: 12000,
 			aiProvider: "deepseek",
+			aiProviderProfiles: DEFAULT_SETTINGS.aiProviderProfiles,
 			aiRequestTimeoutMs: 45000,
 			cardsFolder: "Custom/Cards",
 			conceptsFolder: "Custom/Concepts",
@@ -43,6 +44,7 @@ import {
 		aiCaptureEnabled: true,
 		aiMaxInputChars: 12000,
 		aiProvider: "deepseek",
+		aiProviderProfiles: DEFAULT_SETTINGS.aiProviderProfiles,
 		aiRequestTimeoutMs: 45000,
 		cardsFolder: "Custom/Cards",
 		conceptsFolder: "Custom/Concepts",
@@ -90,6 +92,7 @@ import {
 		aiCaptureEnabled: DEFAULT_SETTINGS.aiCaptureEnabled,
 		aiMaxInputChars: 1,
 		aiProvider: DEFAULT_SETTINGS.aiProvider,
+		aiProviderProfiles: DEFAULT_SETTINGS.aiProviderProfiles,
 		aiRequestTimeoutMs: 1,
 		cardsFolder: DEFAULT_SETTINGS.cardsFolder,
 		conceptsFolder: "Custom/Concepts",
@@ -116,6 +119,7 @@ import {
 	assert.equal(settings.aiCaptureEnabled, false);
 	assert.deepEqual(settings.allowedAiCardTypes, DEFAULT_SETTINGS.allowedAiCardTypes);
 	assert.equal(settings.aiProvider, "mock");
+	assert.deepEqual(settings.aiProviderProfiles, DEFAULT_SETTINGS.aiProviderProfiles);
 	assert.equal(settings.aiRequestTimeoutMs, 120000);
 	assert.equal(settings.fsrsEnabled, true);
 	assert.equal(settings.showAdvancedDiagnostics, false);
@@ -123,6 +127,91 @@ import {
 	assert.equal(settings.deepseekApiKey, "");
 	assert.equal(settings.deepseekBaseUrl, "https://api.deepseek.com");
 	assert.equal(settings.deepseekModel, "deepseek-v4-flash");
+}
+
+{
+	const settings = normalizeSettings({
+		aiProvider: "anthropic",
+		aiProviderProfiles: {
+			anthropic: {
+				apiKey: " anthropic-secret ",
+				baseUrl: "https://anthropic.example/v1///",
+				model: " claude-test ",
+				protocol: "chat_completions",
+				jsonMode: false,
+				maxOutputTokens: 70000,
+			},
+			custom: {
+				apiKey: "",
+				baseUrl: "https://custom.example///",
+				model: "",
+				protocol: "responses",
+				jsonMode: true,
+				maxOutputTokens: 0,
+			},
+		},
+	});
+
+	assert.equal(settings.aiProvider, "anthropic");
+	assert.deepEqual(settings.aiProviderProfiles.anthropic, {
+		apiKey: "anthropic-secret",
+		baseUrl: "https://anthropic.example/v1",
+		model: "claude-test",
+		protocol: "anthropic_messages",
+		jsonMode: false,
+		maxOutputTokens: 65536,
+	});
+	assert.deepEqual(settings.aiProviderProfiles.custom, {
+		apiKey: "",
+		baseUrl: "https://custom.example",
+		model: "",
+		protocol: "responses",
+		jsonMode: true,
+		maxOutputTokens: 1,
+	});
+	assert.equal(settings.aiProviderProfiles.gemini.baseUrl, "https://generativelanguage.googleapis.com/v1beta");
+}
+
+{
+	const settings = normalizeSettings({
+		aiProvider: "unknown",
+		aiProviderProfiles: {
+			anthropic: { apiKey: "anthropic-key" },
+			gemini: { apiKey: "gemini-key" },
+		},
+	});
+
+	assert.equal(settings.aiProvider, "mock");
+	assert.equal(settings.aiProviderProfiles.anthropic.apiKey, "anthropic-key");
+	assert.equal(settings.aiProviderProfiles.gemini.apiKey, "gemini-key");
+	assert.equal(settings.aiProviderProfiles.qwen.apiKey, "");
+}
+
+{
+	const settings = normalizeSettings({
+		aiProviderProfiles: {
+			anthropic: { apiKey: "anthropic-key" },
+			gemini: { apiKey: "gemini-key" },
+			custom: { apiKey: "custom-key" },
+		},
+	});
+
+	assert.equal(settings.aiProviderProfiles.anthropic.apiKey, "anthropic-key");
+	assert.equal(settings.aiProviderProfiles.gemini.apiKey, "gemini-key");
+	assert.equal(settings.aiProviderProfiles.custom.apiKey, "custom-key");
+	assert.notEqual(settings.aiProviderProfiles.anthropic.apiKey, settings.aiProviderProfiles.gemini.apiKey);
+}
+
+{
+	const first = normalizeSettings(undefined);
+	const second = normalizeSettings(undefined);
+	first.allowedAiCardTypes.pop();
+	first.aiProviderProfiles.anthropic.apiKey = "changed";
+
+	assert.notEqual(first.allowedAiCardTypes, second.allowedAiCardTypes);
+	assert.notEqual(first.aiProviderProfiles, second.aiProviderProfiles);
+	assert.equal(second.aiProviderProfiles.anthropic.apiKey, "");
+	assert.equal(DEFAULT_SETTINGS.aiProviderProfiles.anthropic.apiKey, "");
 }
 
 {

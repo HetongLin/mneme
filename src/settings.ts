@@ -9,6 +9,13 @@ import {
 	normalizePositiveInteger,
 	normalizeRetention,
 } from "./models/settings";
+import {
+	AI_PROVIDER_DEFINITIONS,
+	getAiProviderDefinition,
+	isAiProviderName,
+	isAdditionalAiProviderName,
+	type AdditionalAiProviderName,
+} from "./models/aiProviderCatalog";
 import { CARD_TYPE_DESCRIPTIONS, CARD_TYPE_LABELS } from "./services/cardTypeDisplay";
 
 export {
@@ -24,6 +31,7 @@ export {
 } from "./models/settings";
 
 export type { MnemeSettings } from "./models/settings";
+export type { AiProviderName } from "./models/settings";
 
 export interface MnemeSettingsHost extends Plugin {
 	settings: MnemeSettings;
@@ -154,14 +162,14 @@ export class MnemeSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Provider")
-			.setDesc("Selects the provider used for Concept proposals.")
+			.setDesc("Used for Concept proposals, Card generation, English aliases, and optional merge assistance.")
 			.addDropdown((dropdown) => {
-				dropdown.addOption("mock", "Mock");
-				dropdown.addOption("openai", "OpenAI");
-				dropdown.addOption("deepseek", "DeepSeek");
+				for (const definition of AI_PROVIDER_DEFINITIONS) {
+					dropdown.addOption(definition.name, definition.label);
+				}
 				dropdown.setValue(this.plugin.settings.aiProvider);
 				dropdown.onChange(async (value) => {
-					this.plugin.settings.aiProvider = value === "deepseek" || value === "openai" ? value : "mock";
+				this.plugin.settings.aiProvider = isAiProviderName(value) ? value : "mock";
 					await this.persistSettings();
 					this.display();
 				});
@@ -213,7 +221,108 @@ export class MnemeSettingTab extends PluginSettingTab {
 			return;
 		}
 
+		if (isAdditionalAiProviderName(this.plugin.settings.aiProvider)) {
+			this.renderAdditionalProviderSettings(containerEl, this.plugin.settings.aiProvider);
+			return;
+		}
+
 		this.renderDeepSeekSettings(containerEl);
+	}
+
+	private renderAdditionalProviderSettings(containerEl: HTMLElement, provider: AdditionalAiProviderName): void {
+		const definition = getAiProviderDefinition(provider);
+		const profile = this.plugin.settings.aiProviderProfiles[provider];
+		const requiresApiKey = provider !== "custom";
+
+		new Setting(containerEl)
+			.setName(`${definition.label} API key`)
+			.setDesc(requiresApiKey
+				? "Stored locally in Obsidian plugin data. Mneme does not log this value."
+				: "Optional for endpoints that do not require authentication. Stored locally in Obsidian plugin data.")
+			.addText((text) => {
+				text.inputEl.type = "password";
+				text.setPlaceholder(requiresApiKey ? "API key" : "Optional API key");
+				text.setValue(profile.apiKey);
+				text.onChange(async (value) => {
+					profile.apiKey = value.trim();
+					await this.persistSettings();
+				});
+			});
+
+		new Setting(containerEl)
+			.setName("Base URL")
+			.setDesc(provider === "custom" ? "URL of the compatible provider endpoint." : `Default: ${definition.baseUrl}`)
+			.addText((text) => {
+				text.setPlaceholder(definition.baseUrl || "https://...");
+				text.setValue(profile.baseUrl);
+				text.onChange(async (value) => {
+					profile.baseUrl = value.trim().replace(/\/+$/g, "");
+					await this.persistSettings();
+				});
+			});
+
+		new Setting(containerEl)
+			.setName("Model")
+			.setDesc(provider === "qwen"
+				? "Enter a model ID that supports non-thinking JSON output. Mneme disables Qwen thinking for these requests."
+				: "Enter a model ID that supports this provider's JSON output protocol.")
+			.addText((text) => {
+				text.setPlaceholder("Model ID");
+				text.setValue(profile.model);
+				text.onChange(async (value) => {
+					profile.model = value.trim();
+					await this.persistSettings();
+				});
+			});
+
+		if (provider === "custom") {
+			new Setting(containerEl)
+				.setName("Protocol")
+				.setDesc("Choose the protocol supported by the custom endpoint.")
+				.addDropdown((dropdown) => {
+					dropdown.addOption("chat_completions", "Chat Completions");
+					dropdown.addOption("responses", "Responses");
+					dropdown.setValue(profile.protocol);
+					dropdown.onChange(async (value) => {
+						profile.protocol = value === "responses" ? "responses" : "chat_completions";
+						await this.persistSettings();
+						this.display();
+					});
+				});
+		} else {
+			new Setting(containerEl)
+				.setName("Protocol")
+				.setDesc(`Fixed by ${definition.label}: ${formatProtocol(definition.protocol)}.`);
+		}
+
+		new Setting(containerEl)
+			.setName("Maximum output tokens")
+			.setDesc("Maximum number of tokens requested in the provider response.")
+			.addText((text) => {
+				text.inputEl.type = "number";
+				text.inputEl.min = "1";
+				text.inputEl.max = "65536";
+				text.inputEl.step = "1";
+				text.setValue(String(profile.maxOutputTokens));
+				text.onChange(async (value) => {
+					profile.maxOutputTokens = normalizeMaxOutputTokens(Number(value));
+					text.setValue(String(profile.maxOutputTokens));
+					await this.persistSettings();
+				});
+			});
+
+		if (profile.protocol === "chat_completions") {
+			new Setting(containerEl)
+				.setName("JSON mode")
+				.setDesc("Disable only when the selected Chat Completions endpoint does not support response_format. The value is still validated.")
+				.addToggle((toggle) => {
+					toggle.setValue(profile.jsonMode);
+					toggle.onChange(async (value) => {
+						profile.jsonMode = value;
+						await this.persistSettings();
+					});
+				});
+		}
 	}
 
 	private renderOpenAiSettings(containerEl: HTMLElement): void {
@@ -396,4 +505,19 @@ function formatRetention(value: number): string {
 
 function formatRetentionDescription(retention: number): string {
 	return `Global FSRS policy used unless a Concept has an explicit override. Higher retention means shorter intervals and more reviews. ${getRetentionWorkloadWarning(retention)} Importance does not change retention.`;
+}
+
+function normalizeMaxOutputTokens(value: number): number {
+	if (!Number.isFinite(value)) return DEFAULT_SETTINGS.aiProviderProfiles.custom.maxOutputTokens;
+	return Math.min(65536, Math.max(1, Math.round(value)));
+}
+
+function formatProtocol(protocol: string): string {
+	const labels: Record<string, string> = {
+		chat_completions: "Chat Completions",
+		responses: "Responses",
+		anthropic_messages: "Messages",
+		gemini_generate_content: "Generate Content",
+	};
+	return labels[protocol] ?? protocol;
 }

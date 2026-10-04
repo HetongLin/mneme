@@ -1,5 +1,7 @@
 import type { CardDraftType, KnowledgeProposal, KnowledgeProposalKind } from "../models/knowledgeProposal";
 import type { AiProviderName, MnemeSettings } from "../models/settings";
+import { ADDITIONAL_AI_PROVIDER_NAMES, getAiProviderConnection, isAdditionalAiProviderName, isAiProviderName, type AiApiProtocol, type AdditionalAiProviderName } from "../models/aiProviderCatalog";
+import { getAiConnectionIssues } from "./aiJsonProtocol";
 export type AiProposalMode = "concept_capture" | "card_generation";
 
 export interface AiSourceChunkContext {
@@ -37,7 +39,7 @@ export interface AiProviderMetadata {
 	baseUrl?: string;
 	model?: string;
 	provider: AiProviderName;
-	structuredOutput: "json_object" | "json_schema" | "mock";
+	structuredOutput: "json_object" | "json_schema" | "prompt_json" | "mock";
 }
 
 export interface AiProposalDiagnostics {
@@ -80,7 +82,25 @@ export function formatAiHttpResponseError(
 		: `AI provider request failed (${status}).`;
 }
 
+export function redactAiRequestSecrets(message: string, headers: Record<string, string>): string {
+	let safe = message;
+	for (const [name, value] of Object.entries(headers)) {
+		if (!["authorization", "x-api-key", "x-goog-api-key"].includes(name.toLowerCase())) continue;
+		const secret = value.replace(/^Bearer\s+/iu, "").trim();
+		if (secret) safe = safe.split(secret).join("[redacted]");
+	}
+	return safe;
+}
+
 export interface LogSafeAiConfig {
+	aiProviderProfiles: Record<AdditionalAiProviderName, {
+		apiKeyConfigured: boolean;
+		baseUrl: string;
+		model: string;
+		protocol: AiApiProtocol;
+		jsonMode: boolean;
+		maxOutputTokens: number;
+	}>;
 	allowedAiCardTypes: CardDraftType[];
 	aiCaptureEnabled: boolean;
 	aiMaxInputChars: number;
@@ -124,8 +144,10 @@ export function validateAiProviderConfig(settings: MnemeSettings): AiProviderCon
 	const errors: string[] = [];
 	const warnings: string[] = [];
 
-	if (settings.aiProvider !== "mock" && settings.aiProvider !== "openai" && settings.aiProvider !== "deepseek") {
-		errors.push("AI provider must be mock, openai, or deepseek.");
+	if (!isAiProviderName(settings.aiProvider)) {
+		errors.push("Select a supported AI provider.");
+	} else if (isAdditionalAiProviderName(settings.aiProvider)) {
+		errors.push(...getAiConnectionIssues(getAiProviderConnection(settings), settings.aiCaptureEnabled));
 	}
 
 	if (settings.aiRequestTimeoutMs < 1) {
@@ -173,17 +195,28 @@ export function validateAiProviderConfig(settings: MnemeSettings): AiProviderCon
 }
 
 export function toLogSafeAiConfig(settings: MnemeSettings): LogSafeAiConfig {
+	const profiles = {} as LogSafeAiConfig["aiProviderProfiles"];
+	for (const name of ADDITIONAL_AI_PROVIDER_NAMES) {
+		const profile = settings.aiProviderProfiles[name];
+		profiles[name] = {
+			apiKeyConfigured: profile.apiKey.trim().length > 0,
+			baseUrl: toLogSafeBaseUrl(profile.baseUrl),
+			model: profile.model, protocol: profile.protocol,
+			jsonMode: profile.jsonMode, maxOutputTokens: profile.maxOutputTokens,
+		};
+	}
 	return {
+		aiProviderProfiles: profiles,
 		allowedAiCardTypes: [...settings.allowedAiCardTypes],
 		aiCaptureEnabled: settings.aiCaptureEnabled,
 		aiMaxInputChars: settings.aiMaxInputChars,
 		aiProvider: settings.aiProvider,
 		aiRequestTimeoutMs: settings.aiRequestTimeoutMs,
 		deepseekApiKeyConfigured: settings.deepseekApiKey.trim().length > 0,
-		deepseekBaseUrl: settings.deepseekBaseUrl,
+		deepseekBaseUrl: toLogSafeBaseUrl(settings.deepseekBaseUrl),
 		deepseekModel: settings.deepseekModel,
 		openaiApiKeyConfigured: settings.openaiApiKey.trim().length > 0,
-		openaiBaseUrl: settings.openaiBaseUrl,
+		openaiBaseUrl: toLogSafeBaseUrl(settings.openaiBaseUrl),
 		openaiModel: settings.openaiModel,
 		suggestEnglishAliases: settings.suggestEnglishAliases,
 	};
@@ -230,4 +263,14 @@ function normalizeAiHttpErrorText(value: string): string | undefined {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function toLogSafeBaseUrl(value: string): string {
+	try {
+		const url = new URL(value);
+		url.username = ""; url.password = ""; url.search = ""; url.hash = "";
+		return url.toString().replace(/\/+$/u, "");
+	} catch {
+		return value ? "(invalid URL)" : "";
+	}
 }

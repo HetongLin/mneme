@@ -1,4 +1,5 @@
 import type { MnemeSettings } from "../models/settings";
+import { getAiProviderConnection, isAdditionalAiProviderName } from "../models/aiProviderCatalog";
 import { computeContentHash } from "../utils/sourceHash";
 
 export const AI_CONCEPT_CAPTURE_MAX_CHUNK_CHARS = 6000;
@@ -15,6 +16,8 @@ export async function createAiConceptCaptureFingerprint(
 		? { baseUrl: settings.openaiBaseUrl, model: settings.openaiModel }
 		: settings.aiProvider === "deepseek"
 			? { baseUrl: settings.deepseekBaseUrl, model: settings.deepseekModel }
+			: isAdditionalAiProviderName(settings.aiProvider)
+				? getAdditionalProviderFingerprintConfig(settings)
 			: { baseUrl: "mock", model: "mock" };
 
 	return computeContentHash(JSON.stringify({
@@ -44,6 +47,8 @@ export async function createAiCardGenerationFingerprint(
 		? { baseUrl: settings.openaiBaseUrl, model: settings.openaiModel }
 		: settings.aiProvider === "deepseek"
 			? { baseUrl: settings.deepseekBaseUrl, model: settings.deepseekModel }
+			: isAdditionalAiProviderName(settings.aiProvider)
+				? getAdditionalProviderFingerprintConfig(settings)
 			: { baseUrl: "mock", model: "mock" };
 
 	return computeContentHash(JSON.stringify({
@@ -56,4 +61,15 @@ export async function createAiCardGenerationFingerprint(
 		providerConfig,
 		allowedCardTypes: settings.allowedAiCardTypes,
 	}));
+}
+
+function getAdditionalProviderFingerprintConfig(settings: MnemeSettings): Record<string, unknown> {
+	const connection = getAiProviderConnection(settings);
+	return {
+		baseUrl: connection.baseUrl.replace(/\/+$/u, ""),
+		jsonMode: connection.jsonMode,
+		maxOutputTokens: connection.maxOutputTokens,
+		model: connection.model,
+		protocol: connection.protocol,
+	};
 }

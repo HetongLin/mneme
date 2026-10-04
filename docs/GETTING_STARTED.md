@@ -25,7 +25,9 @@ You can access a Concept's Cards from Concept Library. Turning off **Show Todayâ
 
 ## Connect a real provider
 
-In Mneme settings, choose **OpenAI** or **DeepSeek**, enter your API key, and choose a model supported by that provider. Keep the default base URL unless you intentionally use a compatible endpoint. Explicit analysis and drafting requests send learning content to that endpoint; see [Privacy](PRIVACY.md).
+In Mneme settings, choose a provider, enter its API key when required, and enter a model ID supported by that provider. Existing OpenAI and DeepSeek settings keep their separate API keys and base URLs; the other providers use their own saved profiles. Models are intentionally blank for new profiles because model IDs and availability vary by vendor. Keep the catalog base URL unless you intentionally use a compatible regional or self-hosted endpoint. See [AI provider setup](AI_PROVIDERS.md) for the protocol used by each provider and official documentation links.
+
+For Chat Completions providers, JSON mode is enabled by default. You may disable it only when the selected compatible endpoint does not support response_format; Mneme still validates the returned JSON locally and does not silently retry with a different mode. Custom endpoints can use Chat Completions or Responses. Explicit analysis and drafting requests send learning content to the configured endpoint; see [Privacy](PRIVACY.md).
 
 Generated learning prose follows the dominant language of the source note. **Suggest English aliases** is off by default and can add optional English display aliases to non-English titles.
 

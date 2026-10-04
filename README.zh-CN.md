@@ -15,7 +15,7 @@ Mneme 是一个以概念为中心的 Obsidian 学习插件。它把你的笔记�
 - **支持直接写作**：自己创建概念和卡片，不需要 AI，也不需要人为增加审批步骤。
 - **知识留在 Markdown 中**：概念文件和卡片组可直接查看、编辑。
 - **本地 FSRS 复习**：显示问题、揭晓答案，再选择 Again / Hard / Good / Easy；日常复习不调用 AI。
-- **无需 Key 即可体验**：手动创作与离线 Mock 示例无需账户；真实 AI 提取可选 OpenAI 或 DeepSeek。
+- **无需 Key 即可体验**：手动创作与离线 Mock 示例无需账户；真实 AI 提取支持 OpenAI、Claude、Gemini、DeepSeek、Qwen、智谱、Moonshot、SiliconFlow 和自定义接口。
 
 ## 安装
 
@@ -23,12 +23,12 @@ Mneme 是一个以概念为中心的 Obsidian 学习插件。它把你的笔记�
 
 **BRAT 安装**：从 Obsidian 社区插件安装 [BRAT](https://github.com/TfTHacker/obsidian42-brat)，添加仓库 `HetongLin/mneme`，然后在社区插件中启用 Mneme。
 
-**手动安装**：从 [最新 Release](https://github.com/HetongLin/mneme/releases/latest) 下载 `mneme-1.0.1.zip`，将其中的 `mneme` 文件夹放到 `<vault>/.obsidian/plugins/` 下，重载 Obsidian 后启用插件。使用自定义配置目录时，将 `.obsidian` 替换为你的配置目录。安装包包含 `main.js`、`manifest.json` 和 `styles.css`，无需编译。
+**手动安装**：从 [最新 Release](https://github.com/HetongLin/mneme/releases/latest) 下载 `mneme-1.1.0.zip`，将其中的 `mneme` 文件夹放到 `<vault>/.obsidian/plugins/` 下，重载 Obsidian 后启用插件。使用自定义配置目录时，将 `.obsidian` 替换为你的配置目录。安装包包含 `main.js`、`manifest.json` 和 `styles.css`，无需编译。
 
 ## 第一次使用
 
 1. 把 [Stable identity 示例](examples/Stable-identity.md) 复制到 Vault 并打开。
-2. 在 Mneme 设置中打开 **Enable AI capture**，保留 **Provider → Mock**，即可离线体验。Mock 演示流程；真实语义提取需要配置远程 Provider。
+2. 在 Mneme 设置中打开 **Enable AI capture**，保留 **Provider → Mock**，即可离线体验。Mock 演示流程；真实语义提取需要配置远程 Provider。详见 [AI Provider 配置](docs/AI_PROVIDERS.md)。
 3. 运行 **Mneme: Analyze Current Note**，再打开 **Mneme: Open Inbox**，编辑并接受概念提议。
 4. 打开生成的概念，运行 **Mneme: Generate Cards from Current Concept**，在 Inbox 确认卡片。
 5. 打开 **Mneme: Open Review View**，选择概念，点击 **Show Answer**，根据自己的回忆情况评分。
@@ -40,6 +40,8 @@ Mneme 是一个以概念为中心的 Obsidian 学习插件。它把你的笔记�
 概念与卡片正文保存在 Vault 的 Markdown 文件中。插件本地数据保存设置、提议、调度与复习记录；迁移 Vault 时保留它才能继续使用原有历史。
 
 AI capture 默认关闭。主动使用远程 Provider 时，所选笔记或概念正文及请求上下文会发送到配置的接口。API Key 保存在 Obsidian 插件本地数据中，Mneme 不对其加密。详细范围见 [隐私说明](docs/PRIVACY.md)。
+
+支持的 Provider、协议、默认接口地址和模型配置见 [AI Provider 配置](docs/AI_PROVIDERS.md)。
 
 ## 参与项目
 

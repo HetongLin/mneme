@@ -21,7 +21,7 @@ You have a vault full of things you have read. Mneme helps you turn the ideas wo
 - **Write it yourself, too.** Create Concepts and Cards directly. AI is optional.
 - **Keep readable files.** Concepts are Markdown notes; each Concept has one Markdown Card Group with independently scheduled Cards.
 - **Review with FSRS.** Reveal the answer and choose Again, Hard, Good, or Easy. Scheduling is local, and routine review uses no AI calls.
-- **Start without an account.** Manual authoring and the offline Mock demo need no API key. Choose OpenAI or DeepSeek when you want real AI drafting.
+- **Start without an account.** Manual authoring and the offline Mock demo need no API key. Choose OpenAI, Claude, Gemini, DeepSeek, Qwen, Zhipu, Moonshot, SiliconFlow, or a custom endpoint when you want real AI drafting.
 
 ## Install
 
@@ -35,7 +35,7 @@ Mneme is currently distributed through GitHub Releases. The first release was ve
 
 ### Manual installation
 
-1. Download **`mneme-1.0.1.zip`** from the [latest release](https://github.com/HetongLin/mneme/releases/latest). Use the plugin ZIP, rather than GitHub's automatically generated source-code ZIP.
+1. Download **`mneme-1.1.0.zip`** from the [latest release](https://github.com/HetongLin/mneme/releases/latest). Use the plugin ZIP, rather than GitHub's automatically generated source-code ZIP.
 2. Extract the `mneme` folder into your vault's plugin folder: `<vault>/.obsidian/plugins/`. If your vault uses a custom configuration folder, use that folder instead of `.obsidian`.
 3. Reload Obsidian, then enable **Mneme** in **Settings → Community plugins**.
 
@@ -44,7 +44,7 @@ The installed folder contains `main.js`, `manifest.json`, and `styles.css`. No b
 ## Your first learning loop
 
 1. Open a note you want to learn from. The included [Stable identity example](examples/Stable-identity.md) is a good starting point.
-2. In Mneme settings, enable **Enable AI capture**. Leave **Provider → Mock** for a deterministic offline demo, or configure your provider for real extraction.
+2. In Mneme settings, enable **Enable AI capture**. Leave **Provider → Mock** for a deterministic offline demo, or configure a provider for real extraction. See [AI provider setup](docs/AI_PROVIDERS.md) for protocols, base URLs, and model IDs.
 3. Run **Mneme: Analyze Current Note** from the command palette. Open **Mneme: Open Inbox**, review a Concept proposal, and accept it.
 4. Open the accepted Concept and run **Mneme: Generate Cards from Current Concept**. Review and accept the Card proposals in Inbox.
 5. Open **Mneme: Open Review View**. Choose a Concept, click **Show Answer**, and rate your recall.
@@ -73,6 +73,8 @@ AI capture is **off by default**. When you explicitly use a remote provider, the
 **Do I need AI?** No. Manual Concept and Card authoring works without a provider. Mock lets you try the proposal-and-approval workflow offline; it demonstrates the flow rather than real semantic extraction.
 
 **Can I use my existing notes?** Yes. Analyze a source note explicitly when you want proposals; ordinary browsing and review stay local.
+
+**Which AI providers are supported?** Mneme includes OpenAI, Anthropic Claude, Google Gemini, Alibaba Qwen, Zhipu GLM, Moonshot Kimi, SiliconFlow, DeepSeek, and a configurable custom endpoint. See [AI provider setup](docs/AI_PROVIDERS.md).
 
 **Can I use Anki?** Mneme can export accepted Cards as an Anki-importable TSV. The exported copy has its own state in Anki; there is no synchronization.
 

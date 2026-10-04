@@ -1,10 +1,19 @@
 import { CARD_DRAFT_TYPES, type CardDraftType } from "./knowledgeProposal";
+import {
+	createDefaultAiProviderProfiles,
+	isAiProviderName,
+	normalizeAiProviderProfiles,
+	type AdditionalAiProviderName,
+	type AiProviderName,
+	type AiProviderProfile,
+} from "./aiProviderCatalog";
 
 export interface MnemeSettings {
 	allowedAiCardTypes: CardDraftType[];
 	aiCaptureEnabled: boolean;
 	aiMaxInputChars: number;
 	aiProvider: AiProviderName;
+	aiProviderProfiles: Record<AdditionalAiProviderName, AiProviderProfile>;
 	aiRequestTimeoutMs: number;
 	cardsFolder: string;
 	conceptsFolder: string;
@@ -23,7 +32,7 @@ export interface MnemeSettings {
 	suggestEnglishAliases: boolean;
 }
 
-export type AiProviderName = "mock" | "openai" | "deepseek";
+export type { AiProviderName } from "./aiProviderCatalog";
 
 const LEGACY_DEFAULT_AI_REQUEST_TIMEOUT_MS = 30000;
 
@@ -32,6 +41,7 @@ export const DEFAULT_SETTINGS: MnemeSettings = {
 	aiCaptureEnabled: false,
 	aiMaxInputChars: 20000,
 	aiProvider: "mock",
+	aiProviderProfiles: createDefaultAiProviderProfiles(),
 	aiRequestTimeoutMs: 120000,
 	cardsFolder: "Mneme/Cards",
 	conceptsFolder: "Mneme/Concepts",
@@ -52,7 +62,7 @@ export const DEFAULT_SETTINGS: MnemeSettings = {
 
 export function normalizeSettings(value: unknown): MnemeSettings {
 	if (!isObject(value)) {
-		return { ...DEFAULT_SETTINGS };
+		return cloneDefaultSettings();
 	}
 
 	return {
@@ -62,6 +72,7 @@ export function normalizeSettings(value: unknown): MnemeSettings {
 			: DEFAULT_SETTINGS.aiCaptureEnabled,
 		aiMaxInputChars: normalizePositiveInteger(value.aiMaxInputChars, DEFAULT_SETTINGS.aiMaxInputChars),
 		aiProvider: normalizeAiProvider(value.aiProvider),
+		aiProviderProfiles: normalizeAiProviderProfiles(value.aiProviderProfiles),
 		aiRequestTimeoutMs: normalizeAiRequestTimeoutMs(value.aiRequestTimeoutMs),
 		cardsFolder: normalizeFolder(value.cardsFolder, DEFAULT_SETTINGS.cardsFolder),
 		conceptsFolder: normalizeFolder(value.conceptsFolder, DEFAULT_SETTINGS.conceptsFolder),
@@ -93,7 +104,7 @@ export function normalizeSettings(value: unknown): MnemeSettings {
 
 export function getSettingsFromPluginData(data: unknown): MnemeSettings {
 	if (!isObject(data)) {
-		return { ...DEFAULT_SETTINGS };
+		return cloneDefaultSettings();
 	}
 
 	return normalizeSettings(isObject(data.settings) ? data.settings : data);
@@ -176,9 +187,15 @@ export function normalizeFolder(value: unknown, fallback: string): string {
 }
 
 function normalizeAiProvider(value: unknown): AiProviderName {
-	return value === "deepseek" || value === "openai" || value === "mock"
-		? value
-		: DEFAULT_SETTINGS.aiProvider;
+	return isAiProviderName(value) ? value : DEFAULT_SETTINGS.aiProvider;
+}
+
+function cloneDefaultSettings(): MnemeSettings {
+	return {
+		...DEFAULT_SETTINGS,
+		allowedAiCardTypes: [...DEFAULT_SETTINGS.allowedAiCardTypes],
+		aiProviderProfiles: normalizeAiProviderProfiles(DEFAULT_SETTINGS.aiProviderProfiles),
+	};
 }
 
 function normalizeString(value: unknown, fallback: string): string {

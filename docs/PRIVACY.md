@@ -19,11 +19,11 @@ Requests go to the provider and base URL you select in settings.
 | Generate with AI (optional English alias) | The Concept title and Core Meaning used to draft an English alias. |
 | Optional AI assistance in Merge | The selected candidates or compact shortlist and relevant learning content needed for the requested classification or draft. |
 
-Your API key is sent to the configured endpoint for authentication. A custom base URL changes who receives these requests. Providers may charge for usage and apply their own retention policies. Accepting a proposal controls the final Markdown write; it does not undo content already sent for drafting.
+Your API key is sent to the configured endpoint for authentication. Keys are stored as plaintext values in Obsidian's local plugin data.json; Mneme does not encrypt them and does not include them in its logs. A custom base URL changes who receives these requests, including when you use a regional or self-hosted endpoint. Providers may charge for usage and apply their own retention policies. Accepting a proposal controls the final Markdown write; it does not undo content already sent for drafting.
 
 ## API keys and sharing
 
-Keys are stored locally in Obsidian plugin data. Mneme does not encrypt them and does not intentionally log them. Your vault backups or configuration sync may include this data, depending on how those tools are configured.
+Keys are stored locally in Obsidian plugin data.json. Mneme does not encrypt them and does not intentionally log them. Obsidian Sync, vault backups, and other configuration sync may copy this file, depending on how those tools are configured; review their privacy settings before syncing a vault that contains API keys.
 
 Keep keys, plugin `data.json`, private source notes, and unredacted logs out of public bug reports and shared demo vaults. If you accidentally share a key, revoke it with its provider.
 

@@ -84,6 +84,94 @@ async function run(): Promise<void> {
 		deepSeekDraftBody.messages?.some(({ content }) => content?.includes("\"coreMeaning\"")),
 		true,
 	);
+
+	const anthropicInspectionRequest = buildConceptMergeAiRequest(
+		{
+			...DEFAULT_SETTINGS,
+			aiCaptureEnabled: true,
+			aiProvider: "anthropic",
+			aiProviderProfiles: {
+				...DEFAULT_SETTINGS.aiProviderProfiles,
+				anthropic: {
+					...DEFAULT_SETTINGS.aiProviderProfiles.anthropic,
+					apiKey: "anthropic-secret",
+					model: "claude-test",
+				},
+			},
+		},
+		"inspection",
+		{ selected: { conceptId: "concept-a", title: "A" } },
+	);
+	assert.match(anthropicInspectionRequest.url, /\/messages$/);
+	assert.equal(JSON.stringify(anthropicInspectionRequest.body).includes("anthropic-secret"), false);
+	assert.equal(JSON.stringify(anthropicInspectionRequest.body).includes("results"), true);
+
+	const geminiService = new ConceptMergeAiService({
+		httpClient: {
+			postJson: async () => ({
+				candidates: [{ content: { parts: [{ text: JSON.stringify({
+					results: [{ classification: "likely_duplicate", conceptId: "concept-b", reason: "Same title." }],
+				}) }] } }],
+			}),
+		},
+		settingsProvider: () => ({
+			...DEFAULT_SETTINGS,
+			aiCaptureEnabled: true,
+			aiProvider: "gemini",
+			aiProviderProfiles: {
+				...DEFAULT_SETTINGS.aiProviderProfiles,
+				gemini: {
+					...DEFAULT_SETTINGS.aiProviderProfiles.gemini,
+					apiKey: "gemini-secret",
+					model: "gemini-test",
+				},
+			},
+		}),
+	});
+	assert.deepEqual(
+		await geminiService.inspectCandidates({ candidates: [duplicate], selected }),
+		[{ classification: "likely_duplicate", conceptId: "concept-b", reason: "Same title." }],
+	);
+
+	const mutableSettings = {
+		...DEFAULT_SETTINGS,
+		aiCaptureEnabled: true,
+		aiProvider: "anthropic" as const,
+		aiProviderProfiles: {
+			...DEFAULT_SETTINGS.aiProviderProfiles,
+			anthropic: {
+				...DEFAULT_SETTINGS.aiProviderProfiles.anthropic,
+				apiKey: "anthropic-secret",
+				model: "claude-test",
+			},
+		},
+	};
+	const mutableService = new ConceptMergeAiService({
+		httpClient: {
+			postJson: async () => {
+				mutableSettings.aiProvider = "gemini";
+				mutableSettings.aiProviderProfiles.gemini.model = "changed-during-request";
+				return {
+					content: [{ type: "text", text: JSON.stringify({
+						title: "Merged Concept",
+						coreMeaning: "Merged core meaning.",
+						whyItMatters: "Merged value.",
+					}) }],
+					stop_reason: "end_turn",
+				};
+			},
+		},
+		settingsProvider: () => mutableSettings,
+	});
+	assert.deepEqual(
+		await mutableService.draftMerge({
+			first: selected,
+			firstMarkdown: "# A",
+			second: duplicate,
+			secondMarkdown: "# B",
+		}),
+		{ title: "Merged Concept", coreMeaning: "Merged core meaning.", whyItMatters: "Merged value." },
+	);
 }
 
 run().catch((error) => {

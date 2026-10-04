@@ -115,6 +115,10 @@ A future stateless `Rediscover a Concept` entry point is only a possibility to v
 
 ## Engineering Rules
 
+AI provider configuration and protocol routing follow ADR 0032. All explicit AI
+actions use the selected service; provider expansion must preserve grounding,
+local validation, human approval, and deterministic local review.
+
 - Use TypeScript and Obsidian Plugin API conventions.
 - Keep orchestration thin in `main.ts`; put domain logic in focused services.
 - Preserve existing persisted formats or provide explicit compatibility reads.

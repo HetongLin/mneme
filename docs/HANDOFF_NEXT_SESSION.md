@@ -1,6 +1,13 @@
 # Mneme Next-Session Hand-off
 
-Updated: 2026-10-03
+Updated: 2026-10-04
+
+## 多模型 API 版本（1.1.0，2026-10-04）
+
+- 用户明确选择 OpenAI、Claude、Gemini、DeepSeek、通义千问、智谱、Moonshot、硅基流动及自定义兼容接口。已贯通 Concept 提取、Card 生成、英文别名和 Merge 辅助，保留原审批、grounding 和本地 FSRS 行为。
+- 旧 OpenAI/DeepSeek 字段及请求保持兼容；新增服务独立保存 Key、模型、地址和输出限制。Claude/Gemini 使用原生 JSON 协议，其他新增服务走兼容 Chat；Custom 支持 Chat/Responses 及无 Key 的本地接口。详细配置及模型限制见 [AI provider setup](AI_PROVIDERS.md)，设计决定见 ADR 0032。
+- 已通过构建、全量 `test:all`、发布元数据/许可证检查和 diff 检查；新增协议、拒绝/截断/JSON 错误、配置切换竞态及 fingerprint 回归。测试为 mocked HTTP，不声称各服务实际账号/模型已实测；未读取或使用个人 API Key，未修改个人 Vault。
+- 本次变更只验收多模型 API 的受影响路径，不重新开启已完成的历史重构验收矩阵。
 
 ## 本轮重构的有限收口门槛（2026-10-02）
 

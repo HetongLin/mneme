@@ -3,6 +3,7 @@ import { DEFAULT_SETTINGS } from "../src/models/settings";
 import {
 	AiJsonHttpClient,
 	formatAiHttpResponseError,
+	redactAiRequestSecrets,
 	toLogSafeAiConfig,
 	validateAiProviderConfig,
 } from "../src/services/aiProvider";
@@ -47,6 +48,12 @@ assert.equal(
 );
 
 async function run(): Promise<void> {
+	assert.equal(redactAiRequestSecrets("Invalid bearer-test-key / claude-test-key / google-test-key", {
+		Authorization: "Bearer bearer-test-key",
+		"x-api-key": "claude-test-key",
+		"x-goog-api-key": "google-test-key",
+	}), "Invalid [redacted] / [redacted] / [redacted]");
+	assert.equal(redactAiRequestSecrets("Request failed", { Authorization: "" }), "Request failed");
 {
 	const provider = new MockAiProvider(DEFAULT_SETTINGS);
 	const first = await provider.generateKnowledgeProposals(request);

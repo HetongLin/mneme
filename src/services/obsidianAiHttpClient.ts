@@ -1,9 +1,18 @@
 import { requestUrl } from "obsidian";
 import type { AiJsonHttpClient, AiJsonHttpRequest } from "./aiProvider";
-import { formatAiHttpResponseError } from "./aiProvider";
+import { formatAiHttpResponseError, redactAiRequestSecrets } from "./aiProvider";
 
 export class ObsidianAiHttpClient implements AiJsonHttpClient {
 	async postJson(input: AiJsonHttpRequest): Promise<unknown> {
+		try {
+			return await this.performRequest(input);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "AI network request failed.";
+			throw new Error(redactAiRequestSecrets(message, input.headers));
+		}
+	}
+
+	private async performRequest(input: AiJsonHttpRequest): Promise<unknown> {
 		const request = requestUrl({
 			body: JSON.stringify(input.body),
 			contentType: "application/json",

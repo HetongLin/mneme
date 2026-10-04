@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.0 — 2026-10-04
+
+- Add Anthropic (Claude), Google (Gemini), Alibaba Cloud (Qwen), Zhipu (GLM), Moonshot (Kimi), SiliconFlow, and custom OpenAI-compatible endpoints alongside OpenAI, DeepSeek, and offline Mock.
+- Route Concept capture, Card generation, English aliases, and optional Merge assistance through the selected provider; keep existing approval and grounding checks.
+- Save independent provider profiles with configurable model IDs, endpoints, output token limits, and compatible JSON mode. Custom endpoints support Chat Completions or Responses and optional authentication.
+- Preserve legacy OpenAI/DeepSeek settings; snapshot request configuration so changing providers during a request does not reinterpret its response.
+- Reject incomplete, refused, and malformed JSON responses; redact authentication secrets from transport errors.
+- Add provider protocol, failure-path, fingerprint, and settings regression coverage, plus a [provider setup guide](docs/AI_PROVIDERS.md).
+
+Provider protocol tests use mocked HTTP responses. Live model/account compatibility is not certified; select a model supporting the configured JSON protocol.
+
 ## 1.0.1 — 2026-10-04
 
 - Embed Mneme, ts-fsrs, Zod, and inherited scaffold license notices directly in `main.js`, so BRAT and individual-file installations retain the required notices as well as ZIP installations.

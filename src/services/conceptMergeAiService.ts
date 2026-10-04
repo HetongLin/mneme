@@ -1,7 +1,9 @@
 import type { ConceptSummary } from "../models/conceptLibrary";
 import type { MnemeSettings } from "../models/settings";
+import { isAdditionalAiProviderName, snapshotAiSettings } from "../models/aiProviderCatalog";
 import type { AiJsonHttpClient, AiJsonHttpRequest } from "./aiProvider";
 import { validateAiProviderConfig } from "./aiProvider";
+import { buildAiJsonRequest, parseAiJsonResponse } from "./aiJsonProtocol";
 import { shouldOfferEnglishAlias } from "./conceptNaming";
 
 export type ConceptMergeAiClassification =
@@ -117,7 +119,7 @@ export class ConceptMergeAiService {
 	}
 
 	private validateSettings(): MnemeSettings {
-		const settings = this.options.settingsProvider();
+		const settings = snapshotAiSettings(this.options.settingsProvider());
 		if (!settings.aiCaptureEnabled) {
 			throw new Error("Enable AI capture in Mneme Settings to use AI Merge assistance. Manual Merge remains available.");
 		}
@@ -129,9 +131,11 @@ export class ConceptMergeAiService {
 	private async request(settings: MnemeSettings, request: AiJsonHttpRequest): Promise<unknown> {
 		if (!this.options.httpClient) throw new Error("AI network transport is not configured.");
 		const raw = await this.options.httpClient.postJson(request);
-		return settings.aiProvider === "openai"
-			? parseOpenAiResponse(raw)
-			: parseChatCompletionResponse(raw);
+		return isAdditionalAiProviderName(settings.aiProvider)
+			? parseAiJsonResponse(settings, raw)
+			: settings.aiProvider === "openai"
+				? parseOpenAiResponse(raw)
+				: parseChatCompletionResponse(raw);
 	}
 }
 
@@ -166,13 +170,23 @@ export function buildConceptMergeAiRequest(
 		{ content: systemPrompt, role: "system" },
 		{ content: JSON.stringify(input), role: "user" },
 	];
+	const openAiFormat = createOpenAiFormat(mode, settings.suggestEnglishAliases);
+
+	if (isAdditionalAiProviderName(settings.aiProvider)) {
+		return buildAiJsonRequest(settings, {
+			schema: openAiFormat.schema as Record<string, unknown>,
+			schemaName: openAiFormat.name as string,
+			systemPrompt,
+			userContent: JSON.stringify(input),
+		});
+	}
 
 	if (settings.aiProvider === "openai") {
 		return {
 			body: {
 				input: messages,
 				model: settings.openaiModel,
-				text: { format: createOpenAiFormat(mode, settings.suggestEnglishAliases) },
+				text: { format: openAiFormat },
 			},
 			headers: {
 				Authorization: `Bearer ${settings.openaiApiKey}`,

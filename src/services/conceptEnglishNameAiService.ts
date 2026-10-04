@@ -1,6 +1,8 @@
 import type { MnemeSettings } from "../models/settings";
+import { isAdditionalAiProviderName, snapshotAiSettings } from "../models/aiProviderCatalog";
 import type { AiJsonHttpClient, AiJsonHttpRequest } from "./aiProvider";
 import { validateAiProviderConfig } from "./aiProvider";
+import { buildAiJsonRequest, parseAiJsonResponse } from "./aiJsonProtocol";
 import { isCanonicalEnglishName } from "./conceptNaming";
 
 export interface ConceptEnglishNameSuggestion {
@@ -43,14 +45,16 @@ export class ConceptEnglishNameAiService {
 			normalizedTitle,
 			normalizedCoreMeaning,
 		));
-		const parsed = settings.aiProvider === "openai"
-			? parseOpenAiResponse(raw)
-			: parseChatCompletionResponse(raw);
+		const parsed = isAdditionalAiProviderName(settings.aiProvider)
+			? parseAiJsonResponse(settings, raw)
+			: settings.aiProvider === "openai"
+				? parseOpenAiResponse(raw)
+				: parseChatCompletionResponse(raw);
 		return parseConceptEnglishNameSuggestion(parsed);
 	}
 
 	private validateSettings(): MnemeSettings {
-		const settings = this.options.settingsProvider();
+		const settings = snapshotAiSettings(this.options.settingsProvider());
 		if (!settings.suggestEnglishAliases) {
 			throw new Error("Enable English Alias suggestions in Mneme Settings.");
 		}
@@ -77,6 +81,26 @@ export function buildConceptEnglishNameRequest(
 		"Preserve conventional casing for acronyms, symbols, and established terms such as k-means, p-value, t-SNE, L1 Regularization, and MAP Estimation.",
 	];
 	const inputMessage = { content: JSON.stringify({ coreMeaning, title }), role: "user" };
+	const schema = {
+		additionalProperties: false,
+		properties: { englishName: { type: "string" } },
+		required: ["englishName"],
+		type: "object",
+	};
+
+	if (isAdditionalAiProviderName(settings.aiProvider)) {
+		return buildAiJsonRequest(settings, {
+			schema,
+			schemaName: "mneme_concept_english_name",
+			systemPrompt: [
+				...namingGuidance,
+				"Return exactly one json object with the shape {\"englishName\":\"<canonical English term>\"}.",
+				"Do not return Markdown, commentary, or any keys other than englishName.",
+			].join(" "),
+			userContent: inputMessage.content,
+			maxOutputTokens: 256,
+		});
+	}
 
 	if (settings.aiProvider === "openai") {
 		const messages = [
