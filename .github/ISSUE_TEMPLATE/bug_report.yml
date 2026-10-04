@@ -1,0 +1,75 @@
+name: Bug report
+description: Report a reproducible problem in Mneme
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please remove API keys, tokens, private notes, and other sensitive data from all details and logs.
+
+  - type: input
+    id: mneme-version
+    attributes:
+      label: Mneme version
+      description: Find this in the installed plugin details or release metadata.
+      placeholder: 1.0.0
+    validations:
+      required: true
+
+  - type: input
+    id: obsidian-version
+    attributes:
+      label: Obsidian version
+      placeholder: 1.8.10
+    validations:
+      required: true
+
+  - type: input
+    id: operating-system
+    attributes:
+      label: Operating system
+      placeholder: macOS 15.6, Windows 11, or Ubuntu 24.04
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the smallest sequence that reliably shows the problem.
+      placeholder: |
+        1. Open ...
+        2. Select ...
+        3. See ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: input
+    id: provider
+    attributes:
+      label: AI provider (optional)
+      description: If the issue involves an AI call, name the provider and model if known. Never include credentials.
+      placeholder: OpenAI / model name
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs (optional)
+      description: Paste redacted logs or error messages. Remove secrets and private vault content first.
+      render: text

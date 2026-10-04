@@ -1,0 +1,40 @@
+name: Feature request
+description: Suggest an improvement to Mneme
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping shape Mneme. Please describe the learner problem before proposing an implementation.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What are you trying to do, and what makes it difficult today?
+      placeholder: As a learner, I want to ... because ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: example
+    attributes:
+      label: Example use case
+      description: Show a concrete workflow, note, or review scenario where this would help.
+      placeholder: Today ...; with this feature ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Suggested approach (optional)
+      description: If you have an idea for the interaction or behavior, describe it here.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered (optional)
+      description: What workarounds or other approaches have you tried?

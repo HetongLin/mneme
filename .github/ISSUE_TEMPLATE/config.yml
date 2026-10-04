@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Quickstart
+    url: https://github.com/HetongLin/mneme/blob/main/docs/GETTING_STARTED.md
+    about: Read the README quickstart before opening an issue.

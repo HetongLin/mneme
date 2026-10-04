@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="330" viewBox="0 0 1200 330" role="img" aria-labelledby="title desc">
+  <title id="title">Mneme: from reading to remembering</title>
+  <desc id="desc">Source notes become Concept proposals. You approve Concepts and Cards before FSRS review. Knowledge stays in Markdown.</desc>
+  <rect width="1200" height="330" rx="18" fill="#f7f5f1"/>
+  <g font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">
+    <text x="48" y="60" fill="#74618e" font-size="13" font-weight="600" letter-spacing="2">READ. UNDERSTAND. REMEMBER.</text>
+    <text x="48" y="112" fill="#292632" font-size="38" font-weight="600">A learning loop inside your vault.</text>
+    <text x="48" y="144" fill="#6a6570" font-size="17">Your ideas in Markdown. Your approval before AI writes.</text>
+    <g transform="translate(48 182)">
+      <rect width="240" height="100" rx="10" fill="#fff" stroke="#ded9d1"/>
+      <text x="20" y="30" font-size="12" fill="#827a88">01 / READ</text>
+      <text x="20" y="61" font-size="23" fill="#292632" font-weight="600">Source note</text>
+      <text x="20" y="83" font-size="13" fill="#6a6570">Choose what is worth learning</text>
+    </g>
+    <g transform="translate(336 182)">
+      <rect width="240" height="100" rx="10" fill="#e9e2f0"/>
+      <text x="20" y="30" font-size="12" fill="#74618e">02 / APPROVE</text>
+      <text x="20" y="61" font-size="23" fill="#292632" font-weight="600">Concepts</text>
+      <text x="20" y="83" font-size="13" fill="#6a6570">Edit the ideas you want to keep</text>
+    </g>
+    <g transform="translate(624 182)">
+      <rect width="240" height="100" rx="10" fill="#e6ece7"/>
+      <text x="20" y="30" font-size="12" fill="#597664">03 / APPROVE</text>
+      <text x="20" y="61" font-size="23" fill="#292632" font-weight="600">Cards</text>
+      <text x="20" y="83" font-size="13" fill="#6a6570">Questions grounded in your ideas</text>
+    </g>
+    <g transform="translate(912 182)">
+      <rect width="240" height="100" rx="10" fill="#fff" stroke="#ded9d1"/>
+      <text x="20" y="30" font-size="12" fill="#827a88">04 / REMEMBER</text>
+      <text x="20" y="61" font-size="23" fill="#292632" font-weight="600">FSRS review</text>
+      <text x="20" y="83" font-size="13" fill="#6a6570">Reveal, self-rate, revisit</text>
+    </g>
+    <g fill="none" stroke="#a99faf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M300 232h24m-7-6 7 6-7 6"/>
+      <path d="M588 232h24m-7-6 7 6-7 6"/>
+      <path d="M876 232h24m-7-6 7 6-7 6"/>
+    </g>
+  </g>
+</svg>
